@@ -29,15 +29,13 @@ import {
   navItemsHiddenByPermissions,
 } from "@/lib/customerNavPermissions";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
-import {
-  controllerVenueFeatureReason,
-  featureAppliesToControllerVenue,
-} from "@/lib/router-vendors";
+import { controllerVenueFeatureReason, navRowAppliesToControllerVenue } from "@/lib/router-vendors";
 import { useCustomerStore } from "@/stores/customerStore";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
 import { useFeatureEntitled, useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { GUEST_MARKETING_FEATURE_KEY } from "@/types/marketing";
 import { TRAFFIC_LENS_FEATURE_KEY } from "@/types/traffic-lens";
+import { FIREWALL_FEATURE_KEY } from "@/lib/firewall-section";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
@@ -169,6 +167,10 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
   const marketingEntitled = useFeatureEntitled(GUEST_MARKETING_FEATURE_KEY);
   // Traffic Lens: the same badge, the same source, the same rules.
   const trafficLensEntitled = useFeatureEntitled(TRAFFIC_LENS_FEATURE_KEY);
+  // Firewall: the same badge, the same source, the same rules. Its Security
+  // Check and blocked guests stay usable when it is locked; the badge only
+  // says the rest of the section is an add-on.
+  const firewallEntitled = useFeatureEntitled(FIREWALL_FEATURE_KEY);
 
   return (
     <Sidebar
@@ -288,7 +290,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                     // destination is a panel with no form on it -- so
                     // nothing here can still be filled in and refused.
                     const viaController = controllerManaged
-                      ? !featureAppliesToControllerVenue(item.id, controllerVendor)
+                      ? !navRowAppliesToControllerVenue(item.id, controllerVendor)
                       : false;
                     return (
                       <SidebarMenuItem key={item.id}>
@@ -325,7 +327,8 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                             <Icon className="h-4 w-4 shrink-0" />
                             <span className="flex-1 truncate">{label}</span>
                             {((item.id === "marketing" && marketingEntitled === false) ||
-                              (item.id === "traffic-lens" && trafficLensEntitled === false)) && (
+                              (item.id === "traffic-lens" && trafficLensEntitled === false) ||
+                              (item.id === "firewall" && firewallEntitled === false)) && (
                               <span
                                 className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden"
                                 title={`${label} is an add-on that isn't enabled for your organisation`}
@@ -349,7 +352,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                 {controllerManaged &&
                   !collapsed &&
                   group.items.some(
-                    (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
+                    (item) => !navRowAppliesToControllerVenue(item.id, controllerVendor),
                   ) && (
                     <p className="px-2 pt-1 text-[11px] leading-snug text-sidebar-foreground/55">
                       {controllerReason}

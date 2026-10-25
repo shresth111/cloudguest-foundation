@@ -586,7 +586,7 @@ console.log("\n12. The How-it-works page answers for THIS venue");
 
 check(
   "the page applies the sidebar's controller gate",
-  /featureAppliesToControllerVenue\(item\.id(, controllerVendor)?\)/.test(howItWorks),
+  /navRowAppliesToControllerVenue\(item\.id(, controllerVendor)?\)/.test(howItWorks),
 );
 check(
   "using the shared reason string, not a new sentence",
@@ -602,13 +602,13 @@ check(
   "and the group note is shown only where something in it is gated",
   // `controllerVendor` is passed since Aruba Instant On (NAS-only) greys two
   // more rows; prettier then wraps the call, hence the `\s*` and `,?`.
-  /group\.items\.some\(\s*\(item\) => !featureAppliesToControllerVenue\(item\.id(, controllerVendor)?\),?\s*\)/.test(
+  /group\.items\.some\(\s*\(item\) => !navRowAppliesToControllerVenue\(item\.id(, controllerVendor)?\),?\s*\)/.test(
     howItWorks,
   ),
 );
 check(
   "a MikroTik venue reaches none of it",
-  /controllerManaged\s*\n?\s*\?\s*!featureAppliesToControllerVenue/.test(howItWorks),
+  /controllerManaged\s*\n?\s*\?\s*!navRowAppliesToControllerVenue/.test(howItWorks),
 );
 // The four rewritten sentences, by the fact each one was wrong about.
 check("the DHCP line no longer assumes a router of ours", !/your router/.test(helpEn.feature.dhcp));
@@ -628,18 +628,24 @@ check(
   /end someone's session/.test(helpEn.feature.users) &&
     !/disconnect someone/.test(helpEn.feature.users),
 );
-// Website Blocking is a tab of Security -> Blocking now, so its line moved to
-// "blocking". Asserted to EXIST first -- the old key going missing made the
-// original check pass on `undefined` without anyone noticing.
-check("the blocking line exists", typeof helpEn.feature.blocking === "string");
+// Website Blocking is a tab of Block Websites, which is itself a tab of
+// Security -> Firewall now, so its line moved to "firewall" (the one row
+// left in the Security group). Asserted to EXIST first -- the old key going
+// missing made the original check pass on `undefined` without anyone
+// noticing.
+check("the firewall line exists", typeof helpEn.feature.firewall === "string");
 check(
-  "the blocking line describes the rule, not a guaranteed outcome",
-  !/guests can't reach/.test(helpEn.feature.blocking ?? "guests can't reach"),
+  "the firewall line describes the rule, not a guaranteed outcome",
+  !/guests can't reach/.test(helpEn.feature.firewall ?? "guests can't reach"),
 );
 check(
-  "and does not promise category filtering, which does not exist",
-  !/categor/i.test(helpEn.feature.blocking ?? "categor"),
-  "web category filtering needs a provider this platform does not have",
+  "and does not promise category filtering by name",
+  !/categor/i.test(helpEn.feature.firewall ?? "categor"),
+  "category filtering depends on the platform's Cloudflare account being connected",
+);
+check(
+  "the retired security and blocking lines are gone rather than orphaned",
+  !("security" in helpEn.feature) && !("blocking" in helpEn.feature),
 );
 check(
   "the retired website-blocking line is gone rather than orphaned",

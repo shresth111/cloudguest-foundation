@@ -248,6 +248,11 @@ function api(path, res, req) {
     });
   if (path === "/api/v1/locations/loc-1/routers") return (page(served.routers), true);
   if (path === "/api/v1/firewall-rules") return (page(served.firewallRules ?? []), true);
+  // The Firewall add-on. `served.entitlements` is null until a case sets it,
+  // which answers 404 -- "don't know", so nothing is locked.
+  if (path === "/api/v1/me/entitlements" && served.entitlements) {
+    return (json({ customer_id: "org-1", features: served.entitlements }), true);
+  }
   if (path === "/api/v1/me/organizations") {
     return (json([{ organization_id: "org-1", status: "active" }]), true);
   }
@@ -394,15 +399,15 @@ console.log("\ncontroller venue: the five Network screens");
     "omada-nav-rows-carry-the-reason",
     network.every((row) => /managed by a TP-Link Omada controller/.test(row.title ?? "")),
   );
-  // Five: the four Network rows, and Security -> Firewall, which is a whole
-  // page of RouterOS writes (cloud-guest#304 is MikroTik-only). Blocking is
-  // NOT muted -- its Guests tab works here.
-  // (Six while Web filtering was its own row; it is a section of Block
-  // Websites now, gated with that page's Websites tab.)
+  // Four: the four Network rows. Security -> Firewall is NOT muted: it holds
+  // Block Websites and the Security Check now, whose Guests tab and check
+  // work here, and its rules tab shows the controller notice itself.
+  // (Five while Firewall was a page of RouterOS writes only; six while Web
+  // filtering was its own row.)
   check(
     "omada-nav-mutes-nothing-else",
-    r.rows.filter((row) => row.muted).length === 5 &&
-      r.rows.some((row) => row.label === "Firewall" && row.muted) &&
+    r.rows.filter((row) => row.muted).length === 4 &&
+      r.rows.some((row) => row.label === "Firewall" && !row.muted) &&
       !r.rows.some((row) => row.label === "Web filtering"),
     `${r.rows
       .filter((row) => row.muted)
@@ -478,13 +483,18 @@ const CONTROLLER_COPY = /is configured on this venue's controller|Configured in 
 
 console.log("\nSecurity -> Blocking at a controller venue");
 {
-  const r = await openFeature("blocking", [OMADA]);
-  const row = r.rows.find((x) => x.label === "Block Websites");
+  const r = await openFeature("firewall", [OMADA], { section: "blocking" });
+  // Block Websites is a tab of Firewall now; the row it lives under is.
+  const row = r.rows.find((x) => x.label === "Firewall");
   check("omada-blocking-row-is-in-the-nav", !!row);
   check(
     "omada-blocking-row-is-not-muted",
     row && !row.muted && row.title === null,
     "its Guests tab works here; greying the row would hide a working screen",
+  );
+  check(
+    "block-websites-is-no-longer-a-row-of-its-own",
+    !r.rows.some((x) => x.label === "Block Websites" || x.label === "Security Score"),
   );
   check(
     "omada-blocking-opens-on-guests",
@@ -493,10 +503,10 @@ console.log("\nSecurity -> Blocking at a controller venue");
   );
   check(
     "omada-blocking-offers-both-tabs",
-    (await r.page.getByRole("tab", { name: "Websites" }).count()) === 1 &&
-      (await r.page.getByRole("tab", { name: "Guests & devices" }).count()) === 1,
+    (await r.page.getByRole("tab", { name: "Websites", exact: true }).count()) === 1 &&
+      (await r.page.getByRole("tab", { name: "Guests & devices", exact: true }).count()) === 1,
   );
-  await r.page.getByRole("tab", { name: "Websites" }).click();
+  await r.page.getByRole("tab", { name: "Websites", exact: true }).click();
   await r.page.waitForTimeout(300);
   const websites = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
   check(
@@ -515,7 +525,7 @@ console.log("\nSecurity -> Blocking at a controller venue");
   await r.page.close();
 }
 {
-  const r = await openFeature("blocking", [OMADA], { tab: "websites" });
+  const r = await openFeature("firewall", [OMADA], { section: "blocking", tab: "websites" });
   check(
     "omada-deep-link-to-websites-lands-on-the-notice",
     CONTROLLER_COPY.test(r.text) && !r.text.includes(WEBSITES_VIEW_CTA),
@@ -525,7 +535,7 @@ console.log("\nSecurity -> Blocking at a controller venue");
 
 console.log("\nSecurity -> Blocking at a MikroTik venue");
 {
-  const r = await openFeature("blocking", [MIKROTIK]);
+  const r = await openFeature("firewall", [MIKROTIK], { section: "blocking" });
   check(
     "mikrotik-blocking-opens-on-websites-with-the-real-view",
     r.text.includes(WEBSITES_VIEW_CTA) && !CONTROLLER_COPY.test(r.text),
@@ -559,7 +569,7 @@ console.log("\nSecurity -> Blocking at a MikroTik venue");
   await r.page.close();
 }
 {
-  const r = await openFeature("blocking", [MIKROTIK], { tab: "guests" });
+  const r = await openFeature("firewall", [MIKROTIK], { section: "blocking", tab: "guests" });
   check(
     "mikrotik-deep-link-to-guests-mounts-blocked-guests",
     r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
@@ -592,10 +602,14 @@ console.log("\nSecurity -> Firewall at a controller venue");
       !(await r.page.locator("form").count()),
     "a control that does nothing is the defect this gate exists to prevent",
   );
+  // Not muted any more: the same row opens Block Websites' Guests tab and
+  // the Security Check, which work here. The rules tab says why it cannot.
   const row = r.rows.find((x) => x.label === "Firewall");
+  check("omada-firewall-row-is-not-muted", row && !row.muted && row.title === null);
   check(
-    "omada-firewall-row-is-muted-with-the-reason",
-    row && row.muted && /managed by a TP-Link Omada controller/.test(row.title ?? ""),
+    "omada-firewall-still-offers-its-other-tabs",
+    (await r.page.getByRole("tab", { name: "Block websites", exact: true }).count()) === 1 &&
+      (await r.page.getByRole("tab", { name: "Security check", exact: true }).count()) === 1,
   );
   await r.page.close();
 }
@@ -670,7 +684,7 @@ const WF_SAVE = "Save list";
 console.log("\nSecurity -> Web Filtering at a controller venue");
 {
   served.dns = { configured: true, categories: [], policy: null, status: null };
-  const r = await openFeature("blocking", [OMADA], { tab: "websites" });
+  const r = await openFeature("firewall", [OMADA], { section: "blocking", tab: "websites" });
   check(
     "omada-web-filtering-shows-the-existing-notice",
     /Configured in Omada, not here\./.test(r.text) &&
@@ -694,7 +708,7 @@ console.log("\nSecurity -> Web Filtering at a controller venue");
 console.log("\nSecurity -> Web Filtering when Cloudflare is not connected");
 {
   served.dns = { configured: false };
-  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
+  const r = await openFeature("firewall", [MIKROTIK], { section: "blocking", tab: "websites" });
   await r.page
     .getByText("Not set up yet for this account")
     .waitFor({ timeout: 5_000 })
@@ -775,7 +789,7 @@ console.log("\nSecurity -> Web Filtering at a MikroTik venue");
       limitations: ["Blocks whole domains only: no URL paths, no in-app content."],
     },
   };
-  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
+  const r = await openFeature("firewall", [MIKROTIK], { section: "blocking", tab: "websites" });
   await r.page
     .getByText("Lobby hEX")
     .last()
@@ -894,7 +908,7 @@ console.log("\nSecurity -> Web Filtering: shared category sets (cloud-guest#307 
       },
     }),
   };
-  const r = await openFeature("blocking", [MIKROTIK], { tab: "websites" });
+  const r = await openFeature("firewall", [MIKROTIK], { section: "blocking", tab: "websites" });
   await r.page
     .getByText("Adult themes")
     .first()
@@ -1031,6 +1045,100 @@ console.log("\nunknown venue state: fails open");
   );
   await r.page.close();
 }
+
+// ---------------------------------------------------------------------------
+// The Firewall add-on (lib/firewall-section.ts). Locked: the paid tabs show
+// the add-on screen and mount nothing that would 402; the Security check and
+// blocked guests still work; the row stays, badged. Unlocked: unchanged.
+// ---------------------------------------------------------------------------
+
+const ADDON_COPY = "Firewall is an add-on";
+
+console.log("\nFirewall add-on locked (MikroTik venue)");
+served.entitlements = [{ feature_key: "firewall", enabled: false, limits: {} }];
+{
+  const r = await openFeature("firewall", [MIKROTIK]);
+  await r.page
+    .getByText(ADDON_COPY)
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  const text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "locked-rules-tab-shows-the-add-on-screen-and-no-control",
+    text.includes(ADDON_COPY) &&
+      !text.includes(FIREWALL_APPLY) &&
+      !text.includes(FIREWALL_ADD) &&
+      (await r.page.getByRole("button", { name: "Ask Wyfy to enable it" }).count()) === 1,
+    text.slice(0, 600),
+  );
+  const row = r.rows.find((x) => x.label.startsWith("Firewall"));
+  check(
+    "locked-firewall-row-stays-and-carries-the-add-on-badge",
+    !!row && /Add-on/.test(row.label) && !row.muted,
+    JSON.stringify(row),
+  );
+  check(
+    "locked-page-still-offers-all-three-tabs",
+    (await r.page.getByRole("tab", { name: /Firewall rules/ }).count()) === 1 &&
+      (await r.page.getByRole("tab", { name: "Block websites", exact: true }).count()) === 1 &&
+      (await r.page.getByRole("tab", { name: "Security check", exact: true }).count()) === 1,
+  );
+  await r.page.close();
+}
+{
+  const r = await openFeature("firewall", [MIKROTIK], { section: "blocking" });
+  await r.page.waitForTimeout(500);
+  const text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "locked-block-websites-opens-on-blocked-guests-which-still-work",
+    text.includes(GUESTS_VIEW_CTA) && !text.includes(WEBSITES_VIEW_CTA),
+    text.slice(0, 600),
+  );
+  await r.page.getByRole("tab", { name: "Websites", exact: true }).click();
+  await r.page.waitForTimeout(300);
+  const websites = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "locked-websites-tab-shows-the-add-on-screen-and-mounts-no-section",
+    websites.includes(ADDON_COPY) &&
+      !websites.includes(WEBSITES_VIEW_CTA) &&
+      !websites.includes("Specific websites") &&
+      !websites.includes("Advanced: block an internet address"),
+    websites.slice(0, 600),
+  );
+  await r.page.close();
+}
+{
+  const r = await openFeature("firewall", [MIKROTIK], { section: "security" });
+  await r.page.waitForTimeout(500);
+  const text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "locked-security-check-is-not-part-of-the-add-on",
+    !text.includes(ADDON_COPY),
+    text.slice(0, 600),
+  );
+  await r.page.close();
+}
+
+console.log("\nFirewall add-on unlocked (MikroTik venue)");
+served.entitlements = [{ feature_key: "firewall", enabled: true, limits: {} }];
+{
+  const r = await openFeature("firewall", [MIKROTIK]);
+  await r.page
+    .getByText(FIREWALL_APPLY)
+    .first()
+    .waitFor({ timeout: 5_000 })
+    .catch(() => {});
+  const text = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "unlocked-rules-tab-is-the-real-screen-with-no-badge",
+    text.includes(FIREWALL_APPLY) &&
+      !text.includes(ADDON_COPY) &&
+      !r.rows.some((x) => /Add-on/.test(x.label)),
+  );
+  await r.page.close();
+}
+served.entitlements = null;
 
 await browser.close();
 server.close();

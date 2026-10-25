@@ -1,4 +1,5 @@
 import type { CustomerNavGroup, CustomerNavItem } from "@/lib/customerNav";
+import { FIREWALL_SECTION_PERMISSION_KEYS } from "@/lib/firewall-section";
 
 /**
  * Which real backend permission keys make a customer nav item meaningful.
@@ -131,24 +132,18 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // among customer roles (API.md, "Customer API"). Whether the add-on is
   // unlocked is entitlements, not permissions -- see `marketing` above.
   "traffic-lens": ["venue_traffic.read"],
-  // Security: one key, and it is the only action the backend's SECURITY
-  // module seeds today (`MODULE_ACTIONS[PermissionModule.SECURITY] ==
-  // (READ,)`). The write actions arrive with the endpoints that check them,
-  // so a longer list here would name keys that do not exist -- which is
-  // exactly what `scripts/test-customer-nav-permissions.mjs` is there to
-  // catch, since a key nobody seeds hides the row from everyone.
-  security: ["security.read"],
-  // Blocking is two screens that moved here (lib/blocking.ts), each guarded
-  // by its own domain: `/content-filter/rules` by `content_filtering.read`,
-  // `/guest-access/rules` by `guest_access.read`. Either one is a page worth
-  // opening, so either one offers the row -- requiring both would hide a
-  // working tab from a role that only holds the other. The page narrows its
-  // own tabs by the same keys (`blockingTabsFor`).
-  blocking: ["content_filtering.read", "guest_access.read"],
-  // Security -> Firewall reads `/firewall-rules` (`firewall.read`); Apply is
-  // `firewall.execute`, which the backend checks on the push itself. Same
-  // module Port Forwarding is guarded by -- there is one FIREWALL module.
-  firewall: ["firewall.read"],
+  // Security -> Firewall is the whole Security section now: firewall rules
+  // (`/firewall-rules`, `firewall.read`; Apply is `firewall.execute`, checked
+  // by the backend on the push itself -- the same FIREWALL module Port
+  // Forwarding is guarded by), Block Websites (`content_filtering.read` for
+  // its Websites tab, `guest_access.read` for its Guests tab) and the
+  // Security Check (`security.read`, the only action the backend's SECURITY
+  // module seeds). Each is a tab worth opening, so any one key offers the
+  // row -- requiring all of them would hide working tabs from a role that
+  // holds only some. The page narrows its own tabs by the same keys
+  // (`firewallSectionsFor`). "security" and "blocking" were rows of their own
+  // with exactly these keys; they are tabs now and have no entry here.
+  firewall: FIREWALL_SECTION_PERMISSION_KEYS,
   // No "web-filtering" row any more: its categories are a section of Block
   // Websites' Websites tab, and `/dns-filtering/*` is guarded by the same
   // content_filtering keys (cloud-guest#307) that tab already reads.

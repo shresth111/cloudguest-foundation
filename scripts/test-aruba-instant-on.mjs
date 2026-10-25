@@ -736,12 +736,14 @@ check(
 );
 check(
   "the feature page passes the vendor to the gate",
-  /featureAppliesToControllerVenue\(\s*feature,\s*locationControllerVendor/.test(featurePage),
+  // navRowAppliesToControllerVenue is the same gate, minus the rows that gate
+  // tab by tab (Security -> Firewall); it passes the vendor straight through.
+  /navRowAppliesToControllerVenue\(\s*feature,\s*locationControllerVendor/.test(featurePage),
 );
 const sidebar = src("src/components/customer/CustomerSidebar.tsx");
 check(
   "the sidebar passes the vendor to the gate",
-  (sidebar.match(/featureAppliesToControllerVenue\(item\.id, controllerVendor\)/g) ?? []).length ===
+  (sidebar.match(/navRowAppliesToControllerVenue\(item\.id, controllerVendor\)/g) ?? []).length ===
     2,
 );
 

@@ -47,7 +47,9 @@
  * its nav entry (id "notification"), so the nav was 25 -- and the Security
  * group's single row has since brought it back to 26, the Marketing
  * add-on's own group took it to 27, Security -> Firewall to 28 and
- * Security -> Web Filtering to 29. The stub below reads the lucide imports straight from `customerNav.ts` +
+ * Security -> Web Filtering to 29. (Security Score and Block Websites have
+ * since folded into Firewall as tabs; test-customer-nav-shell.mjs owns the
+ * count.) The stub below reads the lucide imports straight from `customerNav.ts` +
  * `customerFeatureCatalog.ts`, so removing that entry's `Send` icon drops
  * it from the stub automatically.
  *
@@ -193,8 +195,8 @@ const EVERY_KEY_IMAGINABLE = [
   "support_tickets.read",
   "audit_logs.read",
   "guest_sessions.read",
-  // The Security group's single row. `security` is the only action the
-  // backend's SECURITY module seeds today, so this is the whole key.
+  // The Security Check tab of Security -> Firewall. `security` is the only
+  // action the backend's SECURITY module seeds today, so this is the whole key.
   "security.read",
   // The Marketing add-on's row (wyfy-specs/guest-marketing-campaigns.md
   // §3.5). Its own module, `marketing`, seeded by the backend alongside it.
@@ -307,28 +309,28 @@ check(
   navItemAllowed("admin-logs", new Set(["audit_logs.read"])) &&
     !navItemAllowed("admin-logs", new Set(["admin_logs.read"])),
 );
-// Website Blocking moved into Security -> Blocking with the Blocked Guests
-// screen. The row is offered on EITHER domain's read key -- each tab is a
-// page worth opening alone -- and on neither key it is not offered at all.
+// Security -> Firewall is the whole Security section now: firewall rules,
+// Block Websites (Websites + Guests tabs) and the Security Check are its tabs
+// (lib/firewall-section.ts). The row is offered on ANY of their read keys --
+// each tab is a page worth opening alone -- and on none of them not at all.
+for (const key of [
+  "firewall.read",
+  "content_filtering.read",
+  "guest_access.read",
+  "security.read",
+]) {
+  check(`firewall is offered on ${key}`, navItemAllowed("firewall", new Set([key])));
+}
 check(
-  "blocking is offered on content_filtering.read (the Websites tab)",
-  navItemAllowed("blocking", new Set(["content_filtering.read"])),
+  "firewall is not offered on an unrelated key",
+  !navItemAllowed("firewall", new Set(["policy.read", "dhcp.read"])),
 );
+// Security Score and Block Websites were rows of their own; they are tabs of
+// Firewall now and must not keep a mapping that would read as a row.
 check(
-  "blocking is offered on guest_access.read (the Guests tab)",
-  navItemAllowed("blocking", new Set(["guest_access.read"])),
-);
-check(
-  "blocking is not offered on an unrelated key",
-  !navItemAllowed("blocking", new Set(["policy.read", "security.read"])),
-);
-// Security -> Firewall reads /firewall-rules, which checks firewall.read --
-// the same FIREWALL module Port Forwarding is gated on. Apply is
-// firewall.execute, checked by the backend on the push itself.
-check(
-  "firewall is gated on firewall.read",
-  navItemAllowed("firewall", new Set(["firewall.read"])) &&
-    !navItemAllowed("firewall", new Set(["security.read", "content_filtering.read"])),
+  "the retired security and blocking ids are no longer mapped",
+  !Object.prototype.hasOwnProperty.call(NAV_PERMISSION_KEYS, "security") &&
+    !Object.prototype.hasOwnProperty.call(NAV_PERMISSION_KEYS, "blocking"),
 );
 // Web filtering's categories are a section of Block Websites now, reading
 // /dns-filtering/* under the same content_filtering keys (cloud-guest#307)
@@ -339,8 +341,8 @@ check(
   !Object.prototype.hasOwnProperty.call(NAV_PERMISSION_KEYS, "web-filtering"),
 );
 check(
-  "Block Websites (and so its categories) opens on content_filtering.read",
-  navItemAllowed("blocking", new Set(["content_filtering.read"])),
+  "Block Websites (and so its categories) opens on content_filtering.read, via Firewall",
+  navItemAllowed("firewall", new Set(["content_filtering.read"])),
 );
 check(
   "the retired website-blocking id is no longer mapped",

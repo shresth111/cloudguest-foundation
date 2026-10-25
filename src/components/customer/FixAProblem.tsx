@@ -95,7 +95,7 @@ import { ispService } from "@/services/isp.service";
 import { guestService } from "@/services/guest.service";
 import { contentFilterService } from "@/services/contentFilter.service";
 import { networkDiagnosticsService } from "@/services/network-diagnostics.service";
-import type { AppError } from "@/services/api";
+import { requestErrorOf, type AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type { IspLink } from "@/types/isp";
 import type { Guest, GuestSession } from "@/types/guest";
@@ -1148,17 +1148,25 @@ function ZoneCSiteCheck({
         if (hit) {
           blockedByRule = { name: hit.name, confirmedOnRouter: hit.devicePushStatus === "active" };
         }
-      } catch {
+      } catch (err) {
         // Not fatal -- fall through to the reachability half rather than
         // failing the whole check on one unreadable list. But SAY so: this
         // used to be silent, and it failed on every call (a `page_size=200`
         // the route 422s), so every verdict quietly skipped our own rules.
-        toast.warning(t("rulesUnreadable", "We couldn't read this venue's blocked-website list."), {
-          description: t(
-            "rulesUnreadableBody",
-            "The check below only covers whether the site is reachable, not whether one of your own rules blocks it.",
-          ),
-        });
+        //
+        // Except a 402: Block Websites is part of the Firewall add-on, and
+        // an organisation without it has no website rules this list could
+        // have shown. Warning that it was "unreadable" would be untrue.
+        if (requestErrorOf(err)?.status !== 402)
+          toast.warning(
+            t("rulesUnreadable", "We couldn't read this venue's blocked-website list."),
+            {
+              description: t(
+                "rulesUnreadableBody",
+                "The check below only covers whether the site is reachable, not whether one of your own rules blocks it.",
+              ),
+            },
+          );
       }
 
       if (blockedByRule) {

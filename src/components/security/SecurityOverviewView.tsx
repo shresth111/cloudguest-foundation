@@ -131,67 +131,69 @@ const PLAIN_COPY: Record<string, string> = {
  * manages it). */
 type ManagedAt =
   | {
-      to: "/blocking";
+      // Block Websites, the "blocking" tab of Security -> Firewall.
+      to: "blocking";
       tab: "websites" | "guests";
       hash?: string;
       labelKey: string;
       label: string;
     }
-  | { to: "/firewall"; labelKey: string; label: string };
+  // The firewall rules tab of the same page.
+  | { to: "rules"; labelKey: string; label: string };
 
 const MANAGED_AT: Record<string, ManagedAt> = {
   domain_blocking_dns: {
-    to: "/blocking",
+    to: "blocking",
     tab: "websites",
     labelKey: "securityScore.link.website",
     label: "Block a website",
   },
   web_category_filtering: {
-    to: "/blocking",
+    to: "blocking",
     tab: "websites",
     hash: "categories",
     labelKey: "securityScore.link.categories",
     label: "Choose kinds of website to block",
   },
   application_control: {
-    to: "/blocking",
+    to: "blocking",
     tab: "websites",
     hash: "apps",
     labelKey: "securityScore.link.apps",
     label: "Choose apps to block",
   },
   threat_intelligence: {
-    to: "/blocking",
+    to: "blocking",
     tab: "websites",
     hash: "categories",
     labelKey: "securityScore.link.harmful",
     label: "Block known harmful websites",
   },
   ip_and_cidr_blocking: {
-    to: "/blocking",
+    to: "blocking",
     tab: "websites",
     hash: "advanced",
     labelKey: "securityScore.link.address",
     label: "Block an internet address",
   },
   device_isolation: {
-    to: "/blocking",
+    to: "blocking",
     tab: "guests",
     labelKey: "securityScore.link.guest",
     label: "Block a guest",
   },
   zone_to_zone_firewall: {
-    to: "/firewall",
+    to: "rules",
     labelKey: "securityScore.link.firewall",
     label: "Set firewall rules",
   },
   connection_flood_protection: {
-    to: "/firewall",
+    to: "rules",
     labelKey: "securityScore.link.floodLimit",
     label: "Limit connection floods",
   },
   guest_client_isolation: {
-    to: "/firewall",
+    to: "rules",
     labelKey: "securityScore.link.guestIsolation",
     label: "Keep guests apart",
   },
@@ -252,12 +254,19 @@ function ManagedAtLink({ at }: { at: ManagedAt }) {
       <ArrowRight className="h-3 w-3" aria-hidden="true" />
     </>
   );
-  return at.to === "/blocking" ? (
-    <Link to="/blocking" search={{ tab: at.tab }} hash={at.hash} className={cls}>
+  // Both are tabs of the page this check is itself a tab of
+  // (lib/firewall-section.ts), so a link is a tab switch, not a new page.
+  return at.to === "blocking" ? (
+    <Link
+      to="/firewall"
+      search={{ section: "blocking", tab: at.tab }}
+      hash={at.hash}
+      className={cls}
+    >
       {body}
     </Link>
   ) : (
-    <Link to="/firewall" className={cls}>
+    <Link to="/firewall" search={{ section: "rules" }} className={cls}>
       {body}
     </Link>
   );
