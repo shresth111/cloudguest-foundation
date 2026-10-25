@@ -65,6 +65,7 @@ import { HardwareHealthDetails } from "@/components/customer/HardwareHealthDetai
 import { useControllerDevices } from "@/hooks/useControllerDevices";
 import { maskEmail, maskMac, maskPhone } from "@/components/features/HeaderControls";
 import { requestErrorMessage } from "@/services/api";
+import { describeAddressBinding } from "@/lib/hardware-address-binding";
 
 /** Realistic (but fake) guest identities shared by this file's demo/preview
  * views -- see customer.service.ts's own `DEMO_GUEST_IDENTITIES` for why
@@ -502,6 +503,8 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
         form.floor,
       );
       toast.success(`${form.type} added on ${form.floor}`);
+      const binding = describeAddressBinding(created?.addressBinding);
+      if (binding) toast[binding.tone](binding.message);
       // Registration succeeds either way; this only says up front why the
       // row may stay "Never observed" (prod had one AP added at 3 venues).
       if (created?.duplicateLocations?.length) {
