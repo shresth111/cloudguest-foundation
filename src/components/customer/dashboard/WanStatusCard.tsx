@@ -176,9 +176,9 @@ const INTEGRATED_STYLE_KEY = {
 
 /**
  * The dashboard's own WAN/Internet Connection status widget. One uplink:
- * that link's real status, history and live bandwidth. Two or more: an
- * integrated reading first (how many ISPs are up, combined live rate),
- * then every ISP's own health row underneath. An honest setup prompt
+ * that link's real status and history. Two or more: an integrated reading
+ * first (how many ISPs are up), then every ISP's own health row underneath.
+ * Live traffic is the Bandwidth Utilization card's job, not repeated here. An honest setup prompt
  * when no `IspLink` is configured yet.
  */
 export function WanStatusCard({
@@ -240,7 +240,6 @@ export function WanStatusCard({
 
 function SingleWanView({ link, checks }: { link: IspLink; checks: IspHealthCheck[] }) {
   const style = WAN_HEALTH_STYLE[link.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
-  const hasBandwidth = link.currentDownloadMbps != null || link.currentUploadMbps != null;
   return (
     <div className="space-y-4">
       <div>
@@ -277,15 +276,6 @@ function SingleWanView({ link, checks }: { link: IspLink; checks: IspHealthCheck
           <WanRecentChecks checks={checks} />
         </div>
       </div>
-      {hasBandwidth && (
-        <BandwidthFigures
-          title="Bandwidth · live"
-          download={link.currentDownloadMbps}
-          upload={link.currentUploadMbps}
-          latency={link.latencyMs}
-          loss={link.packetLossPercentage}
-        />
-      )}
     </div>
   );
 }
@@ -325,18 +315,6 @@ function MultiWanView({
         )}
       </div>
 
-      {(health.liveDownloadMbps != null || health.liveUploadMbps != null) && (
-        <BandwidthFigures
-          title={
-            health.planDownloadMbps != null
-              ? `Combined bandwidth · live · plan ${health.planDownloadMbps} Mbps`
-              : "Combined bandwidth · live"
-          }
-          download={health.liveDownloadMbps}
-          upload={health.liveUploadMbps}
-        />
-      )}
-
       {/* Each ISP on its own */}
       <div className="space-y-2 border-t border-border/60 pt-3">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -348,52 +326,6 @@ function MultiWanView({
         <p className="pt-0.5 text-[11px] text-muted-foreground">
           If one ISP fails its health checks, traffic moves to the remaining ISP automatically.
         </p>
-      </div>
-    </div>
-  );
-}
-
-function BandwidthFigures({
-  title,
-  download,
-  upload,
-  latency,
-  loss,
-}: {
-  title: string;
-  download: number | null;
-  upload: number | null;
-  latency?: number | null;
-  loss?: number | null;
-}) {
-  const figures = [
-    { label: "Download", value: download, unit: "Mbps", digits: 0 },
-    { label: "Upload", value: upload, unit: "Mbps", digits: 0 },
-    ...(latency !== undefined ? [{ label: "Latency", value: latency, unit: "ms", digits: 0 }] : []),
-    ...(loss !== undefined ? [{ label: "Loss", value: loss, unit: "%", digits: 1 }] : []),
-  ];
-  return (
-    <div className="rounded-lg bg-muted/40 px-3 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {title}
-      </p>
-      <div
-        className={cn(
-          "mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2",
-          figures.length === 4 && "sm:grid-cols-4",
-        )}
-      >
-        {figures.map((m) => (
-          <div key={m.label} className="min-w-0">
-            <p className="text-lg font-semibold leading-tight tabular-nums text-foreground">
-              {m.value != null ? m.value.toFixed(m.digits) : "—"}
-              {m.value != null && (
-                <span className="ml-0.5 text-xs font-normal text-muted-foreground">{m.unit}</span>
-              )}
-            </p>
-            <p className="text-[11px] text-muted-foreground">{m.label}</p>
-          </div>
-        ))}
       </div>
     </div>
   );
