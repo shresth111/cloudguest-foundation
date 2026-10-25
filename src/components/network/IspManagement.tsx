@@ -1,16 +1,5 @@
 import { useState } from "react";
-import {
-  Plus,
-  Trash2,
-  Pencil,
-  Cable,
-  ShieldCheck,
-  ShieldOff,
-  Activity,
-  ArrowLeftRight,
-  RotateCcw,
-  Globe,
-} from "lucide-react";
+import { Plus, Trash2, Pencil, Cable, ShieldCheck, ShieldOff, Activity, Globe } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -62,8 +51,6 @@ import {
   useUpdateIspLink,
   useDeleteIspLink,
   useCheckIspLinkHealth,
-  useTriggerIspFailover,
-  useTriggerIspFailback,
   useIspRoutingRules,
   useCreateIspRoutingRule,
   useUpdateIspRoutingRule,
@@ -129,8 +116,6 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
 
   const del = useDeleteIspLink();
   const checkHealth = useCheckIspLinkHealth();
-  const failover = useTriggerIspFailover();
-  const failback = useTriggerIspFailback();
   const delRule = useDeleteIspRoutingRule();
 
   const [editingLink, setEditingLink] = useState<IspLink | null>(null);
@@ -151,7 +136,7 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
         icon={Globe}
         eyebrow="Network"
         title="Internet Failover"
-        description="Per-router uplinks, health checks, manual failover/failback, and policy-based routing rules that pin traffic to a specific link."
+        description="Per-router uplinks, health checks, and policy-based routing rules that pin traffic to a specific link."
         actions={
           <Button onClick={() => setCreatingLink(true)} disabled={!routerId}>
             <Plus className="mr-1.5 h-4 w-4" /> New Uplink
@@ -186,40 +171,6 @@ export function IspManagement({ locationId }: { locationId?: string } = {}) {
             </SelectContent>
           </Select>
         </CardHeader>
-        {routerId && (
-          <CardContent className="flex flex-wrap gap-2 pt-0">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={failover.isPending}
-              onClick={async () => {
-                try {
-                  await failover.mutateAsync({ routerId });
-                  toast.success("Failover triggered");
-                } catch (err) {
-                  toast.error(humanizeApiError(err as AppError, "Failover failed"));
-                }
-              }}
-            >
-              <ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" /> Trigger failover
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={failback.isPending}
-              onClick={async () => {
-                try {
-                  await failback.mutateAsync({ routerId });
-                  toast.success("Failback triggered");
-                } catch (err) {
-                  toast.error(humanizeApiError(err as AppError, "Failback failed"));
-                }
-              }}
-            >
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Trigger failback
-            </Button>
-          </CardContent>
-        )}
       </Card>
 
       {!routerId ? (

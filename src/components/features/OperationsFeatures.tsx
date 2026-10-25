@@ -30,7 +30,6 @@ import {
   Network,
   Plus,
   RadioTower,
-  RotateCcw,
   Router,
   Shield,
   ShieldAlert,
@@ -2719,18 +2718,17 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
   const [historyLinkId, setHistoryLinkId] = useState<string | null>(null);
-  // Routing rules + failover/failback -- merged in from the former separate
+  // Routing rules -- merged in from the former separate
   // "Internet Failover" nav item (isp-routing -> IspManagement.tsx), which
   // used to make a customer navigate to a second page for exactly the same
   // per-router ISP links this view already shows. Same real backend
-  // (ispService.triggerFailover/triggerFailback/listRoutingRules/etc, see
+  // (ispService.listRoutingRules/etc, see
   // that service's own comments) -- only the frontend surface changed.
   const [rules, setRules] = useState<IspRoutingRule[]>([]);
   const [rulesLoading, setRulesLoading] = useState(false);
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<IspRoutingRule | null>(null);
   const [savingRule, setSavingRule] = useState(false);
-  const [failoverBusy, setFailoverBusy] = useState<"failover" | "failback" | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -3018,48 +3016,6 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
     }
   };
 
-  // Failover/failback triggers -- merged in from the former separate
-  // "Internet Failover" nav item/page (isp-routing). Router-scoped (a
-  // failover switches *this router's* active uplink among its own links),
-  // same as the uplinks/rules tables above are already scoped to
-  // `selectedRouterId`. Real backend calls (`IspService.trigger_failover`/
-  // `trigger_failback`), not a client-side toggle of `isActiveUplink`.
-  const triggerFailover = async () => {
-    if (demo) {
-      toast.info("Failover runs against real router hardware -- not available in demo mode.");
-      return;
-    }
-    if (!selectedRouterId) return;
-    setFailoverBusy("failover");
-    try {
-      await ispService.triggerFailover(selectedRouterId);
-      await loadLinks(selectedRouterId);
-      toast.success("Failover triggered");
-    } catch (err) {
-      toast.error(humanizeApiError(err as AppError, "Failover failed"));
-    } finally {
-      setFailoverBusy(null);
-    }
-  };
-
-  const triggerFailback = async () => {
-    if (demo) {
-      toast.info("Failback runs against real router hardware -- not available in demo mode.");
-      return;
-    }
-    if (!selectedRouterId) return;
-    setFailoverBusy("failback");
-    try {
-      await ispService.triggerFailback(selectedRouterId);
-      await loadLinks(selectedRouterId);
-      toast.success("Failback triggered");
-    } catch (err) {
-      toast.error(humanizeApiError(err as AppError, "Failback failed"));
-    } finally {
-      setFailoverBusy(null);
-    }
-  };
-
   // Routing rules -- also merged in from the former "Internet Failover"
   // page, same real ispService.*RoutingRule endpoints IspManagement.tsx's
   // own rule table already used (see that file's own RULE_TYPES/
@@ -3265,38 +3221,6 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                 check them, switch between them or route traffic across them.
               </p>
             </div>
-          )}
-
-          {ispDeviceControlsApply && links.length > 0 && (
-            <Card className="border-0 shadow-sm">
-              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-                <div>
-                  <CardTitle className="text-sm">Failover</CardTitle>
-                  <CardDescription>
-                    Manually switch this router's active uplink, or fail back to its primary once
-                    it's healthy again.
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={failoverBusy !== null}
-                    onClick={triggerFailover}
-                  >
-                    <ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" /> Trigger failover
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={failoverBusy !== null}
-                    onClick={triggerFailback}
-                  >
-                    <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Trigger failback
-                  </Button>
-                </div>
-              </CardHeader>
-            </Card>
           )}
 
           <Card className="border-0 shadow-sm">
