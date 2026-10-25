@@ -152,7 +152,6 @@ import type {
   IspConnectionMode,
   IspRoutingRule,
   IspRoutingRuleType,
-  IspSpeedTestResult,
 } from "@/types/isp";
 import { api } from "@/services/api";
 import type { AppError } from "@/services/api";
@@ -2716,16 +2715,6 @@ function IspRuleDialog({
   );
 }
 
-/** On-demand "Run Speed Test" state, keyed per-link -- a genuine RouterOS
- * `/tool/fetch` download against that link's own router
- * (`ispService.runSpeedTest`), never a simulated number. See
- * `IspSpeedTestResult`'s own doc comment for why `uploadMbps` is always
- * null. */
-type SpeedTestState =
-  | { status: "running" }
-  | { status: "done"; result: IspSpeedTestResult }
-  | { status: "error"; message: string };
-
 export function IspDetailsView({ locationId }: { locationId?: string }) {
   const demo = isDemo();
   const [routers, setRouters] = useState<RouterDevice[]>([]);
@@ -2746,10 +2735,6 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
   const [saving, setSaving] = useState(false);
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
-  // Per-link so testing the backup uplink never clobbers a still-fresh
-  // primary result (or vice versa) -- a location can genuinely have more
-  // than one ISP link, and this must work for each independently.
-  const [speedTests, setSpeedTests] = useState<Record<string, SpeedTestState>>({});
   const [historyLinkId, setHistoryLinkId] = useState<string | null>(null);
   // Routing rules + failover/failback -- merged in from the former separate
   // "Internet Failover" nav item (isp-routing -> IspManagement.tsx), which
@@ -3024,27 +3009,6 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       toast.error(humanizeApiError(err as AppError, "Health check failed."));
     } finally {
       setCheckingId(null);
-    }
-  };
-
-  // A real, on-demand, multi-second action: a genuine RouterOS
-  // /tool/fetch download against this link's own router plus a real ping
-  // for latency (see backend IspService.run_speed_test's own docstring).
-  // Never fabricated -- if the real device action fails, this surfaces
-  // that failure honestly rather than showing a number.
-  const runSpeedTest = async (link: IspLink) => {
-    if (demo) {
-      toast.info("Speed tests run against real router hardware -- not available in demo mode.");
-      return;
-    }
-    setSpeedTests((s) => ({ ...s, [link.id]: { status: "running" } }));
-    try {
-      const result = await ispService.runSpeedTest(link.id);
-      setSpeedTests((s) => ({ ...s, [link.id]: { status: "done", result } }));
-    } catch (err) {
-      const message = humanizeApiError(err as AppError, "Speed test failed.");
-      setSpeedTests((s) => ({ ...s, [link.id]: { status: "error", message } }));
-      toast.error(message);
     }
   };
 
@@ -3458,35 +3422,6 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                               ? `${l.packetLossPercentage.toFixed(1)}%`
                               : "—"}
                           </div>
-                          {/* Real, on-demand /tool/fetch result -- distinct from
-                           * the passive traffic-rate figures above it, so this
-                           * only ever shows once a link's own Speed Test button
-                           * has actually been run this session. */}
-                          {speedTests[l.id]?.status === "running" && (
-                            <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
-                              <span className="relative flex h-1.5 w-1.5 shrink-0">
-                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
-                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
-                              </span>
-                              Measuring…
-                            </div>
-                          )}
-                          {speedTests[l.id]?.status === "done" && (
-                            <div className="mt-0.5 text-[10px]">
-                              <span className="font-semibold text-foreground">
-                                {(
-                                  speedTests[l.id] as { status: "done"; result: IspSpeedTestResult }
-                                ).result.downloadMbps.toFixed(1)}{" "}
-                                Mbps ↓
-                              </span>
-                              <span className="text-muted-foreground"> real speed test</span>
-                            </div>
-                          )}
-                          {speedTests[l.id]?.status === "error" && (
-                            <div className="mt-0.5 text-[10px] text-rose-600 dark:text-rose-400">
-                              Speed test failed
-                            </div>
-                          )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {l.lastCheckedAt ? timeAgo(l.lastCheckedAt) : "Never"}
@@ -3527,21 +3462,6 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                             >
                               <RefreshCw
                                 className={cn("h-4 w-4", checkingId === l.id && "animate-spin")}
-                              />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              title="Run a real speed test against this link's router"
-                              disabled={speedTests[l.id]?.status === "running"}
-                              onClick={() => runSpeedTest(l)}
-                            >
-                              <Gauge
-                                className={cn(
-                                  "h-4 w-4",
-                                  speedTests[l.id]?.status === "running" && "animate-spin",
-                                )}
                               />
                             </Button>
                             <Button
