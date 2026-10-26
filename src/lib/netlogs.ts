@@ -110,6 +110,18 @@ export function categoryLabel(category: string | null | undefined): string {
   return NETLOGS_CATEGORY_LABEL[category] ?? titleCase(category);
 }
 
+/** A captive-portal failure is written by WyfyGuest's portal API, not by a
+ * router hotspot. Keeping that provenance in the row prevents a portal retry
+ * from looking like it contradicted a separate RADIUS decision. */
+export function eventCategoryLabel(
+  event: Pick<NetLogEvent, "category" | "source" | "protocol">,
+): string {
+  if (event.source === "captive_portal" || event.protocol === "PORTAL") {
+    return "Portal sign-in";
+  }
+  return categoryLabel(event.category);
+}
+
 export function titleCase(value: string): string {
   const s = value.replace(/_/g, " ").trim();
   return s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -175,11 +187,14 @@ export function severityLabel(event: Pick<NetLogEvent, "severity" | "severity_na
 /** Device/Host column: the router's name in this account, else the name the
  * device sent; plus the venue as a small label. */
 export function deviceHost(
-  event: Pick<NetLogEvent, "router_name" | "hostname" | "location_name">,
+  event: Pick<NetLogEvent, "router_name" | "hostname" | "location_name" | "source">,
 ): {
   name: string;
   location: string | null;
 } {
+  if (event.source === "captive_portal") {
+    return { name: "WyfyGuest Portal", location: event.location_name?.trim() || null };
+  }
   const name = event.router_name?.trim() || event.hostname?.trim() || "Unknown device";
   return { name, location: event.location_name?.trim() || null };
 }
