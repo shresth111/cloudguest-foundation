@@ -54,6 +54,7 @@ import {
   STATUS_TONE_CLASS,
   categoryLabel,
   deviceHost,
+  eventCategoryLabel,
   effectiveLocationId,
   filtersFromSearch,
   hasNarrowingFilters,
@@ -1082,7 +1083,7 @@ function LogTable({
                             {msg.headline}
                           </span>
                           <span className="ml-1.5 text-[10px] text-muted-foreground">
-                            {categoryLabel(e.category)}
+                            {eventCategoryLabel(e)}
                           </span>
                         </div>
                       </div>

@@ -327,6 +327,21 @@ eq(
   "Unknown device",
 );
 eq(
+  "Portal failures identify the portal, not an invented device",
+  m.deviceHost({
+    router_name: null,
+    hostname: null,
+    location_name: "Mumbai HQ",
+    source: "captive_portal",
+  }),
+  { name: "WyfyGuest Portal", location: "Mumbai HQ" },
+);
+eq(
+  "Portal failures are not labelled as router-hotspot events",
+  m.eventCategoryLabel({ category: "hotspot_auth", source: "captive_portal", protocol: "PORTAL" }),
+  "Portal sign-in",
+);
+eq(
   "Message: summary first, full line on expand",
   m.messageParts({ summary: "IP assigned", message: "dhcp1 assigned 10.0.0.5 to AA:BB" }),
   { headline: "IP assigned", detail: "dhcp1 assigned 10.0.0.5 to AA:BB" },
