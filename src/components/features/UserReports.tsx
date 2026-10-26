@@ -205,8 +205,8 @@ const SMS_REPORT_TYPES: ReportType[] = [
   },
   {
     id: "sms-daywise",
-    label: "Daily SMS Delivery Rate",
-    desc: "Daily sent/delivered/failed totals across the period.",
+    label: "Daily SMS OTP Consumption By Location",
+    desc: "Actual SMS OTP requests per location, grouped by each location's local day.",
   },
 ];
 
@@ -413,10 +413,8 @@ const COLUMNS: Record<string, ColumnDef[]> = {
   ],
   "sms-daywise": [
     { key: "date", label: "Date", sortType: "date" },
-    { key: "sent", label: "Sent", sortType: "number" },
-    { key: "delivered", label: "Delivered", sortType: "number" },
-    { key: "failed", label: "Failed", sortType: "number" },
-    { key: "rate", label: "Delivery Rate", sortType: "string" },
+    { key: "location", label: "Location", sortType: "string" },
+    { key: "smsOtpRequests", label: "SMS OTP Requests", sortType: "number" },
   ],
 
   // "Network Activity Log" columns -- see NETWORK_ACTIVITY_REPORT_TYPES
@@ -703,13 +701,9 @@ function mockRow(
       r.verified = Math.random() > 0.2 ? "Yes" : "No";
       break;
     case "sms-daywise": {
-      const sent = Math.floor(Math.random() * 1200) + 200;
-      const failed = Math.floor(sent * Math.random() * 0.06);
       r.date = new Date(Date.now() - (count - i) * 86400000).toISOString().slice(0, 10);
-      r.sent = sent;
-      r.delivered = sent - failed;
-      r.failed = failed;
-      r.rate = `${(((sent - failed) / sent) * 100).toFixed(1)}%`;
+      r.location = UNITS[i % UNITS.length];
+      r.smsOtpRequests = Math.floor(Math.random() * 1200) + 200;
       break;
     }
 
@@ -884,6 +878,8 @@ const REAL_REPORT_TYPES = new Set([
   "top-campaigns",
   // Real per-request OTP rows via GET /otp/requests -- see realOtpRequests below.
   "otp-delivery",
+  // Actual daily SMS OTP request counts via GET /otp/requests/sms-daily-consumption.
+  "sms-daywise",
 ]);
 
 const UNAVAILABLE_REASON: Record<string, string> = {
@@ -900,8 +896,6 @@ const UNAVAILABLE_REASON: Record<string, string> = {
     "This venue's guest teams are real and listed above, but per-team usage totals aren't computed for a date range in the backend yet -- only a live snapshot (GET /guest-teams/{id}: member_count, active_session_count, total_bandwidth_bytes now). This report's Sessions/Data columns read as totals over the picked period; wiring the live snapshot into them would misrepresent it, and no session row links to a team member, so the range figures can't be derived. Stays unavailable until the columns and a real per-period team aggregate agree.",
   "campaign-daywise":
     "Per-day campaign engagement isn't available: GET /campaigns/{id}/results returns lifetime totals only, with no daily breakdown, so a day-by-day trend can't be built without fabricating the buckets. The lifetime per-campaign view is the 'Campaign Engagement By Type' report above.",
-  "sms-daywise":
-    "Per-message SMS delivery status isn't logged anywhere in the real backend: OTP SMS goes through a logging-only provider that persists no send/delivery row, and nothing enqueues SMS to the notification-delivery table. A day-wise sent/delivered/failed rate would fabricate delivery stages that don't exist. The honest OTP view is the 'OTP Requests & Verification' report above.",
 };
 
 // Same real /guest-sessions row shape as customer.service.ts's own
@@ -1811,6 +1805,30 @@ async function realOtpRequests(locationId: string, from: string, to: string): Pr
   return rows;
 }
 
+interface DailySmsOtpConsumption {
+  usage_date: string;
+  location_id: string;
+  location_name: string;
+  sms_otp_requests: number;
+}
+
+/** Daily SMS OTP request volume, grouped in each location's own timezone.
+ *
+ * The endpoint counts persisted ``otp_requests`` rows. It does not label
+ * requests as carrier-sent or handset-delivered, because no such provider
+ * status is recorded by the platform. */
+async function realDailySmsOtpConsumption(from: string, to: string): Promise<Row[]> {
+  const { data } = await api.get<{ items: DailySmsOtpConsumption[] }>(
+    "/otp/requests/sms-daily-consumption",
+    { params: { start_date: from, end_date: to } },
+  );
+  return (data?.items ?? []).map((item) => ({
+    date: item.usage_date,
+    location: item.location_name,
+    smsOtpRequests: item.sms_otp_requests,
+  }));
+}
+
 // ── one reusable panel: business unit + report-type picker + date range + results table ──
 /** `masked` is the current viewer's data-masking state -- the owner's own
  * (always-on, see CustomerHeader's read-only OtpMaskToggle) or, when this
@@ -2147,6 +2165,8 @@ export function ReportPanel({
           data = loc ? await realTopCampaigns(loc.id, campaignType) : [];
         } else if (reportType === "otp-delivery") {
           data = loc ? await realOtpRequests(loc.id, from, to) : [];
+        } else if (reportType === "sms-daywise") {
+          data = await realDailySmsOtpConsumption(from, to);
         } else {
           data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
         }
