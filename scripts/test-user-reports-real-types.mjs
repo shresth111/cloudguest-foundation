@@ -11,9 +11,11 @@
  *     - otp-delivery — real per-request rows from GET /otp/requests. The old
  *       "Delivered/Failed" status and "Latency (ms)" columns (this platform
  *       persists no gateway delivery status and no latency) must be GONE.
+ *     - sms-daywise — actual SMS OTP request volume by location/day from
+ *       GET /otp/requests/sms-daily-consumption. It must not claim carrier
+ *       delivery stages.
  *
  *   DELIBERATELY LEFT UNAVAILABLE (would need fabricated fields):
- *     - sms-daywise      — no per-message SMS delivery record exists at all.
  *     - team-report      — guest teams carry only a live snapshot, no
  *                          per-period aggregate; no session links to a member.
  *     - campaign-daywise — results are lifetime totals, no daily buckets.
@@ -54,8 +56,8 @@ const topCampaignCols = block('"top-campaigns": [', "],");
 const otpCols = block('"otp-delivery": [', "],");
 const needsRange = block("const NEEDS_RANGE = new Set([", "]);");
 
-console.log("\nthe three buildable types are wired as REAL, not unavailable");
-for (const t of ["campaign-performance", "top-campaigns", "otp-delivery"]) {
+console.log("\nthe four buildable types are wired as REAL, not unavailable");
+for (const t of ["campaign-performance", "top-campaigns", "otp-delivery", "sms-daywise"]) {
   check(`${t} is in REAL_REPORT_TYPES`, realSet.includes(`"${t}"`));
   check(`${t} is NOT in UNAVAILABLE_REASON`, !unavailable.includes(`"${t}"`));
 }
@@ -65,11 +67,19 @@ check("realCampaignPerformance is defined", /async function realCampaignPerforma
 check("realTopCampaigns is defined", /async function realTopCampaigns\(/.test(src));
 check("realOtpRequests is defined", /async function realOtpRequests\(/.test(src));
 check(
+  "realDailySmsOtpConsumption is defined",
+  /async function realDailySmsOtpConsumption\(/.test(src),
+);
+check(
   "campaign-performance dispatches to realCampaignPerformance",
   /realCampaignPerformance\(/.test(src),
 );
 check("top-campaigns dispatches to realTopCampaigns", /realTopCampaigns\(/.test(src));
 check("otp-delivery dispatches to realOtpRequests", /realOtpRequests\(/.test(src));
+check(
+  "sms-daywise dispatches to realDailySmsOtpConsumption",
+  /realDailySmsOtpConsumption\(/.test(src),
+);
 
 console.log("\nthe real helpers call the real endpoints/services");
 check(
@@ -78,6 +88,10 @@ check(
 );
 check("campaign helper lists campaigns via listAll", /campaignService\.listAll\(/.test(src));
 check("otp helper reads GET /otp/requests", /["'`]\/otp\/requests["'`]/.test(src));
+check(
+  "daily SMS helper reads GET /otp/requests/sms-daily-consumption",
+  /["'`]\/otp\/requests\/sms-daily-consumption["'`]/.test(src),
+);
 
 console.log("\nfabricated columns are GONE from the built reports");
 check(
@@ -109,6 +123,18 @@ check(
   "otp-delivery shows real channel + verified outcome",
   /"channel"/.test(otpCols) && /"verified"/.test(otpCols) && /"requestedAt"/.test(otpCols),
 );
+const smsDaywiseCols = block('"sms-daywise": [', "],");
+check(
+  "sms-daywise has no fabricated delivery stages",
+  !/"sent"/.test(smsDaywiseCols) &&
+    !/"delivered"/.test(smsDaywiseCols) &&
+    !/"failed"/.test(smsDaywiseCols) &&
+    !/"rate"/.test(smsDaywiseCols),
+);
+check(
+  "sms-daywise shows real location request volume",
+  /"location"/.test(smsDaywiseCols) && /"smsOtpRequests"/.test(smsDaywiseCols),
+);
 
 console.log("\ncampaign-performance is no longer falsely date-range scoped");
 check(
@@ -117,7 +143,7 @@ check(
 );
 
 console.log("\nthe honestly-unavailable types stay unavailable with a real reason");
-for (const t of ["sms-daywise", "team-report", "campaign-daywise"]) {
+for (const t of ["team-report", "campaign-daywise"]) {
   check(`${t} is still in UNAVAILABLE_REASON`, unavailable.includes(`"${t}"`));
   check(`${t} is NOT wired as real`, !realSet.includes(`"${t}"`));
 }
