@@ -201,11 +201,23 @@ export function deviceHost(
 
 /** Message column: the short headline when the backend has one, with the
  * full line available on expand; otherwise the full line itself. */
-export function messageParts(event: Pick<NetLogEvent, "summary" | "message">): {
+export function messageParts(
+  event: Pick<NetLogEvent, "summary" | "message"> & Partial<Pick<NetLogEvent, "source" | "status">>,
+): {
   headline: string;
   detail: string | null;
 } {
   const summary = event.summary?.trim();
+  // The backend deliberately keeps the auth method and reason in the raw
+  // message. For a portal rejection, hiding that reason behind an expand
+  // control makes operators retry blindly and wrongly blame RADIUS.
+  const portalReason =
+    event.source === "captive_portal" && event.status === "failure"
+      ? event.message.match(/^.+? sign-in failed:\s*(.+)$/i)?.[1]?.trim()
+      : null;
+  if (summary && portalReason) {
+    return { headline: `${summary} — ${portalReason}`, detail: event.message || null };
+  }
   if (summary) return { headline: summary, detail: event.message || null };
   return { headline: event.message, detail: null };
 }

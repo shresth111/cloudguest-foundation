@@ -342,6 +342,19 @@ eq(
   "Portal sign-in",
 );
 eq(
+  "Portal failure shows its exact reason without expanding",
+  m.messageParts({
+    summary: "Portal sign-in failed",
+    message: "otp_sms sign-in failed: Invalid OTP",
+    source: "captive_portal",
+    status: "failure",
+  }),
+  {
+    headline: "Portal sign-in failed — Invalid OTP",
+    detail: "otp_sms sign-in failed: Invalid OTP",
+  },
+);
+eq(
   "Message: summary first, full line on expand",
   m.messageParts({ summary: "IP assigned", message: "dhcp1 assigned 10.0.0.5 to AA:BB" }),
   { headline: "IP assigned", detail: "dhcp1 assigned 10.0.0.5 to AA:BB" },
