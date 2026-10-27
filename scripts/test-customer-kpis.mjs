@@ -348,6 +348,11 @@ check(
   "the dashboard hero no longer renders an Active sessions tile",
   !/label:\s*"Active sessions"/.test(dashboard),
 );
+check(
+  "Currently online is a distinct-guest count, not a raw session count",
+  /distinctGuestCount\([\s\S]*?activeSessions\.map/.test(service) &&
+    /onlineUsers:\s*onlineGuestCount/.test(service),
+);
 // The tile now follows the date-range selector, so it is "Guests" for the
 // selected range rather than a fixed "Guests today".
 check("the dashboard leads with a Guests tile", /label:\s*"Guests"/.test(dashboard));

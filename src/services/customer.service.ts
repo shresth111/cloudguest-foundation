@@ -14,6 +14,7 @@ import { identityFromGuest } from "@/lib/guest-identity";
 import { dashboardRangeWindow } from "@/lib/dashboard-range";
 import type { DashboardRange, DashboardRangeWindow } from "@/lib/dashboard-range";
 import { guestPresence } from "@/lib/guest-presence";
+import { distinctGuestCount } from "@/lib/guest-counts";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
 // see that call site's comment. `isp.service` imports only `api` and the
@@ -1458,7 +1459,16 @@ export const customerService = {
         (s.is_online ?? s.status === "active") &&
         (!s.router_id || !offlineRouterIds.has(s.router_id)),
     );
-    const activeSessionCount = liveness.routersOnline === 0 ? 0 : activeSessions.length;
+    // "Currently online" is a people count, so reconnects or multiple devices
+    // belonging to one guest must be one person. The workspace dashboard already
+    // uses this same distinct-guest rule; counting raw session rows here caused
+    // the two dashboards to disagree for the very guests currently on Wi‑Fi.
+    const onlineGuestCount =
+      liveness.routersOnline === 0
+        ? 0
+        : distinctGuestCount(
+            activeSessions.map((session) => ({ guestId: session.guest_id ?? null })),
+          );
     return {
       liveness,
       health: {
@@ -1476,7 +1486,7 @@ export const customerService = {
             : "Unknown",
       },
       kpis: {
-        onlineUsers: activeSessionCount,
+        onlineUsers: onlineGuestCount,
         sessionsReadFailed: sR.status !== "fulfilled",
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
