@@ -96,7 +96,7 @@ import {
 // reverted.)
 
 const CARD =
-  "rounded-2xl border border-border/70 bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md";
+  "rounded-2xl border border-border/70 bg-card text-card-foreground shadow-[0_1px_2px_rgb(15_23_42/0.04)] transition-[box-shadow,border-color,transform] duration-200 hover:border-[#6C4EFF]/25 hover:shadow-[0_12px_28px_-18px_rgb(49_46_129/0.35)]";
 
 const OS_COLORS = ["#6C4EFF", "#06B6D4", "#8B5CF6", "#F59E0B", "#10B981", "#94A3B8"];
 
@@ -149,7 +149,7 @@ const TOOLTIP_STYLE = {
 
 function IconChip({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#6C4EFF]/10 text-[#6C4EFF] dark:bg-[#6C4EFF]/20 dark:text-indigo-300">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#6C4EFF]/10 bg-[#6C4EFF]/10 text-[#6C4EFF] shadow-sm dark:bg-[#6C4EFF]/20 dark:text-indigo-300">
       {children}
     </div>
   );
@@ -194,9 +194,15 @@ function KpiCard({
   loading?: boolean;
 }) {
   return (
-    <div className={cn(CARD, "p-5")}>
+    <div className={cn(CARD, "group relative overflow-hidden p-5")}>
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#6C4EFF]/45 to-transparent"
+      />
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          {label}
+        </span>
         <IconChip>{icon}</IconChip>
       </div>
       <div className="mt-3 h-9">
@@ -205,7 +211,7 @@ function KpiCard({
         ) : (
           <span
             className={cn(
-              "font-display text-3xl font-bold tracking-tight tabular-nums",
+              "font-display text-3xl font-bold tracking-[-0.04em] tabular-nums",
               value == null && "text-muted-foreground/60",
             )}
           >
@@ -440,7 +446,7 @@ export function CustomerDashboardPage() {
           onLogout={handleLogout}
         />
 
-        <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 space-y-7 px-4 py-6 sm:px-6 lg:px-8">
           {/* 1. System status bar -- FIRST on the page, above the header.
            *
            * Moved here from the bottom of the page at the owner's request.
@@ -456,7 +462,7 @@ export function CustomerDashboardPage() {
            * evidence, and the verdict reads first. */}
           <div
             className={cn(
-              "flex flex-col gap-3 rounded-2xl border px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between",
+              "flex flex-col gap-3 rounded-2xl border px-5 py-3.5 shadow-[0_1px_2px_rgb(15_23_42/0.03)] sm:flex-row sm:items-center sm:justify-between",
               STATUS_BAR[isLoading ? "neutral" : tone].wrap,
             )}
           >
@@ -502,9 +508,12 @@ export function CustomerDashboardPage() {
           </div>
 
           {/* 2. Page header */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 border-b border-border/70 pb-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6C4EFF]">
+                Location overview
+              </p>
+              <h1 className="font-display text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
                 Dashboard
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -551,14 +560,14 @@ export function CustomerDashboardPage() {
           )}
 
           {/* 3. KPI row */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {kpis.map((k) => (
               <KpiCard key={k.label} {...k} />
             ))}
           </div>
 
           {/* 4. Guests online · Devices by OS · Sessions by hour */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
             <div className={cn(CARD, "p-5 md:col-span-2")}>
               <CardHead
                 icon={<Users className="h-4 w-4" />}
@@ -566,7 +575,7 @@ export function CustomerDashboardPage() {
                 subtitle={`Guests connected ${byHour ? "each hour" : "each day"}, ${rangeLabel}`}
                 right={<RangeSelect value={range} onChange={setRange} compact />}
               />
-              <div className="h-64">
+              <div className="h-64 rounded-xl bg-gradient-to-b from-[#6C4EFF]/[0.035] to-transparent px-1 pt-1">
                 {series.isLoading ? (
                   <ChartSkeleton />
                 ) : series.isError ? (
@@ -688,7 +697,7 @@ export function CustomerDashboardPage() {
                 title={byHour ? "Sessions by Hour" : "Sessions by Day"}
                 subtitle="New guest sessions"
               />
-              <div className="h-64">
+              <div className="h-64 rounded-xl bg-gradient-to-b from-[#06B6D4]/[0.035] to-transparent px-1 pt-1">
                 {series.isLoading ? (
                   <ChartSkeleton />
                 ) : series.isError ? (
@@ -801,7 +810,10 @@ export function CustomerDashboardPage() {
                     </thead>
                     <tbody>
                       {d.recentUsers.slice(0, 5).map((u) => (
-                        <tr key={u.id} className="border-t border-border/60">
+                        <tr
+                          key={u.id}
+                          className="border-t border-border/60 transition-colors hover:bg-muted/45"
+                        >
                           <td className="max-w-[9rem] px-1 py-2.5">
                             <p className="truncate font-medium text-foreground">{u.name}</p>
                             {u.email && (
@@ -817,7 +829,7 @@ export function CustomerDashboardPage() {
                             {u.time}
                           </td>
                           <td className="px-1 py-2.5">
-                            <span className="inline-flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/70 px-2 py-0.5 text-[11px] font-medium">
                               <span
                                 className={cn(
                                   "h-1.5 w-1.5 rounded-full",

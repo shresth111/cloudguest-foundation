@@ -219,6 +219,19 @@ check(
   /GUEST_NAME_NOT_COLLECTED_NOTICE/.test(reports),
 );
 
+// `/guests` is paginated. A session may belong to a legitimate guest that is
+// absent from its first page, so Users must use the identifier already resolved
+// on that exact `/guest-sessions` row rather than labelling that person unknown.
+check(
+  "session rows declare the server-resolved guest identifier",
+  /guest_identifier\?: string \| null/.test(customerService),
+);
+check(
+  "Users and dashboard identity fall back to each session identifier",
+  /function identityForSession[\s\S]*?session\.guest_identifier/.test(customerService) &&
+    (customerService.match(/identityForSession\(s, guestsById\)/g) ?? []).length >= 2,
+);
+
 console.log(
   failures === 0
     ? `\nall guest identity checks passed\n`

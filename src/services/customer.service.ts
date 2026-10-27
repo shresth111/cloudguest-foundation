@@ -80,6 +80,10 @@ interface RawGuestSession {
   // ConnectedDevice row(s) for a real MAC and for the router-level
   // force-disconnect (see disconnectSession() below).
   guest_id?: string | null;
+  // Server-resolved phone/email for this exact session's guest. This makes
+  // identity rendering independent of whichever 100 rows the separate
+  // `/guests` list happened to return.
+  guest_identifier?: string | null;
   bytes_downloaded?: number;
   user_agent?: string | null;
 }
@@ -936,6 +940,20 @@ export interface RawGuest {
   created_at?: string;
 }
 
+/**
+ * Resolve a session's identity without depending on the separately-paginated
+ * `/guests` list. The session API already returns `guest_identifier` for the
+ * exact `guest_id`; use that as the reliable fallback when that guest is not
+ * among the first page of guests. The full Guest row still wins so a collected
+ * display name remains visible when it is available.
+ */
+function identityForSession(session: RawGuestSession, guestsById: ReadonlyMap<string, RawGuest>) {
+  const guest = session.guest_id ? guestsById.get(session.guest_id) : undefined;
+  return identityFromGuest(
+    guest ?? (session.guest_identifier ? { identifier: session.guest_identifier } : undefined),
+  );
+}
+
 /* This file used to declare its own `RawIspLinkForSla` wire shape for
  * getDashboard()'s SLA-uptime leg. It no longer reads `/isp/links`
  * directly -- it calls `ispService.listLinks()`, which already owns that
@@ -1500,7 +1518,7 @@ export const customerService = {
       // (already used by getUsers() below) is the same real fix applied
       // here.
       recentUsers: sessions.slice(0, 6).map((s) => {
-        const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
+        const identity = identityForSession(s, guestsById);
         // Presence, not the session's own status -- see lib/guest-presence.
         // A session row outlives the connection, so a guest whose device had
         // dropped off the network kept showing here as online.
@@ -1703,7 +1721,7 @@ export const customerService = {
         const matched = s.guest_id
           ? matchDeviceForSession(devicesByGuest.get(s.guest_id) ?? [], s.started_at)
           : undefined;
-        const identity = identityFromGuest(s.guest_id ? guestsById.get(s.guest_id) : undefined);
+        const identity = identityForSession(s, guestsById);
         return {
           // The MAC now comes from the session's own device, resolved
           // server-side by the backend from session.device_id
