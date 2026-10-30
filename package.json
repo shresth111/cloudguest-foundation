@@ -27,6 +27,7 @@
     "test:portal-gate-probe": "node scripts/test-portal-gate-probe.mjs",
     "test:post-connect": "node scripts/test-portal-post-connect-asks.mjs",
     "test:signin-fields": "node scripts/test-portal-signin-fields.mjs",
+    "test:portal-identifier-case": "node scripts/test-portal-guest-identifier-case.mjs",
     "test:portal-guest-name": "node scripts/test-portal-guest-name.mjs",
     "test:portal-venue-logo": "node scripts/test-portal-venue-logo-size.mjs",
     "test:post-login-roundtrip": "node scripts/test-post-login-html-roundtrip.mjs",
