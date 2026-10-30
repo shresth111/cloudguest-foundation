@@ -9,14 +9,14 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { IspProviderIcon } from "@/components/icons/isp";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { ChartEmptyState } from "./ChartEmptyState";
 import { WAN_HEALTH_STYLE } from "./dashboard.types";
 import { useBandwidthSeries } from "./useBandwidthSeries";
+import { CONSOLE_TOOLTIP_STYLE, PANEL, PanelHead, PanelLink } from "./overview/console-ui";
 import { anchorAxisToPlan, formatMbps, utilizationLabel } from "./bandwidth-display";
 
 /**
@@ -31,6 +31,8 @@ export function BandwidthUtilizationCard({
   onManage: () => void;
 }) {
   const bw = useBandwidthSeries(locationId);
+  // Legend toggles: hiding a series is a view choice, never a data change.
+  const [hidden, setHidden] = useState({ download: false, upload: false });
   const ordered = bw.status === "ready" ? [...bw.checks].reverse() : [];
   const hasTraffic = ordered.some((c) => c.downloadMbps != null || c.uploadMbps != null);
   const chartData = ordered.map((c) => ({
@@ -70,66 +72,66 @@ export function BandwidthUtilizationCard({
         }
       : null;
 
+  const toggle = (k: "download" | "upload") => setHidden((h) => ({ ...h, [k]: !h[k] }));
   return (
-    <Card className="premium-card premium-card-hover">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
-            <Gauge className="h-3.5 w-3.5 text-white" />
-          </div>
-          <div>
-            <CardTitle className="text-sm">Bandwidth Utilization</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Traffic on {bw.status === "ready" ? bw.link.providerName : "your primary uplink"}, new
-              reading roughly every 30 sec
-            </p>
-          </div>
+    <section className={cn(PANEL, "h-full")} aria-labelledby="bw-title">
+      <PanelHead
+        id="bw-title"
+        icon={<Gauge className="h-3.5 w-3.5" />}
+        title="Bandwidth Utilization"
+        meta={`${bw.status === "ready" ? bw.link.providerName : "Primary uplink"} · ~30 s`}
+        right={
+          <>
+            {utilizationPct != null && (
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                  utilizationPct >= 90
+                    ? "bg-[var(--wy-crit-soft)] text-[var(--wy-crit)]"
+                    : utilizationPct >= 70
+                      ? "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]"
+                      : "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]",
+                )}
+                title={`${formatMbps(latest?.downloadMbps ?? null)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
+              >
+                {utilization?.label} of plan
+              </span>
+            )}
+            <PanelLink onClick={onManage}>Manage →</PanelLink>
+          </>
+        }
+      />
+      {latest && (
+        <div className="flex flex-wrap items-center gap-2 px-4 pt-3" aria-label="Series">
+          {(
+            [
+              ["download", "Download", latest.downloadMbps, "var(--wy-series-2)", "↓"],
+              ["upload", "Upload", latest.uploadMbps, "var(--wy-series-1)", "↑"],
+            ] as const
+          ).map(([key, label, value, color, arrow]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={!hidden[key]}
+              onClick={() => toggle(key)}
+              title={hidden[key] ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-2 py-1 text-xs transition-opacity duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]",
+                hidden[key] && "opacity-45",
+              )}
+            >
+              <span className="h-2 w-2 rounded-sm" style={{ background: color }} />
+              <span className="text-[var(--wy-text-muted)]">{label}</span>
+              <span className="font-semibold tabular-nums">
+                {value != null ? formatMbps(value) : "—"}
+              </span>
+              <span className="text-[var(--wy-text-faint)]">{arrow}</span>
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-3">
-          {latest && (
-            <span className="hidden items-baseline gap-3 text-xs sm:flex">
-              {latest.downloadMbps != null && (
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-                  <span className="font-semibold tabular-nums text-foreground">
-                    {formatMbps(latest.downloadMbps)}
-                  </span>
-                  <span className="text-muted-foreground">↓</span>
-                </span>
-              )}
-              {latest.uploadMbps != null && (
-                <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
-                  <span className="font-semibold tabular-nums text-foreground">
-                    {formatMbps(latest.uploadMbps)}
-                  </span>
-                  <span className="text-muted-foreground">↑</span>
-                </span>
-              )}
-              {utilizationPct != null && (
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 font-semibold tabular-nums",
-                    utilizationPct >= 90
-                      ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400"
-                      : utilizationPct >= 70
-                        ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
-                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
-                  )}
-                  title={`${formatMbps(latest?.downloadMbps ?? null)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
-                >
-                  {utilization?.label} of plan
-                </span>
-              )}
-            </span>
-          )}
-          <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>
-            Manage →
-          </Button>
-        </div>
-      </CardHeader>
+      )}
       {bw.status === "ready" && bw.otherLinks.length > 0 && (
-        <div className="mx-4 mb-3 flex flex-wrap items-center gap-1.5">
+        <div className="mx-4 mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Also here
           </span>
@@ -163,12 +165,12 @@ export function BandwidthUtilizationCard({
       {congestionSummary && (
         <div
           className={cn(
-            "mx-4 mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs",
+            "mx-4 mt-3 flex items-start gap-2 rounded-[var(--wy-radius)] px-3 py-2 text-xs",
             congestionSummary.pct >= 30
-              ? "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400"
+              ? "bg-[var(--wy-crit-soft)] text-[var(--wy-crit)]"
               : congestionSummary.count > 0
-                ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+                ? "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]"
+                : "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]",
           )}
         >
           <AlertTriangle
@@ -192,7 +194,7 @@ export function BandwidthUtilizationCard({
           </span>
         </div>
       )}
-      <CardContent>
+      <div className="px-4 pb-4 pt-3">
         <div className="h-56">
           {bw.status === "loading" ? (
             <div className="flex h-full items-end gap-1 px-2 pb-2" aria-hidden="true">
@@ -214,18 +216,27 @@ export function BandwidthUtilizationCard({
                 <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="bw-down" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+                      <stop offset="0%" stopColor="var(--wy-series-2)" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="var(--wy-series-2)" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="bw-up" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
+                      <stop offset="0%" stopColor="var(--wy-series-1)" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="var(--wy-series-1)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                  <CartesianGrid vertical={false} stroke="var(--wy-border)" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: "var(--wy-text-faint)" }}
+                    tickLine={false}
+                    axisLine={{ stroke: "var(--wy-border)" }}
+                    interval="preserveStartEnd"
+                    minTickGap={24}
+                  />
                   <YAxis
-                    tick={{ fontSize: 10 }}
+                    tick={{ fontSize: 10, fill: "var(--wy-text-faint)" }}
+                    tickLine={false}
+                    axisLine={false}
                     width={32}
                     domain={
                       showPlanOnAxis && capacityDownload != null
@@ -234,11 +245,8 @@ export function BandwidthUtilizationCard({
                     }
                   />
                   <Tooltip
-                    contentStyle={{
-                      borderRadius: "12px",
-                      border: "1px solid var(--border)",
-                      fontSize: 12,
-                    }}
+                    contentStyle={CONSOLE_TOOLTIP_STYLE}
+                    cursor={{ stroke: "var(--wy-border-strong)", strokeDasharray: "3 3" }}
                     formatter={(
                       value: number | string | Array<number | string> | undefined,
                       name: string | number,
@@ -251,8 +259,9 @@ export function BandwidthUtilizationCard({
                     type="monotone"
                     dataKey="download"
                     name="download"
-                    stroke="#14b8a6"
+                    stroke="var(--wy-series-2)"
                     fill="url(#bw-down)"
+                    hide={hidden.download}
                     strokeWidth={2}
                     connectNulls={false}
                     isAnimationActive={false}
@@ -261,8 +270,9 @@ export function BandwidthUtilizationCard({
                     type="monotone"
                     dataKey="upload"
                     name="upload"
-                    stroke="#8b5cf6"
+                    stroke="var(--wy-series-1)"
                     fill="url(#bw-up)"
+                    hide={hidden.upload}
                     strokeWidth={2}
                     connectNulls={false}
                     isAnimationActive={false}
@@ -270,14 +280,14 @@ export function BandwidthUtilizationCard({
                   {showPlanOnAxis && capacityDownload != null && (
                     <ReferenceLine
                       y={capacityDownload}
-                      stroke="#14b8a6"
+                      stroke="var(--wy-series-2)"
                       strokeDasharray="5 4"
                       strokeOpacity={0.7}
                       label={{
                         value: `${capacityDownload} Mbps plan`,
                         position: "insideTopRight",
                         fontSize: 10,
-                        fill: "#14b8a6",
+                        fill: "var(--wy-series-2)",
                       }}
                     />
                   )}
@@ -298,7 +308,7 @@ export function BandwidthUtilizationCard({
             </button>
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

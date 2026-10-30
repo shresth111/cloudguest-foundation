@@ -1,0 +1,85 @@
+/*
+ * TEMPORARY -- delete when dashboard-revamp-shell merges.
+ *
+ * Fallback values for the console token contract (`--wy-*`), so the Overview
+ * page can be built and reviewed before the shell branch that owns the real
+ * values lands. Imported ONLY by CustomerDashboardPage.tsx and scoped under
+ * `.wy-console`, so nothing outside the dashboard can pick these up. When the
+ * shell branch defines the same names, remove this file and its one import;
+ * every consumer reads the names, never these values.
+ */
+.wy-console {
+  --wy-bg: #f5f6f8;
+  --wy-surface: #ffffff;
+  --wy-surface-2: #f8f9fb;
+  --wy-border: #e4e7ec;
+  --wy-border-strong: #cfd4dc;
+
+  --wy-text: #101828;
+  --wy-text-muted: #475467;
+  --wy-text-faint: #8a94a6;
+
+  --wy-accent: #5b46e5;
+  --wy-accent-fg: #ffffff;
+  --wy-accent-soft: rgb(91 70 229 / 0.1);
+
+  --wy-ok: #12a150;
+  --wy-ok-soft: rgb(18 161 80 / 0.12);
+  --wy-warn: #d48806;
+  --wy-warn-soft: rgb(212 136 6 / 0.14);
+  --wy-crit: #d92d20;
+  --wy-crit-soft: rgb(217 45 32 / 0.12);
+  --wy-info: #1570ef;
+  --wy-info-soft: rgb(21 112 239 / 0.12);
+  --wy-offline: #98a2b3;
+  --wy-offline-soft: rgb(152 162 179 / 0.16);
+
+  --wy-series-1: #5b46e5;
+  --wy-series-2: #0e9fb5;
+  --wy-series-3: #e0820c;
+  --wy-series-4: #d6408b;
+  --wy-series-5: #3f9b3b;
+  --wy-series-6: #7d8794;
+
+  --wy-radius: 8px;
+  --wy-radius-lg: 12px;
+  --wy-shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+  --wy-font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+.dark .wy-console,
+.wy-console.dark {
+  --wy-bg: #0d1117;
+  --wy-surface: #151b23;
+  --wy-surface-2: #1b222c;
+  --wy-border: #262f3b;
+  --wy-border-strong: #364152;
+
+  --wy-text: #e6eaf0;
+  --wy-text-muted: #a3adbb;
+  --wy-text-faint: #6b7686;
+
+  --wy-accent: #8b7bff;
+  --wy-accent-fg: #0d1117;
+  --wy-accent-soft: rgb(139 123 255 / 0.16);
+
+  --wy-ok: #3ccb7f;
+  --wy-ok-soft: rgb(60 203 127 / 0.14);
+  --wy-warn: #f5b13d;
+  --wy-warn-soft: rgb(245 177 61 / 0.15);
+  --wy-crit: #f87066;
+  --wy-crit-soft: rgb(248 112 102 / 0.15);
+  --wy-info: #5ea8ff;
+  --wy-info-soft: rgb(94 168 255 / 0.15);
+  --wy-offline: #6b7686;
+  --wy-offline-soft: rgb(107 118 134 / 0.2);
+
+  --wy-series-1: #8b7bff;
+  --wy-series-2: #34c4d9;
+  --wy-series-3: #f5a442;
+  --wy-series-4: #f06aa8;
+  --wy-series-5: #6cc764;
+  --wy-series-6: #9aa4b2;
+
+  --wy-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}

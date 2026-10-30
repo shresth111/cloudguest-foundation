@@ -1,6 +1,5 @@
 import { HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { DEVICE_TYPES } from "@/stores/deviceStore";
 import {
@@ -10,6 +9,8 @@ import {
   isRouterUnreadable,
 } from "@/lib/device-liveness";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
+import type { MonitoredDeviceRow } from "@/services/deviceHardware.service";
+import { PANEL, PanelHead, PanelLink } from "./overview/console-ui";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
 
@@ -40,6 +41,19 @@ export function DeviceStatusCard({
   onManage: () => void;
 }) {
   const { devices } = useMonitoredHardware(locationId);
+  return <DeviceStatusCardView devices={devices} onManage={onManage} />;
+}
+
+/** The card for a caller that already holds the rows -- the dashboard reads
+ * them once for the topology map and this card. `useMonitoredHardware` is
+ * plain state, so a second call would be a second `/monitored-hardware`. */
+export function DeviceStatusCardView({
+  devices,
+  onManage,
+}: {
+  devices: MonitoredDeviceRow[];
+  onManage: () => void;
+}) {
   // A device behind a router this platform cannot read is counted apart
   // from both "down" and "not yet observed": its status is a fact about the
   // router, and folding it into either bucket tells the owner something
@@ -59,19 +73,13 @@ export function DeviceStatusCard({
   ).length;
 
   return (
-    <Card className="premium-card premium-card-hover flex h-full flex-col">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <HardDrive className="h-3.5 w-3.5 text-white" />
-          </div>
-          <CardTitle className="text-sm">Network Hardware</CardTitle>
-        </div>
-        <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>
-          Manage →
-        </Button>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col">
+    <section className={cn(PANEL, "flex h-full flex-col")}>
+      <PanelHead
+        icon={<HardDrive className="h-3.5 w-3.5" />}
+        title="Network Hardware"
+        right={<PanelLink onClick={onManage}>Manage →</PanelLink>}
+      />
+      <div className="flex flex-1 flex-col p-4">
         {devices.length === 0 ? (
           <div className="relative flex flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
             {/* The one Aceternity moment this surface gets (design v3 Part
@@ -324,7 +332,7 @@ export function DeviceStatusCard({
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

@@ -1,7 +1,6 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { IspLink, IspHealthCheck } from "@/types/isp";
@@ -13,6 +12,8 @@ import {
   integratedWanHealth,
 } from "./dashboard.types";
 import { useWanSummary } from "./useWanSummary";
+import type { WanSummaryState } from "./dashboard.types";
+import { PANEL, PanelHead, PanelLink } from "./overview/console-ui";
 
 /** Oldest -> newest, left to right -- the exact same "last dozen real
  * checks as colored ticks" reading `IspStatusTimeline` (Internet
@@ -189,20 +190,28 @@ export function WanStatusCard({
   onManage: () => void;
 }) {
   const wan = useWanSummary(locationId);
+  return <WanStatusCardView wan={wan} onManage={onManage} />;
+}
+
+/** The card itself, for a caller that already holds the summary -- the
+ * dashboard reads it once for the topology map and this card, because
+ * `useWanSummary` is plain state and a second call is a second set of
+ * health-check requests. */
+export function WanStatusCardView({
+  wan,
+  onManage,
+}: {
+  wan: WanSummaryState;
+  onManage: () => void;
+}) {
   return (
-    <Card className="premium-card premium-card-hover h-full">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
-            <Globe className="h-3.5 w-3.5 text-white" />
-          </div>
-          <CardTitle className="text-sm">Internet Connection</CardTitle>
-        </div>
-        <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={onManage}>
-          Manage →
-        </Button>
-      </CardHeader>
-      <CardContent>
+    <section className={cn(PANEL, "h-full")}>
+      <PanelHead
+        icon={<Globe className="h-3.5 w-3.5" />}
+        title="Internet Connection"
+        right={<PanelLink onClick={onManage}>Manage →</PanelLink>}
+      />
+      <div className="p-4">
         {wan.status === "loading" && (
           <div className="space-y-3">
             <div className="h-4 w-28 animate-pulse rounded bg-muted" />
@@ -233,8 +242,8 @@ export function WanStatusCard({
         {wan.status === "ready" && wan.links.length > 1 && (
           <MultiWanView links={wan.links} checks={wan.checks} />
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 

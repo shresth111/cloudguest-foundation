@@ -50,7 +50,9 @@
     "acrossSessions_one": "Across {{formatted}} session",
     "acrossSessions_other": "Across {{formatted}} sessions",
     "uptime": "Uptime",
-    "allHealthy": "All systems healthy"
+    "allHealthy": "All systems healthy",
+    "uptimeNone": "No health checks yet",
+    "uptimeFooter": "Primary ISP, last 24 hours"
   },
   "guestsOnline": {
     "title": "Guests Online",
@@ -84,10 +86,137 @@
     "colStatus": "Status",
     "statusOnline": "online",
     "statusOffline": "offline",
-    "statusIdle": "idle"
+    "statusIdle": "idle",
+    "meta": "Last 24 hours · click a row to open Guests"
   },
   "recentAlerts": {
     "title": "Recent Alerts",
-    "empty": "No alerts. Nothing needs your attention."
-  }
+    "empty": "No alerts. Nothing needs your attention.",
+    "type": {
+      "error": "Critical",
+      "warning": "Warning",
+      "success": "Resolved",
+      "info": "Info"
+    }
+  },
+  "rangeLabel": "Date range",
+  "rangeShort": {
+    "24h": "24h",
+    "7d": "7 days",
+    "30d": "30 days"
+  },
+  "sectionError": {
+    "title": "This section couldn't be shown",
+    "body": "The rest of the page still works. Try refreshing."
+  },
+  "health": {
+    "title": "Site health",
+    "internet": "Internet",
+    "router": "Router",
+    "aps": "Access points",
+    "noIsp": "No ISP added yet",
+    "notChecked": "Not checked yet",
+    "ispsDown_one": "{{count}} ISP down",
+    "ispsDown_other": "{{count}} ISPs down",
+    "apsUnmeasured": "Managed in your vendor's app",
+    "controllerDown": "Controller not answering",
+    "noAps": "None added yet",
+    "devicesDown_one": "{{count}} down",
+    "devicesDown_other": "{{count}} down",
+    "devicesWarn": "{{count}} need a look",
+    "allUp": "All up",
+    "notMeasured": "{{count}} not measured here"
+  },
+  "topology": {
+    "title": "Network map",
+    "meta": "Live status · hover for details, click to open",
+    "metaController": "Access points as your controller reports them",
+    "openDevices": "Devices →",
+    "checking": "Checking…",
+    "status": {
+      "ok": "Up",
+      "warn": "Degraded",
+      "crit": "Down",
+      "info": "Info",
+      "offline": "Offline",
+      "unknown": "Unknown"
+    },
+    "ghost": {
+      "noIsp": "No ISP added",
+      "noIspBody": "Add your internet line",
+      "noRouter": "No router yet",
+      "noRouterBody": "Set up a router to go live",
+      "routersUnreadable": "Can't read routers",
+      "routersUnreadableBody": "Status unknown right now",
+      "apsUnmeasured": "Access points not visible",
+      "apsUnmeasuredBody": "Managed in your vendor's app",
+      "controllerDown": "Controller not answering",
+      "controllerDownBody": "Access point status unknown",
+      "noAps": "No access points added",
+      "noApsBody": "Add one by MAC address"
+    },
+    "fact": {
+      "role": "Role",
+      "interface": "Port",
+      "gatewayIp": "Gateway IP",
+      "latency": "Latency",
+      "loss": "Packet loss",
+      "plan": "Plan",
+      "lastChecked": "Last checked",
+      "vendor": "Vendor",
+      "state": "State",
+      "lastContact": "Last contact",
+      "model": "Model",
+      "ip": "IP",
+      "mac": "MAC",
+      "uptime": "Uptime",
+      "clients": "Clients",
+      "firmware": "Firmware",
+      "type": "Type",
+      "floor": "Floor",
+      "detail": "Detail",
+      "lastSeen": "Last seen",
+      "source": "Reported by"
+    },
+    "role": {
+      "primary": "Primary",
+      "backup": "Backup"
+    },
+    "source": {
+      "controller": "Your controller"
+    },
+    "guestsOnline_one": "{{count}} guest online",
+    "guestsOnline_other": "{{count}} guests online",
+    "more": "+{{count}} more",
+    "clientsSub": "Signed in right now",
+    "moreSub": "Open Devices to see all",
+    "activeUplink": "carrying traffic",
+    "open": {
+      "isp-details": "Open Internet Connection",
+      "devices": "Open Devices",
+      "users": "Open Guests"
+    },
+    "tier": {
+      "isp": "Internet",
+      "gateway": "Router",
+      "downstream": "Access points and devices",
+      "clients": "Guests"
+    },
+    "srDownstream": "{{up}} of {{total}} up"
+  },
+  "activity": {
+    "title": "Guest activity",
+    "online": "Guests online",
+    "arrivals": "New sessions",
+    "legend": "Series",
+    "hint": "Click a bar to pin it",
+    "srSummary": "Guest activity, {{range}}. Peak {{peak}} guests online at {{when}}. {{sessions}} new sessions in total. Use the arrow keys to read each bucket.",
+    "peak": "Peak",
+    "clear": "Clear",
+    "peakLine": "Peak {{peak}} online at {{when}}",
+    "totalSessions_one": "{{formatted}} new session",
+    "totalSessions_other": "{{formatted}} new sessions"
+  },
+  "insightsHeading": "Guest insights",
+  "insightsMeta": "Last 28 days, independent of the range above"
 }

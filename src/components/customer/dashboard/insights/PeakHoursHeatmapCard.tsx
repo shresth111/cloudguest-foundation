@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import {
   CardHead,
-  INSIGHT_PRIMARY,
+  primaryAt,
   InsightCard,
   InsightDemoNote,
   InsightEmpty,
@@ -37,12 +37,6 @@ const STEP_ALPHA: readonly number[] = [0.18, 0.34, 0.52, 0.72, 0.95].slice(0, HE
 
 const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 const WEEKDAY_DEFAULTS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-
-function alphaHex(alpha: number): string {
-  return Math.round(alpha * 255)
-    .toString(16)
-    .padStart(2, "0");
-}
 
 export function PeakHoursHeatmapCard({
   locationId,
@@ -169,12 +163,12 @@ function Heatmap({ data }: { data: PeakHoursData }) {
         </p>
         <div className="flex items-center gap-1.5 text-muted-foreground" aria-hidden="true">
           <span>{t("peak.fewer", "Fewer")}</span>
-          <span className="h-3 w-3 rounded-[3px] bg-muted" />
+          <span className="h-3 w-3 rounded-[3px] bg-[var(--wy-surface-2)]" />
           {STEP_ALPHA.map((a) => (
             <span
               key={a}
               className="h-3 w-3 rounded-[3px]"
-              style={{ backgroundColor: `${INSIGHT_PRIMARY}${alphaHex(a)}` }}
+              style={{ backgroundColor: primaryAt(a) }}
             />
           ))}
           <span>{t("peak.more", "More")}</span>
@@ -216,12 +210,12 @@ function Row({
             data-step={step}
             title={describe(shown)}
             onMouseEnter={() => onHover(shown)}
-            className={step === 0 ? "h-5 rounded-[3px] bg-muted" : "h-5 rounded-[3px] ring-inset"}
-            style={
+            className={
               step === 0
-                ? undefined
-                : { backgroundColor: `${INSIGHT_PRIMARY}${alphaHex(STEP_ALPHA[step - 1])}` }
+                ? "h-5 rounded-[3px] bg-[var(--wy-surface-2)]"
+                : "h-5 rounded-[3px] ring-inset"
             }
+            style={step === 0 ? undefined : { backgroundColor: primaryAt(STEP_ALPHA[step - 1]) }}
           />
         );
       })}

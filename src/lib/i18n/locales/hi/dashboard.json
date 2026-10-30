@@ -50,7 +50,9 @@
     "acrossSessions_one": "{{formatted}} सेशन के हिसाब से",
     "acrossSessions_other": "{{formatted}} सेशन के हिसाब से",
     "uptime": "अपटाइम",
-    "allHealthy": "सब सिस्टम ठीक हैं"
+    "allHealthy": "सब सिस्टम ठीक हैं",
+    "uptimeNone": "अभी कोई जाँच नहीं हुई",
+    "uptimeFooter": "मुख्य ISP, पिछले 24 घंटे"
   },
   "guestsOnline": {
     "title": "ऑनलाइन मेहमान",
@@ -84,10 +86,137 @@
     "colStatus": "स्थिति",
     "statusOnline": "ऑनलाइन",
     "statusOffline": "ऑफ़लाइन",
-    "statusIdle": "रुका हुआ"
+    "statusIdle": "रुका हुआ",
+    "meta": "पिछले 24 घंटे · मेहमान पेज खोलने के लिए लाइन पर क्लिक करें"
   },
   "recentAlerts": {
     "title": "हाल के अलर्ट",
-    "empty": "कोई अलर्ट नहीं। अभी कुछ करने की ज़रूरत नहीं।"
-  }
+    "empty": "कोई अलर्ट नहीं। अभी कुछ करने की ज़रूरत नहीं।",
+    "type": {
+      "error": "गंभीर",
+      "warning": "चेतावनी",
+      "success": "ठीक हो गया",
+      "info": "जानकारी"
+    }
+  },
+  "rangeLabel": "समय सीमा",
+  "rangeShort": {
+    "24h": "24 घंटे",
+    "7d": "7 दिन",
+    "30d": "30 दिन"
+  },
+  "sectionError": {
+    "title": "यह हिस्सा नहीं दिख पाया",
+    "body": "बाकी पेज ठीक चल रहा है। पेज रिफ़्रेश करके देखें।"
+  },
+  "health": {
+    "title": "साइट की हालत",
+    "internet": "इंटरनेट",
+    "router": "router",
+    "aps": "एक्सेस पॉइंट",
+    "noIsp": "अभी कोई ISP नहीं जोड़ा",
+    "notChecked": "अभी जाँच नहीं हुई",
+    "ispsDown_one": "{{count}} ISP बंद है",
+    "ispsDown_other": "{{count}} ISP बंद हैं",
+    "apsUnmeasured": "आपकी कंपनी के ऐप से चलते हैं",
+    "controllerDown": "कंट्रोलर जवाब नहीं दे रहा",
+    "noAps": "अभी कोई नहीं जोड़ा",
+    "devicesDown_one": "{{count}} बंद",
+    "devicesDown_other": "{{count}} बंद",
+    "devicesWarn": "{{count}} को देखना है",
+    "allUp": "सब चालू",
+    "notMeasured": "{{count}} की जाँच यहाँ नहीं होती"
+  },
+  "topology": {
+    "title": "नेटवर्क नक्शा",
+    "meta": "लाइव हालत · जानकारी के लिए ऊपर ले जाएँ, खोलने के लिए क्लिक करें",
+    "metaController": "एक्सेस पॉइंट, जैसा आपका कंट्रोलर बताता है",
+    "openDevices": "डिवाइस →",
+    "checking": "जाँच रहे हैं…",
+    "status": {
+      "ok": "चालू",
+      "warn": "धीमा",
+      "crit": "बंद",
+      "info": "जानकारी",
+      "offline": "ऑफ़लाइन",
+      "unknown": "पता नहीं"
+    },
+    "ghost": {
+      "noIsp": "कोई ISP नहीं जोड़ा",
+      "noIspBody": "अपनी इंटरनेट लाइन जोड़ें",
+      "noRouter": "अभी कोई router नहीं",
+      "noRouterBody": "चालू करने के लिए router सेट करें",
+      "routersUnreadable": "router की हालत नहीं पढ़ पाए",
+      "routersUnreadableBody": "अभी हालत पता नहीं",
+      "apsUnmeasured": "एक्सेस पॉइंट यहाँ नहीं दिखते",
+      "apsUnmeasuredBody": "आपकी कंपनी के ऐप से चलते हैं",
+      "controllerDown": "कंट्रोलर जवाब नहीं दे रहा",
+      "controllerDownBody": "एक्सेस पॉइंट की हालत पता नहीं",
+      "noAps": "कोई एक्सेस पॉइंट नहीं जोड़ा",
+      "noApsBody": "MAC पते से एक जोड़ें"
+    },
+    "fact": {
+      "role": "भूमिका",
+      "interface": "पोर्ट",
+      "gatewayIp": "गेटवे IP",
+      "latency": "देरी",
+      "loss": "पैकेट लॉस",
+      "plan": "प्लान",
+      "lastChecked": "आखिरी जाँच",
+      "vendor": "कंपनी",
+      "state": "हालत",
+      "lastContact": "आखिरी संपर्क",
+      "model": "मॉडल",
+      "ip": "IP",
+      "mac": "MAC",
+      "uptime": "चालू समय",
+      "clients": "जुड़े डिवाइस",
+      "firmware": "फ़र्मवेयर",
+      "type": "प्रकार",
+      "floor": "मंज़िल",
+      "detail": "विवरण",
+      "lastSeen": "आखिरी बार दिखा",
+      "source": "किसने बताया"
+    },
+    "role": {
+      "primary": "मुख्य",
+      "backup": "बैकअप"
+    },
+    "source": {
+      "controller": "आपका कंट्रोलर"
+    },
+    "guestsOnline_one": "{{count}} मेहमान ऑनलाइन",
+    "guestsOnline_other": "{{count}} मेहमान ऑनलाइन",
+    "more": "+{{count}} और",
+    "clientsSub": "अभी जुड़े हुए",
+    "moreSub": "सब देखने के लिए डिवाइस खोलें",
+    "activeUplink": "अभी इसी से इंटरनेट चल रहा है",
+    "open": {
+      "isp-details": "इंटरनेट कनेक्शन खोलें",
+      "devices": "डिवाइस खोलें",
+      "users": "मेहमान खोलें"
+    },
+    "tier": {
+      "isp": "इंटरनेट",
+      "gateway": "router",
+      "downstream": "एक्सेस पॉइंट और डिवाइस",
+      "clients": "मेहमान"
+    },
+    "srDownstream": "{{total}} में से {{up}} चालू"
+  },
+  "activity": {
+    "title": "मेहमानों की गतिविधि",
+    "online": "ऑनलाइन मेहमान",
+    "arrivals": "नए सेशन",
+    "legend": "सीरीज़",
+    "hint": "किसी बार पर क्लिक करके उसे रोकें",
+    "srSummary": "मेहमानों की गतिविधि, {{range}}। सबसे ज़्यादा {{peak}} मेहमान {{when}} पर ऑनलाइन थे। कुल {{sessions}} नए सेशन। हर हिस्सा पढ़ने के लिए तीर वाली कुंजियाँ दबाएँ।",
+    "peak": "सबसे ज़्यादा",
+    "clear": "हटाएँ",
+    "peakLine": "सबसे ज़्यादा {{peak}} ऑनलाइन, {{when}} पर",
+    "totalSessions_one": "{{formatted}} नया सेशन",
+    "totalSessions_other": "{{formatted}} नए सेशन"
+  },
+  "insightsHeading": "मेहमानों की जानकारी",
+  "insightsMeta": "पिछले 28 दिन, ऊपर की समय सीमा से अलग"
 }
