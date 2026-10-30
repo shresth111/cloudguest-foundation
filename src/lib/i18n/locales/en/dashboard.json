@@ -1,0 +1,93 @@
+{
+  "status": {
+    "checking": "Checking systems…",
+    "live": "All core systems operational",
+    "warn": "Some systems need attention",
+    "down": "Your network is not reachable",
+    "neutral": "System status unavailable",
+    "system": "System",
+    "routers": "Routers",
+    "isp": "ISP",
+    "fixProblem": "Fix a problem"
+  },
+  "header": {
+    "eyebrow": "Location overview",
+    "title": "Dashboard",
+    "subtitle": "Here's what's happening at {{name}}.",
+    "yourVenue": "your venue",
+    "failedLogins_one": "{{count}} failed login today",
+    "failedLogins_other": "{{count}} failed logins today",
+    "loginCheckUnavailable": "Login check unavailable",
+    "loginCheckUnavailableHint": "The failed-login check could not read this venue's login audit log."
+  },
+  "range": {
+    "24h": "Last 24 hours",
+    "7d": "Last 7 days",
+    "30d": "Last 30 days"
+  },
+  "rangeInline": {
+    "24h": "last 24 hours",
+    "7d": "last 7 days",
+    "30d": "last 30 days"
+  },
+  "liveError": {
+    "title": "Couldn't load this venue's live status",
+    "body": "Online guests, uptime, recent guests and alerts are unavailable right now."
+  },
+  "retry": "Retry",
+  "couldNotLoad": "Couldn't load",
+  "couldNotLoadDot": "Couldn't load.",
+  "seriesError": "Couldn't load guest analytics.",
+  "viewAll": "View all →",
+  "kpi": {
+    "guests": "Guests",
+    "guestsFooter": "Unique guests, {{range}}",
+    "online": "Currently online",
+    "onlineFooter": "Peak {{range}}: {{peak}}",
+    "avgSession": "Avg. session time",
+    "avgSessionValue": "{{minutes}} min",
+    "noSessions": "No sessions {{range}}",
+    "acrossSessions_one": "Across {{formatted}} session",
+    "acrossSessions_other": "Across {{formatted}} sessions",
+    "uptime": "Uptime",
+    "allHealthy": "All systems healthy"
+  },
+  "guestsOnline": {
+    "title": "Guests Online",
+    "subtitleHourly": "Guests connected each hour, {{range}}",
+    "subtitleDaily": "Guests connected each day, {{range}}",
+    "empty": "No guest activity {{range}}.",
+    "tooltipValue_one": "{{count}} guest",
+    "tooltipValue_other": "{{count}} guests",
+    "tooltipLabel": "Online"
+  },
+  "devicesByOs": {
+    "title": "Devices by OS",
+    "empty": "No devices {{range}}."
+  },
+  "sessions": {
+    "titleHourly": "Sessions by Hour",
+    "titleDaily": "Sessions by Day",
+    "subtitle": "New guest sessions",
+    "empty": "No sessions {{range}}.",
+    "tooltipLabel": "Sessions"
+  },
+  "bandwidth": {
+    "title": "Bandwidth"
+  },
+  "recentUsers": {
+    "title": "Recent Users",
+    "empty": "No guests have connected in the last 24 hours.",
+    "colUser": "User",
+    "colDevice": "Device",
+    "colTime": "Time",
+    "colStatus": "Status",
+    "statusOnline": "online",
+    "statusOffline": "offline",
+    "statusIdle": "idle"
+  },
+  "recentAlerts": {
+    "title": "Recent Alerts",
+    "empty": "No alerts. Nothing needs your attention."
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "status": {
+    "checking": "सिस्टम जाँच रहे हैं…",
+    "live": "सब कुछ ठीक चल रहा है",
+    "warn": "कुछ चीज़ों पर ध्यान देना है",
+    "down": "आपका नेटवर्क नहीं मिल रहा",
+    "neutral": "सिस्टम की स्थिति अभी पता नहीं",
+    "system": "सिस्टम",
+    "routers": "राउटर",
+    "isp": "ISP",
+    "fixProblem": "दिक्कत ठीक करें"
+  },
+  "header": {
+    "eyebrow": "लोकेशन की झलक",
+    "title": "डैशबोर्ड",
+    "subtitle": "{{name}} में अभी क्या चल रहा है, यहाँ देखें।",
+    "yourVenue": "आपकी जगह",
+    "failedLogins_one": "आज {{count}} लॉगिन फ़ेल हुआ",
+    "failedLogins_other": "आज {{count}} लॉगिन फ़ेल हुए",
+    "loginCheckUnavailable": "लॉगिन जाँच अभी नहीं हो पाई",
+    "loginCheckUnavailableHint": "फ़ेल लॉगिन की जाँच इस लोकेशन का लॉगिन रिकॉर्ड नहीं पढ़ पाई।"
+  },
+  "range": {
+    "24h": "पिछले 24 घंटे",
+    "7d": "पिछले 7 दिन",
+    "30d": "पिछले 30 दिन"
+  },
+  "rangeInline": {
+    "24h": "पिछले 24 घंटे",
+    "7d": "पिछले 7 दिन",
+    "30d": "पिछले 30 दिन"
+  },
+  "liveError": {
+    "title": "इस लोकेशन की लाइव जानकारी नहीं खुल पाई",
+    "body": "ऑनलाइन मेहमान, अपटाइम, हाल के मेहमान और अलर्ट अभी नहीं दिख रहे।"
+  },
+  "retry": "फिर से कोशिश करें",
+  "couldNotLoad": "लोड नहीं हो पाया",
+  "couldNotLoadDot": "लोड नहीं हो पाया।",
+  "seriesError": "मेहमानों के आँकड़े लोड नहीं हो पाए।",
+  "viewAll": "सब देखें →",
+  "kpi": {
+    "guests": "मेहमान",
+    "guestsFooter": "अलग-अलग मेहमान, {{range}}",
+    "online": "अभी ऑनलाइन",
+    "onlineFooter": "{{range}} में सबसे ज़्यादा: {{peak}}",
+    "avgSession": "औसत सेशन समय",
+    "avgSessionValue": "{{minutes}} मिनट",
+    "noSessions": "{{range}} में कोई सेशन नहीं",
+    "acrossSessions_one": "{{formatted}} सेशन के हिसाब से",
+    "acrossSessions_other": "{{formatted}} सेशन के हिसाब से",
+    "uptime": "अपटाइम",
+    "allHealthy": "सब सिस्टम ठीक हैं"
+  },
+  "guestsOnline": {
+    "title": "ऑनलाइन मेहमान",
+    "subtitleHourly": "हर घंटे जुड़े मेहमान, {{range}}",
+    "subtitleDaily": "हर दिन जुड़े मेहमान, {{range}}",
+    "empty": "{{range}} में कोई मेहमान नहीं जुड़ा।",
+    "tooltipValue_one": "{{count}} मेहमान",
+    "tooltipValue_other": "{{count}} मेहमान",
+    "tooltipLabel": "ऑनलाइन"
+  },
+  "devicesByOs": {
+    "title": "डिवाइस (OS के हिसाब से)",
+    "empty": "{{range}} में कोई डिवाइस नहीं।"
+  },
+  "sessions": {
+    "titleHourly": "हर घंटे के सेशन",
+    "titleDaily": "हर दिन के सेशन",
+    "subtitle": "मेहमानों के नए सेशन",
+    "empty": "{{range}} में कोई सेशन नहीं।",
+    "tooltipLabel": "सेशन"
+  },
+  "bandwidth": {
+    "title": "बैंडविड्थ"
+  },
+  "recentUsers": {
+    "title": "हाल के मेहमान",
+    "empty": "पिछले 24 घंटे में कोई मेहमान नहीं जुड़ा।",
+    "colUser": "मेहमान",
+    "colDevice": "डिवाइस",
+    "colTime": "समय",
+    "colStatus": "स्थिति",
+    "statusOnline": "ऑनलाइन",
+    "statusOffline": "ऑफ़लाइन",
+    "statusIdle": "रुका हुआ"
+  },
+  "recentAlerts": {
+    "title": "हाल के अलर्ट",
+    "empty": "कोई अलर्ट नहीं। अभी कुछ करने की ज़रूरत नहीं।"
+  }
+}
