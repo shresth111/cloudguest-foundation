@@ -90,7 +90,7 @@ const SELECT_CLASS =
   "h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
- * Support & Logs -> NetLogs: this account's router and sign-in log lines
+ * Logs -> NetLogs: this account's router and sign-in log lines
  * (router syslog, RADIUS decisions, portal sign-in failures), read-only.
  *
  * Three layers, like every other gated screen: the sidebar row

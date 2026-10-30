@@ -210,7 +210,7 @@ const SMS_REPORT_TYPES: ReportType[] = [
   },
 ];
 
-// "Network Activity Log" -- Support & Logs' own nav item
+// "Network Activity Log" -- a Logs-group nav item
 // (src/lib/customerNav.ts's "network-activity" entry), a distinct page from
 // this file's own "Reports" categories above, not a sixth CATEGORIES tab.
 // Rendered by NetworkActivityLog.tsx via the exported ReportPanel below --

@@ -495,9 +495,9 @@ const en = JSON.parse(read("src/lib/i18n/locales/en/nav.json"));
 const hi = JSON.parse(read("src/lib/i18n/locales/hi/nav.json"));
 
 check(
-  "nav row sits in Support & Logs",
+  "nav row sits in Logs",
   /id: "netlogs", label: "NetLogs", icon: Logs, roles: \["owner", "agent"\]/.test(nav) &&
-    nav.indexOf('id: "netlogs"') > nav.indexOf('id: "support-logs"'),
+    nav.indexOf('id: "netlogs"') > nav.indexOf('id: "logs"'),
 );
 eq("nav row needs network_logs.read", m.NAV_PERMISSION_KEYS.netlogs, ["network_logs.read"]);
 check("that key is seeded by the backend", m.BACKEND_PERMISSION_KEYS.includes("network_logs.read"));

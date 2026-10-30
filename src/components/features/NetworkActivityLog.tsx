@@ -7,7 +7,7 @@ import { getCustomerLoginRole } from "@/lib/customerNav";
 import { ReportPanel, NETWORK_ACTIVITY_REPORT_TYPES } from "@/components/features/UserReports";
 
 /**
- * "Network Activity Log" -- Support & Logs' own nav item
+ * "Network Activity Log" -- a Logs-group nav item
  * (src/lib/customerNav.ts's "network-activity" entry), sitting next to the
  * existing "Logs" tab (AdminLogsView, dashboard/infra-access events) but a
  * genuinely different concern: real *guest* WiFi usage records --

@@ -554,7 +554,7 @@ check(
   // Two separate `customerNavGroupsForRole(role)` calls would drift the
   // moment one of them grew an argument, and the count would then
   // describe a nav nobody is looking at.
-  /const roleNavGroups = customerNavGroupsForRole\(role\);/.test(sidebar) &&
+  /const roleNavGroups = customerSidebarGroupsForRole\(role\);/.test(sidebar) &&
     /filterNavGroupsByPermissions\(roleNavGroups, permissions\)/.test(sidebar) &&
     /navItemsHiddenByPermissions\(roleNavGroups, permissions\)/.test(sidebar),
 );

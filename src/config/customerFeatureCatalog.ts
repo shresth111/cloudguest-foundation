@@ -44,46 +44,43 @@ export interface FeatureDef {
 }
 
 export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[] }[] = [
+  // Same task-based groups, in the same order, as the customer sidebar
+  // (customerNav.ts), so the Staff Access grant list reads like the menu the
+  // staff member will see. Traffic Lens, NetLogs and How It Works are not
+  // grantable features and are absent here, as before.
   {
-    group: "Overview",
+    group: "Home",
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, core: true },
-      { id: "users", label: "Guests", icon: Users },
-      { id: "reports", label: "Reports", icon: FileText },
       { id: "alerts", label: "Alerts", icon: Bell },
+      // Renamed from "Network Diagnostics" -- the old label/layout read too
+      // close to a competitor's equivalent feature. Same id/route and
+      // network_diagnostics/guestService data underneath, display name +
+      // icon only (Terminal -> Wifi, previously-unused import here). See
+      // OperationsFeatures.tsx's DebuggingView for the matching redesign.
+      { id: "debugging", label: "Fix a Problem", icon: Wifi },
     ],
   },
   {
-    group: "Engagement",
+    group: "Guests",
     items: [
-      { id: "campaigns", label: "Login Page Offers", icon: Megaphone },
-      { id: "portal", label: "Portal", icon: Palette },
+      { id: "users", label: "Guests", icon: Users },
       { id: "vouchers", label: "Vouchers", icon: Ticket },
+      { id: "teams", label: "Guest Groups", icon: UsersRound },
+      // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5),
+      // grantable so Staff Access can give it to a staff role. Granting it here
+      // does not unlock the add-on -- that is the organisation's entitlement --
+      // and does not grant sending, which the backend gates on
+      // `marketing.execute` separately.
+      { id: "marketing", label: "Guest Messaging", icon: Send },
+      { id: "reports", label: "Reports", icon: FileText },
     ],
   },
   {
-    // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5),
-    // grantable so Staff Access can give it to a staff role. Granting it here
-    // does not unlock the add-on -- that is the organisation's entitlement --
-    // and does not grant sending, which the backend gates on
-    // `marketing.execute` separately.
-    group: "Marketing",
-    items: [{ id: "marketing", label: "Guest Messaging", icon: Send }],
-  },
-  {
-    group: "Access & Policy",
+    group: "Login Page",
     items: [
-      { id: "policies", label: "Access Rules", icon: ShieldCheck },
-      // Renamed from "Always Allowed" (founder QA). "Always" promised a
-      // bypass of the sign-in page that this list has never provided -- a
-      // WHITELIST rule is inert while the portal default-allows everyone,
-      // and only bites once "Only allow the guests on this list" is on. The
-      // name now says what the list is consulted for. Then "Only Allowed"
-      // -> "Guest Allow-list" (PM naming review): a plain noun for the
-      // list itself, and clearly about guests, so it no longer reads like
-      // Trusted Devices (fixed equipment that connects on its own).
-      { id: "whitelist", label: "Guest Allow-list", icon: Shield },
-      { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint },
+      { id: "portal", label: "Portal", icon: Palette },
+      { id: "campaigns", label: "Login Page Offers", icon: Megaphone },
       // Renamed from "Business Hours" -- the old label/visual design read
       // too close to a competitor's equivalent feature. Same id/route/
       // data, display name + icon only (Sun/Moon now echoes the guest-
@@ -97,14 +94,6 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     ],
   },
   {
-    group: "Devices & Team",
-    items: [
-      { id: "devices", label: "Devices", icon: Monitor },
-      { id: "teams", label: "Guest Groups", icon: UsersRound },
-      { id: "agents", label: "Staff Access", icon: Bot },
-    ],
-  },
-  {
     group: "Network",
     // "DHCP Pool"/"VLANs"/"VOIP Priority" renamed to plainer, less
     // acronym-heavy labels (same id/route/data -- see each component's own
@@ -112,11 +101,12 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     // title for the master console's separate /network/* routes). Port
     // Forwarding and Internet Connection were already plain, left as-is.
     items: [
+      { id: "devices", label: "Devices", icon: Monitor },
+      { id: "isp-details", label: "Internet Connection", icon: Globe },
       { id: "dhcp", label: "IP Addresses", icon: Server },
       { id: "vlans", label: "Network Zones", icon: Network },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2 },
       { id: "voip", label: "Call Priority", icon: Signal },
-      { id: "isp-details", label: "Internet Connection", icon: Globe },
     ],
   },
   {
@@ -137,23 +127,28 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // Block Websites now, so granting "blocking" grants both.
       { id: "blocking", label: "Block Websites", icon: Ban },
       { id: "firewall", label: "Firewall", icon: BrickWall },
+      // Moved in from the retired "Access & Policy" group, after the three
+      // above, matching customerNav.ts's Security group.
+      { id: "policies", label: "Access Rules", icon: ShieldCheck },
+      // Renamed from "Always Allowed" (founder QA). "Always" promised a
+      // bypass of the sign-in page that this list has never provided -- a
+      // WHITELIST rule is inert while the portal default-allows everyone,
+      // and only bites once "Only allow the guests on this list" is on. The
+      // name now says what the list is consulted for. Then "Only Allowed"
+      // -> "Guest Allow-list" (PM naming review): a plain noun for the
+      // list itself, and clearly about guests, so it no longer reads like
+      // Trusted Devices (fixed equipment that connects on its own).
+      { id: "whitelist", label: "Guest Allow-list", icon: Shield },
+      { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint },
     ],
   },
   {
-    group: "Operations",
-    items: [
-      // Renamed from "Network Diagnostics" -- the old label/layout read too
-      // close to a competitor's equivalent feature. Same id/route and
-      // network_diagnostics/guestService data underneath, display name +
-      // icon only (Terminal -> Wifi, previously-unused import here). See
-      // OperationsFeatures.tsx's DebuggingView for the matching redesign.
-      { id: "debugging", label: "Fix a Problem", icon: Wifi },
-    ],
+    group: "Help",
+    items: [{ id: "tickets", label: "Support Tickets", icon: LifeBuoy, core: true }],
   },
   {
-    group: "Support & Logs",
+    group: "Logs",
     items: [
-      { id: "tickets", label: "Support Tickets", icon: LifeBuoy, core: true },
       // "Audit Log" is no longer a separate grantable feature -- its real
       // data was merged into Admin Logs' own "Account Activity" section.
       { id: "admin-logs", label: "Staff Activity", icon: ScrollText },
@@ -166,6 +161,12 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       // no effect until that separate restriction is ever relaxed.
       { id: "network-activity", label: "Guest Connection Records", icon: Radar },
     ],
+  },
+  {
+    // Staff Access is offered from the avatar menu, not the sidebar, but it
+    // is still a grantable feature.
+    group: "Account",
+    items: [{ id: "agents", label: "Staff Access", icon: Bot }],
   },
 ];
 

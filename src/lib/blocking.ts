@@ -30,7 +30,7 @@
  *
  * "Only Allowed" (`whitelist`) is deliberately NOT a tab. It is the opposite
  * switch -- turn it on and everyone not on the list is refused -- and it keeps
- * its own row in Access & Policy. The page links to it instead of mounting a
+ * its own row in Security. The page links to it instead of mounting a
  * second copy.
  */
 

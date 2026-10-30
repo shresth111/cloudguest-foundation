@@ -1,6 +1,6 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Shield, Eye, Loader2, Lock } from "lucide-react";
+import { ChevronRight, Shield, Eye, Loader2, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -19,10 +19,12 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   customerFeatureHref,
-  customerNavGroupsForRole,
+  customerSidebarGroupsForRole,
   getCustomerLoginRole,
+  type CustomerNavGroup,
 } from "@/lib/customerNav";
 import {
   filterNavGroupsByPermissions,
@@ -42,25 +44,27 @@ import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
  * The one shared sidebar every customer page renders: every feature in
- * its group (Overview / Engagement / Marketing / Access & Policy / Devices &
- * Team / Network / Security / Support & Logs), straight off
- * `CUSTOMER_NAV_GROUPS`, role-filtered and then permission-filtered.
+ * its group (Home / Guests / Login Page / Network / Security / Help / Logs),
+ * straight off `CUSTOMER_NAV_GROUPS` via `customerSidebarGroupsForRole`,
+ * role-filtered and then permission-filtered. Staff Access is the one
+ * feature not here -- it is in the avatar menu (CustomerHeader.tsx).
  *
  * ON THE GROUPING
  * ---------------
- * A previous change folded these 26 into nine "destinations" with the other
- * seventeen reachable as tabs inside them. That grouping was reverted: the
+ * A previous change folded these rows into nine "destinations" with the
+ * rest reachable as tabs inside them. That grouping was reverted: the
  * one-row-per-screen menu is what this product's customers navigate by, and
  * the destination layer is gone rather than left half-wired. `customerNav.ts`
  * is the single source of truth for what is offered and
  * `customerFeatureHref()` for where each one lives, exactly as before.
  *
- * The known costs of this shape are real and are not fixed here -- "why is
- * the WiFi down" is answered across several groups, and 30 rows plus eight
- * group labels is more nav than a laptop viewport holds, so the last groups
- * sit below the fold. The first ordering pass moved "Fix a Problem" up into
- * Overview, straight under Dashboard, so the screen an owner wants when the
- * WiFi is down is never one of the rows below the fold.
+ * The rows are grouped by task rather than by subsystem. The old eight
+ * groups answered "why is the WiFi down" across four of them and ran 30 rows
+ * plus eight labels past the bottom of a laptop viewport. Now Home holds the
+ * three rows for "something is wrong" (Dashboard, Alerts, Fix a Problem),
+ * Network holds the hardware and the uplink together, and the three audit
+ * records sit in Logs, which is collapsed until opened (or until the current
+ * page is one of them) -- 29 rows, 26 visible on first load, seven labels.
  *
  * WHAT IS NOT REVERTED, AND WHY
  * -----------------------------
@@ -111,6 +115,96 @@ export interface CustomerSidebarProps {
   dataMasking: ReturnType<typeof useDataMasking>;
 }
 
+const GROUP_LABEL_CLASS =
+  "text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/75";
+
+/** Groups rendered collapsed until opened. Only Logs: Staff Activity, Guest
+ * Connection Records and NetLogs are records an owner looks up after the
+ * fact, rarely, and three rows of them were most of what pushed the rail past
+ * a laptop's fold. Collapsing it costs one click on the rare visit and buys
+ * the everyday rows their place on screen. */
+const COLLAPSIBLE_GROUP_IDS: ReadonlySet<string> = new Set(["logs"]);
+
+const groupOpenStorageKey = (groupId: string) => `cg_sidebar_group_open:${groupId}`;
+
+function readStoredGroupOpen(groupId: string): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(groupOpenStorageKey(groupId));
+    return v === "1" ? true : v === "0" ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A sidebar group whose label is a disclosure button.
+ *
+ * Closed by default; open when the current page is one of its rows (a page
+ * whose own row is hidden reads as "where am I?"); and once the user toggles
+ * it, their choice is kept in localStorage and wins on later page loads --
+ * except that landing on one of its rows always shows that row.
+ *
+ * In the collapsed icon rail the label is invisible (the primitive fades it
+ * out), so the group is forced open and the trigger disabled there: the rail
+ * shows every icon, as it always has, and nothing invisible takes focus.
+ * The trigger is Radix's, so `aria-expanded` / `aria-controls` come with it.
+ */
+function CollapsibleNavGroup({
+  group,
+  label,
+  activeFeatureId,
+  railCollapsed,
+  children,
+}: {
+  group: CustomerNavGroup;
+  label: string;
+  activeFeatureId: string;
+  railCollapsed: boolean;
+  children: ReactNode;
+}) {
+  const containsActive = group.items.some((item) => item.id === activeFeatureId);
+  const [open, setOpen] = useState<boolean>(
+    () => containsActive || (readStoredGroupOpen(group.id) ?? false),
+  );
+  // The sidebar is not always remounted on navigation; arriving on one of
+  // this group's pages must still reveal its row.
+  useEffect(() => {
+    if (containsActive) setOpen(true);
+  }, [containsActive]);
+
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    try {
+      window.localStorage.setItem(groupOpenStorageKey(group.id), next ? "1" : "0");
+    } catch {
+      // Private mode / storage full: the toggle still works for this page.
+    }
+  };
+
+  return (
+    <Collapsible
+      open={railCollapsed || open}
+      onOpenChange={onOpenChange}
+      disabled={railCollapsed}
+      asChild
+    >
+      <SidebarGroup>
+        <SidebarGroupLabel asChild className={GROUP_LABEL_CLASS}>
+          <CollapsibleTrigger className="group/collapsible w-full cursor-pointer hover:text-sidebar-foreground">
+            <span className="flex-1 text-left">{label}</span>
+            <ChevronRight
+              aria-hidden
+              className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+            />
+          </CollapsibleTrigger>
+        </SidebarGroupLabel>
+        <CollapsibleContent>{children}</CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
+  );
+}
+
 export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSidebarProps) {
   const { t } = useTranslation("nav", { i18n });
   const { state } = useSidebar();
@@ -123,7 +217,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
   // See customerNavPermissions.ts for why every ambiguity resolves toward
   // the customer.
   const { data: permissions, isLoading: permissionsLoading } = useMyPermissions();
-  const roleNavGroups = customerNavGroupsForRole(role);
+  const roleNavGroups = customerSidebarGroupsForRole(role);
   const navGroups = filterNavGroupsByPermissions(roleNavGroups, permissions);
   // A PRESENT BUT INCOMPLETE grant set is the case the fail-open rules
   // above deliberately do not cover: it is a real answer, so the filter
@@ -264,11 +358,9 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
             </SidebarGroupContent>
           </SidebarGroup>
         ) : (
-          navGroups.map((group) => (
-            <SidebarGroup key={group.id}>
-              <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/75">
-                {t(`customerGroup.${group.id}`, group.label)}
-              </SidebarGroupLabel>
+          navGroups.map((group) => {
+            const groupLabel = t(`customerGroup.${group.id}`, group.label);
+            const body = (
               <SidebarGroupContent>
                 <SidebarMenu>
                   {group.items.map((item) => {
@@ -357,8 +449,24 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                     </p>
                   )}
               </SidebarGroupContent>
-            </SidebarGroup>
-          ))
+            );
+            return COLLAPSIBLE_GROUP_IDS.has(group.id) ? (
+              <CollapsibleNavGroup
+                key={group.id}
+                group={group}
+                label={groupLabel}
+                activeFeatureId={activeFeatureId}
+                railCollapsed={collapsed}
+              >
+                {body}
+              </CollapsibleNavGroup>
+            ) : (
+              <SidebarGroup key={group.id}>
+                <SidebarGroupLabel className={GROUP_LABEL_CLASS}>{groupLabel}</SidebarGroupLabel>
+                {body}
+              </SidebarGroup>
+            );
+          })
         )}
         {!showSkeleton && hiddenByPermissions.length > 0 && !collapsed && (
           <div className="px-4 pb-3 pt-1">

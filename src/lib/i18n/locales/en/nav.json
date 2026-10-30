@@ -84,14 +84,14 @@
     "workspace-help": "Help center"
   },
   "customerGroup": {
-    "overview": "Overview",
-    "engagement": "Engagement",
-    "marketing": "Marketing",
-    "access-policy": "Access & Policy",
-    "devices-team": "Devices & Team",
+    "overview": "Home",
+    "guests": "Guests",
+    "login-page": "Login Page",
     "network": "Network",
     "security": "Security",
-    "support-logs": "Support & Logs"
+    "help": "Help",
+    "logs": "Logs",
+    "account": "Account"
   },
   "customerItem": {
     "dashboard": "Dashboard",
