@@ -11,7 +11,7 @@
  * keep their own `config?.logoUrl ? <VenueLogo .../> : <Fallback/>` branch;
  * this only removes the duplicated `<img>` markup and its rationale.
  */
-import { useState } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { PortalDefaultBrandBadge } from "./PortalDefaultBrandBadge";
 
@@ -26,58 +26,163 @@ const SIZE_CLASSES = {
   lg: "h-24 w-auto max-w-[280px] drop-shadow-lg sm:h-32 sm:max-w-[320px] md:h-36 md:max-w-[360px]",
 } as const;
 
-// Mirrors each size's own SIZE_CLASSES breakpoint progression above (same
-// heights, just square instead of width-free) so the framed plate scales
-// at the identical steps the bare image would have.
-const PLATE_SIZE_CLASSES = {
-  sm: "h-12 w-12 p-2 sm:h-14 sm:w-14 sm:p-2.5 md:h-16 md:w-16 md:p-3",
-  md: "h-16 w-16 p-2.5 sm:h-20 sm:w-20 sm:p-3 md:h-24 md:w-24 md:p-3.5",
-  lg: "h-24 w-24 p-3.5 sm:h-32 sm:w-32 sm:p-4.5 md:h-36 md:w-36 md:p-5",
-} as const;
+/**
+ * Shape-aware sizing for the sign-in card's logo zone (`adaptive`).
+ *
+ * The old `framed` plate was a fixed 48px square (56/64 at sm/md) with 8px
+ * of padding, so EVERY upload was squeezed into a 30x30 CSS-px box on a
+ * phone: a 4:1 wordmark painted at 30x7.5px, a 1:2 crest at 15x30px. That,
+ * not the file, is why venue logos looked tiny (the backend stores the
+ * upload at full resolution -- see `_process_logo`, which only crops).
+ *
+ * Now the box follows the logo's own shape, from its natural size:
+ *
+ *   width = min( base * ratio^0.65,          -- shape curve (below)
+ *                maxH * ratio,               -- tall logos: height-bound
+ *                70% of the zone,            -- wide banners: width-bound
+ *                sharpness cap )             -- never blow up a small file
+ *
+ * `ratio^0.65` sits between "same height for all" (exponent 0, wide logos
+ * become thin strips) and "same area for all" (0.5): a wide wordmark gets
+ * noticeably more width, a square/tall mark more height, and they read as
+ * the same visual weight. Height follows from the image's own aspect
+ * ratio (`height: auto`), so nothing is ever cropped or stretched.
+ *
+ * Sizes come from CSS variables switched by a CONTAINER query on the zone
+ * itself, not a viewport breakpoint: the owner's Portal designer renders
+ * this exact component inside a 393px phone frame on a desktop window, and
+ * a viewport `sm:`/`md:` there would show the desktop size the guest never
+ * sees. A zone narrower than 22rem (every phone) uses the phone size.
+ */
+const ADAPTIVE_EXPONENT = 0.65;
+// How far past 1 image-pixel-per-device-pixel we let a small upload be
+// stretched. 1.0 is "perfectly sharp" but renders a 96px upload at 32 CSS px
+// on a 3x phone -- the postage stamp we are fixing. 1.5x bilinear upscale of
+// a flat-colour logo is soft at the edges but not visibly pixelated at arm's
+// length; past ~2x it is. SVG (resolution-independent) is never capped.
+const MAX_UPSCALE = 1.5;
+// ...but a tiny file still gets at least this many CSS px (or its own CSS
+// size, if smaller), so a 64px upload on a 3x phone is not 32px.
+const CAP_FLOOR_PX = 40;
+
+const isVectorUrl = (url: string) =>
+  /^data:image\/svg\+xml/i.test(url) || /\.svg(?:[?#]|$)/i.test(url);
+
+/** Largest CSS width this file can be drawn at without visible blur. */
+export function venueLogoWidthCap(
+  naturalWidth: number,
+  devicePixelRatio: number,
+  vector: boolean,
+): number | null {
+  if (vector || naturalWidth <= 0) return null;
+  const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
+  return Math.max(Math.min(naturalWidth, CAP_FLOOR_PX), (naturalWidth * MAX_UPSCALE) / dpr);
+}
+
+type Measured = { ratio: number; cap: number | null };
+
+function AdaptiveVenueLogo({
+  logoUrl,
+  alt,
+  className,
+  onFail,
+}: {
+  logoUrl: string;
+  alt: string;
+  className?: string;
+  onFail: () => void;
+}) {
+  const [measured, setMeasured] = useState<Measured | null>(null);
+  const measure = (img: HTMLImageElement) => {
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    setMeasured({
+      ratio: img.naturalWidth / img.naturalHeight,
+      cap: venueLogoWidthCap(img.naturalWidth, window.devicePixelRatio, isVectorUrl(logoUrl)),
+    });
+  };
+  // The portal is server-rendered: a cached logo can finish loading before
+  // React hydrates and attaches `onLoad`/`onError`, so neither would ever
+  // fire. Check the element's own state once it is mounted.
+  const ref = useCallback(
+    (img: HTMLImageElement | null) => {
+      if (!img || !img.complete) return;
+      if (img.naturalWidth) measure(img);
+      else if (img.currentSrc || img.src) onFail();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [logoUrl],
+  );
+
+  const style = measured
+    ? ({
+        "--venue-logo-k": Math.pow(measured.ratio, ADAPTIVE_EXPONENT),
+        "--venue-logo-r": measured.ratio,
+        width: `min(${[
+          "calc(var(--venue-logo-base) * var(--venue-logo-k))",
+          "calc(var(--venue-logo-max-h) * var(--venue-logo-r))",
+          "70%",
+          ...(measured.cap == null ? [] : [`${measured.cap.toFixed(2)}px`]),
+        ].join(", ")})`,
+        aspectRatio: String(measured.ratio),
+      } as CSSProperties)
+    : undefined;
+
+  return (
+    // The reserved box: a fixed-height band from first paint, so the
+    // heading and form below never move when the logo arrives (or fails).
+    <span className={cn("@container flex w-full justify-center", className)}>
+      <span
+        data-venue-logo-box
+        className={cn(
+          "relative flex w-full items-center justify-center",
+          "[--venue-logo-base:88px] [--venue-logo-max-h:96px]",
+          "@min-[22rem]:[--venue-logo-base:100px] @min-[22rem]:[--venue-logo-max-h:112px]",
+          "h-[var(--venue-logo-max-h)]",
+        )}
+      >
+        <img
+          ref={ref}
+          src={logoUrl}
+          alt={alt}
+          decoding="async"
+          onLoad={(e) => measure(e.currentTarget)}
+          onError={onFail}
+          // See the plain branch below: never leak the portal URL (NAS
+          // login target, device MAC) to a third-party logo host.
+          referrerPolicy="no-referrer"
+          style={style}
+          className={cn(
+            // Fallback for engines without CSS min(): still bounded.
+            "h-auto max-h-[var(--venue-logo-max-h)] max-w-[70%] object-contain",
+            // A hairline shadow, not a plate: gives white-on-transparent
+            // art an edge on this light card without boxing every logo.
+            "drop-shadow-[0_1px_1px_rgba(15,23,42,0.18)]",
+            // Hidden (but loading, and taking no space) until measured --
+            // no flash of a full-size 1200px image.
+            !measured && "invisible absolute h-px w-px",
+          )}
+        />
+      </span>
+    </span>
+  );
+}
 
 export function VenueLogo({
   logoUrl,
   alt = "",
   size = "sm",
   className,
-  framed = false,
+  adaptive = false,
 }: {
   logoUrl: string;
   alt?: string;
   size?: keyof typeof SIZE_CLASSES;
   className?: string;
-  /** Every venue's own upload is a genuinely different shape -- a square
-   * mark, a wide horizontal lockup, a tall vertical one, white-on-
-   * transparent art meant for a dark background, dark-on-transparent for
-   * a light one. The bare, height-constrained `<img>` below handles the
-   * WIDE case fine (object-contain shrinks it to fit) but not the other
-   * two: a tall/narrow upload collapses to a near-invisible sliver at a
-   * fixed height, and either light-on-transparent or dark-on-transparent
-   * art can lose all contrast against whatever happens to sit behind it
-   * -- our new violet-tinted header wash included.
-   *
-   * `framed` swaps the bare image for a white plate in the same material
-   * as `PortalDefaultBrandBadge`'s NO-logo case (soft radial highlight,
-   * 1px ring, matching shadow) -- rounded-square rather than that badge's
-   * own circle, see the render branch's own comment for why a true
-   * circle is unsafe for an arbitrary externally-uploaded shape. Every
-   * venue's own upload, whatever its shape or palette, sits on a
-   * fixed-size, guaranteed-light-neutral surface instead of floating
-   * directly on the zone behind it. `object-contain` inside that fixed
-   * box is what turns "constrain height, let width run away" into
-   * "always fit, never smear, never disappear" for every aspect ratio at
-   * once -- a square mark centers with even padding, a wide lockup
-   * shrinks to the plate's width, a tall one shrinks to its height, and
-   * a light-on-transparent upload gets the same white backing the
-   * dark-on-transparent case never needed but is never hurt by either.
-   *
-   * Opt-in, not the default: the other two call sites (`portal.auth.
-   * $method`, `portal.index`) render on their own already-legible
-   * surfaces (a photo behind `PortalTextPlate`, or the flat canvas) where
-   * this framing was never the reported problem, and forcing every
-   * venue's lockup into a circle there is a bigger visual change than
-   * either screen asked for. */
-  framed?: boolean;
+  /** Size the logo by its own shape inside a reserved band, capped at
+   * what the file's resolution supports -- see `AdaptiveVenueLogo`. The
+   * sign-in card uses this. It replaced `framed` (a fixed 48px plate that
+   * painted every logo inside a 30x30px box on a phone). */
+  adaptive?: boolean;
 }) {
   // A broken venue logo (asset deleted after upload, CDN hiccup) must not
   // render the browser's broken-image glyph -- the worst possible first
@@ -93,42 +198,15 @@ export function VenueLogo({
       />
     );
   }
-  if (framed) {
+  if (adaptive) {
     return (
-      // `rounded-2xl` (this card family's own `rounded-[20px]` radius),
-      // NOT `rounded-full`: a true circle clips content in the box's
-      // corners, and `object-contain` only guarantees the image fits the
-      // SQUARE box, not the circle inscribed inside it. A wide lockup
-      // scales to a full-width band centered vertically -- at the box's
-      // left/right edges that band touches the circle's boundary at
-      // exactly one point (dead center) and is outside it everywhere
-      // else, so the logo's own left/right extremities were being cut off
-      // by the mask despite "fitting" -- the exact failure mode `framed`
-      // exists to prevent, just moved from the layout math to the mask
-      // shape. A rounded square only clips a small radius at each corner,
-      // which a wide/tall band never reaches at all (it isn't near any
-      // corner) and a near-square mark loses at most a few pixels off
-      // each corner -- the same trade-off every rounded app-icon frame
-      // makes, and never a cut into the logo's actual width or height.
-      <span
-        className={cn(
-          "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#e0e7ff] shadow-sm",
-          "bg-[radial-gradient(circle_at_35%_30%,#ffffff_0%,#eef2ff_100%)]",
-          PLATE_SIZE_CLASSES[size],
-          className,
-        )}
-      >
-        <img
-          src={logoUrl}
-          alt={alt}
-          onError={() => setFailed(true)}
-          // The venue logo is often hosted on a third-party CDN, and the
-          // page URL carries the NAS's link-login-only target and the
-          // device MAC -- never leak those in the Referer header.
-          referrerPolicy="no-referrer"
-          className="h-full w-full object-contain"
-        />
-      </span>
+      <AdaptiveVenueLogo
+        key={logoUrl}
+        logoUrl={logoUrl}
+        alt={alt}
+        className={className}
+        onFail={() => setFailed(true)}
+      />
     );
   }
   return (
@@ -136,7 +214,9 @@ export function VenueLogo({
       src={logoUrl}
       alt={alt}
       onError={() => setFailed(true)}
-      // Same no-referrer reasoning as the framed branch above.
+      // The venue logo is often hosted on a third-party CDN, and the
+      // page URL carries the NAS's link-login-only target and the device
+      // MAC -- never leak those in the Referer header.
       referrerPolicy="no-referrer"
       // Height-constrained, width free: `object-contain` inside a fixed
       // WIDTH box (what this was before) preserves aspect ratio by
