@@ -16,6 +16,7 @@ name: CI
 #                         opt-in per venue -- restored for legacy venues
 #                         whose flag is on, absent for OTP-only ones)
 #   test:signin-fields .. 23 checks
+#   test:portal-venue-logo 36 checks
 #   test:fw-order ....... 7 checks
 #   test:output-analyser  116 checks
 #   test:a11y ........... sentinel only
@@ -394,6 +395,20 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "portal-guest-name" 34 "portal guest name: all checks passed" \
             bun run test:portal-guest-name
+
+      # The venue logo on the guest sign-in card. It used to paint every
+      # upload inside a fixed 30x30px box on a phone (a 4:1 wordmark came out
+      # 30x7px). Pins, at 390px DPR 3 with the real component and the real
+      # Tailwind classes: a size floor per logo shape, no crop or stretch, the
+      # band reserved before load, a 96px PNG never drawn past its sharpness
+      # cap (SVG uncapped), the brand-badge fallback, and that the card's
+      # width (not the viewport) picks the size so the designer preview
+      # matches the phone.
+      - name: portal venue logo size
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-venue-logo" 36 "all venue logo checks passed" \
+            bun run test:portal-venue-logo
 
       # The per-route errorComponent wiring under /portal. TanStack Router
       # does not inherit `errorComponent` to child routes, so this fix is one
