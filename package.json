@@ -68,6 +68,7 @@
     "test:fetch-count": "node scripts/test-network-page-fetch-count.mjs",
     "test:dashboard-fetch-count": "node scripts/test-customer-dashboard-fetch-count.mjs",
     "test:customer-kpis": "node scripts/test-customer-kpis.mjs",
+    "test:needs-attention": "node scripts/test-needs-attention-card.mjs",
     "test:open-hours-draft": "node scripts/test-open-hours-draft.mjs",
     "test:live-sessions": "node scripts/test-live-sessions.mjs",
     "test:customer-analytics": "node scripts/test-customer-analytics.mjs",
