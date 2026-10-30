@@ -432,7 +432,7 @@ export function CustomerDashboardPage() {
 
   return (
     <SidebarProvider
-      className="bg-[#F8F9FC] dark:bg-background"
+      className="wy-console bg-[#F8F9FC] dark:bg-background"
       style={
         {
           "--primary": "#6C4EFF",

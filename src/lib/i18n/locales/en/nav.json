@@ -502,5 +502,48 @@
     "deviceHint": "Paste one or more device (Wi-Fi/MAC) addresses separated by commas. Your router cuts the device off now and every time it reconnects.",
     "deviceMacNote": "Anonymous guests can switch on a private Wi-Fi address on their phone and come back as a new device, so use this for devices you know.",
     "deviceConfirmBody": "Your router will drop these devices now and every time they reconnect, until you unblock them."
+  },
+  "consoleShell": {
+    "brandSubtitle": "Customer Portal",
+    "breadcrumb": "Breadcrumb",
+    "guestPrivacy": "Guest Privacy",
+    "privacyOn": "Hidden",
+    "privacyOff": "Visible",
+    "refresh": "Refresh",
+    "health": {
+      "title": "Venue health",
+      "allNormal": "All systems normal",
+      "issues_one": "{{count}} issue",
+      "issues_other": "{{count}} issues",
+      "checkedAgo": "Live · checked {{ago}}",
+      "snapshot": "Last known status, from when this venue was opened. The Dashboard checks it live."
+    },
+    "switcher": {
+      "label": "Switch venue",
+      "select": "Select venue",
+      "heading": "Your venues",
+      "all": "All venues",
+      "loading": "Loading…",
+      "error": "Couldn't load your venues."
+    },
+    "account": {
+      "switchLocation": "Switch location",
+      "staffAccess": "Staff access",
+      "changePassword": "Change password",
+      "tfa": "2FA settings",
+      "darkMode": "Dark mode",
+      "lightMode": "Light mode",
+      "signOut": "Sign out"
+    },
+    "palette": {
+      "hint": "Type to find a page, a venue or an action.",
+      "venues": "Venues",
+      "current": "Current",
+      "actions": "Actions",
+      "toggleSidebar": "Collapse or expand the menu",
+      "navigate": "to move",
+      "open": "to open",
+      "close": "to close"
+    }
   }
 }

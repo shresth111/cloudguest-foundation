@@ -357,16 +357,9 @@ function CustomerUsersPage() {
   };
 
   return (
-    <SidebarProvider
-      className="bg-muted/30"
-      style={
-        {
-          "--primary": "#6C4EFF",
-          "--primary-foreground": "#ffffff",
-          "--ring": "#6366f1",
-        } as React.CSSProperties
-      }
-    >
+    // `wy-console`: the console tokens, which also supply the accent the
+    // inline `--primary: #6C4EFF` override here used to.
+    <SidebarProvider className="wy-console bg-[var(--wy-bg)]">
       {/* Same shared sidebar every other customer page uses -- this page
           used to hand-roll its own flat copy with a hardcoded
           `item.id === "users"` active check, which is the drift that

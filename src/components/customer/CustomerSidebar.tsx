@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Shield, Eye, Loader2, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -93,15 +93,12 @@ import type { useDataMasking } from "@/hooks/useCustomerDashboard";
  *
  * COLORS
  * ------
- * The old hand-rolled `<aside>` was plain `bg-background` until it was given
- * a dark indigo gradient (`from-[#1e1b4b] to-[#181530]`) to match the header
- * -- see `CustomerHeader.tsx`'s own doc comment. That gradient never
- * survived the migration to this shared primitive, but the primitive's own
- * `--sidebar*` tokens defaulted dark anyway (a separate, sitewide "modern
- * ink rail" restyle unrelated to this component), so the net effect was the
- * same dark chrome by another route. The inline `style` override on
- * `<Sidebar>` below re-points those tokens at the plain page tokens, which
- * is what restores the light look -- see that override's own comment.
+ * The rail was a dark indigo gradient painted inline. It is now the console
+ * surface: `wy-console` re-points the primitive's `--sidebar*` tokens at the
+ * `--wy-*` console tokens (styles.css; contract in
+ * docs/design/console-tokens.md), so it is light or dark with the theme and
+ * the only colour in it is the active row's accent. Row styling is
+ * `ROW_CLASS` below.
  */
 export interface CustomerSidebarProps {
   /** The feature id of the current page, e.g. "reports", "mac-auth" -- the
@@ -116,7 +113,13 @@ export interface CustomerSidebarProps {
 }
 
 const GROUP_LABEL_CLASS =
-  "text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/75";
+  "h-7 px-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--wy-text-faint)]";
+
+/** Nav row: quiet by default, surface-2 on hover, accent-soft + accent text
+ * when current. Overrides the primitive's hover (which would otherwise use
+ * the same accent tint as the active row and blur the two together). */
+const ROW_CLASS =
+  "h-8 gap-2.5 rounded-[var(--wy-radius)] px-2 text-[13px] text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text)] active:bg-[var(--wy-surface-2)] data-[active=true]:bg-[var(--wy-accent-soft)] data-[active=true]:font-semibold data-[active=true]:text-[var(--wy-accent)] focus-visible:ring-[var(--wy-accent)] [&>svg]:text-current";
 
 /** Groups rendered collapsed until opened. Only Logs: Staff Activity, Guest
  * Connection Records and NetLogs are records an owner looks up after the
@@ -191,7 +194,7 @@ function CollapsibleNavGroup({
     >
       <SidebarGroup>
         <SidebarGroupLabel asChild className={GROUP_LABEL_CLASS}>
-          <CollapsibleTrigger className="group/collapsible w-full cursor-pointer hover:text-sidebar-foreground">
+          <CollapsibleTrigger className="group/collapsible w-full cursor-pointer hover:text-[var(--wy-text-muted)]">
             <span className="flex-1 text-left">{label}</span>
             <ChevronRight
               aria-hidden
@@ -268,38 +271,17 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
   return (
     <Sidebar
       collapsible="icon"
-      // Customer chrome matches the auth/login pages' gradient on the app
-      // (LoginPage.tsx / AuthLayout.tsx paint #1e1b4b -> #312e81 ->
-      // #4c1d95). The rail runs the same stops top-to-bottom so the dark
-      // surfaces of the product share one identity with its login screen.
-      // styles.css's sitewide "--sidebar*" tokens default to near-black
-      // graphite instead, so they are overridden here with the matching
-      // indigo values (Master Console opts out of those defaults via its
-      // own `.master-theme` class). The primitive paints its own
-      // `bg-sidebar` on an inner div, so `--sidebar` must be transparent
-      // for the gradient on this wrapper to show through. The gradient
-      // rides on backgroundImage INLINE (not a class) so the sitewide
-      // brand-sheen rule in styles.css cannot layer over it, and so it
-      // reaches the portal-rendered mobile Sheet through the style
-      // forwarding in ui/sidebar.tsx.
-      className="customer-rail"
-      style={
-        {
-          "--sidebar": "transparent",
-          "--sidebar-foreground": "#d6d3f0",
-          "--sidebar-border": "rgb(255 255 255 / 12%)",
-          "--sidebar-accent": "#4c1d95",
-          "--sidebar-accent-foreground": "#ffffff",
-          "--sidebar-primary": "#b4a7ff",
-          "--sidebar-primary-foreground": "#ffffff",
-          "--sidebar-ring": "#8b6bff",
-          backgroundImage:
-            "linear-gradient(to bottom, #1e1b4b 0%, #2a2560 30%, #312e81 60%, #4c1d95 100%)",
-        } as CSSProperties
-      }
+      // Console rail: a quiet surface (`--wy-surface`, light or dark with the
+      // theme) instead of the indigo gradient it used to paint inline. The
+      // `--sidebar*` tokens are re-pointed at the console ones by
+      // `.wy-console` in styles.css. `wy-console` is on the rail itself (not
+      // only the page wrapper) because ui/sidebar.tsx forwards this className
+      // to the portal-rendered mobile Sheet, which mounts outside the page.
+      // `customer-rail` keeps the sitewide brand sheen off this surface.
+      className="wy-console customer-rail"
     >
-      {/* `h-16` so this header's bottom border and the topbar's land on the
-          same y. They read as one rule across the page -- the rule above
+      {/* `h-14` -- the top bar's height -- so this header's bottom border and
+          the topbar's land on the same y. They read as one rule across the page -- the rule above
           "Overview" in the rail is the same rule that runs above "This
           location, right now" in the content well -- so any height
           disagreement shows up as a visible step where they meet at the
@@ -308,11 +290,9 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
           to match. `SidebarHeader` has no height of its own -- it is `p-2`
           plus whatever it wraps -- so when the markup came across to the
           primitive the height did not, and the border settled wherever the
-          brand block happened to end: 69.5px expanded (the two-line name
-          stack is 36.5px, taller than the 32px chip), 65px collapsed once
-          that stack is hidden. Both sat below the topbar's 64px.
-          `justify-center` keeps the block centred in the fixed box. */}
-      <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
+          brand block happened to end. Pinned now; `justify-center` keeps the
+          block centred in the fixed box. */}
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
         {/* `px-0` in the collapsed icon rail. This row's own `px-2` sits
             inside `SidebarHeader`'s `p-2`, so the 32px brand chip starts
             16px in -- fine in the 16rem expanded rail, but the icon rail is
@@ -329,11 +309,15 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
             content box and spill back over the border we just pinned. */}
         <div className="flex items-center gap-2.5 px-2 group-data-[collapsible=icon]:px-0">
           <img src="/brand/mark-primary-blue.svg" alt="" className="h-8 w-8 shrink-0" />
-          <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-sm font-bold tracking-tight">Wyfy Guest</span>
+          <div className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
+            <span className="truncate text-[13px] font-semibold tracking-tight text-[var(--wy-text)]">
+              Wyfy Guest
+            </span>
             {/* The venue name lives in the top bar's LocationSwitcher, not
                 here as well. */}
-            <span className="truncate text-[11px] text-sidebar-foreground/50">Customer Portal</span>
+            <span className="truncate text-[11px] text-[var(--wy-text-faint)]">
+              {t("consoleShell.brandSubtitle", "Customer Portal")}
+            </span>
           </div>
         </div>
       </SidebarHeader>
@@ -344,7 +328,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
           unreachable in the rail. Scroll instead of clip; the expanded
           sidebar already scrolls. Also drop the primitive's hardcoded
           `bg-background` so the wrapper gradient shows through. */}
-      <SidebarContent className="bg-transparent group-data-[collapsible=icon]:overflow-y-auto">
+      <SidebarContent className="gap-0 bg-transparent py-1 group-data-[collapsible=icon]:overflow-y-auto">
         {showSkeleton ? (
           <SidebarGroup>
             <SidebarGroupContent>
@@ -388,7 +372,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                         <SidebarMenuButton
                           asChild
                           isActive={active}
-                          className={cn(viaController && "opacity-60")}
+                          className={cn(ROW_CLASS, viaController && "opacity-60")}
                           // The collapsed rail is icons only, so the tooltip
                           // is the label. The primitive renders it as a real
                           // Radix tooltip and hides it when expanded, rather
@@ -402,7 +386,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                             className="relative"
                             title={viaController ? controllerReason : undefined}
                           >
-                            {/* Active-page accent bar -- a 3px violet rail on
+                            {/* Active-page accent bar -- a 2px accent rail on
                              * the row's leading edge so the current section
                              * reads instantly when the sidebar is expanded.
                              * Hidden in the collapsed icon rail: the rail is
@@ -412,7 +396,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                             {active && !collapsed && (
                               <span
                                 aria-hidden
-                                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#8B5CF6]"
+                                className="absolute -left-2 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--wy-accent)]"
                               />
                             )}
                             <Icon className="h-4 w-4 shrink-0" />
@@ -420,7 +404,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                             {((item.id === "marketing" && marketingEntitled === false) ||
                               (item.id === "traffic-lens" && trafficLensEntitled === false)) && (
                               <span
-                                className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden"
+                                className="ml-auto inline-flex shrink-0 items-center gap-1 rounded border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-1.5 py-px text-[10px] font-semibold text-[var(--wy-text-faint)] group-data-[collapsible=icon]:hidden"
                                 title={`${label} is an add-on that isn't enabled for your organisation`}
                               >
                                 <Lock aria-hidden className="h-2.5 w-2.5" />
@@ -444,7 +428,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
                   group.items.some(
                     (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
                   ) && (
-                    <p className="px-2 pt-1 text-[11px] leading-snug text-sidebar-foreground/55">
+                    <p className="px-2 pt-1 text-[11px] leading-snug text-[var(--wy-text-faint)]">
                       {controllerReason}
                     </p>
                   )}
@@ -471,7 +455,7 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
         {!showSkeleton && hiddenByPermissions.length > 0 && !collapsed && (
           <div className="px-4 pb-3 pt-1">
             <p
-              className="flex items-start gap-1.5 text-[11px] leading-snug text-sidebar-foreground/55"
+              className="flex items-start gap-1.5 text-[11px] leading-snug text-[var(--wy-text-faint)]"
               title={`Hidden by your permissions: ${hiddenByPermissions
                 .map((i) => t(`customerItem.${i.id}`, i.label))
                 .join(", ")}`}
@@ -486,12 +470,13 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
         )}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               disabled={dataMasking.sending}
               onClick={dataMasking.requestToggle}
+              className={ROW_CLASS}
               tooltip={
                 dataMasking.masked
                   ? "Guest details are hidden. Click to verify and show them."
@@ -503,9 +488,24 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
               ) : dataMasking.masked ? (
                 <Shield className="h-4 w-4" />
               ) : (
-                <Eye className={cn("h-4 w-4", "text-violet-300")} />
+                <Eye className="h-4 w-4" />
               )}
-              <span className="flex-1 truncate">Guest Privacy</span>
+              <span className="flex-1 truncate">
+                {t("consoleShell.guestPrivacy", "Guest Privacy")}
+              </span>
+              {/* The state, in words -- the icon alone was the only cue. */}
+              <span
+                className={cn(
+                  "ml-auto shrink-0 rounded px-1.5 py-px text-[10px] font-semibold group-data-[collapsible=icon]:hidden",
+                  dataMasking.masked
+                    ? "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]"
+                    : "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]",
+                )}
+              >
+                {dataMasking.masked
+                  ? t("consoleShell.privacyOn", "Hidden")
+                  : t("consoleShell.privacyOff", "Visible")}
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
