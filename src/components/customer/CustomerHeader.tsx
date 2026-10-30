@@ -1,6 +1,18 @@
 import type { ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
-import { Bot, MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucide-react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import {
+  Bot,
+  ChevronRight,
+  KeyRound,
+  LogOut,
+  MapPinned,
+  Moon,
+  RefreshCw,
+  ShieldCheck,
+  Sun,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CommandPaletteTrigger } from "@/components/customer/CustomerCommandPalette";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,7 +29,9 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PlanRenewalTicket } from "@/components/features/HeaderControls";
 import { DashboardLanguageSwitcher } from "@/components/layout/DashboardLanguageSwitcher";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { useTheme } from "@/context/ThemeContext";
 import {
+  CUSTOMER_NAV_GROUPS,
   customerFeatureHref,
   customerNavGroupsForRole,
   getCustomerLoginRole,
@@ -25,12 +39,14 @@ import {
 import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { LocationSwitcher } from "@/components/customer/LocationSwitcher";
+import { ConsoleHealthPill } from "@/components/customer/ConsoleHealth";
 
 interface CustomerHeaderProps {
-  /** Left-side content after the venue switcher -- each page composes its
-   * own (page title, optionally a live status dot). The venue name itself
-   * is rendered by `LocationSwitcher`, so titles must not repeat it. */
-  title: ReactNode;
+  /** Optional content after the breadcrumb -- a page may add a status chip.
+   * The page name itself comes from the breadcrumb (derived from the route
+   * via `customerNav.ts`), and the venue name from `LocationSwitcher`, so a
+   * title must repeat neither. */
+  title?: ReactNode;
   locationId: string;
   /** Real ISO renewal date (e.g. `current_period_end`/`renewalDate` from
    * `GET /billing/dashboard/me`), not pre-formatted -- `PlanRenewalTicket`
@@ -50,19 +66,57 @@ interface CustomerHeaderProps {
   onLogout: () => void;
 }
 
+const ICON_BUTTON =
+  "h-8 w-8 rounded-[var(--wy-radius)] text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text)] focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]";
+
 const MENU_ITEM =
-  "cursor-pointer gap-2 rounded-lg px-3 py-2 text-white hover:bg-white/10 focus:bg-white/10 focus:text-white";
+  "cursor-pointer gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-[var(--wy-text)] focus:bg-[var(--wy-surface-2)] focus:text-[var(--wy-text)]";
 
 /**
- * The one shared top bar every `/customer/$locationId/*` page renders --
- * same lesson as `CustomerSidebar.tsx`: this exact markup used to be
- * hand-rolled independently in three places (customer.$locationId.$feature
- * .tsx, customer.$locationId.dashboard.tsx, customer.$locationId.users.tsx),
- * each drifting slightly out of sync (a dead "search" button here, a
- * missing refresh button there). Extracted so it can't drift again, and
- * given the same dark indigo chrome as the sidebar it sits beside --
- * matching the product screenshots on wyfyguest.com. The light
- * `bg-background/80` treatment that preceded it lives in git history.
+ * Group and page for the current route, from `CUSTOMER_NAV_GROUPS` -- the
+ * same list the sidebar and palette render, so the crumb can never name a
+ * screen differently from the row that led to it. `null` off the nav (an
+ * unknown path renders no breadcrumb rather than a guessed one).
+ */
+function useCurrentNavCrumb(): {
+  groupId: string;
+  groupLabel: string;
+  itemId: string;
+  itemLabel: string;
+} | null {
+  // Whole state rather than a `select`: the render harnesses in scripts/
+  // stub `useRouterState` as a plain object return, and the header
+  // re-renders on navigation anyway.
+  const pathname = useRouterState().location.pathname;
+  const path = pathname.replace(/\/+$/, "") || "/";
+  for (const group of CUSTOMER_NAV_GROUPS) {
+    for (const item of group.items) {
+      if (customerFeatureHref(item.id) === path) {
+        return {
+          groupId: group.id,
+          groupLabel: group.label,
+          itemId: item.id,
+          itemLabel: item.label,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * The one shared top bar every customer page renders (extracted so the
+ * three shells that used to hand-roll it cannot drift).
+ *
+ * Console layout, left to right: rail toggle, venue switcher (with that
+ * venue's live dot), breadcrumb; then the venue health pill, search (Cmd/
+ * Ctrl-K), plan ticket, refresh, language, theme, notifications, account.
+ *
+ * The bar follows the theme (`--wy-surface`), where it used to be a
+ * permanent indigo gradient: a status-first console keeps its chrome quiet
+ * so the only colour on screen is the colour that means something. The
+ * liveness badge some pages pass in `title` is re-coloured from the console
+ * status tokens by `.wy-topbar [data-liveness-tone]` in styles.css.
  */
 export function CustomerHeader({
   title,
@@ -76,6 +130,9 @@ export function CustomerHeader({
   onTfaSettings,
   onLogout,
 }: CustomerHeaderProps) {
+  const { t } = useTranslation("nav", { i18n });
+  const theme = useTheme();
+  const crumb = useCurrentNavCrumb();
   // Staff Access left the sidebar for this menu (customerNav.ts's "account"
   // group, `inSidebar: false`). Offered by the exact gate the sidebar row
   // used -- owner login role, then `users.read` from the caller's real
@@ -87,123 +144,155 @@ export function CustomerHeader({
     permissions,
   ).some((g) => g.items.some((item) => item.id === "agents"));
 
+  const initials = `${user?.firstName?.[0] ?? "A"}${user?.lastName?.[0] ?? "U"}`;
+
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1e1b4b] to-[#312e81] px-4 text-white backdrop-blur-xl sm:px-6">
-      {/* The sidebar primitive's own trigger. #218 had already grown the
-          hand-rolled hamburger from a bare 20px <Menu/> -- the smallest tap
-          target in the product, and the only route to navigation on a phone
-          -- to a 40px labelled button; this replaces that button outright,
-          because the trigger has to talk to the provider that now owns the
-          mobile Sheet and the Cmd/Ctrl-B binding. Same 40px box, same
-          optical left edge, and aria-label="Toggle Sidebar" comes from the
-          primitive rather than being spelled here. */}
-      <SidebarTrigger className="-ml-1 h-10 w-10 shrink-0 text-white/70 hover:bg-white/10 hover:text-white" />
+    <header className="wy-topbar sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-[var(--wy-border)] bg-[color-mix(in_oklab,var(--wy-surface)_92%,transparent)] px-3 text-[var(--wy-text)] backdrop-blur-md sm:gap-3 sm:px-4">
+      {/* The sidebar primitive's own trigger: it talks to the provider that
+          owns the mobile Sheet and the Cmd/Ctrl-B binding, and carries
+          aria-label="Toggle Sidebar". */}
+      <SidebarTrigger className={`-ml-0.5 shrink-0 ${ICON_BUTTON}`} />
+      <span aria-hidden className="hidden h-5 w-px bg-[var(--wy-border)] sm:block" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <LocationSwitcher />
-        <div className="min-w-0">{title}</div>
+        {crumb && (
+          <nav
+            aria-label={t("consoleShell.breadcrumb", "Breadcrumb")}
+            className="hidden min-w-0 md:block"
+          >
+            <ol className="flex min-w-0 items-center gap-1 text-[13px]">
+              <li aria-hidden>
+                <ChevronRight className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
+              </li>
+              <li className="shrink-0 text-[var(--wy-text-faint)]">
+                {t(`customerGroup.${crumb.groupId}`, crumb.groupLabel)}
+              </li>
+              <li aria-hidden>
+                <ChevronRight className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
+              </li>
+              <li aria-current="page" className="truncate font-medium text-[var(--wy-text)]">
+                {t(`customerItem.${crumb.itemId}`, crumb.itemLabel)}
+              </li>
+            </ol>
+          </nav>
+        )}
+        {/* From `md:` with the breadcrumb: on a phone the switcher's dot
+            already carries the venue's state, and the name needs the room. */}
+        {title != null && <div className="hidden min-w-0 md:block">{title}</div>}
       </div>
 
-      {/* Plan renewal + demo CTA is one perforated "ticket" object, not a
-          rounded pill. See HeaderControls.tsx for the reasoning. Defaults to
-          appearing from `sm:` (640px) up, which -- once the location name/
-          status title on the left and the refresh/bell/avatar icons on the
-          right are also in the row -- left almost no room for the title in
-          the ~640-1024px tablet band specifically: it measured out to an
-          8px-wide `min-w-0` remainder, rendering as a single clipped letter
-          ("M" instead of "Mumbai HQ") with no visible overflow to point at.
-          Pushed to `lg:` (1024px) here instead, so the tablet band gets the
-          same hidden treatment phones already get, rather than a half-shown
-          one. (The data-masking toggle that used to sit here moved to the
-          sidebar footer -- see CustomerSidebar.tsx.) */}
+      {/* From `sm:` up: on a phone the switcher's dot carries the same
+          verdict, and the name gets the room. */}
+      <div className="hidden sm:contents">
+        <ConsoleHealthPill locationId={locationId} />
+      </div>
       <CommandPaletteTrigger onClick={onOpenSearch} />
+      {/* Plan renewal ticket: from `xl:` up only -- below that it squeezed
+          the venue name and breadcrumb to a clipped letter. */}
       <PlanRenewalTicket
         expiryIso={planExpiryIso}
-        className="mr-1 hidden h-9 shrink-0 items-stretch lg:flex"
+        className="hidden h-8 shrink-0 items-stretch xl:flex"
       />
-      {onRefresh && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white"
-          onClick={onRefresh}
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      )}
-      {/* Was missing entirely on this header -- the dashboard i18n rollout
-          only wired DashboardLanguageSwitcher into TopNavbar.tsx (the
-          Master Console layout), leaving every real customer/org-admin page
-          (everything under /c/$locationId, which is what this component
-          renders) with no way to switch language short of a trip to Account
-          settings. Styled to match the refresh button beside it since the
-          default ghost styling isn't legible on this header's dark gradient. */}
-      <DashboardLanguageSwitcher className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" />
-      {/* Exactly the gap the language switcher had: the theme context, the
-          `.dark` class and the pre-paint script all work on every surface,
-          but the only place with a control was the operator console's
-          TopNavbar. A customer on a dark-OS machine got dark mode applied by
-          `prefers-color-scheme` with no way out of it -- and this console's
-          content well is token-driven, so the switch genuinely changes it. */}
-      <ThemeToggle className="h-9 w-9 text-white/70 hover:bg-white/10 hover:text-white" />
-      <span className="[&_button]:text-white/70 [&_button:hover]:bg-white/10 [&_button:hover]:text-white">
-        <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
-      </span>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {onRefresh && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`hidden sm:inline-flex ${ICON_BUTTON}`}
+            onClick={onRefresh}
+            aria-label={t("consoleShell.refresh", "Refresh")}
+            title={t("consoleShell.refresh", "Refresh")}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        )}
+        {/* The language switcher stays visible at every width: on a phone it
+            is the only way out of a language you cannot read. */}
+        <DashboardLanguageSwitcher className={ICON_BUTTON} />
+        {/* Theme is also in the account menu, so the bar can drop it on a
+            phone without losing the control. */}
+        <span className="hidden sm:contents">
+          <ThemeToggle className={ICON_BUTTON} />
+        </span>
+        <span className="[&_button]:h-8 [&_button]:w-8 [&_button]:rounded-[var(--wy-radius)] [&_button]:text-[var(--wy-text-muted)] [&_button:hover]:bg-[var(--wy-surface-2)] [&_button:hover]:text-[var(--wy-text)]">
+          <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
+        </span>
+      </div>
 
-      {/* Radix, not the useState toggle it replaces: that one never closed
-          on an outside click or Escape, announced nothing to a screen reader
-          and left focus on the avatar. The primitive does all of that plus
-          arrow-key navigation. `focus:` mirrors every `hover:` because Radix
-          moves real focus between items -- a hover-only highlight would be
-          invisible to a keyboard user. */}
+      {/* Radix: closes on outside click / Escape, arrow-key navigation, and
+          focus returns to the avatar. `focus:` mirrors every `hover:` because
+          Radix moves real focus between items. */}
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label="Account menu"
-          className="ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wy-surface)]"
         >
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-white/15 text-xs font-semibold text-white">
-              {user?.firstName?.[0] ?? "A"}
-              {user?.lastName?.[0] ?? "U"}
+            <AvatarFallback className="bg-[var(--wy-accent-soft)] text-[11px] font-semibold text-[var(--wy-accent)]">
+              {initials}
             </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
           sideOffset={8}
-          className="w-56 rounded-xl border-white/10 bg-[#241f4d] p-1 text-white shadow-xl"
+          className="wy-console w-60 rounded-[var(--wy-radius-lg)] border-[var(--wy-border)] bg-[var(--wy-surface)] p-1 text-[var(--wy-text)] shadow-lg"
         >
-          <DropdownMenuLabel className="px-3 py-2 font-normal">
-            <p className="text-sm font-medium">{user?.name ?? "Admin"}</p>
-            <p className="text-xs text-white/50">{user?.email}</p>
+          <DropdownMenuLabel className="flex items-center gap-2.5 px-2.5 py-2 font-normal">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="bg-[var(--wy-accent-soft)] text-[11px] font-semibold text-[var(--wy-accent)]">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-semibold">
+                {user?.name ?? "Admin"}
+              </span>
+              <span className="block truncate text-xs text-[var(--wy-text-muted)]">
+                {user?.email}
+              </span>
+            </span>
           </DropdownMenuLabel>
-          <DropdownMenuSeparator className="bg-white/10" />
+          <DropdownMenuSeparator className="bg-[var(--wy-border)]" />
           <DropdownMenuItem onSelect={onSwitchLocation} className={MENU_ITEM}>
-            <MapPinned className="h-4 w-4" />
-            Switch location
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onChangePassword} className={MENU_ITEM}>
-            <KeyRound className="h-4 w-4" />
-            Change password
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onTfaSettings} className={MENU_ITEM}>
-            <ShieldCheck className="h-4 w-4" />
-            2FA settings
+            <MapPinned className="h-4 w-4 text-[var(--wy-text-muted)]" />
+            {t("consoleShell.account.switchLocation", "Switch location")}
           </DropdownMenuItem>
           {showStaffAccess && (
             <DropdownMenuItem asChild className={MENU_ITEM}>
               <Link to={customerFeatureHref("agents")}>
-                <Bot className="h-4 w-4" />
-                Staff access
+                <Bot className="h-4 w-4 text-[var(--wy-text-muted)]" />
+                {t("consoleShell.account.staffAccess", "Staff access")}
               </Link>
             </DropdownMenuItem>
           )}
-          <DropdownMenuSeparator className="bg-white/10" />
+          <DropdownMenuItem onSelect={onChangePassword} className={MENU_ITEM}>
+            <KeyRound className="h-4 w-4 text-[var(--wy-text-muted)]" />
+            {t("consoleShell.account.changePassword", "Change password")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onTfaSettings} className={MENU_ITEM}>
+            <ShieldCheck className="h-4 w-4 text-[var(--wy-text-muted)]" />
+            {t("consoleShell.account.tfa", "2FA settings")}
+          </DropdownMenuItem>
+          {theme && (
+            <DropdownMenuItem onSelect={() => theme.toggle()} className={MENU_ITEM}>
+              {theme.theme === "dark" ? (
+                <Sun className="h-4 w-4 text-[var(--wy-text-muted)]" />
+              ) : (
+                <Moon className="h-4 w-4 text-[var(--wy-text-muted)]" />
+              )}
+              {theme.theme === "dark"
+                ? t("consoleShell.account.lightMode", "Light mode")
+                : t("consoleShell.account.darkMode", "Dark mode")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator className="bg-[var(--wy-border)]" />
           <DropdownMenuItem
             onSelect={onLogout}
-            className="cursor-pointer gap-2 rounded-lg px-3 py-2 text-rose-400 hover:bg-rose-500/10 focus:bg-rose-500/10 focus:text-rose-400"
+            className="cursor-pointer gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-[var(--wy-crit)] focus:bg-[var(--wy-crit-soft)] focus:text-[var(--wy-crit)]"
           >
             <LogOut className="h-4 w-4" />
-            Sign out
+            {t("consoleShell.account.signOut", "Sign out")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -30,7 +30,7 @@ import {
 } from "@/lib/device-liveness";
 import { routerVendorLabel } from "@/lib/router-vendors";
 import type { WanSummaryState } from "../dashboard.types";
-import type { ConsoleStatus } from "./console-ui";
+import type { OverviewStatus } from "./console-ui";
 
 export type TopoKind = "isp" | "gateway" | "ap" | "switch" | "device" | "clients" | "more";
 
@@ -71,7 +71,7 @@ export interface TopoNode {
   label: string;
   /** Short second line under the label. */
   sub: string | null;
-  status: ConsoleStatus;
+  status: OverviewStatus;
   /** Status word to show, already in data vocabulary (may be English
    * library copy, e.g. describeLiveness' "Up"). The view prefers its own
    * translated word for `status` and shows this as the detail. */
@@ -112,13 +112,13 @@ export interface TopologyModel {
   /** Total downstream rows before collapsing. */
   downstreamTotal: number;
   /** Downstream rows per status, over ALL rows (not just the drawn ones). */
-  downstreamCounts: Record<ConsoleStatus, number>;
+  downstreamCounts: Record<OverviewStatus, number>;
   clients: TopoNode | null;
   /** Worst status anywhere in the chain, for the panel's own dot. */
-  overall: ConsoleStatus;
+  overall: OverviewStatus;
 }
 
-const RANK: Record<ConsoleStatus, number> = {
+const RANK: Record<OverviewStatus, number> = {
   crit: 0,
   warn: 1,
   offline: 2,
@@ -127,13 +127,13 @@ const RANK: Record<ConsoleStatus, number> = {
   ok: 5,
 };
 
-export function worstStatus(statuses: ConsoleStatus[]): ConsoleStatus {
+export function worstStatus(statuses: OverviewStatus[]): OverviewStatus {
   if (statuses.length === 0) return "unknown";
-  return statuses.reduce((w, s) => (RANK[s] < RANK[w] ? s : w), "ok" as ConsoleStatus);
+  return statuses.reduce((w, s) => (RANK[s] < RANK[w] ? s : w), "ok" as OverviewStatus);
 }
 
-function countByStatus(nodes: TopoNode[]): Record<ConsoleStatus, number> {
-  const out: Record<ConsoleStatus, number> = {
+function countByStatus(nodes: TopoNode[]): Record<OverviewStatus, number> {
+  const out: Record<OverviewStatus, number> = {
     ok: 0,
     warn: 0,
     crit: 0,
@@ -145,7 +145,7 @@ function countByStatus(nodes: TopoNode[]): Record<ConsoleStatus, number> {
   return out;
 }
 
-export function ispStatus(link: IspLink): ConsoleStatus {
+export function ispStatus(link: IspLink): OverviewStatus {
   if (!link.isEnabled) return "offline";
   switch (link.healthStatus) {
     case "healthy":
@@ -159,7 +159,7 @@ export function ispStatus(link: IspLink): ConsoleStatus {
   }
 }
 
-export function routerStatus(r: RouterLiveness): ConsoleStatus {
+export function routerStatus(r: RouterLiveness): OverviewStatus {
   switch (r.state) {
     case "online":
       return "ok";
@@ -183,7 +183,7 @@ export function routerStatus(r: RouterLiveness): ConsoleStatus {
 
 /** Omada's status vocabulary varies by controller version; anything not
  * recognised is `unknown`, never assumed up. */
-export function controllerDeviceStatus(raw: string): ConsoleStatus {
+export function controllerDeviceStatus(raw: string): OverviewStatus {
   const s = (raw ?? "").toLowerCase();
   if (/disconnect|offline|down|lost|heartbeat.?missed/.test(s)) return "crit";
   if (/pend|adopt|upgrad|provision|isolat|config|restart|reboot/.test(s)) return "warn";
@@ -191,10 +191,10 @@ export function controllerDeviceStatus(raw: string): ConsoleStatus {
   return "unknown";
 }
 
-function hardwareStatus(d: MonitoredDeviceRow): { status: ConsoleStatus; text: string | null } {
+function hardwareStatus(d: MonitoredDeviceRow): { status: OverviewStatus; text: string | null } {
   if (!hardwareLivenessIsMeasured(d)) return { status: "unknown", text: "Not measured" };
   const live = describeLiveness(d);
-  const status: ConsoleStatus =
+  const status: OverviewStatus =
     live.tone === "up"
       ? "ok"
       : live.tone === "down"

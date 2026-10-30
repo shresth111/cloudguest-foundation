@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { STATUS_TEXT, STATUS_VAR, StatusDot, type ConsoleStatus } from "./console-ui";
+import { STATUS_TEXT, STATUS_VAR, StatusDot, type OverviewStatus } from "./console-ui";
 import type { TopoFact, TopoKind, TopoNode, TopologyModel } from "./topology-model";
 
 const NODE_W = 236;
@@ -42,7 +42,7 @@ interface GhostNode {
   title: string;
   body: string;
   target: TopoNode["target"];
-  status: ConsoleStatus;
+  status: OverviewStatus;
 }
 
 type Cell = (TopoNode & { ghost?: false }) | GhostNode;
@@ -98,7 +98,7 @@ export function TopologyMap({
   const [active, setActive] = useState<string | null>(null);
   const tipId = useId();
 
-  const statusWord = (s: ConsoleStatus) =>
+  const statusWord = (s: OverviewStatus) =>
     t(
       `topology.status.${s}`,
       {
@@ -119,7 +119,7 @@ export function TopologyMap({
       title: string,
       body: string,
       target: TopoNode["target"],
-      status: ConsoleStatus = "unknown",
+      status: OverviewStatus = "unknown",
     ): GhostNode => ({
       id: `ghost:${tier}:${key}`,
       ghost: true,

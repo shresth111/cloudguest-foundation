@@ -36,18 +36,24 @@ export function CardHead({
   subtitle?: string;
   right?: ReactNode;
 }) {
+  // Same header rhythm as the shared console `Panel` (min-h-11, title over
+  // a one-line description, actions right). These cards build their header
+  // inside the body, so they mirror it rather than wrap in Panel.
   return (
-    <div className="-mx-4 -mt-4 mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-[var(--wy-border)] px-4 py-2.5">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="shrink-0 text-[var(--wy-text-faint)] [&_svg]:h-3.5 [&_svg]:w-3.5">
-          {icon}
-        </span>
-        <h3 className="truncate text-[13px] font-semibold">{title}</h3>
-        {subtitle && (
-          <span className="truncate text-xs text-[var(--wy-text-faint)]">{subtitle}</span>
-        )}
+    <div className="-mx-4 -mt-4 mb-4 flex min-h-11 items-center gap-3 border-b border-[var(--wy-border)] px-4 py-2">
+      <div className="min-w-0 flex-1">
+        <h3 className="flex min-w-0 items-center gap-2 text-[13px] font-semibold">
+          <span
+            className="shrink-0 text-[var(--wy-text-faint)] [&_svg]:h-3.5 [&_svg]:w-3.5"
+            aria-hidden
+          >
+            {icon}
+          </span>
+          <span className="truncate">{title}</span>
+        </h3>
+        {subtitle && <p className="truncate text-xs text-[var(--wy-text-muted)]">{subtitle}</p>}
       </div>
-      {right}
+      {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
     </div>
   );
 }

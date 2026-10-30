@@ -186,26 +186,11 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
   };
 
   return (
-    <SidebarProvider
-      className="bg-muted/30"
-      style={
-        {
-          // The indigo brand accent from login/select-location/dashboard
-          // never reached this shell -- every feature page nested under it
-          // (Reports, Campaigns, Portal, Vouchers, Policies, Whitelist,
-          // Devices, Teams, Agents, Alerts, Open Hours,
-          // ISP Details, Admin Logs, Mac Auth, Port Forwarding, DHCP,
-          // VLANs, VOIP, ISP Routing, Debugging, Hotspot, Tickets) was
-          // still rendering every `text-primary`/`bg-primary`/`ring-primary`
-          // utility with the old teal token, which is what kept reading as
-          // "still old" no matter how many individual pages got polished.
-          // One override here fixes it everywhere at once.
-          "--primary": "#6C4EFF",
-          "--primary-foreground": "#ffffff",
-          "--ring": "#6366f1",
-        } as React.CSSProperties
-      }
-    >
+    // `wy-console` scopes the console tokens (styles.css,
+    // docs/design/console-tokens.md) to the whole shell. It also re-points
+    // `--primary`/`--ring` at the console accent, which replaces the inline
+    // `#6C4EFF` override this wrapper used to carry for the same purpose.
+    <SidebarProvider className="wy-console bg-[var(--wy-bg)]">
       {/* The hand-rolled scrim + translate-x drawer that used to live here
           is gone: `SidebarProvider` owns open/collapsed state (persisted to
           a cookie, so it survives this shell remounting on every route
@@ -218,20 +203,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* No `title`: the page name is the header's breadcrumb, read from
+            the same CUSTOMER_NAVS list the palette and the page scope line
+            read, so it can never show a retired technical name. */}
         <CustomerHeader
-          title={
-            // Label from the same CUSTOMER_NAVS list the palette and the
-            // page scope line read, never the raw feature id -- the old fallback
-            // CSS-`capitalize`d it and so kept showing retired technical
-            // names ("Whitelist", "Isp-Details") after the rename. The venue
-            // stays in the bar as well as on the page: the bar is where you
-            // check it deliberately, the page heading is where you read it
-            // without meaning to. See CustomerPageScope for why that
-            // matters once lists are scoped server-side.
-            <p className="truncate text-sm font-semibold capitalize">
-              {CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature}
-            </p>
-          }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
           onOpenSearch={() => setPaletteOpen(true)}

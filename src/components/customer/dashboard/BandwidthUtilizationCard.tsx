@@ -16,7 +16,8 @@ import { BlurFade } from "@/components/magicui/blur-fade";
 import { ChartEmptyState } from "./ChartEmptyState";
 import { WAN_HEALTH_STYLE } from "./dashboard.types";
 import { useBandwidthSeries } from "./useBandwidthSeries";
-import { CONSOLE_TOOLTIP_STYLE, PANEL, PanelHead, PanelLink } from "./overview/console-ui";
+import { Panel } from "@/components/customer/console";
+import { CONSOLE_TOOLTIP_STYLE, PanelLink, PanelTitle } from "./overview/console-ui";
 import { anchorAxisToPlan, formatMbps, utilizationLabel } from "./bandwidth-display";
 
 /**
@@ -74,33 +75,32 @@ export function BandwidthUtilizationCard({
 
   const toggle = (k: "download" | "upload") => setHidden((h) => ({ ...h, [k]: !h[k] }));
   return (
-    <section className={cn(PANEL, "h-full")} aria-labelledby="bw-title">
-      <PanelHead
-        id="bw-title"
-        icon={<Gauge className="h-3.5 w-3.5" />}
-        title="Bandwidth Utilization"
-        meta={`${bw.status === "ready" ? bw.link.providerName : "Primary uplink"} · ~30 s`}
-        right={
-          <>
-            {utilizationPct != null && (
-              <span
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
-                  utilizationPct >= 90
-                    ? "bg-[var(--wy-crit-soft)] text-[var(--wy-crit)]"
-                    : utilizationPct >= 70
-                      ? "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]"
-                      : "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]",
-                )}
-                title={`${formatMbps(latest?.downloadMbps ?? null)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
-              >
-                {utilization?.label} of plan
-              </span>
-            )}
-            <PanelLink onClick={onManage}>Manage →</PanelLink>
-          </>
-        }
-      />
+    <Panel
+      flush
+      className="h-full"
+      title={<PanelTitle icon={<Gauge />}>Bandwidth Utilization</PanelTitle>}
+      description={`${bw.status === "ready" ? bw.link.providerName : "Primary uplink"} · new reading about every 30 s`}
+      actions={
+        <>
+          {utilizationPct != null && (
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                utilizationPct >= 90
+                  ? "bg-[var(--wy-crit-soft)] text-[var(--wy-crit)]"
+                  : utilizationPct >= 70
+                    ? "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]"
+                    : "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]",
+              )}
+              title={`${formatMbps(latest?.downloadMbps ?? null)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
+            >
+              {utilization?.label} of plan
+            </span>
+          )}
+          <PanelLink onClick={onManage}>Manage →</PanelLink>
+        </>
+      }
+    >
       {latest && (
         <div className="flex flex-wrap items-center gap-2 px-4 pt-3" aria-label="Series">
           {(
@@ -309,6 +309,6 @@ export function BandwidthUtilizationCard({
           </p>
         )}
       </div>
-    </section>
+    </Panel>
   );
 }

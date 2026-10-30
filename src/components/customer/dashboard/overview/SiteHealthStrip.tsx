@@ -12,10 +12,10 @@ import { cn } from "@/lib/utils";
 import { integratedWanHealth } from "../dashboard.types";
 import type { WanSummaryState } from "../dashboard.types";
 import type { LocationLiveness, LivenessTone } from "@/lib/location-liveness";
-import { StatusDot, STATUS_TEXT, type ConsoleStatus } from "./console-ui";
+import { StatusDot, STATUS_TEXT, type OverviewStatus } from "./console-ui";
 import { worstStatus, type TopologyModel } from "./topology-model";
 
-const TONE_STATUS: Record<LivenessTone, ConsoleStatus> = {
+const TONE_STATUS: Record<LivenessTone, OverviewStatus> = {
   live: "ok",
   warn: "warn",
   down: "crit",
@@ -35,7 +35,7 @@ function Cell({
 }: {
   icon: ReactNode;
   label: string;
-  status: ConsoleStatus;
+  status: OverviewStatus;
   value: string;
   foot: ReactNode;
   onClick: () => void;
@@ -110,7 +110,7 @@ export function SiteHealthStrip({
   const { t } = useTranslation("dashboard", { i18n });
 
   // --- Internet
-  let netStatus: ConsoleStatus = "unknown";
+  let netStatus: OverviewStatus = "unknown";
   let netValue = "—";
   let netFoot: ReactNode = null;
   if (wan.status === "empty") {
@@ -155,7 +155,7 @@ export function SiteHealthStrip({
   const c = topology.downstreamCounts;
   const total = topology.downstreamTotal;
   const apStatus = total
-    ? worstStatus((Object.keys(c) as ConsoleStatus[]).flatMap((k) => (c[k] > 0 ? [k] : [])))
+    ? worstStatus((Object.keys(c) as OverviewStatus[]).flatMap((k) => (c[k] > 0 ? [k] : [])))
     : topology.downstreamState === "controller-unreachable"
       ? "warn"
       : "unknown";

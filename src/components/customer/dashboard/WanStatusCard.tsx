@@ -13,7 +13,8 @@ import {
 } from "./dashboard.types";
 import { useWanSummary } from "./useWanSummary";
 import type { WanSummaryState } from "./dashboard.types";
-import { PANEL, PanelHead, PanelLink } from "./overview/console-ui";
+import { Panel } from "@/components/customer/console";
+import { PanelLink, PanelTitle } from "./overview/console-ui";
 
 /** Oldest -> newest, left to right -- the exact same "last dozen real
  * checks as colored ticks" reading `IspStatusTimeline` (Internet
@@ -205,13 +206,12 @@ export function WanStatusCardView({
   onManage: () => void;
 }) {
   return (
-    <section className={cn(PANEL, "h-full")}>
-      <PanelHead
-        icon={<Globe className="h-3.5 w-3.5" />}
-        title="Internet Connection"
-        right={<PanelLink onClick={onManage}>Manage →</PanelLink>}
-      />
-      <div className="p-4">
+    <Panel
+      className="h-full"
+      title={<PanelTitle icon={<Globe />}>Internet Connection</PanelTitle>}
+      actions={<PanelLink onClick={onManage}>Manage →</PanelLink>}
+    >
+      <div>
         {wan.status === "loading" && (
           <div className="space-y-3">
             <div className="h-4 w-28 animate-pulse rounded bg-muted" />
@@ -243,7 +243,7 @@ export function WanStatusCardView({
           <MultiWanView links={wan.links} checks={wan.checks} />
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
 

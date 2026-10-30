@@ -70,6 +70,9 @@ export function LocationLivenessBadge({
     <span
       title={liveness.summary}
       aria-label={`${liveness.label}. ${liveness.summary}`}
+      // Lets the console top bar re-colour the badge from its status
+      // tokens (styles.css, `.wy-topbar [data-liveness-tone]`).
+      data-liveness-tone={tone}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
         BADGE_STYLE[surface][tone],

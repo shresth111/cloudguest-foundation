@@ -10,7 +10,8 @@ import {
 } from "@/lib/device-liveness";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import type { MonitoredDeviceRow } from "@/services/deviceHardware.service";
-import { PANEL, PanelHead, PanelLink } from "./overview/console-ui";
+import { Panel } from "@/components/customer/console";
+import { PanelLink, PanelTitle } from "./overview/console-ui";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
 
@@ -73,13 +74,13 @@ export function DeviceStatusCardView({
   ).length;
 
   return (
-    <section className={cn(PANEL, "flex h-full flex-col")}>
-      <PanelHead
-        icon={<HardDrive className="h-3.5 w-3.5" />}
-        title="Network Hardware"
-        right={<PanelLink onClick={onManage}>Manage →</PanelLink>}
-      />
-      <div className="flex flex-1 flex-col p-4">
+    <Panel
+      className="flex h-full flex-col"
+      bodyClassName="flex flex-1 flex-col"
+      title={<PanelTitle icon={<HardDrive />}>Network Hardware</PanelTitle>}
+      actions={<PanelLink onClick={onManage}>Manage →</PanelLink>}
+    >
+      <div className="flex flex-1 flex-col">
         {devices.length === 0 ? (
           <div className="relative flex flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
             {/* The one Aceternity moment this surface gets (design v3 Part
@@ -333,6 +334,6 @@ export function DeviceStatusCardView({
           </div>
         )}
       </div>
-    </section>
+    </Panel>
   );
 }

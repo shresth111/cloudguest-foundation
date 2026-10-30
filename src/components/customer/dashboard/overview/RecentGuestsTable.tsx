@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { StatusDot, type ConsoleStatus } from "./console-ui";
+import { StatusDot, type OverviewStatus } from "./console-ui";
 
 export interface RecentGuestRow {
   id: string;
@@ -28,7 +28,7 @@ type SortKey = "name" | "device" | "time" | "status";
 
 const STATUS_RANK: Record<string, number> = { online: 0, idle: 1, offline: 2 };
 
-function guestStatus(s: string): ConsoleStatus {
+function guestStatus(s: string): OverviewStatus {
   if (s === "online") return "ok";
   if (s === "idle") return "warn";
   if (s === "offline") return "offline";

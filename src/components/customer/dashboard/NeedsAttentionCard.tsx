@@ -14,7 +14,8 @@ import {
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { customerFeatureHref } from "@/lib/customerNav";
-import { PANEL, PanelHead } from "./overview/console-ui";
+import { Panel } from "@/components/customer/console";
+import { PanelTitle } from "./overview/console-ui";
 import {
   useNeedsAttention,
   type AttentionItem,
@@ -233,17 +234,16 @@ export function NeedsAttentionCard({ locationId }: { locationId: string }) {
     );
 
   return (
-    <section
-      className={cn(PANEL, "@container flex flex-col")}
-      aria-labelledby="needs-attention-title"
-      aria-busy={loading || undefined}
-    >
-      <PanelHead
-        id="needs-attention-title"
-        icon={<ListChecks className="h-3.5 w-3.5" />}
-        title={t("title", "Needs attention")}
-        meta={t("subtitle", "What to sort out at this venue right now")}
-        right={
+    <div className="@container" aria-busy={loading || undefined}>
+      <Panel
+        flush
+        title={
+          <PanelTitle icon={<ListChecks />} id="needs-attention-title">
+            {t("title", "Needs attention")}
+          </PanelTitle>
+        }
+        description={t("subtitle", "What to sort out at this venue right now")}
+        actions={
           !loading && items.length > 0 ? (
             <span
               className={cn(
@@ -257,138 +257,139 @@ export function NeedsAttentionCard({ locationId }: { locationId: string }) {
             </span>
           ) : undefined
         }
-      />
-      <div className="flex-1 p-3">
-        {loading ? (
-          <div
-            className="grid grid-cols-1 gap-1.5 @2xl:grid-cols-2 @5xl:grid-cols-3"
-            role="status"
-            aria-label={t("loading", "Checking your venue…")}
-          >
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-11 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]"
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            {items.length > 0 && (
-              <ul
-                className="grid grid-cols-1 gap-1.5 @2xl:grid-cols-2 @5xl:grid-cols-3"
-                data-testid="needs-attention-list"
-              >
-                {items.map((item) => {
-                  const Icon = ICON[item.severity];
-                  const copy = rowCopy(item, t, lang);
-                  return (
-                    <li
-                      key={item.kind}
-                      data-severity={item.severity}
-                      className={cn(
-                        "relative flex flex-wrap items-start gap-2.5 overflow-hidden rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] py-2 pl-3.5 pr-2 before:absolute before:inset-y-0 before:left-0 before:w-[3px] sm:flex-nowrap",
-                        RAIL[item.severity],
-                      )}
-                    >
-                      <span
+      >
+        <div className="flex-1 p-3">
+          {loading ? (
+            <div
+              className="grid grid-cols-1 gap-1.5 @2xl:grid-cols-2 @5xl:grid-cols-3"
+              role="status"
+              aria-label={t("loading", "Checking your venue…")}
+            >
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-11 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {items.length > 0 && (
+                <ul
+                  className="grid grid-cols-1 gap-1.5 @2xl:grid-cols-2 @5xl:grid-cols-3"
+                  data-testid="needs-attention-list"
+                >
+                  {items.map((item) => {
+                    const Icon = ICON[item.severity];
+                    const copy = rowCopy(item, t, lang);
+                    return (
+                      <li
+                        key={item.kind}
+                        data-severity={item.severity}
                         className={cn(
-                          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center",
-                          TINT[item.severity],
+                          "relative flex flex-wrap items-start gap-2.5 overflow-hidden rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] py-2 pl-3.5 pr-2 before:absolute before:inset-y-0 before:left-0 before:w-[3px] sm:flex-nowrap",
+                          RAIL[item.severity],
                         )}
                       >
-                        <Icon className="h-4 w-4" aria-hidden />
-                        <span className="sr-only">{severityLabel(item.severity, t)}</span>
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium">{copy.title}</p>
-                        {copy.detail && (
-                          <p className="mt-0.5 text-[11px] text-[var(--wy-text-muted)]">
-                            {copy.detail}
-                          </p>
-                        )}
-                      </div>
-                      {item.actionId && (
-                        <Link
-                          to={customerFeatureHref(item.actionId)}
-                          data-action={item.actionId}
-                          className="inline-flex shrink-0 items-center gap-1 self-center rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-2 py-1 text-[11px] font-semibold text-[var(--wy-text)] transition-colors duration-150 hover:border-[var(--wy-accent)] hover:text-[var(--wy-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                        <span
+                          className={cn(
+                            "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center",
+                            TINT[item.severity],
+                          )}
                         >
-                          {actionLabel(item.actionId, t)}
-                          <ArrowRight className="h-3 w-3" aria-hidden />
-                        </Link>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                          <Icon className="h-4 w-4" aria-hidden />
+                          <span className="sr-only">{severityLabel(item.severity, t)}</span>
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium">{copy.title}</p>
+                          {copy.detail && (
+                            <p className="mt-0.5 text-[11px] text-[var(--wy-text-muted)]">
+                              {copy.detail}
+                            </p>
+                          )}
+                        </div>
+                        {item.actionId && (
+                          <Link
+                            to={customerFeatureHref(item.actionId)}
+                            data-action={item.actionId}
+                            className="inline-flex shrink-0 items-center gap-1 self-center rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-2 py-1 text-[11px] font-semibold text-[var(--wy-text)] transition-colors duration-150 hover:border-[var(--wy-accent)] hover:text-[var(--wy-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                          >
+                            {actionLabel(item.actionId, t)}
+                            <ArrowRight className="h-3 w-3" aria-hidden />
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
 
-            {items.length === 0 &&
-              unchecked.length === 0 &&
-              pending.length === 0 &&
-              (checked.length > 0 ? (
-                <div
-                  className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-1 py-1"
-                  data-testid="needs-attention-all-good"
-                >
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]">
-                    <CheckCircle2 className="h-4 w-4" aria-hidden />
-                  </span>
-                  <p className="text-sm font-medium">
-                    {t("allGood", "All good — nothing needs your attention")}
+              {items.length === 0 &&
+                unchecked.length === 0 &&
+                pending.length === 0 &&
+                (checked.length > 0 ? (
+                  <div
+                    className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-1 py-1"
+                    data-testid="needs-attention-all-good"
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]">
+                      <CheckCircle2 className="h-4 w-4" aria-hidden />
+                    </span>
+                    <p className="text-sm font-medium">
+                      {t("allGood", "All good — nothing needs your attention")}
+                    </p>
+                    <p className="text-[11px] text-[var(--wy-text-muted)]">
+                      {t("checkedList", {
+                        list: list(checked),
+                        defaultValue: "We checked: {{list}}.",
+                      })}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="py-2 text-center text-xs text-[var(--wy-text-muted)]">
+                    {t("nothingToCheck", "There's nothing here we can check for your account.")}
                   </p>
-                  <p className="text-[11px] text-[var(--wy-text-muted)]">
-                    {t("checkedList", {
-                      list: list(checked),
-                      defaultValue: "We checked: {{list}}.",
+                ))}
+
+              {unchecked.length > 0 && (
+                <div
+                  data-testid="needs-attention-unchecked"
+                  className="rounded-[var(--wy-radius)] border border-[var(--wy-warn)]/30 bg-[var(--wy-warn-soft)] p-3 text-[var(--wy-text)]"
+                >
+                  <p className="flex items-center gap-2 text-xs font-medium">
+                    <HelpCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {t("couldntCheck", {
+                      list: list(unchecked),
+                      defaultValue: "Couldn't check: {{list}}.",
                     })}
                   </p>
+                  {items.length === 0 && (
+                    <p className="mt-1 text-[11px] opacity-80">
+                      {t(
+                        "couldntCheckBody",
+                        "So we can't say everything is fine. Refresh the page in a minute.",
+                      )}
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <p className="py-2 text-center text-xs text-[var(--wy-text-muted)]">
-                  {t("nothingToCheck", "There's nothing here we can check for your account.")}
-                </p>
-              ))}
+              )}
 
-            {unchecked.length > 0 && (
-              <div
-                data-testid="needs-attention-unchecked"
-                className="rounded-[var(--wy-radius)] border border-[var(--wy-warn)]/30 bg-[var(--wy-warn-soft)] p-3 text-[var(--wy-text)]"
-              >
-                <p className="flex items-center gap-2 text-xs font-medium">
-                  <HelpCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  {t("couldntCheck", {
-                    list: list(unchecked),
-                    defaultValue: "Couldn't check: {{list}}.",
+              {pending.length > 0 && (
+                <Note
+                  icon={
+                    <span className="block h-2 w-2 animate-pulse rounded-full bg-muted-foreground/50" />
+                  }
+                >
+                  {t("stillChecking", {
+                    list: list(pending),
+                    defaultValue: "Still checking: {{list}}…",
                   })}
-                </p>
-                {items.length === 0 && (
-                  <p className="mt-1 text-[11px] opacity-80">
-                    {t(
-                      "couldntCheckBody",
-                      "So we can't say everything is fine. Refresh the page in a minute.",
-                    )}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {pending.length > 0 && (
-              <Note
-                icon={
-                  <span className="block h-2 w-2 animate-pulse rounded-full bg-muted-foreground/50" />
-                }
-              >
-                {t("stillChecking", {
-                  list: list(pending),
-                  defaultValue: "Still checking: {{list}}…",
-                })}
-              </Note>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
+                </Note>
+              )}
+            </div>
+          )}
+        </div>
+      </Panel>
+    </div>
   );
 }

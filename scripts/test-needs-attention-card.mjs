@@ -358,7 +358,10 @@ console.log("NeedsAttentionCard");
       },
     ]),
   });
-  check("no WireGuard/tunnel/RADIUS wording", !/wireguard|tunnel|radius|certificate/i.test(html));
+  // Wording, so the rendered TEXT -- not class attributes: the console
+  // tokens are named `--wy-radius`, which is not RADIUS.
+  const text = html.replace(/<[^>]*>/g, " ");
+  check("no WireGuard/tunnel/RADIUS wording", !/wireguard|tunnel|radius|certificate/i.test(text));
 }
 
 console.log(failures === 0 ? "\nneeds attention card: all checks passed" : `\n${failures} failed`);

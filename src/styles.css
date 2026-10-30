@@ -476,6 +476,176 @@
   background-image: none;
 }
 
+/**
+ * Customer console tokens -- the contract in docs/design/console-tokens.md.
+ *
+ * Scoped to `.wy-console` (the customer pages' root wrapper, plus any
+ * portaled Content that opts in, since Radix portals mount on <body>), so
+ * the Master console and the captive portal never see them. The second
+ * half of each block re-points the shadcn tokens at the console ones, so
+ * `bg-card` / `text-muted-foreground` / `border-border` inside the
+ * workspace follow the console palette without touching each feature view.
+ *
+ * Custom properties only here (unlayered, so they reliably beat :root for
+ * the subtree). `color` / `background` live in the @layer base rule below
+ * so a utility class on the same element still wins.
+ */
+.wy-console {
+  --wy-bg: #f4f5f7;
+  --wy-surface: #ffffff;
+  --wy-surface-2: #eef0f3;
+  --wy-border: #e3e6eb;
+  --wy-border-strong: #cdd2da;
+  --wy-text: #12161d;
+  --wy-text-muted: #4b5362;
+  --wy-text-faint: #646c7b;
+  --wy-accent: #4f3fe0;
+  --wy-accent-fg: #ffffff;
+  --wy-accent-soft: #eeecfd;
+  --wy-ok: #0f7a47;
+  --wy-ok-soft: #e3f3ea;
+  --wy-warn: #9a5b00;
+  --wy-warn-soft: #fbf0da;
+  --wy-crit: #c22a3d;
+  --wy-crit-soft: #fbe8ea;
+  --wy-info: #0b66b0;
+  --wy-info-soft: #e4effa;
+  --wy-offline: #5f6776;
+  --wy-offline-soft: #eceef2;
+  --wy-series-1: #2a78d6;
+  --wy-series-2: #eb6834;
+  --wy-series-3: #1baf7a;
+  --wy-series-4: #eda100;
+  --wy-series-5: #e87ba4;
+  --wy-series-6: #6250d6;
+  --wy-radius: 8px;
+  --wy-radius-lg: 12px;
+  --wy-shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 1px 1px rgb(16 24 40 / 0.03);
+  --wy-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* shadcn tokens, re-pointed. */
+  --radius: var(--wy-radius);
+  --background: var(--wy-bg);
+  --foreground: var(--wy-text);
+  --card: var(--wy-surface);
+  --card-foreground: var(--wy-text);
+  --popover: var(--wy-surface);
+  --popover-foreground: var(--wy-text);
+  --primary: var(--wy-accent);
+  --primary-foreground: var(--wy-accent-fg);
+  --secondary: var(--wy-surface-2);
+  --secondary-foreground: var(--wy-text);
+  --muted: var(--wy-surface-2);
+  --muted-foreground: var(--wy-text-muted);
+  --accent: var(--wy-surface-2);
+  --accent-foreground: var(--wy-text);
+  --border: var(--wy-border);
+  --input: var(--wy-border-strong);
+  --ring: var(--wy-accent);
+  --sidebar: var(--wy-surface);
+  --sidebar-foreground: var(--wy-text-muted);
+  --sidebar-primary: var(--wy-accent);
+  --sidebar-primary-foreground: var(--wy-accent-fg);
+  --sidebar-accent: var(--wy-accent-soft);
+  --sidebar-accent-foreground: var(--wy-accent);
+  --sidebar-border: var(--wy-border);
+  --sidebar-ring: var(--wy-accent);
+  --shadow-soft: var(--wy-shadow);
+  --gradient-mesh: none;
+  color-scheme: light;
+}
+
+.dark .wy-console,
+.dark.wy-console {
+  --wy-bg: #0d1015;
+  --wy-surface: #151921;
+  --wy-surface-2: #1c212b;
+  --wy-border: #262c37;
+  --wy-border-strong: #353d4b;
+  --wy-text: #e7eaef;
+  --wy-text-muted: #a4acba;
+  --wy-text-faint: #8a93a3;
+  --wy-accent: #9a8cff;
+  --wy-accent-fg: #0d1015;
+  --wy-accent-soft: #252447;
+  --wy-ok: #45c98a;
+  --wy-ok-soft: #112a1f;
+  --wy-warn: #f0b44a;
+  --wy-warn-soft: #2e2411;
+  --wy-crit: #f4707f;
+  --wy-crit-soft: #35181d;
+  --wy-info: #5eb0f2;
+  --wy-info-soft: #132638;
+  --wy-offline: #8f98a8;
+  --wy-offline-soft: #1f242d;
+  --wy-series-1: #3987e5;
+  --wy-series-2: #d95926;
+  --wy-series-3: #199e70;
+  --wy-series-4: #c98500;
+  --wy-series-5: #d55181;
+  --wy-series-6: #9085e9;
+  --wy-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
+}
+
+@layer base {
+  .wy-console {
+    color: var(--wy-text);
+  }
+}
+
+/* The console's live pulse for StatusDot. Opacity/scale only (compositor
+ * friendly), and off for anyone who asked for reduced motion. */
+@keyframes wy-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.wy-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: wy-pulse 2s var(--ease-emphasized) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wy-pulse::after {
+    animation: none;
+    display: none;
+  }
+}
+
+/* A liveness badge rendered in the console top bar follows the console
+ * status tokens whichever `surface` the page asked for -- the bar itself
+ * is light or dark with the theme now, so a fixed dark/light palette is
+ * wrong half the time. Keyed off the data attribute the badge sets. */
+.wy-console .wy-topbar [data-liveness-tone] {
+  border-color: transparent;
+}
+.wy-console .wy-topbar [data-liveness-tone="live"] {
+  background: var(--wy-ok-soft);
+  color: var(--wy-ok);
+}
+.wy-console .wy-topbar [data-liveness-tone="warn"] {
+  background: var(--wy-warn-soft);
+  color: var(--wy-warn);
+}
+.wy-console .wy-topbar [data-liveness-tone="down"] {
+  background: var(--wy-crit-soft);
+  color: var(--wy-crit);
+}
+.wy-console .wy-topbar [data-liveness-tone="neutral"] {
+  background: var(--wy-offline-soft);
+  color: var(--wy-offline);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

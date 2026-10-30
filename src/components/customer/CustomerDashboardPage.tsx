@@ -26,10 +26,7 @@ import {
 } from "@/hooks/useCustomerDashboard";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { useControllerDevices } from "@/hooks/useControllerDevices";
-import {
-  LocationLivenessBadge,
-  LocationLivenessExplainer,
-} from "@/components/customer/LocationLiveness";
+import { LocationLivenessExplainer } from "@/components/customer/LocationLiveness";
 import {
   livenessTone,
   locationIsControllerManaged,
@@ -59,16 +56,15 @@ import {
   LoginFunnelCard,
   LocationComparisonCard,
 } from "@/components/customer/dashboard/insights";
+import { EmptyState, Panel, SegmentedControl } from "@/components/customer/console";
 import {
-  EmptyState,
   PANEL,
-  PanelHead,
   PanelLink,
+  PanelTitle,
   SectionBoundary,
   SectionFailed,
-  SegmentedControl,
   StatusDot,
-  type ConsoleStatus,
+  type OverviewStatus,
 } from "@/components/customer/dashboard/overview/console-ui";
 import { buildTopology } from "@/components/customer/dashboard/overview/topology-model";
 import { TopologyMap } from "@/components/customer/dashboard/overview/TopologyMap";
@@ -78,8 +74,6 @@ import {
   toActivityPoints,
 } from "@/components/customer/dashboard/overview/ActivityChart";
 import { RecentGuestsTable } from "@/components/customer/dashboard/overview/RecentGuestsTable";
-// TEMPORARY: token fallbacks until dashboard-revamp-shell merges; see the file.
-import "@/components/customer/dashboard/console-tokens.fallback.css";
 
 // This component lives in a plain component file, not a route file, on
 // purpose: routeTree.gen.ts statically imports every route file into the
@@ -107,15 +101,8 @@ const OS_COLORS = [
   "var(--wy-series-6)",
 ];
 
-const HEADER_DOT: Record<LivenessTone, string> = {
-  live: "bg-emerald-400",
-  warn: "bg-amber-400",
-  down: "bg-rose-400",
-  neutral: "bg-white/40",
-};
-
 /** Verdict line colours. Green is earned by the verdict, never default. */
-const VERDICT: Record<LivenessTone, { status: ConsoleStatus; title: string }> = {
+const VERDICT: Record<LivenessTone, { status: OverviewStatus; title: string }> = {
   live: { status: "ok", title: "All core systems operational" },
   warn: { status: "warn", title: "Some systems need attention" },
   down: { status: "crit", title: "Your network is not reachable" },
@@ -320,33 +307,11 @@ export function CustomerDashboardPage() {
   const verdict = VERDICT[isLoading ? "neutral" : tone];
 
   return (
-    <SidebarProvider
-      className="wy-console bg-[var(--wy-bg)]"
-      style={
-        {
-          "--primary": "#6C4EFF",
-          "--primary-foreground": "#ffffff",
-          "--ring": "#6366f1",
-        } as React.CSSProperties
-      }
-    >
+    <SidebarProvider className="wy-console bg-[var(--wy-bg)]">
       <CustomerSidebar activeFeatureId="dashboard" dataMasking={dataMasking} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <CustomerHeader
-          title={
-            <>
-              <LocationLivenessBadge
-                liveness={liveness}
-                surface="dark"
-                className="hidden sm:inline-flex"
-              />
-              <span
-                aria-hidden
-                className={cn("block h-2 w-2 rounded-full sm:hidden", HEADER_DOT[tone])}
-              />
-            </>
-          }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
           onOpenSearch={() => setPaletteOpen(true)}
@@ -530,16 +495,12 @@ export function CustomerDashboardPage() {
                 </div>
               }
             >
-              <section
-                className={cn(PANEL, "min-w-0")}
-                aria-labelledby="topology-title"
-                data-testid="topology-panel"
-              >
-                <PanelHead
-                  id="topology-title"
-                  icon={<Network className="h-3.5 w-3.5" />}
-                  title={t("topology.title", "Network map")}
-                  meta={
+              <div data-testid="topology-panel" className="min-w-0">
+                <Panel
+                  title={
+                    <PanelTitle icon={<Network />}>{t("topology.title", "Network map")}</PanelTitle>
+                  }
+                  description={
                     topology.downstreamSource === "controller"
                       ? t(
                           "topology.metaController",
@@ -547,16 +508,15 @@ export function CustomerDashboardPage() {
                         )
                       : t("topology.meta", "Live status · hover for details, click to open")
                   }
-                  right={
+                  actions={
                     <PanelLink onClick={() => handleNav("devices")}>
                       {t("topology.openDevices", "Devices →")}
                     </PanelLink>
                   }
-                />
-                <div className="p-4">
+                >
                   <TopologyMap model={topology} onOpen={(target) => handleNav(target)} />
-                </div>
-              </section>
+                </Panel>
+              </div>
             </SectionBoundary>
           </div>
 
@@ -577,16 +537,16 @@ export function CustomerDashboardPage() {
                 </div>
               }
             >
-              <section
-                className={cn(PANEL, "min-w-0 xl:col-span-8")}
-                aria-labelledby="activity-title"
-                data-testid="activity-panel"
-              >
-                <PanelHead
-                  id="activity-title"
-                  icon={<Activity className="h-3.5 w-3.5" />}
-                  title={t("activity.title", "Guest activity")}
-                  meta={
+              <div data-testid="activity-panel" className="min-w-0 xl:col-span-8">
+                <Panel
+                  flush
+                  className="h-full"
+                  title={
+                    <PanelTitle icon={<Activity />}>
+                      {t("activity.title", "Guest activity")}
+                    </PanelTitle>
+                  }
+                  description={
                     byHour
                       ? t("guestsOnline.subtitleHourly", "Guests connected each hour, {{range}}", {
                           range: rangeLabel,
@@ -595,68 +555,66 @@ export function CustomerDashboardPage() {
                           range: rangeLabel,
                         })
                   }
-                />
-                <dl className="grid grid-cols-3 divide-x divide-[var(--wy-border)] border-b border-[var(--wy-border)]">
-                  {kpis.map((k) => (
-                    <div key={k.label} className="min-w-0 px-4 py-2.5">
-                      <dt className="truncate text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--wy-text-muted)]">
-                        {k.label}
-                      </dt>
-                      <dd className="mt-0.5">
-                        {k.loading ? (
-                          <span className="block h-6 w-16 animate-pulse rounded bg-[var(--wy-surface-2)]" />
-                        ) : (
-                          <span
-                            className={cn(
-                              "text-lg font-semibold tabular-nums tracking-[-0.02em]",
-                              k.value == null && "text-[var(--wy-text-faint)]",
-                            )}
-                          >
-                            {k.value ?? "—"}
+                >
+                  <dl className="grid grid-cols-3 divide-x divide-[var(--wy-border)] border-b border-[var(--wy-border)]">
+                    {kpis.map((k) => (
+                      <div key={k.label} className="min-w-0 px-4 py-2.5">
+                        <dt className="truncate text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--wy-text-muted)]">
+                          {k.label}
+                        </dt>
+                        <dd className="mt-0.5">
+                          {k.loading ? (
+                            <span className="block h-6 w-16 animate-pulse rounded bg-[var(--wy-surface-2)]" />
+                          ) : (
+                            <span
+                              className={cn(
+                                "text-lg font-semibold tabular-nums tracking-[-0.02em]",
+                                k.value == null && "text-[var(--wy-text-faint)]",
+                              )}
+                            >
+                              {k.value ?? "—"}
+                            </span>
+                          )}
+                          <span className="block truncate text-[11px] text-[var(--wy-text-faint)]">
+                            {!k.loading && k.footer}
                           </span>
-                        )}
-                        <span className="block truncate text-[11px] text-[var(--wy-text-faint)]">
-                          {!k.loading && k.footer}
-                        </span>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <div className="p-4">
-                  {series.isLoading ? (
-                    <div className="h-72">
-                      <ChartSkeleton />
-                    </div>
-                  ) : series.isError ? (
-                    <div className="h-72">
-                      <SeriesError onRetry={() => series.refetch()} />
-                    </div>
-                  ) : noGuestActivity ? (
-                    <div className="h-72">
-                      <ChartEmptyState
-                        label={t("guestsOnline.empty", "No guest activity {{range}}.", {
-                          range: rangeLabel,
-                        })}
-                      />
-                    </div>
-                  ) : (
-                    <ActivityChart points={points} byHour={byHour} rangeLabel={rangeLabel} />
-                  )}
-                </div>
-              </section>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="p-4">
+                    {series.isLoading ? (
+                      <div className="h-72">
+                        <ChartSkeleton />
+                      </div>
+                    ) : series.isError ? (
+                      <div className="h-72">
+                        <SeriesError onRetry={() => series.refetch()} />
+                      </div>
+                    ) : noGuestActivity ? (
+                      <div className="h-72">
+                        <ChartEmptyState
+                          label={t("guestsOnline.empty", "No guest activity {{range}}.", {
+                            range: rangeLabel,
+                          })}
+                        />
+                      </div>
+                    ) : (
+                      <ActivityChart points={points} byHour={byHour} rangeLabel={rangeLabel} />
+                    )}
+                  </div>
+                </Panel>
+              </div>
             </SectionBoundary>
 
-            <section
-              className={cn(PANEL, "flex min-w-0 flex-col xl:col-span-4")}
-              aria-labelledby="os-title"
+            <Panel
+              className="xl:col-span-4"
+              title={
+                <PanelTitle icon={<Laptop />}>{t("devicesByOs.title", "Devices by OS")}</PanelTitle>
+              }
+              description={rangeLabel}
             >
-              <PanelHead
-                id="os-title"
-                icon={<Laptop className="h-3.5 w-3.5" />}
-                title={t("devicesByOs.title", "Devices by OS")}
-                meta={rangeLabel}
-              />
-              <div className="flex flex-1 flex-col p-4">
+              <div className="flex flex-col">
                 {series.isLoading ? (
                   <div className="space-y-4">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -709,26 +667,24 @@ export function CustomerDashboardPage() {
                   </ul>
                 )}
               </div>
-            </section>
+            </Panel>
           </div>
 
           {/* 6. Recent guests and recent alerts. */}
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-            <section
-              className={cn(PANEL, "min-w-0 overflow-hidden xl:col-span-8")}
-              aria-labelledby="recent-users-title"
+            <Panel
+              flush
+              className="overflow-hidden xl:col-span-8"
+              title={
+                <PanelTitle icon={<Users />}>{t("recentUsers.title", "Recent Users")}</PanelTitle>
+              }
+              description={t("recentUsers.meta", "Last 24 hours · click a row to open Guests")}
+              actions={
+                <PanelLink onClick={() => handleNav("users")}>
+                  {t("viewAll", "View all →")}
+                </PanelLink>
+              }
             >
-              <PanelHead
-                id="recent-users-title"
-                icon={<Users className="h-3.5 w-3.5" />}
-                title={t("recentUsers.title", "Recent Users")}
-                meta={t("recentUsers.meta", "Last 24 hours · click a row to open Guests")}
-                right={
-                  <PanelLink onClick={() => handleNav("users")}>
-                    {t("viewAll", "View all →")}
-                  </PanelLink>
-                }
-              />
               {isLoading ? (
                 <div className="space-y-2 p-4">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -741,6 +697,7 @@ export function CustomerDashboardPage() {
                 </p>
               ) : d.recentUsers.length === 0 ? (
                 <EmptyState
+                  className="gap-2 px-4 py-6"
                   title={t("recentUsers.empty", "No guests have connected in the last 24 hours.")}
                 />
               ) : (
@@ -750,22 +707,22 @@ export function CustomerDashboardPage() {
                   onOpenRow={() => handleNav("users")}
                 />
               )}
-            </section>
+            </Panel>
 
-            <section
-              className={cn(PANEL, "min-w-0 xl:col-span-4")}
-              aria-labelledby="recent-alerts-title"
+            <Panel
+              flush
+              className="xl:col-span-4"
+              title={
+                <PanelTitle icon={<AlertTriangle />}>
+                  {t("recentAlerts.title", "Recent Alerts")}
+                </PanelTitle>
+              }
+              actions={
+                <PanelLink onClick={() => handleNav("alerts")}>
+                  {t("viewAll", "View all →")}
+                </PanelLink>
+              }
             >
-              <PanelHead
-                id="recent-alerts-title"
-                icon={<AlertTriangle className="h-3.5 w-3.5" />}
-                title={t("recentAlerts.title", "Recent Alerts")}
-                right={
-                  <PanelLink onClick={() => handleNav("alerts")}>
-                    {t("viewAll", "View all →")}
-                  </PanelLink>
-                }
-              />
               {isLoading ? (
                 <div className="space-y-2 p-4">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -778,12 +735,13 @@ export function CustomerDashboardPage() {
                 </p>
               ) : d.recentAlerts.length === 0 ? (
                 <EmptyState
+                  className="gap-2 px-4 py-6"
                   title={t("recentAlerts.empty", "No alerts. Nothing needs your attention.")}
                 />
               ) : (
                 <ul className="divide-y divide-[var(--wy-border)]">
                   {d.recentAlerts.map((a, i) => {
-                    const st: ConsoleStatus =
+                    const st: OverviewStatus =
                       a.type === "error"
                         ? "crit"
                         : a.type === "warning"
@@ -809,13 +767,13 @@ export function CustomerDashboardPage() {
                   })}
                 </ul>
               )}
-            </section>
+            </Panel>
           </div>
 
           {/* 7. The detail behind the health strip: live traffic, each ISP,
               and the hardware list. */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-12">
-            <div className="min-w-0 lg:col-span-2 xl:col-span-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-12">
+            <div className="min-w-0 lg:col-span-2 2xl:col-span-5">
               {nasOnlyVenue ? (
                 <div className={cn(PANEL, "h-full p-4")} data-testid="aruba-traffic-unsupported">
                   <p className="text-sm font-semibold">{t("bandwidth.title", "Bandwidth")}</p>
@@ -830,10 +788,10 @@ export function CustomerDashboardPage() {
                 />
               )}
             </div>
-            <div className="min-w-0 xl:col-span-4">
+            <div className="min-w-0 2xl:col-span-4">
               <WanStatusCardView wan={wan} onManage={() => handleNav("isp-details")} />
             </div>
-            <div className="min-w-0 xl:col-span-3">
+            <div className="min-w-0 2xl:col-span-3">
               {nasOnlyVenue ? (
                 <ArubaInstantOnVenueCard locationId={locationId} />
               ) : (
