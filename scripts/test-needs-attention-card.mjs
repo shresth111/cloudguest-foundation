@@ -361,5 +361,5 @@ console.log("NeedsAttentionCard");
   check("no WireGuard/tunnel/RADIUS wording", !/wireguard|tunnel|radius|certificate/i.test(html));
 }
 
-console.log(failures === 0 ? "\nall passed" : `\n${failures} failed`);
+console.log(failures === 0 ? "\nneeds attention card: all checks passed" : `\n${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

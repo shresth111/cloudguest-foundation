@@ -1196,6 +1196,15 @@ jobs:
             "customer-kpis" 47 "all customer KPI checks passed" \
             bun run test:customer-kpis
 
+      # The load-bearing assertion is that a source which failed to load is
+      # named as "couldn't check" and never lets the card say "All good".
+      # Floor 33, observed green at 33.
+      - name: needs attention card
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "needs-attention-card" 33 "needs attention card: all checks passed" \
+            bun run test:needs-attention
+
       # --- Duplicate fetch ------------------------------------------------
       #
       # Both of these were defined in package.json and invoked by NOTHING --
