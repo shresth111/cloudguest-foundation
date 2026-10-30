@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Bot, MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CommandPaletteTrigger } from "@/components/customer/CustomerCommandPalette";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,7 +17,13 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PlanRenewalTicket } from "@/components/features/HeaderControls";
 import { DashboardLanguageSwitcher } from "@/components/layout/DashboardLanguageSwitcher";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { customerFeatureHref } from "@/lib/customerNav";
+import {
+  customerFeatureHref,
+  customerNavGroupsForRole,
+  getCustomerLoginRole,
+} from "@/lib/customerNav";
+import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
+import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { LocationSwitcher } from "@/components/customer/LocationSwitcher";
 
 interface CustomerHeaderProps {
@@ -30,10 +37,9 @@ interface CustomerHeaderProps {
    * needs the raw date to compute the real countdown/urgency tier, and
    * formats it for display itself. */
   planExpiryIso?: string;
-  /** Opens the Cmd/Ctrl-K palette. The 26 features are now folded into
-   * nine sidebar destinations, so search is how anyone who knew where a
-   * thing used to live still gets to it in one step -- and a shortcut with
-   * no visible control only serves the people who already know it exists. */
+  /** Opens the Cmd/Ctrl-K palette: one step to any feature by name, however
+   * the sidebar groups it -- and a shortcut with no visible control only
+   * serves the people who already know it exists. */
   onOpenSearch: () => void;
   /** Shown only on pages that actually have something to refresh. */
   onRefresh?: () => void;
@@ -70,6 +76,17 @@ export function CustomerHeader({
   onTfaSettings,
   onLogout,
 }: CustomerHeaderProps) {
+  // Staff Access left the sidebar for this menu (customerNav.ts's "account"
+  // group, `inSidebar: false`). Offered by the exact gate the sidebar row
+  // used -- owner login role, then `users.read` from the caller's real
+  // grants, failing open on an absent/failed/empty answer -- by asking the
+  // same expression the command palette evaluates rather than restating it.
+  const { data: permissions } = useMyPermissions();
+  const showStaffAccess = filterNavGroupsByPermissions(
+    customerNavGroupsForRole(getCustomerLoginRole()),
+    permissions,
+  ).some((g) => g.items.some((item) => item.id === "agents"));
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1e1b4b] to-[#312e81] px-4 text-white backdrop-blur-xl sm:px-6">
       {/* The sidebar primitive's own trigger. #218 had already grown the
@@ -172,6 +189,14 @@ export function CustomerHeader({
             <ShieldCheck className="h-4 w-4" />
             2FA settings
           </DropdownMenuItem>
+          {showStaffAccess && (
+            <DropdownMenuItem asChild className={MENU_ITEM}>
+              <Link to={customerFeatureHref("agents")}>
+                <Bot className="h-4 w-4" />
+                Staff access
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator className="bg-white/10" />
           <DropdownMenuItem
             onSelect={onLogout}

@@ -297,6 +297,18 @@ check(
     .map((h) => headerCode.indexOf(`onSelect={${h}}`))
     .every((i, n, all) => i > 0 && (n === 0 || i > all[n - 1])),
 );
+// Staff Access left the sidebar for this menu; it must be offered by the
+// same role + permission gate the sidebar row used, and link to the same
+// route.
+check(
+  "the avatar menu offers Staff access, gated like the old sidebar row",
+  /filterNavGroupsByPermissions\(\s*customerNavGroupsForRole\(getCustomerLoginRole\(\)\),\s*permissions,?\s*\)/.test(
+    headerCode,
+  ) &&
+    /item\.id === "agents"/.test(headerCode) &&
+    /\{showStaffAccess && \(/.test(headerCode) &&
+    /customerFeatureHref\("agents"\)/.test(headerCode),
+);
 check(
   "the palette is scoped by the same expression as the sidebar",
   /filterNavGroupsByPermissions\(customerNavGroupsForRole\(role\), permissions\)/.test(palette),
