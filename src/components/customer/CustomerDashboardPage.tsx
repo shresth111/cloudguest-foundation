@@ -12,6 +12,7 @@ import {
   Router,
   Users,
   Wifi,
+  Wrench,
   XCircle,
 } from "lucide-react";
 import {
@@ -463,7 +464,7 @@ export function CustomerDashboardPage() {
               STATUS_BAR[isLoading ? "neutral" : tone].wrap,
             )}
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <CheckCircle2
                 className={cn("h-5 w-5", STATUS_BAR[isLoading ? "neutral" : tone].icon)}
               />
@@ -474,6 +475,19 @@ export function CustomerDashboardPage() {
                     ? STATUS_BAR.live.title
                     : liveness.summary || STATUS_BAR[tone].title}
               </span>
+              {/* A not-live verdict with no way forward leaves the owner
+                  stuck; this goes straight to Fix a Problem. Hidden when
+                  live and while still checking. */}
+              {!isLoading && tone !== "live" && (
+                <button
+                  type="button"
+                  onClick={() => handleNav("debugging")}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-current/25 bg-background/70 px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Wrench aria-hidden className="h-3.5 w-3.5" />
+                  Fix a problem
+                </button>
+              )}
             </div>
             {d && (
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
