@@ -349,7 +349,7 @@ console.log("LocationComparisonCard");
     t.includes("Online 2/2") &&
       t.includes("Partly online 1/2") &&
       t.includes("Offline 0/1") &&
-      t.includes("No router"),
+      t.includes("Status not reported"),
   );
   check("locations: numbers as given", t.includes("Andheri 120 300"));
   check(

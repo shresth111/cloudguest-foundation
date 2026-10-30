@@ -67,7 +67,10 @@ function Table({ rows }: { rows: LocationComparisonItem[] }) {
     online: t("locations.online", "Online"),
     partial: t("locations.partial", "Partly online"),
     offline: t("locations.offline", "Offline"),
-    none: t("locations.noRouter", "No router"),
+    // Not "No router": the backend counts only agent-managed routers (a
+    // controller never heartbeats), so an Omada or Aruba venue lands here
+    // with its equipment working.
+    none: t("locations.statusNotReported", "Status not reported"),
   };
 
   return (

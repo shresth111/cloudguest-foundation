@@ -68,7 +68,7 @@
     "online": "Online",
     "partial": "Partly online",
     "offline": "Offline",
-    "noRouter": "No router",
+    "statusNotReported": "Status not reported",
     "note": "“Router now” is the status at this moment, not uptime over the period."
   }
 }

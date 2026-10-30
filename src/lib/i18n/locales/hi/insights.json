@@ -68,7 +68,7 @@
     "online": "ऑनलाइन",
     "partial": "कुछ ऑनलाइन",
     "offline": "ऑफ़लाइन",
-    "noRouter": "कोई router नहीं",
+    "statusNotReported": "स्टेटस उपलब्ध नहीं",
     "note": "“router अभी” इस पल की स्थिति है, पूरे समय का अपटाइम नहीं।"
   }
 }
