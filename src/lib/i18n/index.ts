@@ -13,6 +13,7 @@ import enGuestGroups from "./locales/en/guestGroups.json";
 import enFixProblem from "./locales/en/fixProblem.json";
 import enAccessRules from "./locales/en/accessRules.json";
 import enDashboard from "./locales/en/dashboard.json";
+import enNeedsAttention from "./locales/en/needsAttention.json";
 import hiCommon from "./locales/hi/common.json";
 import hiNav from "./locales/hi/nav.json";
 import hiGuests from "./locales/hi/guests.json";
@@ -26,6 +27,7 @@ import hiGuestGroups from "./locales/hi/guestGroups.json";
 import hiFixProblem from "./locales/hi/fixProblem.json";
 import hiAccessRules from "./locales/hi/accessRules.json";
 import hiDashboard from "./locales/hi/dashboard.json";
+import hiNeedsAttention from "./locales/hi/needsAttention.json";
 
 const LANG_CACHE_KEY = "cg.dashboard.lang";
 
@@ -65,7 +67,7 @@ function readCachedLang(): string {
 // machine-quality Hindi to paying venues. They need a native review pass
 // before they are added to `hi/help.json`.
 // One namespace per translated customer screen (whitelist, trustedDevices,
-// openHours, guestGroups, fixProblem, accessRules, dashboard) rather than piling every
+// openHours, guestGroups, fixProblem, accessRules, dashboard, needsAttention) rather than piling every
 // screen body into nav.json: each file stays reviewable on its own, and a
 // native-speaker pass can be done one screen at a time.
 i18n.use(initReactI18next).init({
@@ -84,6 +86,7 @@ i18n.use(initReactI18next).init({
       fixProblem: enFixProblem,
       accessRules: enAccessRules,
       dashboard: enDashboard,
+      needsAttention: enNeedsAttention,
     },
     hi: {
       common: hiCommon,
@@ -99,6 +102,7 @@ i18n.use(initReactI18next).init({
       fixProblem: hiFixProblem,
       accessRules: hiAccessRules,
       dashboard: hiDashboard,
+      needsAttention: hiNeedsAttention,
     },
   },
   lng: readCachedLang(),
@@ -117,6 +121,7 @@ i18n.use(initReactI18next).init({
     "fixProblem",
     "accessRules",
     "dashboard",
+    "needsAttention",
   ],
   defaultNS: "common",
   interpolation: { escapeValue: false },
