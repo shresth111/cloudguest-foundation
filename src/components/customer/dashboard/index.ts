@@ -7,6 +7,8 @@ export {
 } from "./WanStatusCard";
 export { BandwidthUtilizationCard } from "./BandwidthUtilizationCard";
 export { DeviceStatusCard } from "./DeviceStatusCard";
+export { NeedsAttentionCard } from "./NeedsAttentionCard";
+export { useNeedsAttention, buildNeedsAttention } from "./useNeedsAttention";
 export { useWanSummary } from "./useWanSummary";
 export { useBandwidthSeries } from "./useBandwidthSeries";
 export {
@@ -21,3 +23,9 @@ export {
   BANDWIDTH_POLL_INTERVAL_MS,
 } from "./dashboard.types";
 export type { WanSummaryState, BandwidthSeriesState, IntegratedWanHealth } from "./dashboard.types";
+export type {
+  AttentionItem,
+  AttentionSeverity,
+  AttentionSource,
+  NeedsAttentionState,
+} from "./useNeedsAttention";
