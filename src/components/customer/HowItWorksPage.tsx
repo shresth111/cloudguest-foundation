@@ -10,7 +10,7 @@ import {
 import { ChevronRight, HelpCircle } from "lucide-react";
 import {
   customerFeatureHref,
-  customerNavGroupsForRole,
+  customerSidebarGroupsForRole,
   getCustomerLoginRole,
 } from "@/lib/customerNav";
 import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The customer-facing "How the dashboard works" reference page, reachable
- * from the sidebar's Support & Logs group and rendered as the
+ * from the sidebar's Help group and rendered as the
  * `how-it-works` case in `CustomerFeaturePage.tsx`.
  *
  * WHY THIS IS GENERATED AND NOT WRITTEN
@@ -55,7 +55,7 @@ import { cn } from "@/lib/utils";
  * `CustomerSidebar.tsx` evaluates** to build the sidebar -- role filter
  * then real RBAC grants from `GET /me/permissions`:
  *
- *     filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions)
+ *     filterNavGroupsByPermissions(customerSidebarGroupsForRole(role), permissions)
  *
  * That expression is the contract, not this particular call: when the
  * sidebar was briefly restructured into nine "destinations" this page moved
@@ -125,10 +125,10 @@ export function HowItWorksView() {
   const role = getCustomerLoginRole();
   const { data: permissions } = useMyPermissions();
   // This page omits itself from its own index -- a row reading "How It
-  // Works: you are here" is noise. Dropping it can empty the Support &
-  // Logs group for a reader who holds nothing else in it, so groups are
+  // Works: you are here" is noise. Dropping it can empty the Help
+  // group for a reader who holds nothing else in it, so groups are
   // re-filtered after the removal rather than before.
-  const navGroups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions)
+  const navGroups = filterNavGroupsByPermissions(customerSidebarGroupsForRole(role), permissions)
     .map((g) => ({ ...g, items: g.items.filter((item) => item.id !== "how-it-works") }))
     .filter((g) => g.items.length > 0);
 

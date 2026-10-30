@@ -112,20 +112,29 @@ const {
   customerFeatureHref,
   customerNavGroupsForRole,
   customerNavsForRole,
+  customerSidebarGroupsForRole,
 } = await import(`file://${outfile}`);
 
 // ---------------------------------------------------------------------------
 // 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 30 features in eight groups");
+console.log("\nthe customer menu is 30 features in seven sidebar groups plus Account");
 
 // Nine since the Marketing add-on arrived as its own group, directly after
 // Engagement (wyfy-specs/guest-marketing-campaigns.md §3.5): outbound guest
 // messaging is a paid add-on with its own consent and send lifecycle, not a
 // row under the captive-portal Campaigns screen. Eight since Operations
 // went: its only row, Fix a Problem, moved up into Overview.
+// Then the task-based regroup: seven sidebar groups (Home / Guests / Login
+// Page / Network / Security / Help / Logs) plus "Account", which holds only
+// Staff Access and never renders in the sidebar (it is in the avatar menu).
 check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NAV_GROUPS.length}`);
+check(
+  "seven of them render in the sidebar",
+  customerSidebarGroupsForRole("owner").length === 7,
+  `${customerSidebarGroupsForRole("owner").length}`,
+);
 // 26: main removed the "Notifications" preferences screen (25), a branch
 // added "Network Integrations" to the Network group (26), and FIX-PLAN FE-0
 // retired that row again (25) -- backend `074d719` made every
@@ -156,13 +165,15 @@ check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NA
 // Then Support & Logs -> NetLogs (30): the customer's own router + sign-in
 // log lines (cloud-guest#420), gated on `network_logs.read`.
 // scripts/test-netlogs.mjs pins where it sits and what gates it.
+// Still 30 after the task-based regroup: Staff Access left the sidebar for
+// the avatar menu but stays a feature (route, palette, permission gate).
 check("there are 30 features", CUSTOMER_NAVS.length === 30, `${CUSTOMER_NAVS.length}`);
 // Nine until Operations went: its only row, Fix a Problem, moved up into
 // Overview (section 7 pins where), and a group of nothing is not kept.
 check(
   "the eight groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
-    "overview,engagement,marketing,access-policy,devices-team,network,security,support-logs",
+    "overview,guests,login-page,network,security,help,logs,account",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(","),
 );
 const dupes = CUSTOMER_NAVS.map((n) => n.id).filter((id, i, all) => all.indexOf(id) !== i);
@@ -215,8 +226,8 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "
 const sidebarCode = strip(sidebar);
 
 check(
-  "the sidebar renders the eight groups, not a destination layer",
-  /customerNavGroupsForRole\(/.test(sidebarCode) &&
+  "the sidebar renders the nav groups, not a destination layer",
+  /customerSidebarGroupsForRole\(/.test(sidebarCode) &&
     /filterNavGroupsByPermissions\(/.test(sidebarCode) &&
     !/destinationsFor\(/.test(sidebarCode),
 );
@@ -286,6 +297,18 @@ check(
     .map((h) => headerCode.indexOf(`onSelect={${h}}`))
     .every((i, n, all) => i > 0 && (n === 0 || i > all[n - 1])),
 );
+// Staff Access left the sidebar for this menu; it must be offered by the
+// same role + permission gate the sidebar row used, and link to the same
+// route.
+check(
+  "the avatar menu offers Staff access, gated like the old sidebar row",
+  /filterNavGroupsByPermissions\(\s*customerNavGroupsForRole\(getCustomerLoginRole\(\)\),\s*permissions,?\s*\)/.test(
+    headerCode,
+  ) &&
+    /item\.id === "agents"/.test(headerCode) &&
+    /\{showStaffAccess && \(/.test(headerCode) &&
+    /customerFeatureHref\("agents"\)/.test(headerCode),
+);
 check(
   "the palette is scoped by the same expression as the sidebar",
   /filterNavGroupsByPermissions\(customerNavGroupsForRole\(role\), permissions\)/.test(palette),
@@ -303,6 +326,70 @@ check(
 );
 
 // ---------------------------------------------------------------------------
+// The task-based regroup: group membership, Logs collapsed, Staff Access off
+// the rail but still a feature.
+// ---------------------------------------------------------------------------
+
+console.log("\nthe sidebar is grouped by task");
+
+{
+  const rows = (groups) =>
+    groups.map((g) => `${g.id}=${g.items.map((i) => i.id).join(",")}`).join(" | ");
+  check(
+    "owner sidebar groups and rows are the pinned ones",
+    rows(customerSidebarGroupsForRole("owner")) ===
+      [
+        "overview=dashboard,alerts,debugging",
+        "guests=users,vouchers,teams,marketing,reports",
+        "login-page=portal,campaigns,business-hours",
+        "network=devices,isp-details,dhcp,vlans,port-forwarding,voip,traffic-lens",
+        "security=security,blocking,firewall,policies,whitelist,mac-auth",
+        "help=tickets,how-it-works",
+        "logs=admin-logs,network-activity,netlogs",
+      ].join(" | "),
+    rows(customerSidebarGroupsForRole("owner")),
+  );
+  check(
+    "Staff Access is not a sidebar row for anyone",
+    ["owner", "agent"].every(
+      (r) => !customerSidebarGroupsForRole(r).some((g) => g.items.some((i) => i.id === "agents")),
+    ),
+  );
+  const agents = CUSTOMER_NAVS.find((n) => n.id === "agents");
+  check(
+    "...but is still a known, owner-only feature at /agents",
+    agents && agents.roles.join(",") === "owner" && customerFeatureHref("agents") === "/agents",
+  );
+  check(
+    "...and the palette's grouped list still offers it to owners",
+    customerNavGroupsForRole("owner").some((g) => g.items.some((i) => i.id === "agents")),
+  );
+  check(
+    "no sidebar group is left empty for staff",
+    customerSidebarGroupsForRole("agent").every((g) => g.items.length > 0),
+  );
+  check(
+    "Logs is the one collapsible group",
+    /COLLAPSIBLE_GROUP_IDS[^=]*=\s*new Set\(\["logs"\]\)/.test(sidebarCode),
+  );
+  check(
+    "it opens when the current page is one of its rows",
+    /containsActive\s*\|\|/.test(sidebarCode) &&
+      /if \(containsActive\) setOpen\(true\)/.test(sidebarCode),
+  );
+  check(
+    "the user's toggle is persisted",
+    /localStorage\.setItem\(groupOpenStorageKey/.test(sidebarCode),
+  );
+  check(
+    "the icon rail always shows its icons",
+    /open=\{railCollapsed \|\| open\}/.test(sidebarCode) &&
+      /disabled=\{railCollapsed\}/.test(sidebarCode),
+  );
+  check("the toggle is a Radix CollapsibleTrigger", /<CollapsibleTrigger/.test(sidebarCode));
+}
+
+// ---------------------------------------------------------------------------
 // 6. The help page describes the menu that exists.
 // ---------------------------------------------------------------------------
 
@@ -315,7 +402,9 @@ const howItWorks = readFileSync(join(ROOT, "src/components/customer/HowItWorksPa
 // both directions or it documents a menu that is one release out of date.
 check(
   "the help page reads the same expression the sidebar evaluates",
-  /filterNavGroupsByPermissions\(customerNavGroupsForRole\(role\), permissions\)/.test(howItWorks),
+  /filterNavGroupsByPermissions\(customerSidebarGroupsForRole\(role\), permissions\)/.test(
+    howItWorks,
+  ),
 );
 check(
   "the help page does not read a retired destination model",
@@ -355,15 +444,15 @@ check(
 );
 // It is what an owner opens when the WiFi is down. As the only row of an
 // "Operations" group near the bottom it sat below the fold on a laptop, so
-// it lives straight under Dashboard -- for both roles, since both render
-// Overview first.
+// it lives in Home -- for both roles, since both render Home first -- as
+// the third of the three "something is wrong" rows: Dashboard, Alerts, Fix a
+// Problem.
 for (const role of ["owner", "agent"]) {
   const overview = customerNavGroupsForRole(role)[0];
   check(
-    `${role}: it is the second row, straight under Dashboard`,
+    `${role}: Home is Dashboard, Alerts, Fix a Problem`,
     overview?.id === "overview" &&
-      overview.items[0]?.id === "dashboard" &&
-      overview.items[1]?.id === "debugging",
+      overview.items.map((i) => i.id).join(",") === "dashboard,alerts,debugging",
     overview ? `${overview.id}: ${overview.items.map((i) => i.id).join(",")}` : "no groups",
   );
 }
@@ -398,8 +487,10 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
 {
   const security = CUSTOMER_NAV_GROUPS.find((g) => g.id === "security");
   check(
-    "the Security group is Security Score, Block Websites, then Firewall",
-    security && security.items.map((i) => i.id).join(",") === "security,blocking,firewall",
+    "the Security group is Security Score, Block Websites, Firewall, then who-may-connect",
+    security &&
+      security.items.map((i) => i.id).join(",") ===
+        "security,blocking,firewall,policies,whitelist,mac-auth",
     security ? security.items.map((i) => i.id).join(",") : "missing",
   );
   const score = CUSTOMER_NAVS.find((n) => n.id === "security");
@@ -408,13 +499,13 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     score && score.label === "Security Score",
   );
   // Fix a Problem joined Overview from the retired Operations group (section
-  // 7); the four rows this check was written for are otherwise unchanged.
+  // 7); the task-based regroup then moved Guests and Reports to the Guests
+  // group and Alerts up under Dashboard.
   check(
-    "the Overview group's own rows are untouched",
+    "the Home group's rows are pinned",
     (CUSTOMER_NAV_GROUPS.find((g) => g.id === "overview")?.items ?? [])
       .map((i) => `${i.id}:${i.label}`)
-      .join(",") ===
-      "dashboard:Dashboard,debugging:Fix a Problem,users:Guests,reports:Reports,alerts:Alerts",
+      .join(",") === "dashboard:Dashboard,alerts:Alerts,debugging:Fix a Problem",
   );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
   check("Blocking is labelled for the job", blocking && blocking.label === "Block Websites");
@@ -429,10 +520,10 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "the same screen reachable as a row and as a tab is two homes for one setting",
   );
   check(
-    "the Network group keeps its other five rows (plus Traffic Lens, added later)",
+    "the Network group is Devices and the uplink first, then the five settings rows and Traffic Lens",
     (CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items ?? [])
       .map((i) => i.id)
-      .join(",") === "dhcp,vlans,port-forwarding,voip,isp-details,traffic-lens",
+      .join(",") === "devices,isp-details,dhcp,vlans,port-forwarding,voip,traffic-lens",
   );
   // Old links must keep working: a bookmark to the old address is a
   // redirect to the tab it became, behind the same session guards.

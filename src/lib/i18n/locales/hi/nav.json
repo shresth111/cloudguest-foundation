@@ -84,14 +84,14 @@
     "workspace-help": "सपोर्ट सेंटर"
   },
   "customerGroup": {
-    "overview": "एक नज़र में",
-    "engagement": "मेहमानों तक पहुँच",
-    "marketing": "मार्केटिंग",
-    "access-policy": "एक्सेस और नियम",
-    "devices-team": "डिवाइस और टीम",
+    "overview": "होम",
+    "guests": "मेहमान",
+    "login-page": "लॉगिन पेज",
     "network": "नेटवर्क",
     "security": "सुरक्षा",
-    "support-logs": "सपोर्ट और रिकॉर्ड"
+    "help": "मदद",
+    "logs": "लॉग",
+    "account": "खाता"
   },
   "customerItem": {
     "dashboard": "डैशबोर्ड",

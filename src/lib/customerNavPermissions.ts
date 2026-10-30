@@ -73,7 +73,7 @@ import type { CustomerNavGroup, CustomerNavItem } from "@/lib/customerNav";
  * and this file resolves every ambiguity toward the customer.
  */
 export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
-  // Overview
+  // Home (and Guests: users/reports)
   // `view`, NOT `read`. DASHBOARD is the one module in the entire backend
   // seed whose only action is `view`:
   //
@@ -96,17 +96,18 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   users: ["guest_users.read", "guest_sessions.read"],
   reports: ["reports.read", "analytics.read"],
   alerts: ["alerts.read", "monitoring.read"],
-  // Engagement
+  // Login Page (campaigns/portal) and Guests (vouchers)
   campaigns: ["campaigns.read"],
   portal: ["captive_portal.read"],
   vouchers: ["voucher.read"],
-  // Marketing (paid add-on). The backend's new `marketing` module
+  // Guest Messaging (paid add-on, in the Guests group). The backend's new `marketing` module
   // (wyfy-specs/guest-marketing-campaigns.md §4.9); `read` gates every list,
   // count and preview the page opens with. Whether the add-on is UNLOCKED is
   // a separate question answered by entitlements, not permissions -- a
   // locked org's owner still sees the row (with a lock badge) and the upsell.
   marketing: ["marketing.read"],
-  // Access & Policy
+  // Who may connect -- the Security group's last three rows; Open Hours is
+  // in Login Page.
   policies: ["policy.read"],
   whitelist: ["guest_access.read"],
   "mac-auth": ["mac_authorization.read"],
@@ -114,10 +115,10 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // through `/captive-portal/resolve` + the portal config PUT, same domain
   // as Portal itself (see business-hours.service.ts).
   "business-hours": ["captive_portal.read"],
-  // Devices & Team
+  // Devices (Network group), Guest Groups (Guests group)
   devices: ["monitored_hardware.read"],
   teams: ["guest_teams.read"],
-  // Staff Access administers real platform users, hence `users`, not a
+  // Staff Access (avatar menu, not the sidebar) administers real platform users, hence `users`, not a
   // guest-side domain.
   agents: ["users.read"],
   // Network
@@ -158,7 +159,7 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // integration hangs off a location. One key, not a list: there is no second
   // domain this screen legitimately reads, so an OR here would only widen the
   // gate for no reason.
-  // Operations
+  // Fix a Problem (Home group)
   // Two keys, and the OR is the point. This page's primary job -- looking
   // a guest up and saying why they cannot get on -- reads guest sessions,
   // not the diagnostics domain, and front-desk roles hold
@@ -167,7 +168,7 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // whole page from exactly the people it is written for. The zones that
   // do need diagnostics degrade individually.
   debugging: ["guest_sessions.read", "network_diagnostics.read"],
-  // Support & Logs
+  // Help (tickets) and Logs (the other three)
   tickets: ["support_tickets.read"],
   "admin-logs": ["audit_logs.read"],
   "network-activity": ["guest_sessions.read"],

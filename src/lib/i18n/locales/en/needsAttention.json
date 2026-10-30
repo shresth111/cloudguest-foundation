@@ -1,0 +1,76 @@
+{
+  "title": "Needs attention",
+  "subtitle": "What to sort out at this venue right now",
+  "loading": "Checking your venue…",
+  "allGood": "All good — nothing needs your attention",
+  "checkedList": "We checked: {{list}}.",
+  "couldntCheck": "Couldn't check: {{list}}.",
+  "couldntCheckBody": "So we can't say everything is fine. Refresh the page in a minute.",
+  "stillChecking": "Still checking: {{list}}…",
+  "nothingToCheck": "There's nothing here we can check for your account.",
+  "source": {
+    "routers": "routers",
+    "alerts": "alerts",
+    "devices": "devices",
+    "staffLogins": "staff sign-ins",
+    "plan": "your plan"
+  },
+  "severity": {
+    "error": "Problem",
+    "warning": "Warning",
+    "info": "Note"
+  },
+  "action": {
+    "debugging": "Fix a problem",
+    "alerts": "View alerts",
+    "devices": "View devices",
+    "admin-logs": "View staff activity"
+  },
+  "rows": {
+    "venueOffline": {
+      "title": "Your WiFi network is offline",
+      "detail": "None of the routers here are checking in, so guests may not be able to get online."
+    },
+    "routersPartlyOffline": {
+      "title_one": "{{count}} of {{total}} routers isn't checking in",
+      "title_other": "{{count}} of {{total}} routers aren't checking in",
+      "detail": "Guests near them may not be able to get online."
+    },
+    "noRouter": {
+      "title": "No router added yet",
+      "detail": "Guest WiFi starts working here once a router has been set up."
+    },
+    "criticalAlerts": {
+      "title_one": "{{count}} critical alert is open",
+      "title_other": "{{count}} critical alerts are open"
+    },
+    "warningAlerts": {
+      "title_one": "{{count}} warning is open",
+      "title_other": "{{count}} warnings are open"
+    },
+    "devicesDown": {
+      "title_one": "{{count}} device is down",
+      "title_other": "{{count}} devices are down",
+      "detail": "Access points, printers or other hardware you monitor aren't responding."
+    },
+    "failedLogins": {
+      "title_one": "{{count}} failed staff sign-in today",
+      "title_other": "{{count}} failed staff sign-ins today",
+      "detail": "Check that these were your own staff."
+    },
+    "planExpired": {
+      "title": "Your plan has expired",
+      "detail": "It ended on {{date}}."
+    },
+    "planPastDue": {
+      "title": "Your plan payment is overdue",
+      "detail": "The latest payment for your plan hasn't been received."
+    },
+    "planExpiring": {
+      "today": "Your plan ends today",
+      "title_one": "Your plan ends in {{count}} day",
+      "title_other": "Your plan ends in {{count}} days",
+      "detail": "Ends on {{date}} and won't renew by itself."
+    }
+  }
+}

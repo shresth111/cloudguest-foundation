@@ -1,0 +1,76 @@
+{
+  "title": "ध्यान देने वाली बातें",
+  "subtitle": "इस जगह पर अभी क्या ठीक करना है",
+  "loading": "आपकी जगह की जाँच हो रही है…",
+  "allGood": "सब ठीक है — अभी किसी चीज़ पर ध्यान देने की ज़रूरत नहीं",
+  "checkedList": "हमने ये जाँचे: {{list}}।",
+  "couldntCheck": "अभी ये नहीं जाँच पाए: {{list}}।",
+  "couldntCheckBody": "इसलिए हम यह नहीं कह सकते कि सब ठीक है। एक मिनट बाद पेज रीफ़्रेश करें।",
+  "stillChecking": "अभी जाँच रहे हैं: {{list}}…",
+  "nothingToCheck": "आपके अकाउंट के लिए यहाँ जाँचने को कुछ नहीं है।",
+  "source": {
+    "routers": "router",
+    "alerts": "अलर्ट",
+    "devices": "डिवाइस",
+    "staffLogins": "स्टाफ़ के लॉगिन",
+    "plan": "आपका प्लान"
+  },
+  "severity": {
+    "error": "समस्या",
+    "warning": "चेतावनी",
+    "info": "जानकारी"
+  },
+  "action": {
+    "debugging": "दिक्कत ठीक करें",
+    "alerts": "अलर्ट देखें",
+    "devices": "डिवाइस देखें",
+    "admin-logs": "स्टाफ़ की गतिविधि देखें"
+  },
+  "rows": {
+    "venueOffline": {
+      "title": "आपका WiFi नेटवर्क बंद है",
+      "detail": "यहाँ का कोई भी router जुड़ा नहीं है, इसलिए मेहमान शायद इंटरनेट नहीं चला पा रहे।"
+    },
+    "routersPartlyOffline": {
+      "title_one": "{{total}} में से {{count}} router जुड़ा नहीं है",
+      "title_other": "{{total}} में से {{count}} router जुड़े नहीं हैं",
+      "detail": "उनके पास वाले मेहमानों को इंटरनेट चलाने में दिक्कत हो सकती है।"
+    },
+    "noRouter": {
+      "title": "अभी कोई router नहीं जोड़ा गया",
+      "detail": "router सेट होते ही यहाँ मेहमानों का WiFi चलने लगेगा।"
+    },
+    "criticalAlerts": {
+      "title_one": "{{count}} गंभीर अलर्ट खुला है",
+      "title_other": "{{count}} गंभीर अलर्ट खुले हैं"
+    },
+    "warningAlerts": {
+      "title_one": "{{count}} चेतावनी खुली है",
+      "title_other": "{{count}} चेतावनियाँ खुली हैं"
+    },
+    "devicesDown": {
+      "title_one": "{{count}} डिवाइस बंद है",
+      "title_other": "{{count}} डिवाइस बंद हैं",
+      "detail": "जिन access point, प्रिंटर या दूसरे डिवाइस पर आप नज़र रखते हैं, वे जवाब नहीं दे रहे।"
+    },
+    "failedLogins": {
+      "title_one": "आज स्टाफ़ का {{count}} लॉगिन नाकाम रहा",
+      "title_other": "आज स्टाफ़ के {{count}} लॉगिन नाकाम रहे",
+      "detail": "देख लें कि ये आपके अपने स्टाफ़ ही थे।"
+    },
+    "planExpired": {
+      "title": "आपका प्लान खत्म हो गया है",
+      "detail": "यह {{date}} को खत्म हुआ।"
+    },
+    "planPastDue": {
+      "title": "आपके प्लान का भुगतान बाकी है",
+      "detail": "आपके प्लान का पिछला भुगतान अभी तक नहीं मिला है।"
+    },
+    "planExpiring": {
+      "today": "आपका प्लान आज खत्म हो रहा है",
+      "title_one": "आपका प्लान {{count}} दिन में खत्म हो रहा है",
+      "title_other": "आपका प्लान {{count}} दिन में खत्म हो रहा है",
+      "detail": "{{date}} को खत्म होगा और अपने-आप रिन्यू नहीं होगा।"
+    }
+  }
+}

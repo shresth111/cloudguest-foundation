@@ -5,7 +5,7 @@ import { requireActiveLocationId } from "@/lib/customerLocationGuard";
 import { CustomerFeaturePage } from "@/components/customer/CustomerFeaturePage";
 
 /**
- * Support & Logs -> NetLogs (`components/netlogs/NetLogsView.tsx`).
+ * Logs -> NetLogs (`components/netlogs/NetLogsView.tsx`).
  *
  * Every filter is a search param (see `lib/netlogs.ts` for the mapping):
  * `range`, `from`, `to`, `loc`, `router`, `sev`, `cat`, `st`, `q`, `view`. Each is a

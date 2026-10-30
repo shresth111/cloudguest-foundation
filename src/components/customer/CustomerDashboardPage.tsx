@@ -79,6 +79,7 @@ import {
   WanStatusCard,
   BandwidthUtilizationCard,
   DeviceStatusCard,
+  NeedsAttentionCard,
 } from "@/components/customer/dashboard";
 
 // This component lives in a plain component file, not a route file, on
@@ -586,6 +587,12 @@ export function CustomerDashboardPage() {
 
           {/* Why the venue is not live, and what to do. Nothing when it is. */}
           {d && <LocationLivenessExplainer liveness={d.liveness} />}
+
+          {/* What to do right now, one row per problem with the page that
+              fixes it -- ahead of the KPIs because an owner opening this
+              screen with something broken should not have to read charts
+              first. Every row is a real read; see NeedsAttentionCard. */}
+          <NeedsAttentionCard locationId={locationId} />
 
           {isError && !d && (
             <div className={cn(CARD, "flex flex-col items-center gap-3 py-8 text-center")}>

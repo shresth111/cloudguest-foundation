@@ -464,10 +464,23 @@ check(
 // dashboard shows its fixture) and in scope headers. Two honest requests
 // beat one that quietly changes a panel. Pinned at 2 so that a future
 // merge has to be a deliberate edit to this line.
+//
+// Plus two more, also deliberate: the Needs attention card asks for open
+// alerts by status (`triggered`, then `acknowledged`). `/alerts` takes one
+// status per request and caps page_size at 100, so an unfiltered read can
+// be filled by resolved rows and miss an open one; and the dashboard's own
+// leg folds a failed read into [], which that card must not do because
+// its empty state says "All good". So: 2 + 2, with the card's two pinned
+// by their status param, not just counted.
+const cardAlertStatuses = dash
+  .filter((c) => c.url === "/alerts" && c.params?.status)
+  .map((c) => c.params.status)
+  .sort()
+  .join(",");
 check(
-  "alerts-deliberately-two",
-  countOf(dash, "/alerts") === 2,
-  `GET /alerts issued ${countOf(dash, "/alerts")} time(s), expected 2 (bell page_size=20 + dashboard page_size=10) -- ${listOf(dash, "/alerts")}`,
+  "alerts-deliberately-four",
+  countOf(dash, "/alerts") === 4 && cardAlertStatuses === "acknowledged,triggered",
+  `GET /alerts issued ${countOf(dash, "/alerts")} time(s), expected 4 (bell page_size=20 + dashboard page_size=10 + Needs attention status=triggered + status=acknowledged) -- ${listOf(dash, "/alerts")}`,
 );
 
 // Two `/isp/links/{id}/health-checks` reads are expected and are NOT a

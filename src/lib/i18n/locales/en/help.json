@@ -3,14 +3,13 @@
   "subtitle": "A quick reference for the screens you have access to.",
   "intro": "Everything you need to run your guest WiFi lives here — from checking who's online right now to deciding exactly who gets to connect. Every screen listed below is one you can open; tap any of them to go straight there.",
   "group": {
-    "overview": "A quick, real-time read on how your guest WiFi is doing right now.",
-    "engagement": "Reach the people connected to your WiFi — surveys, offers, and a branded welcome.",
-    "access-policy": "Control who can connect, how much bandwidth they get, and when WiFi is available.",
-    "devices-team": "Keep track of your hardware and shared accounts, and control what your staff can do.",
-    "network": "The plumbing behind your guest WiFi — addresses, separation, forwarding, and call quality.",
-    "security": "What your guest WiFi is protected against, and one place to block websites, addresses and guests.",
-    "operations": "Day-to-day running — and what to check when something breaks.",
-    "support-logs": "Get help, and see the record of what happened."
+    "overview": "Where to start: how your guest WiFi is doing right now, what needs attention, and what to do when a guest can't get online.",
+    "guests": "The people on your WiFi — who they are, their codes and groups, the messages you send them, and the numbers.",
+    "login-page": "What a guest sees before they're online — your branded page, the offers on it, and the hours WiFi is open.",
+    "network": "Your hardware and the plumbing behind your guest WiFi — devices, internet connection, addresses, separation, forwarding and call quality.",
+    "security": "What your guest WiFi is protected against, what to block, and who is allowed to connect.",
+    "help": "Get help from our team, and learn how the dashboard works.",
+    "logs": "The record of what happened — staff changes, guest connections and router log lines."
   },
   "feature": {
     "dashboard": "Who's online right now, whether your connection is healthy, and anything that needs your attention.",

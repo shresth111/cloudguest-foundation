@@ -12,7 +12,7 @@ import type { UseGuestSignInReturn } from "./useGuestSignIn";
  * this same picker, so the question is asked once, at sign-in, whichever
  * method the guest uses.
  *
- * Shown only when the venue has a guest team (Devices & Team -> Guest Groups)
+ * Shown only when the venue has a guest team (Guests -> Guest Groups)
  * that is actually joinable right now (active, not full). The selection is
  * carried through the login and joined automatically once the guest is
  * verified -- see `useGuestSignIn`'s `joinPickedTeam`. An optional, honest
