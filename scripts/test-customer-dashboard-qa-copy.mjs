@@ -350,6 +350,7 @@ const NAMESPACES = [
   "guestGroups",
   "fixProblem",
   "accessRules",
+  "dashboard",
 ];
 /**
  * `help` is deliberately partial: `hi/help.json` carries the page chrome and
@@ -719,6 +720,68 @@ for (const [name, src] of [
     !/(cut|kick)(s|ting)? (them|him|her|the guest|anyone|a guest) off|immediately disconnect|disconnected immediately/i.test(
       src,
     ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n15. The dashboard page: one range control, a way forward, Hindi");
+// ---------------------------------------------------------------------------
+//
+// Source-shape checks, like the rest of this file: there is no render
+// harness for CustomerDashboardPage that can flip the liveness verdict.
+
+const dashPage = stripComments(read("src/components/customer/CustomerDashboardPage.tsx"));
+check(
+  "exactly one RangeSelect is rendered (the header one)",
+  (dashPage.match(/<RangeSelect\b/g) ?? []).length === 1,
+);
+check("the RangeSelect has no compact variant left", !/\bcompact\b/.test(dashPage));
+// The Fix a Problem CTA: present only when the venue is not live and the
+// verdict is not still loading, and it goes to the `debugging` nav id.
+check(
+  "the Fix a problem CTA is gated on a settled, not-live verdict",
+  /\{!isLoading && tone !== "live" && \(\s*<button\s+type="button"\s+onClick=\{\(\) => handleNav\("debugging"\)\}/.test(
+    dashPage,
+  ),
+);
+check(
+  "the Fix a problem CTA label is translated",
+  dashPage.includes('t("status.fixProblem", "Fix a problem")'),
+);
+check(
+  "the page reads the dashboard namespace",
+  dashPage.includes('useTranslation("dashboard", { i18n })'),
+);
+check(
+  "the failed-login pill pluralises through i18next, not a ternary on 1",
+  !/failedLogins === 1 \?/.test(dashPage) && dashPage.includes('t("header.failedLogins"'),
+);
+const enDash = JSON.parse(read("src/lib/i18n/locales/en/dashboard.json"));
+const hiDash = JSON.parse(read("src/lib/i18n/locales/hi/dashboard.json"));
+for (const key of ["failedLogins_one", "failedLogins_other"]) {
+  check(`en and hi both carry header.${key}`, !!enDash.header[key] && !!hiDash.header[key]);
+}
+check(
+  "en and hi both carry status.fixProblem",
+  !!enDash.status.fixProblem && !!hiDash.status.fixProblem,
+);
+// Every t("key", ...) literal the page uses resolves in both bundles, so a
+// typo'd key cannot silently fall back to English in Hindi mode.
+const getPath = (obj, path) => path.split(".").reduce((o, k) => (o == null ? o : o[k]), obj);
+const hasKey = (dict, key) =>
+  getPath(dict, key) !== undefined ||
+  (getPath(dict, `${key}_one`) !== undefined && getPath(dict, `${key}_other`) !== undefined);
+const usedKeys = [...dashPage.matchAll(/\bt\(\s*"([^"]+)"/g)].map((m) => m[1]);
+check("the page uses dashboard keys at all", usedKeys.length > 30, String(usedKeys.length));
+for (const [lang, dict] of [
+  ["en", enDash],
+  ["hi", hiDash],
+]) {
+  const missing = usedKeys.filter((k) => !hasKey(dict, k));
+  check(
+    `every literal key the page uses exists in ${lang}/dashboard.json`,
+    missing.length === 0,
+    missing.join(", "),
   );
 }
 
