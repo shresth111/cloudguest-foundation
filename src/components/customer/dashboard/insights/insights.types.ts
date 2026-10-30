@@ -39,10 +39,37 @@ export interface GuestMixData {
   has_prior_history: boolean;
 }
 
+/** A stage this venue cannot report; `message` says why (per venue). */
 export interface FunnelStageUnavailable {
   available: false;
   message: string;
 }
+
+/** `portal_impressions` in the window: page loads, one device's reloads
+ * within ten minutes collapsed. `devices` counts only loads that carried a
+ * MAC. `tracked_since` is the venue's first recorded load (null = none yet). */
+export interface PortalOpenedStage {
+  available: true;
+  count: number;
+  devices: number;
+  tracked_since: string | null;
+}
+
+/** Sessions the router/controller itself reported as online in the window.
+ * `count` = distinct guests (every method); `otp_guests` = distinct guests on
+ * an OTP session, the number to compare with `otp_signed_in_guests`. `note`
+ * is set when only some of the venue's routers can report this. */
+export interface InternetConfirmedStage {
+  available: true;
+  count: number;
+  otp_guests: number;
+  sessions: number;
+  tracked_since: string | null;
+  note?: string | null;
+}
+
+export type PortalOpened = PortalOpenedStage | FunnelStageUnavailable;
+export type InternetConfirmed = InternetConfirmedStage | FunnelStageUnavailable;
 
 export interface LoginMethodItem {
   auth_method: string;
@@ -59,8 +86,8 @@ export interface LoginFunnelData {
   otp_requested_guests: number;
   otp_verified_guests: number;
   otp_signed_in_guests: number;
-  portal_opened: FunnelStageUnavailable;
-  internet_confirmed: FunnelStageUnavailable;
+  portal_opened: PortalOpened;
+  internet_confirmed: InternetConfirmed;
   methods: LoginMethodItem[];
 }
 

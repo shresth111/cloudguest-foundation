@@ -57,8 +57,10 @@ function check(name, ok, extra = "") {
 // ---------------------------------------------------------------------------
 // The backend: just enough of /captive-portal/resolve to answer each way.
 // ---------------------------------------------------------------------------
+const seenUrls = [];
 const server = createServer((req, res) => {
   const url = new URL(req.url, "http://x");
+  seenUrls.push(url);
   const loc = url.searchParams.get("location_id");
   const json = (status, body) => {
     res.writeHead(status, { "Content-Type": "application/json" });
@@ -400,6 +402,44 @@ if (typeof rejected === "function") {
   check(
     "a non-JSON blob falls back to axios's message instead of throwing",
     gotHtml?.status === 403 && gotHtml?.message === "Request failed with status code 403",
+  );
+}
+
+// ---------------------------------------------------------------------------
+console.log("\nlogin funnel: the 'portal opened' marker rides on resolve");
+{
+  const lastParams = async (params) => {
+    await m.portalRuntimeService.resolveConfig(params).catch(() => {});
+    return seenUrls[seenUrls.length - 1].searchParams;
+  };
+  const plain = await lastParams({ organizationId: "org-1", locationId: "missing" });
+  check(
+    "no marker, router or MAC unless asked (Portal Preview path)",
+    !plain.has("record_impression") && !plain.has("router_id") && !plain.has("device_mac"),
+  );
+  const marked = await lastParams({
+    organizationId: "org-1",
+    locationId: "missing",
+    recordImpression: true,
+    routerId: "r-1",
+    deviceMac: "AA:BB:CC:DD:EE:01",
+  });
+  check(
+    "a guest load sends record_impression with router and MAC on the same request",
+    marked.get("record_impression") === "true" &&
+      marked.get("router_id") === "r-1" &&
+      marked.get("device_mac") === "AA:BB:CC:DD:EE:01",
+  );
+  const unmarkedWithIds = await lastParams({
+    organizationId: "org-1",
+    locationId: "missing",
+    recordImpression: false,
+    routerId: "r-1",
+    deviceMac: "AA:BB:CC:DD:EE:01",
+  });
+  check(
+    "router and MAC are not sent without the marker",
+    !unmarkedWithIds.has("router_id") && !unmarkedWithIds.has("device_mac"),
   );
 }
 

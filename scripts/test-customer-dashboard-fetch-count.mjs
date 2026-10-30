@@ -170,10 +170,11 @@ function body(url) {
              repeat_visit_rate_percent: null, history_starts_at: null, has_prior_history: false };
   }
   if (url === "/analytics/venue-insights/login-funnel") {
-    const na = { available: false, message: "" };
     return { location_id: LOC, ...W, otp_codes_sent: 0, otp_requested_guests: 0,
              otp_verified_guests: 0, otp_signed_in_guests: 0,
-             portal_opened: na, internet_confirmed: na, methods: [] };
+             portal_opened: { available: true, count: 0, devices: 0, tracked_since: null },
+             internet_confirmed: { available: false, message: "No router at this venue." },
+             methods: [] };
   }
   if (url === "/analytics/venue-insights/locations") {
     return { organization_id: ORG, ...W, liveness_note: "", locations: [] };
