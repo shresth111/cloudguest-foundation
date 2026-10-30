@@ -40,9 +40,9 @@ import { GUEST_MARKETING_FEATURE_KEY } from "@/types/marketing";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
- * The one shared sidebar every customer page renders: the 26 features in
- * their seven groups (Overview / Engagement / Access & Policy / Devices &
- * Team / Network / Operations / Support & Logs), straight off
+ * The one shared sidebar every customer page renders: every feature in
+ * its group (Overview / Engagement / Marketing / Access & Policy / Devices &
+ * Team / Network / Security / Support & Logs), straight off
  * `CUSTOMER_NAV_GROUPS`, role-filtered and then permission-filtered.
  *
  * ON THE GROUPING
@@ -55,10 +55,11 @@ import type { useDataMasking } from "@/hooks/useCustomerDashboard";
  * `customerFeatureHref()` for where each one lives, exactly as before.
  *
  * The known costs of this shape are real and are not fixed here -- "why is
- * the WiFi down" is answered across four of the seven groups, and 26 rows
- * plus seven group labels is more nav than a laptop viewport holds, so the
- * last groups sit below the fold. Both want an ordering/labelling pass
- * inside this structure, which is a separate change from restoring it.
+ * the WiFi down" is answered across several groups, and 30 rows plus eight
+ * group labels is more nav than a laptop viewport holds, so the last groups
+ * sit below the fold. The first ordering pass moved "Fix a Problem" up into
+ * Overview, straight under Dashboard, so the screen an owner wants when the
+ * WiFi is down is never one of the rows below the fold.
  *
  * WHAT IS NOT REVERTED, AND WHY
  * -----------------------------
