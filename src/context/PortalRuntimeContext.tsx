@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -802,13 +803,29 @@ export function PortalRuntimeProvider({
   children,
 }: Props) {
   const hasPreset = presetConfig !== undefined;
+  // "Portal opened" for the venue dashboard's login funnel: asked for on the
+  // first resolve of a real guest load only -- never in preview/demo, and
+  // not again on react-query refetches (window focus after staleTime), which
+  // would count one visit several times. Riding on the request the portal
+  // makes anyway: no extra round trip on the guest's path.
+  const impressionSent = useRef(false);
   const {
     data: fetchedConfig,
     isLoading: fetchIsLoading,
     error,
   } = useQuery({
     queryKey: ["portal-runtime-config", organizationId, locationId],
-    queryFn: () => portalRuntimeService.resolveConfig({ organizationId, locationId }),
+    queryFn: () => {
+      const recordImpression = !previewMode && !demoMode && !impressionSent.current;
+      impressionSent.current = true;
+      return portalRuntimeService.resolveConfig({
+        organizationId,
+        locationId,
+        recordImpression,
+        routerId: recordImpression ? routerId : undefined,
+        deviceMac: recordImpression ? deviceMac : undefined,
+      });
+    },
     staleTime: 60_000,
     retry: false,
     enabled: !hasPreset,

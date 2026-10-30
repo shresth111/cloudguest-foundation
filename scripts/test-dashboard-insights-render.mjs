@@ -282,8 +282,127 @@ console.log("LoginFunnelCard");
     t.includes("SMS OTP 140 70%") && t.includes("Voucher 60 30%") && t.includes("50 failed"),
   );
   check(
-    "funnel: unrecorded stages say so",
-    t.includes("Not tracked yet: how many guests opened the login page"),
+    "funnel: unavailable stages say not tracked, with the backend's reason",
+    t.includes("Opened the login page Not tracked") &&
+      t.includes("Internet confirmed by the router Not tracked"),
+  );
+  check(
+    "funnel: no online gap claimed when the stage is not tracked",
+    !render(el).includes('data-testid="funnel-online-gap"'),
+  );
+
+  // Both stages tracked for the whole window: five stages, and the
+  // signed-in-but-never-online gap is highlighted.
+  const win = {
+    window_start: "2026-10-01T00:00:00+00:00",
+    window_end: "2026-10-29T00:00:00+00:00",
+  };
+  const tracked = {
+    ...base,
+    ...win,
+    otp_codes_sent: 260,
+    otp_requested_guests: 200,
+    otp_verified_guests: 150,
+    otp_signed_in_guests: 140,
+    methods: [{ auth_method: "otp_sms", successful_logins: 140, failed_logins: 0, guests: 140 }],
+    portal_opened: {
+      available: true,
+      count: 300,
+      devices: 180,
+      tracked_since: "2026-09-01T00:00:00+00:00",
+    },
+    internet_confirmed: {
+      available: true,
+      count: 150,
+      otp_guests: 120,
+      sessions: 160,
+      tracked_since: "2026-09-01T00:00:00+00:00",
+      note: null,
+    },
+  };
+  m.setState("funnel", { data: tracked });
+  const t2 = text(render(el));
+  check(
+    "funnel: portal opened count + devices",
+    t2.includes("Opened the login page 300 180 devices"),
+  );
+  check(
+    "funnel: internet confirmed 120 60%",
+    t2.includes("Internet confirmed by the router 120 60%"),
+  );
+  check(
+    "funnel: signed-in-but-not-online gap is highlighted",
+    t2.includes("20 guests signed in but their router never reported them online"),
+  );
+  check(
+    "funnel: all-methods confirmed total",
+    t2.includes("Across every login method, 150 guests were confirmed online"),
+  );
+  check(
+    "funnel: stage order portal -> OTP -> verified -> signed in -> online",
+    ["funnel-portal", "funnel-requested", "funnel-verified", "funnel-signedIn", "funnel-online"]
+      .map((id) => render(el).indexOf(`data-testid="${id}"`))
+      .every((pos, i, all) => pos >= 0 && (i === 0 || pos > all[i - 1])),
+  );
+
+  // Tracking began inside the window: say so, and do not claim a gap that is
+  // only the untracked part of the period.
+  m.setState("funnel", {
+    data: {
+      ...tracked,
+      portal_opened: { ...tracked.portal_opened, tracked_since: "2026-10-20T00:00:00+00:00" },
+      internet_confirmed: {
+        ...tracked.internet_confirmed,
+        tracked_since: "2026-10-20T00:00:00+00:00",
+      },
+    },
+  });
+  const t3 = text(render(el));
+  check("funnel: tracking-since shown for a late start", t3.includes("Tracking since 20 Oct 2026"));
+  check(
+    "funnel: no online gap for a partly tracked window",
+    !t3.includes("never reported them online"),
+  );
+
+  // Some routers cannot report: show the note, do not claim a gap.
+  m.setState("funnel", {
+    data: {
+      ...tracked,
+      internet_confirmed: {
+        ...tracked.internet_confirmed,
+        note: "1 of 2 routers at this venue cannot report this",
+      },
+    },
+  });
+  const t4 = text(render(el));
+  check(
+    "funnel: partial-coverage note shown",
+    t4.includes("1 of 2 routers at this venue cannot report this"),
+  );
+  check("funnel: no online gap with partial coverage", !t4.includes("never reported them online"));
+
+  // Unavailable stage keeps the backend's reason.
+  m.setState("funnel", {
+    data: { ...tracked, internet_confirmed: { available: false, message: "Omada legacy reason" } },
+  });
+  check("funnel: unavailable reason rendered", text(render(el)).includes("Omada legacy reason"));
+
+  // Portal opened but nobody logged in is not "empty".
+  m.setState("funnel", {
+    data: {
+      ...base,
+      otp_codes_sent: 0,
+      otp_requested_guests: 0,
+      otp_verified_guests: 0,
+      otp_signed_in_guests: 0,
+      methods: [],
+      portal_opened: { available: true, count: 12, devices: 9, tracked_since: null },
+    },
+  });
+  check(
+    "funnel: page loads with no logins still render",
+    !render(el).includes('data-state="empty"') &&
+      text(render(el)).includes("Opened the login page 12"),
   );
 
   m.setState("funnel", {

@@ -48,7 +48,14 @@
     "codesSent": "{{count}} codes sent, including resends.",
     "methodsHeading": "How guests logged in",
     "failed": "{{count}} failed",
-    "notRecorded": "Not tracked yet: how many guests opened the login page, and whether the internet actually started working after login."
+    "portalOpened": "Opened the login page",
+    "portalDevices": "{{count}} devices",
+    "notTracked": "Not tracked",
+    "trackingSince": "Tracking since {{date}}, so this covers part of the period.",
+    "trackingNotStarted": "Tracking has started; nothing recorded yet.",
+    "internetConfirmed": "Internet confirmed by the router",
+    "onlineGap": "{{count}} guests signed in but their router never reported them online. They may have had no internet after login. If this keeps happening, contact Wyfy support.",
+    "onlineAllMethods": "Across every login method, {{count}} guests were confirmed online by the router."
   },
   "method": {
     "otp_sms": "SMS OTP",

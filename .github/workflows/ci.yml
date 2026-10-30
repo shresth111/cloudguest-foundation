@@ -1222,11 +1222,11 @@ jobs:
 
       # Each insight card: loading, error, empty, demo (says so, shows no
       # numbers) and real data; the funnel's "not tracked" note; the venue
-      # comparison hiding for one venue. Floor 42, observed green at 42.
+      # comparison hiding for one venue. Floor 54, observed green at 54.
       - name: dashboard insight cards
         run: |
           ./scripts/ci-gated-test.sh \
-            "dashboard-insights" 42 "dashboard insights: all checks passed" \
+            "dashboard-insights" 54 "dashboard insights: all checks passed" \
             bun run test:dashboard-insights
 
       # --- Duplicate fetch ------------------------------------------------

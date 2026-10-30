@@ -404,6 +404,15 @@ export const portalRuntimeService = {
   async resolveConfig(params: {
     organizationId: string;
     locationId: string;
+    /** Count this load as "portal opened" on the venue dashboard's login
+     * funnel. Only the real guest runtime sets it, once per page load; the
+     * dashboard's Portal Preview never does. The backend records it off the
+     * request path, so it cannot slow or fail this call. */
+    recordImpression?: boolean;
+    /** Sent only with `recordImpression`: lets the backend collapse one
+     * device's reloads (it stores a keyed hash, never the MAC). */
+    routerId?: string;
+    deviceMac?: string;
   }): Promise<RuntimePortalConfig> {
     // A guest device only just associated with the WiFi -- this is the very
     // first API call it ever makes, over a fresh, sometimes-flaky pre-auth
@@ -416,7 +425,17 @@ export const portalRuntimeService = {
     const { data } = await guestPortalApi.get<BackendCaptivePortalConfig>(
       "/captive-portal/resolve",
       {
-        params: { organization_id: params.organizationId, location_id: params.locationId },
+        params: {
+          organization_id: params.organizationId,
+          location_id: params.locationId,
+          ...(params.recordImpression
+            ? {
+                record_impression: true,
+                ...(params.routerId ? { router_id: params.routerId } : {}),
+                ...(params.deviceMac ? { device_mac: params.deviceMac } : {}),
+              }
+            : {}),
+        },
         timeout: 6000,
       },
     );

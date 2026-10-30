@@ -45,8 +45,23 @@ const num = (v: unknown) => typeof v === "number";
 const VENUE_SHAPES: Record<string, (d: Record<string, unknown>) => boolean> = {
   "peak-hours": (d) => Array.isArray(d.cells) && num(d.total_sessions),
   "guest-mix": (d) => num(d.unique_guests) && num(d.new_guests) && num(d.returning_guests),
-  "login-funnel": (d) => Array.isArray(d.methods) && num(d.otp_codes_sent),
+  "login-funnel": (d) =>
+    Array.isArray(d.methods) &&
+    num(d.otp_codes_sent) &&
+    funnelStageOk(d.portal_opened) &&
+    funnelStageOk(d.internet_confirmed),
 };
+
+// Each extra funnel stage is `{available: false, message}` or
+// `{available: true, count, ...}`. Anything else (an older backend that
+// omits the stage, a stage with no count) fails the read rather than
+// rendering NaN.
+function funnelStageOk(v: unknown): boolean {
+  if (!v || typeof v !== "object") return false;
+  const s = v as Record<string, unknown>;
+  if (s.available === false) return typeof s.message === "string";
+  return s.available === true && num(s.count);
+}
 
 async function getVenueInsight<T>(path: string, locationId: string, days: number): Promise<T> {
   const orgId = await resolveOrgId();
