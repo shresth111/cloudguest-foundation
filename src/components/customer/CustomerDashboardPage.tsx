@@ -349,25 +349,22 @@ function SeriesError({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+/** The page's one range control, in the header. The Guests Online card used
+ * to carry a second copy bound to the same state; it was removed because two
+ * controls for one setting read as two settings. The card's subtitle still
+ * names the range it shows. */
 function RangeSelect({
   value,
   onChange,
-  compact,
 }: {
   value: DashboardRange;
   onChange: (r: DashboardRange) => void;
-  compact?: boolean;
 }) {
   const label = DASHBOARD_RANGES.find((r) => r.value === value)?.label ?? "";
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        className={cn(
-          "inline-flex items-center gap-2 rounded-lg border border-border bg-card font-medium shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          compact ? "px-2.5 py-1 text-xs" : "px-3.5 py-2 text-xs",
-        )}
-      >
-        {!compact && <Calendar className="h-3.5 w-3.5 text-muted-foreground" />}
+      <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-medium shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
         {label}
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -773,7 +770,6 @@ export function CustomerDashboardPage() {
                 icon={<Users className="h-4 w-4" />}
                 title="Guests Online"
                 subtitle={`Guests connected ${byHour ? "each hour" : "each day"}, ${rangeLabel}`}
-                right={<RangeSelect value={range} onChange={setRange} compact />}
               />
               <div className="h-64">
                 {series.isLoading ? (
