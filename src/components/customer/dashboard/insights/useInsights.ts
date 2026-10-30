@@ -36,13 +36,30 @@ function windowParams(days: number) {
   return { start_date: start.toISOString(), end_date: end.toISOString() };
 }
 
+// Checked here, not trusted: a body of the wrong shape (an old backend, a
+// proxy error page, a paginated envelope) made the heatmap throw on
+// `data.cells` during render, and a render error on one card takes the
+// whole dashboard down with it. A wrong shape is a failed read instead,
+// which each card already shows as its error state.
+const num = (v: unknown) => typeof v === "number";
+const VENUE_SHAPES: Record<string, (d: Record<string, unknown>) => boolean> = {
+  "peak-hours": (d) => Array.isArray(d.cells) && num(d.total_sessions),
+  "guest-mix": (d) => num(d.unique_guests) && num(d.new_guests) && num(d.returning_guests),
+  "login-funnel": (d) => Array.isArray(d.methods) && num(d.otp_codes_sent),
+};
+
 async function getVenueInsight<T>(path: string, locationId: string, days: number): Promise<T> {
   const orgId = await resolveOrgId();
   const { data } = await api.get<T>(`${BASE}/${path}`, {
     params: { location_id: locationId, ...windowParams(days) },
     headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId },
   });
-  if (!data || typeof data !== "object") {
+  const valid = VENUE_SHAPES[path];
+  if (
+    !data ||
+    typeof data !== "object" ||
+    (valid && !valid(data as unknown as Record<string, unknown>))
+  ) {
     throw new Error(`Unexpected ${BASE}/${path} response`);
   }
   return data;

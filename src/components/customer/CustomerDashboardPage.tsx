@@ -81,6 +81,12 @@ import {
   DeviceStatusCard,
   NeedsAttentionCard,
 } from "@/components/customer/dashboard";
+import {
+  PeakHoursHeatmapCard,
+  GuestMixCard,
+  LoginFunnelCard,
+  LocationComparisonCard,
+} from "@/components/customer/dashboard/insights";
 
 // This component lives in a plain component file, not a route file, on
 // purpose: routeTree.gen.ts statically imports every route file into the
@@ -1014,6 +1020,19 @@ export function CustomerDashboardPage() {
               )}
             </div>
           </div>
+
+          {/* 6. Guest insights -- when guests come, who comes back, where
+              sign-in drops off, and (multi-venue orgs only) how this venue
+              compares. Each card reads its own fixed window (last 28 days by
+              default), not the page's range picker: a weekly pattern needs
+              weeks, and "today" would make the heatmap mostly empty. */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <PeakHoursHeatmapCard locationId={locationId} className="lg:col-span-2" />
+            <GuestMixCard locationId={locationId} />
+            <LoginFunnelCard locationId={locationId} />
+          </div>
+          {/* Renders nothing for single-venue orgs and the demo. */}
+          <LocationComparisonCard />
 
           {/* Real uplink health and hardware -- the detail behind the status
               bar's ISP and router figures at the top of this page. */}

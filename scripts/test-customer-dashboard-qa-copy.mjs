@@ -352,6 +352,7 @@ const NAMESPACES = [
   "accessRules",
   "dashboard",
   "needsAttention",
+  "insights",
 ];
 /**
  * `help` is deliberately partial: `hi/help.json` carries the page chrome and

@@ -358,5 +358,5 @@ console.log("LocationComparisonCard");
   );
 }
 
-console.log(failures ? `\n${failures} check(s) FAILED` : "\nall checks passed");
+console.log(failures ? `\n${failures} check(s) FAILED` : "\ndashboard insights: all checks passed");
 process.exit(failures ? 1 : 0);
