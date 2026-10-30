@@ -130,22 +130,17 @@ export function GuestSignInCard() {
          * logo still reads clearly on top of it) replaces the previously
          * flat white zone, matching wyfyguest.com's own violet identity. */}
         <div className="-mx-4 -mt-4 mb-4 flex justify-center border-b border-[var(--pg-border)] bg-gradient-to-b from-[var(--pg-brand-accent)]/[0.07] to-transparent px-4 pb-4 pt-5">
-          {/* Real per-location logo always wins when configured --
-           * `framed`, per `VenueLogo`'s own doc comment: this zone's
-           * violet wash sits behind whichever logo a venue uploaded, and
-           * an arbitrary upload can be any aspect ratio (a tall/narrow
-           * mark used to collapse to a sliver here) or palette (light-on-
-           * transparent art could lose all contrast on the wash) -- the
-           * same circular white plate `PortalDefaultBrandBadge` already
-           * gives the no-logo case now backs every real upload too, so
-           * both cases read as one consistent treatment regardless of
-           * what a given venue actually provided. captive-portal-v5-
-           * design-spec.md §3.3: logo scale 64/80/96px -> 48/56/64px --
-           * the mark doesn't need to out-size the heading it sits above;
-           * this alone removes ~30-40px of vertical space at every
-           * breakpoint. */}
+          {/* Real per-location logo always wins when configured.
+           * `adaptive` (see `AdaptiveVenueLogo`): sized by the upload's own
+           * shape -- a wide wordmark gets width, a square/tall mark gets
+           * height -- inside a fixed-height band reserved before load, and
+           * never stretched past what the file's pixels support. This
+           * replaced a 48px `framed` plate that painted every logo at
+           * 30x30 CSS px on a phone (a 4:1 wordmark came out 30x7px).
+           * `alt` is the venue name: for a logo that IS a wordmark, the
+           * image is the venue's name. */}
           {config?.logoUrl ? (
-            <VenueLogo logoUrl={config.logoUrl} size="sm" framed />
+            <VenueLogo logoUrl={config.logoUrl} alt={config.name} size="sm" adaptive />
           ) : (
             <PortalDefaultBrandBadge
               size={64}
