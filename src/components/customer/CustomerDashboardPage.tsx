@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   Activity,
   AlertTriangle,
@@ -12,6 +13,7 @@ import {
   Router,
   Users,
   Wifi,
+  Wrench,
   XCircle,
 } from "lucide-react";
 import {
@@ -45,6 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import i18n from "@/lib/i18n";
 import { useAuth } from "@/context/AuthContext";
 import { useCustomerStore } from "@/stores/customerStore";
 import {
@@ -241,35 +244,36 @@ function ChartSkeleton() {
 }
 
 function SeriesError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation("dashboard", { i18n });
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-      <p className="text-xs text-muted-foreground">Couldn't load guest analytics.</p>
+      <p className="text-xs text-muted-foreground">
+        {t("seriesError", "Couldn't load guest analytics.")}
+      </p>
       <Button variant="outline" size="sm" onClick={onRetry}>
-        Retry
+        {t("retry", "Retry")}
       </Button>
     </div>
   );
 }
 
+/** The page's one range control, in the header. The Guests Online card used
+ * to carry a second copy bound to the same state; it was removed because two
+ * controls for one setting read as two settings. The card's subtitle still
+ * names the range it shows. */
 function RangeSelect({
   value,
   onChange,
-  compact,
 }: {
   value: DashboardRange;
   onChange: (r: DashboardRange) => void;
-  compact?: boolean;
 }) {
-  const label = DASHBOARD_RANGES.find((r) => r.value === value)?.label ?? "";
+  const { t } = useTranslation("dashboard", { i18n });
+  const label = t(`range.${value}`, DASHBOARD_RANGES.find((r) => r.value === value)?.label ?? "");
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        className={cn(
-          "inline-flex items-center gap-2 rounded-lg border border-border bg-card font-medium shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          compact ? "px-2.5 py-1 text-xs" : "px-3.5 py-2 text-xs",
-        )}
-      >
-        {!compact && <Calendar className="h-3.5 w-3.5 text-muted-foreground" />}
+      <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-medium shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
         {label}
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -277,7 +281,7 @@ function RangeSelect({
         <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as DashboardRange)}>
           {DASHBOARD_RANGES.map((r) => (
             <DropdownMenuRadioItem key={r.value} value={r.value}>
-              {r.label}
+              {t(`range.${r.value}`, r.label)}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -289,6 +293,7 @@ function RangeSelect({
 /** The customer dashboard, rendered at "/" (index.tsx) for the venue picked
  * in `useCustomerStore`. */
 export function CustomerDashboardPage() {
+  const { t } = useTranslation("dashboard", { i18n });
   const navigate = useNavigate();
   const { user, roles, logout } = useAuth();
   const { activeLocation, activeLocationId } = useCustomerStore();
@@ -327,7 +332,12 @@ export function CustomerDashboardPage() {
   };
 
   const s = series.data;
-  const rangeLabel = DASHBOARD_RANGES.find((r) => r.value === range)?.label.toLowerCase() ?? "";
+  // Mid-sentence form ("Unique guests, last 24 hours"); its own key because
+  // Hindi has no lowercase to derive it from the menu label.
+  const rangeLabel = t(
+    `rangeInline.${range}`,
+    DASHBOARD_RANGES.find((r) => r.value === range)?.label.toLowerCase() ?? "",
+  );
   const byHour = s?.bucket !== "day";
   const chartData = (s?.series ?? []).map((b) => ({
     label: bucketLabel(b.bucketStart, s?.bucket ?? "hour"),
@@ -350,44 +360,53 @@ export function CustomerDashboardPage() {
 
   const kpis = [
     {
-      label: "Guests",
+      label: t("kpi.guests", "Guests"),
       icon: <Users className="h-4 w-4" />,
       value: s ? s.guests.toLocaleString() : null,
       loading: series.isLoading,
       footer: series.isError ? (
-        <span>Couldn't load</span>
+        <span>{t("couldNotLoad", "Couldn't load")}</span>
       ) : (
-        <span>Unique guests, {rangeLabel}</span>
+        <span>{t("kpi.guestsFooter", "Unique guests, {{range}}", { range: rangeLabel })}</span>
       ),
     },
     {
-      label: "Currently online",
+      label: t("kpi.online", "Currently online"),
       icon: <Wifi className="h-4 w-4" />,
       value: d ? d.kpis.onlineUsers.toLocaleString() : null,
       loading: isLoading,
       footer: s ? (
         <span>
-          Peak {rangeLabel}: {s.peakOnline.toLocaleString()}
+          {t("kpi.onlineFooter", "Peak {{range}}: {{peak}}", {
+            range: rangeLabel,
+            peak: s.peakOnline.toLocaleString(),
+          })}
         </span>
       ) : isError ? (
-        <span>Couldn't load</span>
+        <span>{t("couldNotLoad", "Couldn't load")}</span>
       ) : null,
     },
     {
-      label: "Avg. session time",
+      label: t("kpi.avgSession", "Avg. session time"),
       icon: <Clock className="h-4 w-4" />,
-      value: s?.avgSessionMinutes != null ? `${s.avgSessionMinutes} min` : null,
+      value:
+        s?.avgSessionMinutes != null
+          ? t("kpi.avgSessionValue", "{{minutes}} min", { minutes: s.avgSessionMinutes })
+          : null,
       loading: series.isLoading,
       footer: s ? (
         <span>
           {s.avgSessionMinutes == null
-            ? `No sessions ${rangeLabel}`
-            : `Across ${s.sessions.toLocaleString()} sessions`}
+            ? t("kpi.noSessions", "No sessions {{range}}", { range: rangeLabel })
+            : t("kpi.acrossSessions", "Across {{formatted}} sessions", {
+                count: s.sessions,
+                formatted: s.sessions.toLocaleString(),
+              })}
         </span>
       ) : null,
     },
     {
-      label: "Uptime",
+      label: t("kpi.uptime", "Uptime"),
       icon: <Activity className="h-4 w-4" />,
       value: d?.kpis.slaUptime != null ? formatUptimePercent(d.kpis.slaUptime) : null,
       loading: isLoading,
@@ -395,7 +414,7 @@ export function CustomerDashboardPage() {
         tone === "live" ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/70 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/50 dark:text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            All systems healthy
+            {t("kpi.allHealthy", "All systems healthy")}
           </span>
         ) : (
           <LocationLivenessBadge liveness={liveness} />
@@ -466,17 +485,31 @@ export function CustomerDashboardPage() {
               STATUS_BAR[isLoading ? "neutral" : tone].wrap,
             )}
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <CheckCircle2
                 className={cn("h-5 w-5", STATUS_BAR[isLoading ? "neutral" : tone].icon)}
               />
               <span className="text-sm font-semibold">
+                {/* `liveness.summary` is server copy and stays as sent. */}
                 {isLoading
-                  ? "Checking systems…"
+                  ? t("status.checking", "Checking systems…")
                   : tone === "live"
-                    ? STATUS_BAR.live.title
-                    : liveness.summary || STATUS_BAR[tone].title}
+                    ? t("status.live", STATUS_BAR.live.title)
+                    : liveness.summary || t(`status.${tone}`, STATUS_BAR[tone].title)}
               </span>
+              {/* A not-live verdict with no way forward leaves the owner
+                  stuck; this goes straight to Fix a Problem. Hidden when
+                  live and while still checking. */}
+              {!isLoading && tone !== "live" && (
+                <button
+                  type="button"
+                  onClick={() => handleNav("debugging")}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-current/25 bg-background/70 px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Wrench aria-hidden className="h-3.5 w-3.5" />
+                  {t("status.fixProblem", "Fix a problem")}
+                </button>
+              )}
             </div>
             {d && (
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
@@ -485,7 +518,7 @@ export function CustomerDashboardPage() {
                     aria-hidden
                     className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
                   />
-                  <span className="opacity-70">System</span>
+                  <span className="opacity-70">{t("status.system", "System")}</span>
                   <span className="font-semibold">{d.health.systemHealth}</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5">
@@ -493,14 +526,14 @@ export function CustomerDashboardPage() {
                     aria-hidden
                     className={cn("h-3.5 w-3.5", CORE_ICON[livenessTone(d.liveness.state)])}
                   />
-                  <span className="opacity-70">Routers</span>
+                  <span className="opacity-70">{t("status.routers", "Routers")}</span>
                   <span className="font-semibold">{d.health.routersOnline}</span>
                 </span>
                 {/* No status tint: this names the active uplink, it is not a
                     health measurement -- the WAN card carries that. */}
                 <span className="inline-flex items-center gap-1.5">
                   <Activity aria-hidden className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="opacity-70">ISP</span>
+                  <span className="opacity-70">{t("status.isp", "ISP")}</span>
                   <span className="font-semibold">{d.health.isp}</span>
                 </span>
               </div>
@@ -511,13 +544,15 @@ export function CustomerDashboardPage() {
           <div className="flex flex-col gap-4 border-b border-border/70 pb-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6C4EFF]">
-                Location overview
+                {t("header.eyebrow", "Location overview")}
               </p>
               <h1 className="font-display text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
-                Dashboard
+                {t("header.title", "Dashboard")}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Here's what's happening at {activeLocation?.name ?? "your venue"}.
+                {t("header.subtitle", "Here's what's happening at {{name}}.", {
+                  name: activeLocation?.name ?? t("header.yourVenue", "your venue"),
+                })}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -528,16 +563,21 @@ export function CustomerDashboardPage() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
                 >
                   <AlertTriangle className="h-3 w-3" />
-                  {d.kpis.failedLogins} failed login{d.kpis.failedLogins === 1 ? "" : "s"} today
+                  {t("header.failedLogins", "{{count}} failed logins today", {
+                    count: d.kpis.failedLogins,
+                  })}
                 </button>
               )}
               {d && d.kpis.failedLogins === null && isOwner && (
                 <span
-                  title="The failed-login check could not read this venue's login audit log."
+                  title={t(
+                    "header.loginCheckUnavailableHint",
+                    "The failed-login check could not read this venue's login audit log.",
+                  )}
                   className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
                 >
                   <AlertTriangle className="h-3 w-3" />
-                  Login check unavailable
+                  {t("header.loginCheckUnavailable", "Login check unavailable")}
                 </span>
               )}
               <RangeSelect value={range} onChange={setRange} />
@@ -549,12 +589,17 @@ export function CustomerDashboardPage() {
 
           {isError && !d && (
             <div className={cn(CARD, "flex flex-col items-center gap-3 py-8 text-center")}>
-              <p className="text-sm font-medium">Couldn't load this venue's live status</p>
+              <p className="text-sm font-medium">
+                {t("liveError.title", "Couldn't load this venue's live status")}
+              </p>
               <p className="text-xs text-muted-foreground">
-                Online guests, uptime, recent guests and alerts are unavailable right now.
+                {t(
+                  "liveError.body",
+                  "Online guests, uptime, recent guests and alerts are unavailable right now.",
+                )}
               </p>
               <Button variant="outline" size="sm" onClick={() => refetch()}>
-                Retry
+                {t("retry", "Retry")}
               </Button>
             </div>
           )}
@@ -571,9 +616,16 @@ export function CustomerDashboardPage() {
             <div className={cn(CARD, "p-5 md:col-span-2")}>
               <CardHead
                 icon={<Users className="h-4 w-4" />}
-                title="Guests Online"
-                subtitle={`Guests connected ${byHour ? "each hour" : "each day"}, ${rangeLabel}`}
-                right={<RangeSelect value={range} onChange={setRange} compact />}
+                title={t("guestsOnline.title", "Guests Online")}
+                subtitle={
+                  byHour
+                    ? t("guestsOnline.subtitleHourly", "Guests connected each hour, {{range}}", {
+                        range: rangeLabel,
+                      })
+                    : t("guestsOnline.subtitleDaily", "Guests connected each day, {{range}}", {
+                        range: rangeLabel,
+                      })
+                }
               />
               <div className="h-64 rounded-xl bg-gradient-to-b from-[#6C4EFF]/[0.035] to-transparent px-1 pt-1">
                 {series.isLoading ? (
@@ -581,7 +633,11 @@ export function CustomerDashboardPage() {
                 ) : series.isError ? (
                   <SeriesError onRetry={() => series.refetch()} />
                 ) : noGuestActivity ? (
-                  <ChartEmptyState label={`No guest activity ${rangeLabel}.`} />
+                  <ChartEmptyState
+                    label={t("guestsOnline.empty", "No guest activity {{range}}.", {
+                      range: rangeLabel,
+                    })}
+                  />
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart
@@ -619,8 +675,10 @@ export function CustomerDashboardPage() {
                         contentStyle={TOOLTIP_STYLE}
                         cursor={{ stroke: "#6C4EFF", strokeOpacity: 0.3 }}
                         formatter={(v: unknown) => [
-                          `${typeof v === "number" ? v : 0} guests`,
-                          "Online",
+                          t("guestsOnline.tooltipValue", "{{count}} guests", {
+                            count: typeof v === "number" ? v : 0,
+                          }),
+                          t("guestsOnline.tooltipLabel", "Online"),
                         ]}
                       />
                       <Area
@@ -653,7 +711,10 @@ export function CustomerDashboardPage() {
             </div>
 
             <div className={cn(CARD, "p-5")}>
-              <CardHead icon={<Laptop className="h-4 w-4" />} title="Devices by OS" />
+              <CardHead
+                icon={<Laptop className="h-4 w-4" />}
+                title={t("devicesByOs.title", "Devices by OS")}
+              />
               <div className="flex h-64 flex-col justify-center">
                 {series.isLoading ? (
                   <div className="space-y-4">
@@ -664,7 +725,9 @@ export function CustomerDashboardPage() {
                 ) : series.isError ? (
                   <SeriesError onRetry={() => series.refetch()} />
                 ) : !s || s.osBreakdown.length === 0 ? (
-                  <ChartEmptyState label={`No devices ${rangeLabel}.`} />
+                  <ChartEmptyState
+                    label={t("devicesByOs.empty", "No devices {{range}}.", { range: rangeLabel })}
+                  />
                 ) : (
                   <div className="space-y-4">
                     {s.osBreakdown.map((o, i) => (
@@ -694,8 +757,12 @@ export function CustomerDashboardPage() {
             <div className={cn(CARD, "p-5")}>
               <CardHead
                 icon={<Activity className="h-4 w-4" />}
-                title={byHour ? "Sessions by Hour" : "Sessions by Day"}
-                subtitle="New guest sessions"
+                title={
+                  byHour
+                    ? t("sessions.titleHourly", "Sessions by Hour")
+                    : t("sessions.titleDaily", "Sessions by Day")
+                }
+                subtitle={t("sessions.subtitle", "New guest sessions")}
               />
               <div className="h-64 rounded-xl bg-gradient-to-b from-[#06B6D4]/[0.035] to-transparent px-1 pt-1">
                 {series.isLoading ? (
@@ -703,7 +770,9 @@ export function CustomerDashboardPage() {
                 ) : series.isError ? (
                   <SeriesError onRetry={() => series.refetch()} />
                 ) : noGuestActivity ? (
-                  <ChartEmptyState label={`No sessions ${rangeLabel}.`} />
+                  <ChartEmptyState
+                    label={t("sessions.empty", "No sessions {{range}}.", { range: rangeLabel })}
+                  />
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} margin={{ top: 10, right: 4, left: -22, bottom: 0 }}>
@@ -738,7 +807,10 @@ export function CustomerDashboardPage() {
                       <Tooltip
                         contentStyle={TOOLTIP_STYLE}
                         cursor={{ fill: "var(--muted)", fillOpacity: 0.5 }}
-                        formatter={(v: unknown) => [`${typeof v === "number" ? v : 0}`, "Sessions"]}
+                        formatter={(v: unknown) => [
+                          `${typeof v === "number" ? v : 0}`,
+                          t("sessions.tooltipLabel", "Sessions"),
+                        ]}
                       />
                       <Bar
                         dataKey="arrivals"
@@ -758,7 +830,9 @@ export function CustomerDashboardPage() {
             <div className="lg:col-span-2 xl:col-span-5 [&>div]:h-full">
               {nasOnlyVenue ? (
                 <div className={cn(CARD, "p-5")} data-testid="aruba-traffic-unsupported">
-                  <p className="text-sm font-semibold text-foreground">Bandwidth</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {t("bandwidth.title", "Bandwidth")}
+                  </p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     {controllerDeviceMetricsReason("aruba_instant_on")}
                   </p>
@@ -774,14 +848,14 @@ export function CustomerDashboardPage() {
             <div className={cn(CARD, "p-5 xl:col-span-4")}>
               <CardHead
                 icon={<Users className="h-4 w-4" />}
-                title="Recent Users"
+                title={t("recentUsers.title", "Recent Users")}
                 right={
                   <button
                     type="button"
                     onClick={() => handleNav("users")}
                     className="text-xs font-medium text-[#6C4EFF] hover:underline"
                   >
-                    View all →
+                    {t("viewAll", "View all →")}
                   </button>
                 }
               />
@@ -792,20 +866,30 @@ export function CustomerDashboardPage() {
                   ))}
                 </div>
               ) : !d ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">Couldn't load.</p>
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  {t("couldNotLoadDot", "Couldn't load.")}
+                </p>
               ) : d.recentUsers.length === 0 ? (
                 <p className="py-8 text-center text-xs text-muted-foreground">
-                  No guests have connected in the last 24 hours.
+                  {t("recentUsers.empty", "No guests have connected in the last 24 hours.")}
                 </p>
               ) : (
                 <div className="-mx-1 overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        <th className="px-1 pb-2 font-semibold">User</th>
-                        <th className="px-1 pb-2 font-semibold">Device</th>
-                        <th className="px-1 pb-2 font-semibold">Time</th>
-                        <th className="px-1 pb-2 font-semibold">Status</th>
+                        <th className="px-1 pb-2 font-semibold">
+                          {t("recentUsers.colUser", "User")}
+                        </th>
+                        <th className="px-1 pb-2 font-semibold">
+                          {t("recentUsers.colDevice", "Device")}
+                        </th>
+                        <th className="px-1 pb-2 font-semibold">
+                          {t("recentUsers.colTime", "Time")}
+                        </th>
+                        <th className="px-1 pb-2 font-semibold">
+                          {t("recentUsers.colStatus", "Status")}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -836,7 +920,15 @@ export function CustomerDashboardPage() {
                                   u.status === "online" ? "bg-emerald-500" : "bg-slate-400",
                                 )}
                               />
-                              {u.status}
+                              {/* `status` is a free string from the API; an
+                                  unknown value shows as sent. */}
+                              {u.status === "online"
+                                ? t("recentUsers.statusOnline", "online")
+                                : u.status === "offline"
+                                  ? t("recentUsers.statusOffline", "offline")
+                                  : u.status === "idle"
+                                    ? t("recentUsers.statusIdle", "idle")
+                                    : u.status}
                             </span>
                           </td>
                         </tr>
@@ -850,14 +942,14 @@ export function CustomerDashboardPage() {
             <div className={cn(CARD, "p-5 xl:col-span-3")}>
               <CardHead
                 icon={<AlertTriangle className="h-4 w-4" />}
-                title="Recent Alerts"
+                title={t("recentAlerts.title", "Recent Alerts")}
                 right={
                   <button
                     type="button"
                     onClick={() => handleNav("alerts")}
                     className="text-xs font-medium text-[#6C4EFF] hover:underline"
                   >
-                    View all →
+                    {t("viewAll", "View all →")}
                   </button>
                 }
               />
@@ -868,10 +960,12 @@ export function CustomerDashboardPage() {
                   ))}
                 </div>
               ) : !d ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">Couldn't load.</p>
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  {t("couldNotLoadDot", "Couldn't load.")}
+                </p>
               ) : d.recentAlerts.length === 0 ? (
                 <p className="py-8 text-center text-xs text-muted-foreground">
-                  No alerts. Nothing needs your attention.
+                  {t("recentAlerts.empty", "No alerts. Nothing needs your attention.")}
                 </p>
               ) : (
                 <ul className="space-y-3">

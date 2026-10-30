@@ -355,14 +355,19 @@ check(
 );
 // The tile now follows the date-range selector, so it is "Guests" for the
 // selected range rather than a fixed "Guests today".
-check("the dashboard leads with a Guests tile", /label:\s*"Guests"/.test(dashboard));
+// Labels go through t("kpi.<key>", "<English>") since the page was
+// translated; the English default is what these pin.
+check(
+  "the dashboard leads with a Guests tile",
+  /label:\s*t\("kpi\.guests",\s*"Guests"\)/.test(dashboard),
+);
 check(
   "guests today is no longer demoted to the secondary stat strip",
   !/label:\s*"guests today"/.test(dashboard),
 );
 check(
   'the hero says "Uptime", not the telecom-contract "SLA uptime"',
-  /label:\s*"Uptime"/.test(dashboard) && !/label:\s*"SLA uptime"/.test(dashboard),
+  /label:\s*t\("kpi\.uptime",\s*"Uptime"\)/.test(dashboard) && !/"SLA uptime"/.test(dashboard),
 );
 
 // ---------------------------------------------------------------------------

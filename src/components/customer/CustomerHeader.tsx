@@ -1,9 +1,17 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { MapPinned, KeyRound, ShieldCheck, LogOut, RefreshCw } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { CommandPaletteTrigger } from "@/components/customer/CustomerCommandPalette";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PlanRenewalTicket } from "@/components/features/HeaderControls";
 import { DashboardLanguageSwitcher } from "@/components/layout/DashboardLanguageSwitcher";
@@ -36,6 +44,9 @@ interface CustomerHeaderProps {
   onLogout: () => void;
 }
 
+const MENU_ITEM =
+  "cursor-pointer gap-2 rounded-lg px-3 py-2 text-white hover:bg-white/10 focus:bg-white/10 focus:text-white";
+
 /**
  * The one shared top bar every `/customer/$locationId/*` page renders --
  * same lesson as `CustomerSidebar.tsx`: this exact markup used to be
@@ -59,8 +70,6 @@ export function CustomerHeader({
   onTfaSettings,
   onLogout,
 }: CustomerHeaderProps) {
-  const [menu, setMenu] = useState(false);
-
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/10 bg-gradient-to-r from-[#1e1b4b] to-[#312e81] px-4 text-white backdrop-blur-xl sm:px-6">
       {/* The sidebar primitive's own trigger. #218 had already grown the
@@ -123,66 +132,56 @@ export function CustomerHeader({
         <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
       </span>
 
-      <div className="relative">
-        <button onClick={() => setMenu((m) => !m)} className="ml-1">
+      {/* Radix, not the useState toggle it replaces: that one never closed
+          on an outside click or Escape, announced nothing to a screen reader
+          and left focus on the avatar. The primitive does all of that plus
+          arrow-key navigation. `focus:` mirrors every `hover:` because Radix
+          moves real focus between items -- a hover-only highlight would be
+          invisible to a keyboard user. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="Account menu"
+          className="ml-1 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        >
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-white/15 text-xs font-semibold text-white">
               {user?.firstName?.[0] ?? "A"}
               {user?.lastName?.[0] ?? "U"}
             </AvatarFallback>
           </Avatar>
-        </button>
-        {menu && (
-          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-white/10 bg-[#241f4d] p-1 text-white shadow-xl">
-            <div className="px-3 py-2">
-              <p className="text-sm font-medium">{user?.name ?? "Admin"}</p>
-              <p className="text-xs text-white/50">{user?.email}</p>
-            </div>
-            <div className="my-1 border-t border-white/10" />
-            <button
-              onClick={() => {
-                setMenu(false);
-                onSwitchLocation();
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/10"
-            >
-              <MapPinned className="h-4 w-4" />
-              Switch location
-            </button>
-            <button
-              onClick={() => {
-                setMenu(false);
-                onChangePassword();
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/10"
-            >
-              <KeyRound className="h-4 w-4" />
-              Change password
-            </button>
-            <button
-              onClick={() => {
-                setMenu(false);
-                onTfaSettings();
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/10"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              2FA settings
-            </button>
-            <div className="my-1 border-t border-white/10" />
-            <button
-              onClick={() => {
-                setMenu(false);
-                onLogout();
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-400 hover:bg-rose-500/10"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </button>
-          </div>
-        )}
-      </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          sideOffset={8}
+          className="w-56 rounded-xl border-white/10 bg-[#241f4d] p-1 text-white shadow-xl"
+        >
+          <DropdownMenuLabel className="px-3 py-2 font-normal">
+            <p className="text-sm font-medium">{user?.name ?? "Admin"}</p>
+            <p className="text-xs text-white/50">{user?.email}</p>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator className="bg-white/10" />
+          <DropdownMenuItem onSelect={onSwitchLocation} className={MENU_ITEM}>
+            <MapPinned className="h-4 w-4" />
+            Switch location
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onChangePassword} className={MENU_ITEM}>
+            <KeyRound className="h-4 w-4" />
+            Change password
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onTfaSettings} className={MENU_ITEM}>
+            <ShieldCheck className="h-4 w-4" />
+            2FA settings
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="bg-white/10" />
+          <DropdownMenuItem
+            onSelect={onLogout}
+            className="cursor-pointer gap-2 rounded-lg px-3 py-2 text-rose-400 hover:bg-rose-500/10 focus:bg-rose-500/10 focus:text-rose-400"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   );
 }

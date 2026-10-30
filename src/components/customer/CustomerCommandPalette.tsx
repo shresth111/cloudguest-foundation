@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import {
   CommandDialog,
   CommandEmpty,
@@ -34,11 +36,14 @@ import { useMyPermissions } from "@/hooks/useCustomerDashboard";
  * easiest possible way to break it.
  *
  * Scoped by the same expression as the sidebar -- role first, then real
- * grants, failing open on "we don't know" -- and grouped by the same seven
+ * grants, failing open on "we don't know" -- and grouped by the same
  * groups, so what you can search is exactly what you can see and the group
  * heading beside a hit tells you where to find it next time. A feature the
  * sidebar would not offer is not searchable here either: this is a shortcut
  * past the scrolling, not past the permission model.
+ *
+ * Labels come from the same `nav` keys the sidebar renders, so a Hindi
+ * session searches the names it can actually see.
  */
 export function CustomerCommandPalette({
   open,
@@ -51,36 +56,52 @@ export function CustomerCommandPalette({
   const role = getCustomerLoginRole();
   const { data: permissions } = useMyPermissions();
   const groups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions);
+  const { t } = useTranslation("nav", { i18n });
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Search for anything — guests, offers, vouchers, staff…" />
+      <CommandInput
+        placeholder={t(
+          "commandPalette.placeholder",
+          "Search for anything — guests, offers, vouchers, staff…",
+        )}
+      />
       <CommandList>
-        <CommandEmpty>Nothing matches that. Try “guests”, “offer” or “WiFi”.</CommandEmpty>
-        {groups.map((group) => (
-          <CommandGroup key={group.id} heading={group.label}>
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <CommandItem
-                  key={item.id}
-                  // cmdk matches on `value`, so the group name is folded in:
-                  // someone who remembers only "that thing under Network"
-                  // still finds Port Forwarding.
-                  value={`${item.label} ${group.label}`}
-                  onSelect={() => {
-                    onOpenChange(false);
-                    navigate({ to: customerFeatureHref(item.id) });
-                  }}
-                >
-                  <Icon className="mr-2 h-4 w-4 shrink-0 opacity-70" />
-                  <span>{item.label}</span>
-                  <span className="ml-auto pl-3 text-xs text-muted-foreground">{group.label}</span>
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        ))}
+        <CommandEmpty>
+          {t("commandPalette.empty", "Nothing matches that. Try “guests”, “offer” or “WiFi”.")}
+        </CommandEmpty>
+        {groups.map((group) => {
+          const groupLabel = t(`customerGroup.${group.id}`, group.label);
+          return (
+            <CommandGroup key={group.id} heading={groupLabel}>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const label = t(`customerItem.${item.id}`, item.label);
+                return (
+                  <CommandItem
+                    key={item.id}
+                    // cmdk matches on `value`, so the group name is folded in:
+                    // someone who remembers only "that thing under Network"
+                    // still finds Port Forwarding. The English names ride
+                    // along with the translated ones: a Hindi session that
+                    // types "guests" (the word on every help doc and support
+                    // call) still lands on मेहमान. In English they repeat,
+                    // which is harmless.
+                    value={`${label} ${groupLabel} ${item.label} ${group.label}`}
+                    onSelect={() => {
+                      onOpenChange(false);
+                      navigate({ to: customerFeatureHref(item.id) });
+                    }}
+                  >
+                    <Icon className="mr-2 h-4 w-4 shrink-0 opacity-70" />
+                    <span>{label}</span>
+                    <span className="ml-auto pl-3 text-xs text-muted-foreground">{groupLabel}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          );
+        })}
       </CommandList>
     </CommandDialog>
   );
@@ -106,15 +127,17 @@ export function useCustomerCommandPalette() {
 }
 
 export function CommandPaletteTrigger({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation("nav", { i18n });
+  const label = t("commandPalette.trigger", "Search");
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="Search"
+      aria-label={label}
       className="flex h-9 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-2.5 text-xs text-white/60 transition-colors hover:bg-white/10 hover:text-white sm:px-3"
     >
       <Search className="h-4 w-4 shrink-0" />
-      <span className="hidden sm:inline">Search</span>
+      <span className="hidden sm:inline">{label}</span>
       {/* Not shown on touch, where there is no key to press. */}
       <kbd className="hidden rounded border border-white/15 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] lg:inline">
         ⌘K

@@ -52,9 +52,9 @@ export interface CustomerNavGroup {
  * component, see src/components/customer/CustomerSidebar.tsx) so they can't
  * drift out of sync with each other again.
  *
- * Grouped into the same seven sections every customer page's sidebar
- * renders (Overview / Engagement / Access & Policy / Devices & Team /
- * Network / Operations / Support & Logs) -- this is the canonical grouping;
+ * Grouped into the same eight sections every customer page's sidebar
+ * renders (Overview / Engagement / Marketing / Access & Policy / Devices &
+ * Team / Network / Security / Support & Logs) -- this is the canonical grouping;
  * `CUSTOMER_NAVS` below is just this flattened for call sites that only
  * need the plain list (id/icon/role lookups, the "is this a known feature
  * id" check, etc). */
@@ -64,6 +64,29 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Overview",
     items: [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner", "agent"] },
+      // "Network Diagnostics" -> "Connection Tools" -> "Fix a Problem".
+      // The first rename was display-only and the complaint it was meant
+      // to fix outlived it; this one comes with the page actually being
+      // rebuilt around the venue's question. Same id and route, as both
+      // previous renames correctly kept.
+      //
+      // `agent` is here deliberately. The person standing in front of an
+      // unhappy guest is the front desk, and Reception Staff/Helpdesk
+      // already hold GUEST_SESSIONS: OPERATE -- they could already reset
+      // a guest's session via the API, they just could not see the screen
+      // it lives on. The zones that need diagnostics or ISP permissions
+      // degrade on their own rather than 403ing, so this offers the
+      // answers without handing the front desk a router console.
+      //
+      // This narrows what is OFFERED and is not an access boundary -- the
+      // route has never had a role guard and the backend enforces every
+      // request on its own. See customerNavPermissions.ts.
+      //
+      // Second row, straight under Dashboard: it is what an owner opens
+      // when the WiFi is down, and as the only row of its own "Operations"
+      // group near the bottom it sat below the fold on a laptop. Moved, not
+      // duplicated -- the group it came from is gone.
+      { id: "debugging", label: "Fix a Problem", icon: Wifi, roles: ["owner", "agent"] },
       { id: "users", label: "Guests", icon: Users, roles: ["owner", "agent"] },
       { id: "reports", label: "Reports", icon: FileText, roles: ["owner", "agent"] },
       { id: "alerts", label: "Alerts", icon: Bell, roles: ["owner", "agent"] },
@@ -187,30 +210,6 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // controller-only venue the row is muted and the page shows the
       // controller notice ("firewall" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
       { id: "firewall", label: "Firewall", icon: BrickWall, roles: ["owner"] },
-    ],
-  },
-  {
-    id: "operations",
-    label: "Operations",
-    items: [
-      // "Network Diagnostics" -> "Connection Tools" -> "Fix a Problem".
-      // The first rename was display-only and the complaint it was meant
-      // to fix outlived it; this one comes with the page actually being
-      // rebuilt around the venue's question. Same id and route, as both
-      // previous renames correctly kept.
-      //
-      // `agent` is here deliberately. The person standing in front of an
-      // unhappy guest is the front desk, and Reception Staff/Helpdesk
-      // already hold GUEST_SESSIONS: OPERATE -- they could already reset
-      // a guest's session via the API, they just could not see the screen
-      // it lives on. The zones that need diagnostics or ISP permissions
-      // degrade on their own rather than 403ing, so this offers the
-      // answers without handing the front desk a router console.
-      //
-      // This narrows what is OFFERED and is not an access boundary -- the
-      // route has never had a role guard and the backend enforces every
-      // request on its own. See customerNavPermissions.ts.
-      { id: "debugging", label: "Fix a Problem", icon: Wifi, roles: ["owner", "agent"] },
     ],
   },
   {

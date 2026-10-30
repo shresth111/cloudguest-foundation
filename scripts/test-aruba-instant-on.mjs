@@ -968,7 +968,7 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
   );
   check(
     "dashboard: bandwidth gives way to U6 only at a NAS-only venue",
-    /nasOnlyVenue \? \([\s\S]{0,300}controllerDeviceMetricsReason\("aruba_instant_on"\)[\s\S]{0,200}\) : \(\s*<BandwidthUtilizationCard/.test(
+    /nasOnlyVenue \? \([\s\S]{0,400}controllerDeviceMetricsReason\("aruba_instant_on"\)[\s\S]{0,200}\) : \(\s*<BandwidthUtilizationCard/.test(
       dashPage,
     ),
   );
