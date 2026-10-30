@@ -211,6 +211,9 @@ export function EmailField({
         type="email"
         inputMode="email"
         autoComplete="email"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
         autoFocus={autoFocus}
         placeholder="you@example.com"
         className={PG_INPUT}

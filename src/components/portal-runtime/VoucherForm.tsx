@@ -131,6 +131,9 @@ export function VoucherForm({
         id={identifierId}
         {...form.register("identifier")}
         autoComplete="username"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
         placeholder="you@example.com or +1 555 010 2200"
         className={PG_INPUT}
       />

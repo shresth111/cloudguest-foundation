@@ -1,5 +1,6 @@
 import { guestPortalApi } from "@/services/guest-portal-api";
 import { clampFeedbackDwellMinutes } from "@/lib/portal-post-connect";
+import { normalizeGuestIdentifier } from "@/lib/portal-guest-identifier";
 import {
   clampBackgroundFocal,
   clampBackgroundOverlayStrength,
@@ -503,7 +504,7 @@ export const portalRuntimeService = {
     locationId: string;
   }): Promise<void> {
     await guestPortalApi.post<BackendOtpRequestResponse>("/otp/request", {
-      identifier: params.identifier,
+      identifier: normalizeGuestIdentifier(params.identifier),
       channel: params.channel,
       purpose: "guest_login",
       organization_id: params.organizationId,
@@ -522,7 +523,7 @@ export const portalRuntimeService = {
     deviceIp?: string;
   }): Promise<RuntimeSession> {
     const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/otp", {
-      identifier: params.identifier,
+      identifier: normalizeGuestIdentifier(params.identifier),
       code: params.code,
       auth_method: params.authMethod,
       organization_id: params.organizationId,
@@ -552,7 +553,7 @@ export const portalRuntimeService = {
   }): Promise<RuntimeSession> {
     const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/voucher", {
       code: params.code,
-      identifier: params.identifier,
+      identifier: normalizeGuestIdentifier(params.identifier),
       organization_id: params.organizationId,
       location_id: params.locationId,
       router_id: params.routerId,
@@ -572,7 +573,7 @@ export const portalRuntimeService = {
     deviceIp?: string;
   }): Promise<RuntimeSession> {
     const { data } = await guestPortalApi.post<BackendGuestLoginResponse>("/guest/login/password", {
-      identifier: params.identifier,
+      identifier: normalizeGuestIdentifier(params.identifier),
       password: params.password,
       organization_id: params.organizationId,
       location_id: params.locationId,
@@ -758,7 +759,7 @@ export const portalRuntimeService = {
   }): Promise<{ isNewMembership: boolean }> {
     const { data } = await guestPortalApi.post<BackendGuestTeamJoinResponse>("/guest-teams/join", {
       team_code: params.teamCode,
-      identifier: params.identifier,
+      identifier: normalizeGuestIdentifier(params.identifier),
       device_mac: params.deviceMac,
       device_name: params.deviceName,
     });
