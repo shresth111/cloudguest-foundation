@@ -1,0 +1,74 @@
+{
+  "loadError": "Couldn't load this right now.",
+  "retry": "Retry",
+  "notEnoughData": "Not enough data yet.",
+  "demoNote": "Built from your venue's real guest logins, so there is nothing to show in the demo.",
+  "rangeDays_one": "Last {{count}} day",
+  "rangeDays_other": "Last {{count}} days",
+  "weekday": {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun"
+  },
+  "peak": {
+    "title": "Busiest times",
+    "subtitle": "Guest connections by day and hour · {{range}}",
+    "notEnough": "Not enough guest connections yet to show a pattern. Check back after a busy week.",
+    "busiest": "Busiest:",
+    "cell": "{{day}} {{hours}}: {{sessions}} connections, {{guests}} guests",
+    "aria": "Guest connections by day and hour. Busiest: {{cell}}",
+    "fewer": "Fewer",
+    "more": "More",
+    "timezone": "Times shown in {{tz}}."
+  },
+  "mix": {
+    "title": "New vs returning guests",
+    "empty": "No guests have connected here in this period yet.",
+    "new": "New",
+    "returning": "Returning",
+    "guests": "guests",
+    "aria": "{{new}} new and {{returning}} returning guests",
+    "repeatRate": "Came back on another day",
+    "repeatHelp": "{{count}} guests visited on two or more different days in this period.",
+    "noHistory": "Our records for this venue start on {{date}}, so everyone in this period counts as new. Returning guests will show up as history builds.",
+    "noHistoryNoDate": "There are no earlier visits on record, so everyone counts as new for now."
+  },
+  "funnel": {
+    "title": "Guest login funnel",
+    "empty": "No guest logins in this period yet.",
+    "otpHeading": "OTP logins · guests",
+    "requested": "Asked for an OTP",
+    "verified": "Entered the right OTP",
+    "signedIn": "Signed in",
+    "gap": "{{count}} guests entered the right OTP but no login was recorded for them. If this keeps happening, contact Wyfy support.",
+    "codesSent": "{{count}} codes sent, including resends.",
+    "methodsHeading": "How guests logged in",
+    "failed": "{{count}} failed",
+    "notRecorded": "Not tracked yet: how many guests opened the login page, and whether the internet actually started working after login."
+  },
+  "method": {
+    "otp_sms": "SMS OTP",
+    "otp_whatsapp": "WhatsApp OTP",
+    "otp_email": "Email OTP",
+    "voucher": "Voucher",
+    "username_password": "Password",
+    "pin": "PIN",
+    "mac_whitelist": "Trusted device"
+  },
+  "locations": {
+    "title": "Your venues compared",
+    "venue": "Venue",
+    "guests": "Guests",
+    "sessions": "Connections",
+    "routerNow": "Router now",
+    "online": "Online",
+    "partial": "Partly online",
+    "offline": "Offline",
+    "statusNotReported": "Status not reported",
+    "note": "“Router now” is the status at this moment, not uptime over the period."
+  }
+}

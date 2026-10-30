@@ -158,6 +158,26 @@ function body(url) {
   if (/^\\/organizations\\/[^/]+\\/locations$/.test(url)) {
     return page([{ id: LOC, name: "Front Desk", city: "Mumbai", property_type: "hotel" }]);
   }
+  // Venue insights: real-shaped bodies, so a call count of 2 can only mean
+  // a duplicate -- a wrong shape is a failed read and react-query retries it.
+  const W = { window_start: "", window_end: "" };
+  if (url === "/analytics/venue-insights/peak-hours") {
+    return { location_id: LOC, timezone: "Asia/Kolkata", ...W, total_sessions: 0, cells: [] };
+  }
+  if (url === "/analytics/venue-insights/guest-mix") {
+    return { location_id: LOC, timezone: "Asia/Kolkata", ...W, unique_guests: 0, new_guests: 0,
+             returning_guests: 0, sessions: 0, multi_visit_guests: 0,
+             repeat_visit_rate_percent: null, history_starts_at: null, has_prior_history: false };
+  }
+  if (url === "/analytics/venue-insights/login-funnel") {
+    const na = { available: false, message: "" };
+    return { location_id: LOC, ...W, otp_codes_sent: 0, otp_requested_guests: 0,
+             otp_verified_guests: 0, otp_signed_in_guests: 0,
+             portal_opened: na, internet_confirmed: na, methods: [] };
+  }
+  if (url === "/analytics/venue-insights/locations") {
+    return { organization_id: ORG, ...W, liveness_note: "", locations: [] };
+  }
   if (/^\\/users\\/[^/]+$/.test(url)) {
     return { id: "u1", email: "owner@example.com", full_name: "Owner",
              data_masking_enabled: true, is_active: true, roles: [] };
@@ -496,6 +516,17 @@ check(
 // trip, i.e. strictly sequential, which is why an in-flight-only coalescer
 // could not close that pair. Re-read it before changing
 // LINKS_SHARE_WINDOW_MS.
+// One read per insight card. Each card owns its window (it does not follow
+// the page's range picker), so nothing on the page should ask twice.
+for (const kind of ["peak-hours", "guest-mix", "login-funnel", "locations"]) {
+  const url = `/analytics/venue-insights/${kind}`;
+  check(
+    `insight-${kind}-once`,
+    countOf(dash, url) === 1,
+    `GET ${url} issued ${countOf(dash, url)} time(s), expected 1 -- ${listOf(dash, url)}`,
+  );
+}
+
 console.log(`  info total requests on one dashboard load: ${dash.length}`);
 console.log(`  info timeline: ${JSON.stringify(dash.map((c) => [c.at, c.url]))}`);
 console.log(
