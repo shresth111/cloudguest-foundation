@@ -118,13 +118,14 @@ const {
 // 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 30 features in nine groups");
+console.log("\nthe customer menu is 30 features in eight groups");
 
 // Nine since the Marketing add-on arrived as its own group, directly after
 // Engagement (wyfy-specs/guest-marketing-campaigns.md §3.5): outbound guest
 // messaging is a paid add-on with its own consent and send lifecycle, not a
-// row under the captive-portal Campaigns screen.
-check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV_GROUPS.length}`);
+// row under the captive-portal Campaigns screen. Eight since Operations
+// went: its only row, Fix a Problem, moved up into Overview.
+check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NAV_GROUPS.length}`);
 // 26: main removed the "Notifications" preferences screen (25), a branch
 // added "Network Integrations" to the Network group (26), and FIX-PLAN FE-0
 // retired that row again (25) -- backend `074d719` made every
@@ -156,10 +157,12 @@ check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV
 // log lines (cloud-guest#420), gated on `network_logs.read`.
 // scripts/test-netlogs.mjs pins where it sits and what gates it.
 check("there are 30 features", CUSTOMER_NAVS.length === 30, `${CUSTOMER_NAVS.length}`);
+// Nine until Operations went: its only row, Fix a Problem, moved up into
+// Overview (section 7 pins where), and a group of nothing is not kept.
 check(
-  "the nine groups are the canonical ones",
+  "the eight groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
-    "overview,engagement,marketing,access-policy,devices-team,network,security,operations,support-logs",
+    "overview,engagement,marketing,access-policy,devices-team,network,security,support-logs",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(","),
 );
 const dupes = CUSTOMER_NAVS.map((n) => n.id).filter((id, i, all) => all.indexOf(id) !== i);
@@ -238,6 +241,51 @@ check(
   "the palette is bound to Cmd/Ctrl-K",
   /e\.key === "k" && \(e\.metaKey \|\| e\.ctrlKey\)/.test(palette),
 );
+// A Hindi session saw English names in the palette beside a Hindi sidebar.
+// Same keys as the sidebar, and the English names stay searchable.
+const paletteCode = strip(palette);
+check(
+  "the palette labels rows and groups from the sidebar's nav keys",
+  /useTranslation\("nav", \{ i18n \}\)/.test(paletteCode) &&
+    /t\(`customerItem\.\$\{item\.id\}`, item\.label\)/.test(paletteCode) &&
+    /t\(`customerGroup\.\$\{group\.id\}`, group\.label\)/.test(paletteCode),
+);
+check(
+  "the palette matches on the translated AND the English names",
+  /value=\{`\$\{label\} \$\{groupLabel\} \$\{item\.label\} \$\{group\.label\}`\}/.test(paletteCode),
+);
+check(
+  "the palette renders no untranslated label",
+  !/>\{item\.label\}</.test(paletteCode) &&
+    !/>\{group\.label\}</.test(paletteCode) &&
+    !/heading=\{group\.label\}/.test(paletteCode),
+);
+for (const loc of ["en", "hi"]) {
+  const cp = JSON.parse(
+    readFileSync(join(ROOT, `src/lib/i18n/locales/${loc}/nav.json`), "utf8"),
+  ).commandPalette;
+  check(
+    `${loc}: the palette's own strings are translated`,
+    !!cp?.placeholder && !!cp?.empty && !!cp?.trigger,
+  );
+}
+// The avatar menu was a useState toggle: no Escape, no outside click, no
+// aria-expanded, no focus handling. The Radix primitive brings all four.
+const headerCode = strip(
+  readFileSync(join(ROOT, "src/components/customer/CustomerHeader.tsx"), "utf8"),
+);
+check(
+  "the avatar menu is the Radix DropdownMenu, with a named trigger",
+  headerCode.includes('from "@/components/ui/dropdown-menu"') &&
+    /<DropdownMenuTrigger[^>]*aria-label="Account menu"/.test(headerCode) &&
+    !/setMenu\(/.test(headerCode),
+);
+check(
+  "every account action is a menu item, in the same order",
+  ["onSwitchLocation", "onChangePassword", "onTfaSettings", "onLogout"]
+    .map((h) => headerCode.indexOf(`onSelect={${h}}`))
+    .every((i, n, all) => i > 0 && (n === 0 || i > all[n - 1])),
+);
 check(
   "the palette is scoped by the same expression as the sidebar",
   /filterNavGroupsByPermissions\(customerNavGroupsForRole\(role\), permissions\)/.test(palette),
@@ -305,6 +353,20 @@ check(
     .flatMap((g) => g.items.map((i) => i.id))
     .includes("debugging"),
 );
+// It is what an owner opens when the WiFi is down. As the only row of an
+// "Operations" group near the bottom it sat below the fold on a laptop, so
+// it lives straight under Dashboard -- for both roles, since both render
+// Overview first.
+for (const role of ["owner", "agent"]) {
+  const overview = customerNavGroupsForRole(role)[0];
+  check(
+    `${role}: it is the second row, straight under Dashboard`,
+    overview?.id === "overview" &&
+      overview.items[0]?.id === "dashboard" &&
+      overview.items[1]?.id === "debugging",
+    overview ? `${overview.id}: ${overview.items.map((i) => i.id).join(",")}` : "no groups",
+  );
+}
 
 // ---------------------------------------------------------------------------
 // 8. Two rows in the collapsed rail must not be the same glyph.
@@ -345,11 +407,14 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "the Security group's first row is Security Score, not a second Overview",
     score && score.label === "Security Score",
   );
+  // Fix a Problem joined Overview from the retired Operations group (section
+  // 7); the four rows this check was written for are otherwise unchanged.
   check(
     "the Overview group's own rows are untouched",
     (CUSTOMER_NAV_GROUPS.find((g) => g.id === "overview")?.items ?? [])
       .map((i) => `${i.id}:${i.label}`)
-      .join(",") === "dashboard:Dashboard,users:Guests,reports:Reports,alerts:Alerts",
+      .join(",") ===
+      "dashboard:Dashboard,debugging:Fix a Problem,users:Guests,reports:Reports,alerts:Alerts",
   );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
   check("Blocking is labelled for the job", blocking && blocking.label === "Block Websites");
