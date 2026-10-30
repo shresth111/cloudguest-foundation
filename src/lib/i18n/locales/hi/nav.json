@@ -126,6 +126,11 @@
   "customerItemBadge": {
     "addon": "ऐड-ऑन"
   },
+  "commandPalette": {
+    "placeholder": "कुछ भी खोजें — मेहमान, ऑफ़र, वाउचर, स्टाफ़…",
+    "empty": "इससे कुछ नहीं मिला। “मेहमान”, “ऑफ़र” या “WiFi” लिखकर देखें।",
+    "trigger": "खोजें"
+  },
   "blockingTab": {
     "websites": "वेबसाइटें"
   },

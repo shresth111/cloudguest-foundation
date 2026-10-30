@@ -126,6 +126,11 @@
   "customerItemBadge": {
     "addon": "Add-on"
   },
+  "commandPalette": {
+    "placeholder": "Search for anything — guests, offers, vouchers, staff…",
+    "empty": "Nothing matches that. Try “guests”, “offer” or “WiFi”.",
+    "trigger": "Search"
+  },
   "blockingTab": {
     "websites": "Websites"
   },
