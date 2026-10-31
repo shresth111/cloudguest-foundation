@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Lock, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -94,6 +94,35 @@ export function SectionTabs({ featureId, className }: { featureId: string; class
     }
   }, [featureId]);
 
+  // Edge fades (design review §2 issue 10): when the bar scrolls (sm and up;
+  // below sm it wraps), a 16px mask on whichever side has more tabs, so a
+  // clipped "Re…" reads as "more this way" rather than broken. Presentation
+  // only -- nothing about the links changes.
+  const [edges, setEdges] = useState({ left: false, right: false });
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const update = () => {
+      const left = nav.scrollLeft > 1;
+      const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1;
+      setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
+    };
+    update();
+    nav.addEventListener("scroll", update, { passive: true });
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    ro?.observe(nav);
+    return () => {
+      nav.removeEventListener("scroll", update);
+      ro?.disconnect();
+    };
+  }, [featureId, model.tabs.length]);
+  const fade =
+    edges.left || edges.right
+      ? `linear-gradient(to right, ${edges.left ? "transparent 0, #000 16px" : "#000 0"}, ${
+          edges.right ? "#000 calc(100% - 16px), transparent 100%" : "#000 100%"
+        })`
+      : undefined;
+
   if (!model.section || model.tabs.length < 2) return null;
   const muted = (item: CustomerNavItem) =>
     controllerManaged ? !featureAppliesToControllerVenue(item.id, controllerVendor) : false;
@@ -103,6 +132,9 @@ export function SectionTabs({ featureId, className }: { featureId: string; class
     <nav
       ref={navRef}
       data-section-tabs={model.section.id}
+      data-fade-left={edges.left || undefined}
+      data-fade-right={edges.right || undefined}
+      style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
       aria-label={t("sectionTabs.label", {
         section: sectionLabel,
         defaultValue: "{{section}} pages",
