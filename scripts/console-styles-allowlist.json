@@ -22,7 +22,6 @@
     "src/components/features/NetworkIntegrationsPage.tsx",
     "src/components/features/OtpDeliveryReport.tsx",
     "src/components/features/PoliciesHub.tsx",
-    "src/components/features/PortalPage.tsx",
     "src/components/features/WhiteList.tsx",
     "src/components/marketing/ChannelStatusStrip.tsx",
     "src/components/marketing/MarketingLockedUpsell.tsx",

@@ -31,6 +31,7 @@ export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
   "tickets",
   "how-it-works",
   "agents",
+  "portal",
 ]);
 
 /** The title + venue a screen's own PageHeader shows: the same nav label

@@ -30,5 +30,10 @@
   "refresh": "Refresh",
   "success": "Success",
   "error": "Error",
-  "warning": "Warning"
+  "warning": "Warning",
+  "portalPreview": {
+    "open": "Preview",
+    "title": "Guest screen preview",
+    "description": "What a guest's phone shows, updated as you edit."
+  }
 }

@@ -80,6 +80,7 @@ const MIGRATED = [
   "src/components/features/TicketsPage.tsx",
   "src/components/customer/HowItWorksPage.tsx",
   "src/components/features/AgentsPage.tsx",
+  "src/components/features/PortalPage.tsx",
 ];
 
 const PALETTE =

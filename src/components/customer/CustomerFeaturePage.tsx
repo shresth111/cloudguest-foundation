@@ -335,7 +335,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   render the live component, not a fork of it. */}
               {feature === "reports" && <UserReports masked={masked} scope={pageScope} />}
               {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
-              {feature === "portal" && <PortalPage locationId={locationId} />}
+              {feature === "portal" && <PortalPage locationId={locationId} scope={pageScope} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} scope={pageScope} />}
               {feature === "policies" && <PoliciesHub locationId={locationId} />}
               {/* Allow-list and Trusted Devices are live everywhere except a
