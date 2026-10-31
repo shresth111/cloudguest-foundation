@@ -15,6 +15,8 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
+  CONSOLE_STATUS_WORD,
+  PANEL_SURFACE,
   Panel,
   StatusDot as SharedStatusDot,
   type ConsoleStatus as SharedStatus,
@@ -81,21 +83,12 @@ export function StatusDot({
   return (
     <SharedStatusDot
       status={toSharedStatus(status)}
-      label={label ?? t(`topology.status.${status}`, STATUS_WORD[status])}
+      label={label ?? t(`topology.status.${status}`, CONSOLE_STATUS_WORD[status])}
       pulse={live && status === "ok"}
       className={className}
     />
   );
 }
-
-const STATUS_WORD: Record<OverviewStatus, string> = {
-  ok: "Up",
-  warn: "Degraded",
-  crit: "Down",
-  info: "Info",
-  offline: "Offline",
-  unknown: "Unknown",
-};
 
 /** Recharts `contentStyle` for every chart tooltip on the page. */
 export const CONSOLE_TOOLTIP_STYLE = {
@@ -109,9 +102,9 @@ export const CONSOLE_TOOLTIP_STYLE = {
 };
 
 /** Same surface as the shared Panel, for the few blocks that are not a
- * header + body (the site-health band, error fallbacks). */
-export const PANEL =
-  "min-w-0 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] text-[var(--wy-text)] shadow-[var(--wy-shadow)]";
+ * header + body (the site-health band, error fallbacks). The class string
+ * now lives with Panel itself, so the two cannot drift. */
+export const PANEL = PANEL_SURFACE;
 
 /** A Panel title with a leading icon. `id` lets a region point
  * `aria-labelledby` at it. */

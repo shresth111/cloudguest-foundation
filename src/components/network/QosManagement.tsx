@@ -1,16 +1,5 @@
-import { useState } from "react";
-import {
-  Plus,
-  Search,
-  Trash2,
-  Pencil,
-  Gauge,
-  Signal,
-  ShieldCheck,
-  ShieldOff,
-  UploadCloud,
-  Loader2,
-} from "lucide-react";
+import { useId, useState } from "react";
+import { Plus } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,23 +7,11 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -46,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ControllerRoutersNote, RouterPickerItems } from "@/components/network/RouterPickerItems";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,8 +33,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { StatCard, SectionHeader } from "@/components/ui-ext";
-import { cn } from "@/lib/utils";
+import {
+  DataTable,
+  FormField,
+  FormSection,
+  FormSwitchRow,
+  PageHeader,
+  Panel,
+  StatTile,
+  StatusDot,
+  TablePager,
+  Toolbar,
+  ToolbarSearch,
+  type DataTableColumn,
+} from "@/components/customer/console";
+import {
+  DIALOG_CONSOLE,
+  EnabledBadge,
+  NameCell,
+  PushStatusBadge,
+  RowActions,
+  SCREEN_ROOT,
+  type PageScope,
+} from "@/components/network/network-ui";
 import {
   useQosRules,
   useCreateQosRule,
@@ -124,36 +121,18 @@ const DEVICE_PUSH_LABEL: Record<DevicePushStatus, string> = {
   failed: "Couldn't apply",
 };
 
-const DEVICE_PUSH_STYLES: Record<DevicePushStatus, string> = {
-  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
-  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
-  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
-};
-
 // The badge alone can't hold a full error message -- a failed push wraps it
 // in a tooltip so the reason is one hover away instead of swallowed. Errors
 // come straight from the backend/router, so wording isn't guaranteed to be
 // customer-plain; showing it beats hiding it.
 function DevicePushBadge({ rule }: { rule: QosTrafficRule }) {
-  const badge = (
-    <Badge
-      variant="outline"
-      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[rule.devicePushStatus])}
-    >
-      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-      {DEVICE_PUSH_LABEL[rule.devicePushStatus]}
-    </Badge>
-  );
-  if (rule.devicePushStatus !== "failed" || !rule.devicePushError) return badge;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-default">{badge}</span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        Couldn't apply this rule to your router: {rule.devicePushError}
-      </TooltipContent>
-    </Tooltip>
+    <PushStatusBadge
+      status={rule.devicePushStatus}
+      label={DEVICE_PUSH_LABEL[rule.devicePushStatus]}
+      error={rule.devicePushError}
+      errorPrefix="Couldn't apply this rule to your router:"
+    />
   );
 }
 
@@ -169,7 +148,14 @@ function DevicePushBadge({ rule }: { rule: QosTrafficRule }) {
 // PortForwardingManagement's own structure/conventions (including its
 // orgHeaders/scopedOrgId pattern) so it doesn't repeat this session's most
 // common bug on day one.
-export function QosManagement({ locationId }: { locationId?: string } = {}) {
+export function QosManagement({
+  locationId,
+  scope,
+}: {
+  locationId?: string;
+  /** Title + venue from the customer shell, which then draws no header of its own. */
+  scope?: PageScope;
+} = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -257,18 +243,27 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
     }
   }
 
+  const columns: DataTableColumn<QosTrafficRule>[] = [
+    { id: "name", header: "Rule", mobile: "title", cell: (r) => <NameCell name={r.name} /> },
+    { id: "router", header: "Router", cell: (r) => routerName(r.routerId) },
+    { id: "match", header: "Match", mono: true, cell: (r) => matchLabel(r) },
+    { id: "priority", header: "Priority", className: "tabular-nums", cell: (r) => r.priority },
+    { id: "status", header: "Status", cell: (r) => <EnabledBadge enabled={r.isEnabled} /> },
+    { id: "push", header: "On your router", cell: (r) => <DevicePushBadge rule={r} /> },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className={SCREEN_ROOT}>
       {/* No master-console route renders QosManagement today (grep confirms
        * OperationsFeatures.tsx's VoipView, always with a real locationId,
        * is the only caller) -- guarded the same locationId-aware way as
        * DhcpManagement/VlanManagement anyway, so an internal/no-locationId
        * caller added later keeps the precise technical title by default
-       * instead of silently inheriting the customer-friendly one. */}
-      <SectionHeader
-        icon={Signal}
-        eyebrow="Network"
-        title={locationId ? "Call Priority" : "VOIP Priority"}
+       * instead of silently inheriting the customer-friendly one. Under the
+       * customer shell this is the page's only header (`scope`). */}
+      <PageHeader
+        title={scope?.title ?? (locationId ? "Call Priority" : "VOIP Priority")}
+        venue={scope?.venue}
         // NOT GATED HERE, BECAUSE IT ALREADY IS, ONE LAYER UP.
         //
         // The brief asked whether this screen should be offered at a
@@ -295,171 +290,92 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
         }
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> New Rule
+            <Plus aria-hidden className="mr-1.5 h-4 w-4" /> New Rule
           </Button>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Rules" value={total} hint={totalHint} icon={Gauge} tone="primary" />
-        <StatCard
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile label="Total Rules" value={total} hint={totalHint} loading={isLoading} />
+        <StatTile
           label="Enabled"
           value={enabledCount}
           hint={statHint}
-          icon={ShieldCheck}
-          tone="success"
+          loading={isLoading}
+          leading={<StatusDot status="ok" label="Enabled" size="sm" />}
         />
-        <StatCard
+        <StatTile
           label="SIP rules (5060/5061)"
           value={voiceCount}
           hint={statHint}
-          icon={Signal}
-          tone="info"
+          loading={isLoading}
         />
       </div>
 
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base font-semibold">All Rules</CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={routerFilter}
-              onValueChange={(v) => {
-                setRouterFilter(v);
-                setPage(1);
+      <Panel flush title="All Rules">
+        <Toolbar divided>
+          <Select
+            value={routerFilter}
+            onValueChange={(v) => {
+              setRouterFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-48" aria-label="Router">
+              <SelectValue placeholder="All routers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All routers</SelectItem>
+              {/* Contract §11.5: the two kinds of device are listed
+                  apart, and only the ones this platform configures are
+                  selectable. See RouterPickerItems. */}
+              <RouterPickerItems rows={routers.rows} />
+            </SelectContent>
+          </Select>
+          <ToolbarSearch
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Search name, match, router…"
+          />
+        </Toolbar>
+        <DataTable
+          ariaLabel="All Rules"
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.id}
+          loading={isLoading}
+          loadingLabel="Loading…"
+          empty="No QoS rules match your filters."
+          maxHeight="70vh"
+          rowActions={(r) => (
+            <RowActions
+              name={r.name}
+              apply={{
+                label: "Apply to your router",
+                pending: push.isPending && push.variables?.id === r.id,
+                quiet: true,
+                iconOnly: true,
+                onClick: () => handlePush(r),
               }}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All routers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All routers</SelectItem>
-                {/* Contract §11.5: the two kinds of device are listed
-                    apart, and only the ones this platform configures are
-                    selectable. See RouterPickerItems. */}
-                <RouterPickerItems rows={routers.rows} />
-              </SelectContent>
-            </Select>
-            <div className="relative w-64 max-w-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, match, router…"
-                className="pl-8"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Rule</TableHead>
-                <TableHead>Router</TableHead>
-                <TableHead>Match</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>On your router</TableHead>
-                <TableHead className="w-[110px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && rows.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    No QoS rules match your filters.
-                  </TableCell>
-                </TableRow>
-              )}
-              {rows.map((r) => {
-                const isPushing = push.isPending && push.variables?.id === r.id;
-                return (
-                  <TableRow key={r.id} className="group">
-                    <TableCell className="min-w-0 truncate font-medium">{r.name}</TableCell>
-                    <TableCell className="text-sm">{routerName(r.routerId)}</TableCell>
-                    <TableCell className="font-mono text-xs">{matchLabel(r)}</TableCell>
-                    <TableCell className="text-sm">{r.priority}</TableCell>
-                    <TableCell>
-                      <Badge variant={r.isEnabled ? "default" : "secondary"}>
-                        {r.isEnabled ? "Enabled" : "Disabled"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DevicePushBadge rule={r} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              disabled={isPushing}
-                              onClick={() => handlePush(r)}
-                            >
-                              {isPushing ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <UploadCloud className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">Apply to your router</TooltipContent>
-                        </Tooltip>
-                        <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(r)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
-              <span>
-                Page {page} of {totalPages} · {total} rules
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!hasPrevious}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!hasNext}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+              onEdit={() => setEditing(r)}
+              onDelete={() => setConfirmDelete(r)}
+            />
           )}
-        </CardContent>
-      </Card>
+          footer={
+            totalPages > 1 ? (
+              <TablePager
+                summary={`Page ${page} of ${totalPages} · ${total} rules`}
+                previousLabel="Previous"
+                nextLabel="Next"
+                hasPrevious={hasPrevious}
+                hasNext={hasNext}
+                onPrevious={() => setPage((p) => p - 1)}
+                onNext={() => setPage((p) => p + 1)}
+              />
+            ) : undefined
+          }
+        />
+      </Panel>
 
       <RuleDialog
         open={creating || !!editing}
@@ -472,7 +388,7 @@ export function QosManagement({ locationId }: { locationId?: string } = {}) {
       />
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className={DIALOG_CONSOLE}>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete rule "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -548,6 +464,7 @@ function RuleDialog({
     values: defaults,
   });
   const matchKind = form.watch("matchKind");
+  const id = useId();
 
   /** Resets the form on the way out, so the next open starts clean.
    *
@@ -587,9 +504,11 @@ function RuleDialog({
     }
   }
 
+  const errors = form.formState.errors;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={`${DIALOG_CONSOLE} max-w-lg`}>
         <DialogHeader>
           <DialogTitle>{rule ? "Edit rule" : "New rule"}</DialogTitle>
           <DialogDescription>
@@ -598,158 +517,168 @@ function RuleDialog({
               : "Match traffic by a port range (e.g. SIP 5060/5061) or by a raw DSCP value — never both."}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(submit)} className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Router</Label>
-            <Controller
-              control={form.control}
-              name="routerId"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={!!rule}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select router" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Contract §11.5. A controller is listed here but not
-                        selectable: the backend refuses this write by vendor,
-                        and meeting that refusal after the form is filled in
-                        is the defect this closes. */}
-                    <RouterPickerItems rows={routers} />
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.routerId.message}
-              </p>
+        <form onSubmit={form.handleSubmit(submit)}>
+          <FormSection
+            variant="plain"
+            footer={
+              <>
+                <Button type="button" variant="outline" onClick={close}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={create.isPending || update.isPending}>
+                  {rule ? "Save changes" : "Create rule"}
+                </Button>
+              </>
+            }
+          >
+            <FormField
+              wide
+              label="Router"
+              htmlFor={`${id}-router`}
+              error={errors.routerId?.message}
+            >
+              <Controller
+                control={form.control}
+                name="routerId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange} disabled={!!rule}>
+                    <SelectTrigger id={`${id}-router`}>
+                      <SelectValue placeholder="Select router" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Contract §11.5. A controller is listed here but not
+                          selectable: the backend refuses this write by vendor,
+                          and meeting that refusal after the form is filled in
+                          is the defect this closes. */}
+                      <RouterPickerItems rows={routers} />
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {/* Names what was greyed out and why. Renders nothing at a venue
+                  with no controller. */}
+              <ControllerRoutersNote rows={routers} />
+            </FormField>
+            <FormField wide label="Name" htmlFor={`${id}-name`} error={errors.name?.message}>
+              <Input id={`${id}-name`} {...form.register("name")} placeholder="SIP signaling" />
+            </FormField>
+            <FormField wide label="Match by" htmlFor={`${id}-kind`}>
+              <Controller
+                control={form.control}
+                name="matchKind"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id={`${id}-kind`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="port">Protocol / port range</SelectItem>
+                      <SelectItem value="dscp">DSCP value</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
+            {matchKind === "port" ? (
+              <>
+                <FormField label="Protocol" htmlFor={`${id}-protocol`}>
+                  <Controller
+                    control={form.control}
+                    name="protocol"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id={`${id}-protocol`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PROTOCOLS.map((p) => (
+                            <SelectItem key={p} value={p}>
+                              {p.toUpperCase()}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </FormField>
+                <div aria-hidden className="hidden sm:block" />
+                <FormField label="Port range start" htmlFor={`${id}-pstart`}>
+                  <Input
+                    id={`${id}-pstart`}
+                    type="number"
+                    min={1}
+                    max={65535}
+                    {...form.register("portRangeStart")}
+                  />
+                </FormField>
+                <FormField
+                  label="Port range end"
+                  htmlFor={`${id}-pend`}
+                  error={errors.portRangeEnd?.message}
+                >
+                  <Input
+                    id={`${id}-pend`}
+                    type="number"
+                    min={1}
+                    max={65535}
+                    {...form.register("portRangeEnd")}
+                  />
+                </FormField>
+              </>
+            ) : (
+              <FormField
+                wide
+                label="DSCP value (0-63)"
+                htmlFor={`${id}-dscp`}
+                error={errors.dscpValue?.message}
+              >
+                <Input
+                  id={`${id}-dscp`}
+                  type="number"
+                  min={0}
+                  max={63}
+                  {...form.register("dscpValue")}
+                  placeholder="46 (EF, voice)"
+                />
+              </FormField>
             )}
-            {/* Names what was greyed out and why. Renders nothing at a venue
-                with no controller. */}
-            <ControllerRoutersNote rows={routers} />
-          </div>
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Name</Label>
-            <Input {...form.register("name")} placeholder="SIP signaling" />
-            {form.formState.errors.name && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.name.message}</p>
-            )}
-          </div>
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Match by</Label>
-            <Controller
-              control={form.control}
-              name="matchKind"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="port">Protocol / port range</SelectItem>
-                    <SelectItem value="dscp">DSCP value</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          {matchKind === "port" ? (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Protocol</Label>
+            <FormField label="Priority (1 = highest)" htmlFor={`${id}-priority`}>
+              <Controller
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <Select
+                    value={String(field.value)}
+                    onValueChange={(v) => field.onChange(Number(v))}
+                  >
+                    <SelectTrigger id={`${id}-priority`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((p) => (
+                        <SelectItem key={p} value={String(p)}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
+            <FormSwitchRow
+              className="self-end"
+              label="Enabled"
+              control={
                 <Controller
                   control={form.control}
-                  name="protocol"
+                  name="isEnabled"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROTOCOLS.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {p.toUpperCase()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
                   )}
                 />
-              </div>
-              <div />
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Port range start</Label>
-                <Input type="number" min={1} max={65535} {...form.register("portRangeStart")} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Port range end</Label>
-                <Input type="number" min={1} max={65535} {...form.register("portRangeEnd")} />
-                {form.formState.errors.portRangeEnd && (
-                  <p className="text-[11px] text-destructive">
-                    {form.formState.errors.portRangeEnd.message}
-                  </p>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="sm:col-span-2 space-y-1.5">
-              <Label className="text-xs font-medium">DSCP value (0-63)</Label>
-              <Input
-                type="number"
-                min={0}
-                max={63}
-                {...form.register("dscpValue")}
-                placeholder="46 (EF, voice)"
-              />
-              {form.formState.errors.dscpValue && (
-                <p className="text-[11px] text-destructive">
-                  {form.formState.errors.dscpValue.message}
-                </p>
-              )}
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Priority (1 = highest)</Label>
-            <Controller
-              control={form.control}
-              name="priority"
-              render={({ field }) => (
-                <Select
-                  value={String(field.value)}
-                  onValueChange={(v) => field.onChange(Number(v))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((p) => (
-                      <SelectItem key={p} value={String(p)}>
-                        {p}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              }
             />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <Label className="text-xs font-medium">Enabled</Label>
-            <Controller
-              control={form.control}
-              name="isEnabled"
-              render={({ field }) => (
-                <Switch checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
-          <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="outline" onClick={close}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>
-              {rule ? "Save changes" : "Create rule"}
-            </Button>
-          </DialogFooter>
+          </FormSection>
         </form>
       </DialogContent>
     </Dialog>

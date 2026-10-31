@@ -17,6 +17,8 @@ export interface StatTileProps {
   };
   /** Slot under the value -- put a Recharts sparkline here, sized to its container. */
   sparkline?: ReactNode;
+  /** One quiet line under the value: what it counts, or that it is partial ("of the first 100"). */
+  hint?: ReactNode;
   /** Optional status dot / icon before the label. */
   leading?: ReactNode;
   /** Shows a skeleton instead of the value. */
@@ -31,6 +33,7 @@ export function StatTile({
   unit,
   delta,
   sparkline,
+  hint,
   leading,
   loading,
   className,
@@ -61,6 +64,7 @@ export function StatTile({
           )}
         </div>
       )}
+      {hint != null && !loading && <p className="text-xs text-[var(--wy-text-faint)]">{hint}</p>}
       {delta && !loading && (
         <div
           className={cn(

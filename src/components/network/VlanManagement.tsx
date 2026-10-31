@@ -1,16 +1,5 @@
-import { useState } from "react";
-import {
-  Plus,
-  Search,
-  Trash2,
-  Pencil,
-  Network,
-  ShieldCheck,
-  ShieldOff,
-  Wifi,
-  UploadCloud,
-  Loader2,
-} from "lucide-react";
+import { useId, useState } from "react";
+import { Plus } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,22 +7,11 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -45,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ControllerRoutersNote, RouterPickerItems } from "@/components/network/RouterPickerItems";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,7 +33,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { StatCard, SectionHeader } from "@/components/ui-ext";
+import {
+  Callout,
+  DataTable,
+  FormField,
+  FormSection,
+  FormSwitchRow,
+  PageHeader,
+  Panel,
+  StatTile,
+  StatusBadge,
+  StatusDot,
+  TablePager,
+  Toolbar,
+  ToolbarSearch,
+  type DataTableColumn,
+} from "@/components/customer/console";
+import {
+  DIALOG_CONSOLE,
+  EnabledBadge,
+  NameCell,
+  PushStatusBadge,
+  RowActions,
+  SCREEN_ROOT,
+  type PageScope,
+} from "@/components/network/network-ui";
 import { partialCountHint } from "@/components/network/list-kpis";
 import {
   useVlans,
@@ -70,8 +71,6 @@ import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import type { AppError } from "@/services/api";
 import type { Vlan, VlanDeviceInterface, VlanDevicePushStatus, VlanPortMode } from "@/types/vlan";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
@@ -139,13 +138,6 @@ const DEVICE_PUSH_LABEL: Record<VlanDevicePushStatus, string> = {
   failed: "Couldn't apply",
 };
 
-const DEVICE_PUSH_STYLES: Record<VlanDevicePushStatus, string> = {
-  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
-  provisioning: "bg-sky-500/10 text-sky-600 border-sky-500/20 dark:text-sky-400",
-  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
-  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
-};
-
 /** The name this VLAN ends up carrying on the router.
  *
  * A trunk VLAN becomes a tagged sub-interface called `vlan<tag>`; an access
@@ -189,34 +181,24 @@ function interfacesForMode(interfaces: VlanDeviceInterface[], mode: VlanPortMode
  * operator more than any summary of it would.
  */
 function DevicePushBadge({ vlan }: { vlan: Vlan }) {
-  const badge = (
-    <Badge
-      variant="outline"
-      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[vlan.devicePushStatus])}
-    >
-      <span
-        className={cn(
-          "mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current",
-          vlan.devicePushStatus === "provisioning" && "animate-pulse",
-        )}
-      />
-      {DEVICE_PUSH_LABEL[vlan.devicePushStatus]}
-    </Badge>
-  );
-  if (vlan.devicePushStatus !== "failed" || !vlan.devicePushError) return badge;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-default">{badge}</span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        Couldn&apos;t apply this VLAN to your router: {vlan.devicePushError}
-      </TooltipContent>
-    </Tooltip>
+    <PushStatusBadge
+      status={vlan.devicePushStatus}
+      label={DEVICE_PUSH_LABEL[vlan.devicePushStatus]}
+      error={vlan.devicePushError}
+      errorPrefix="Couldn't apply this VLAN to your router:"
+    />
   );
 }
 
-export function VlanManagement({ locationId }: { locationId?: string } = {}) {
+export function VlanManagement({
+  locationId,
+  scope,
+}: {
+  locationId?: string;
+  /** Title + venue from the customer shell, which then draws no header of its own. */
+  scope?: PageScope;
+} = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -296,245 +278,187 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
   const enabledCount = rows.filter((v) => v.isEnabled).length;
   const statHint = partialCountHint(rows.length, data?.total ?? 0);
 
+  const plain = !!locationId;
+  const columns: DataTableColumn<Vlan>[] = [
+    {
+      id: "name",
+      header: plain ? "Zone" : "VLAN",
+      mobile: "title",
+      cell: (v) => (
+        <div className="flex items-center gap-2.5">
+          <span className="inline-flex h-7 min-w-9 shrink-0 items-center justify-center rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-1.5 font-[family-name:var(--wy-font-mono)] text-xs font-semibold tabular-nums">
+            {v.vlanId}
+          </span>
+          <NameCell name={v.name} sub={v.description} />
+        </div>
+      ),
+    },
+    { id: "router", header: "Router", cell: (v) => routerName(v.routerId) },
+    {
+      id: "location",
+      header: "Location",
+      className: "text-[var(--wy-text-muted)]",
+      cell: (v) => locationName(v.locationId),
+    },
+    {
+      id: "network",
+      header: "Network",
+      mono: true,
+      cell: (v) => `${v.gatewayIpAddress ?? "—"}${v.cidr ? ` / ${v.cidr}` : ""}`,
+    },
+    {
+      id: "interface",
+      header: "Interface",
+      cell: (v) => (
+        <div className="space-y-0.5">
+          <div className="font-[family-name:var(--wy-font-mono)] text-xs">
+            {deviceInterfaceName(v)}
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-[var(--wy-text-muted)]">
+            <span className="rounded border border-[var(--wy-border-strong)] px-1 capitalize leading-4">
+              {v.portMode}
+            </span>
+            {v.portMode === "trunk"
+              ? v.interface
+                ? `on ${v.interface}`
+                : "no parent set"
+              : "dedicated port"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "portal",
+      header: "Portal",
+      cell: (v) => (
+        <StatusBadge status={v.enableHotspot ? "info" : "offline"} dot={false}>
+          {v.enableHotspot ? "On" : "Off"}
+        </StatusBadge>
+      ),
+    },
+    { id: "status", header: "Status", cell: (v) => <EnabledBadge enabled={v.isEnabled} /> },
+    { id: "push", header: "On router", cell: (v) => <DevicePushBadge vlan={v} /> },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className={SCREEN_ROOT}>
       {/* Shared with the master console's own /network/vlan route (rendered
        * with no locationId there) -- that audience keeps the precise
        * technical title/description; only the customer portal (which
        * always passes a real locationId, via OperationsFeatures.tsx's
-       * VlansView) gets the friendlier name. Same id/route/data either way. */}
-      <SectionHeader
-        icon={Network}
-        eyebrow="Network"
-        title={locationId ? "Network Zones" : "VLAN Management"}
+       * VlansView) gets the friendlier name. Same id/route/data either way.
+       * Under the customer shell this is the page's only header (`scope`). */}
+      <PageHeader
+        title={scope?.title ?? (plain ? "Network Zones" : "VLAN Management")}
+        venue={scope?.venue}
         description={
-          locationId
+          plain
             ? "Split your network into separate zones — e.g. guest Wi-Fi kept apart from staff or office devices — each with its own address range."
             : "Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Apply pushes a VLAN to the router; each row's badge shows what the device is holding."
         }
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> {locationId ? "New zone" : "New VLAN"}
+            <Plus aria-hidden className="mr-1.5 h-4 w-4" /> {plain ? "New zone" : "New VLAN"}
           </Button>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total VLANs" value={data?.total ?? 0} icon={Network} tone="primary" />
-        <StatCard
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile label="Total VLANs" value={data?.total ?? 0} loading={isLoading} />
+        <StatTile
           label="Enabled"
           value={enabledCount}
           hint={statHint}
-          icon={ShieldCheck}
-          tone="success"
+          loading={isLoading}
+          leading={<StatusDot status="ok" label="Enabled" size="sm" />}
         />
-        <StatCard
+        <StatTile
           label="Disabled"
           value={rows.length - enabledCount}
           hint={statHint}
-          icon={ShieldOff}
-          tone="warning"
+          loading={isLoading}
+          leading={<StatusDot status="offline" label="Disabled" size="sm" />}
         />
       </div>
 
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base font-semibold">
-            {locationId ? "All zones" : "All VLANs"}
-          </CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={routerFilter}
-              onValueChange={(v) => {
-                setRouterFilter(v);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All routers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All routers</SelectItem>
-                {/* Contract §11.5: the two kinds of device are listed
-                    apart, and only the ones this platform configures are
-                    selectable. See RouterPickerItems. */}
-                <RouterPickerItems rows={routers.rows} />
-              </SelectContent>
-            </Select>
-            <div className="relative w-64 max-w-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={
-                  locationId
-                    ? "Search name, address range, router…"
-                    : "Search name, tag, CIDR, router…"
-                }
-                className="pl-8"
+      <Panel flush title={plain ? "All zones" : "All VLANs"}>
+        <Toolbar divided>
+          <Select
+            value={routerFilter}
+            onValueChange={(v) => {
+              setRouterFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-48" aria-label="Router">
+              <SelectValue placeholder="All routers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All routers</SelectItem>
+              {/* Contract §11.5: the two kinds of device are listed
+                  apart, and only the ones this platform configures are
+                  selectable. See RouterPickerItems. */}
+              <RouterPickerItems rows={routers.rows} />
+            </SelectContent>
+          </Select>
+          <ToolbarSearch
+            value={search}
+            onValueChange={setSearch}
+            placeholder={
+              plain ? "Search name, address range, router…" : "Search name, tag, CIDR, router…"
+            }
+          />
+        </Toolbar>
+        <DataTable
+          ariaLabel={plain ? "All zones" : "All VLANs"}
+          columns={columns}
+          rows={rows}
+          rowKey={(v) => v.id}
+          loading={isLoading}
+          loadingLabel="Loading…"
+          empty={plain ? "No zones match your filters." : "No VLANs match your filters."}
+          maxHeight="70vh"
+          rowActions={(v) => {
+            const pushing =
+              (push.isPending && push.variables === v.id) || v.devicePushStatus === "provisioning";
+            /* Apply is always visible, unlike the revealed edit/delete
+               pair: this is the step that actually reaches the hardware,
+               and a VLAN sitting at "Not applied" is the thing an operator
+               most needs to notice. */
+            return (
+              <RowActions
+                name={v.name}
+                apply={{
+                  label:
+                    v.devicePushStatus === "provisioning"
+                      ? "Applying…"
+                      : v.devicePushStatus === "active"
+                        ? "Re-apply"
+                        : "Apply",
+                  pending: pushing,
+                  quiet: v.devicePushStatus === "active",
+                  onClick: () => handlePush(v),
+                }}
+                onEdit={() => setEditing(v)}
+                onDelete={() => setConfirmDelete(v)}
               />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{locationId ? "Zone" : "VLAN"}</TableHead>
-                <TableHead>Router</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Network</TableHead>
-                <TableHead>Interface</TableHead>
-                <TableHead>Portal</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>On router</TableHead>
-                <TableHead className="w-[120px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell
-                    colSpan={9}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && rows.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={9}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    {locationId ? "No zones match your filters." : "No VLANs match your filters."}
-                  </TableCell>
-                </TableRow>
-              )}
-              {rows.map((v) => (
-                <TableRow key={v.id} className="group">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-semibold text-primary">
-                        {v.vlanId}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{v.name}</div>
-                        {v.description && (
-                          <div className="truncate text-xs text-muted-foreground">
-                            {v.description}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{routerName(v.routerId)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {locationName(v.locationId)}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {v.gatewayIpAddress ?? "—"}
-                    {v.cidr ? ` / ${v.cidr}` : ""}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    <div className="font-mono">{deviceInterfaceName(v)}</div>
-                    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <Badge variant="outline" className="capitalize">
-                        {v.portMode}
-                      </Badge>
-                      {v.portMode === "trunk"
-                        ? v.interface
-                          ? `on ${v.interface}`
-                          : "no parent set"
-                        : "dedicated port"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {v.enableHotspot ? (
-                      <Badge variant="default" className="gap-1">
-                        <Wifi className="h-3 w-3" /> On
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Off</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={v.isEnabled ? "default" : "secondary"}>
-                      {v.isEnabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DevicePushBadge vlan={v} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      {/* Always visible, unlike the hover-revealed edit/delete
-                          pair: this is the step that actually reaches the
-                          hardware, and a VLAN sitting at "Not applied" is the
-                          thing an operator most needs to notice. */}
-                      <Button
-                        size="sm"
-                        variant={v.devicePushStatus === "active" ? "ghost" : "outline"}
-                        disabled={
-                          (push.isPending && push.variables === v.id) ||
-                          v.devicePushStatus === "provisioning"
-                        }
-                        onClick={() => handlePush(v)}
-                      >
-                        {(push.isPending && push.variables === v.id) ||
-                        v.devicePushStatus === "provisioning" ? (
-                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <UploadCloud className="mr-1 h-3.5 w-3.5" />
-                        )}
-                        {v.devicePushStatus === "provisioning"
-                          ? "Applying…"
-                          : v.devicePushStatus === "active"
-                            ? "Re-apply"
-                            : "Apply"}
-                      </Button>
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button size="icon" variant="ghost" onClick={() => setEditing(v)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(v)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {data && data.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
-              <span>
-                Page {page} of {data.totalPages} · {data.total} VLANs
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!data.hasPrevious}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!data.hasNext}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            );
+          }}
+          footer={
+            data && data.totalPages > 1 ? (
+              <TablePager
+                summary={`Page ${page} of ${data.totalPages} · ${data.total} VLANs`}
+                previousLabel="Previous"
+                nextLabel="Next"
+                hasPrevious={data.hasPrevious}
+                hasNext={data.hasNext}
+                onPrevious={() => setPage((p) => p - 1)}
+                onNext={() => setPage((p) => p + 1)}
+              />
+            ) : undefined
+          }
+        />
+      </Panel>
 
       <VlanDialog
         open={creating || !!editing}
@@ -548,7 +472,7 @@ export function VlanManagement({ locationId }: { locationId?: string } = {}) {
       />
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className={DIALOG_CONSOLE}>
           <AlertDialogHeader>
             <AlertDialogTitle>
               {locationId ? "Delete zone" : "Delete VLAN"} {confirmDelete?.vlanId}?
@@ -639,6 +563,7 @@ function VlanDialog({
   const watchedHotspot = form.watch("enableHotspot");
   const selectedRouterId = form.watch("routerId");
   const watchedInterface = form.watch(portMode === "access" ? "accessPort" : "trunkInterface");
+  const id = useId();
 
   const {
     data: deviceInterfaces,
@@ -710,9 +635,18 @@ function VlanDialog({
     }
   }
 
+  const errors = form.formState.errors;
+  const switchControl = (name: "enableHotspot" | "natEnabled" | "isEnabled") => (
+    <Controller
+      control={form.control}
+      name={name}
+      render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+    />
+  );
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={`${DIALOG_CONSOLE} max-w-lg`}>
         <DialogHeader>
           <DialogTitle>
             {plain ? (vlan ? "Edit zone" : "New zone") : vlan ? "Edit VLAN" : "New VLAN"}
@@ -723,238 +657,224 @@ function VlanDialog({
               : "A VLAN belongs to exactly one router for its whole lifetime."}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(submit)} className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Router</Label>
-            <Controller
-              control={form.control}
-              name="routerId"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={!!vlan}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select router" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Contract §11.5. A controller is listed here but not
-                        selectable: the backend refuses this write by vendor,
-                        and meeting that refusal after the form is filled in
-                        is the defect this closes. */}
-                    <RouterPickerItems rows={routers} />
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.routerId.message}
-              </p>
-            )}
-            {/* Names what was greyed out and why. Renders nothing at a venue
-                with no controller. */}
-            <ControllerRoutersNote rows={routers} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Name</Label>
-            <Input {...form.register("name")} placeholder="Guest-WiFi" />
-            {form.formState.errors.name && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.name.message}</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">{plain ? "Zone ID" : "802.1Q Tag"}</Label>
-            <Input type="number" min={1} max={4094} {...form.register("vlanId")} />
-            {form.formState.errors.vlanId && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.vlanId.message}</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">
-              {plain ? "Router address (optional)" : "Gateway IP (optional)"}
-            </Label>
-            <Input
-              {...form.register("gatewayIpAddress")}
-              placeholder="10.0.0.1"
-              className="font-mono"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">
-              {plain ? "Address range (optional)" : "CIDR (optional)"}
-            </Label>
-            <Input {...form.register("cidr")} placeholder="10.0.0.0/24" className="font-mono" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Port mode</Label>
-            <Controller
-              control={form.control}
-              name="portMode"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Named by outcome, not by network jargon. A customer
-                      picked "Access" because their access point was on that
-                      port, and the VLAN took the whole port and cut the AP
-                      off the guest network. "Trunk" and "access port" are
-                      correct RouterOS terms and meant nothing to them; the
-                      stored values are unchanged, only these labels. */}
-                    <SelectItem value="trunk">
-                      Share the existing cable (tagged) — recommended
-                    </SelectItem>
-                    <SelectItem value="access">
-                      Take a whole port for this zone (untagged)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          {portMode === "trunk" ? (
-            <InterfacePicker
-              control={form.control}
-              name="trunkInterface"
-              label={plain ? "Which cable does it use?" : "Trunk interface"}
-              hint="Read live off your router. This zone rides the cable that is already there, tagged — nothing else on that cable is disturbed. Use this for several Wi-Fi networks from one access point; the AP must tag this zone's VLAN id."
-              manualPlaceholder="bridge"
-              emptyMessage={
-                allInterfaces.length === 0
-                  ? unreadable
-                  : "Nothing on this router can carry a tagged zone. Type a name in if you know it."
-              }
-              options={trunkOptions}
-              routerSelected={!!selectedRouterId}
-              isLoading={interfacesLoading}
-              isError={interfacesErrored}
-              error={form.formState.errors.trunkInterface?.message}
-            />
-          ) : (
-            <InterfacePicker
-              control={form.control}
-              name="accessPort"
-              label={plain ? "Which port does it take?" : "Access port"}
-              hint="Read live off your router. This port is handed entirely to this zone, untagged. Whatever is plugged into it leaves its current network — including an access point, which would stop serving the Wi-Fi it serves today."
-              manualPlaceholder="ether3"
-              emptyMessage={
-                allInterfaces.length === 0
-                  ? unreadable
-                  : "None of this router's ports belong to a bridge, and an access port has to. Add the port to the bridge on the router first, or use Trunk instead."
-              }
-              options={accessOptions}
-              routerSelected={!!selectedRouterId}
-              isLoading={interfacesLoading}
-              isError={interfacesErrored}
-              error={form.formState.errors.accessPort?.message}
-            />
-          )}
-          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
-            <div>
-              <div className="text-sm font-medium">
-                {plain ? "Guests must sign in" : "Captive portal"}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                {plain
-                  ? "Anyone joining this zone sees your sign-in screen before they get online."
-                  : "Guests on this VLAN must log in through a hotspot page."}
-              </div>
-            </div>
-            <Controller
-              control={form.control}
-              name="enableHotspot"
-              render={({ field }) => (
-                <Switch checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
-          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
-            <div>
-              <div className="text-sm font-medium">Internet access (NAT)</div>
-              <div className="text-[11px] text-muted-foreground">
-                Let devices in this zone out to the internet. Turn it off for a zone that should
-                only see your own network — cameras or card readers, say.
-              </div>
-            </div>
-            <Controller
-              control={form.control}
-              name="natEnabled"
-              render={({ field }) => (
-                <Switch checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
-          {vlan && (
-            <div className="sm:col-span-2 flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
-              <div className="text-sm font-medium">Enabled</div>
-              <Controller
-                control={form.control}
-                name="isEnabled"
-                render={({ field }) => (
-                  <Switch checked={field.value} onCheckedChange={field.onChange} />
-                )}
-              />
-            </div>
-          )}
-          {accessPortBridge && (
-            <div className="sm:col-span-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2.5 text-[11px] text-amber-900 dark:text-amber-200">
-              <span className="font-medium">
-                {watchedInterface} will be removed from {accessPortBridge}.
-              </span>{" "}
-              Anything plugged into that port loses the network it is on today. If an access point
-              is on it, the Wi-Fi it serves stops working until the port is put back. Choose{" "}
-              <span className="font-medium">Share the existing cable</span> instead to add this zone
-              without taking the port.
-              <Controller
-                control={form.control}
-                name="confirmTakesPort"
-                render={({ field }) => (
-                  <label className="mt-2.5 flex cursor-pointer items-start gap-2">
-                    <input
-                      type="checkbox"
-                      checked={field.value}
-                      onChange={(e) => field.onChange(e.target.checked)}
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-amber-600"
-                    />
-                    <span>
-                      Yes, take {watchedInterface} out of {accessPortBridge}. Without this the
-                      router refuses the change.
-                    </span>
-                  </label>
-                )}
-              />
-            </div>
-          )}
-          <div className="sm:col-span-2 rounded-lg border border-dashed border-border/60 bg-muted/30 px-3 py-2.5 text-[11px] text-muted-foreground">
-            {watchedHotspot ? (
+        <form onSubmit={form.handleSubmit(submit)}>
+          <FormSection
+            variant="plain"
+            footer={
               <>
-                The sign-in page also creates this zone&apos;s{" "}
-                <span className="font-medium text-foreground">IP address pool and DHCP</span>, so
-                devices get an address automatically.
+                <Button type="button" variant="ghost" onClick={close}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={create.isPending || update.isPending}>
+                  {vlan ? "Save changes" : "Create VLAN"}
+                </Button>
               </>
+            }
+          >
+            <FormField
+              wide
+              label="Router"
+              htmlFor={`${id}-router`}
+              error={errors.routerId?.message}
+            >
+              <Controller
+                control={form.control}
+                name="routerId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange} disabled={!!vlan}>
+                    <SelectTrigger id={`${id}-router`}>
+                      <SelectValue placeholder="Select router" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Contract §11.5. A controller is listed here but not
+                          selectable: the backend refuses this write by vendor,
+                          and meeting that refusal after the form is filled in
+                          is the defect this closes. */}
+                      <RouterPickerItems rows={routers} />
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {/* Names what was greyed out and why. Renders nothing at a venue
+                  with no controller. */}
+              <ControllerRoutersNote rows={routers} />
+            </FormField>
+            <FormField label="Name" htmlFor={`${id}-name`} error={errors.name?.message}>
+              <Input id={`${id}-name`} {...form.register("name")} placeholder="Guest-WiFi" />
+            </FormField>
+            <FormField
+              label={plain ? "Zone ID" : "802.1Q Tag"}
+              htmlFor={`${id}-tag`}
+              error={errors.vlanId?.message}
+            >
+              <Input
+                id={`${id}-tag`}
+                type="number"
+                min={1}
+                max={4094}
+                {...form.register("vlanId")}
+              />
+            </FormField>
+            <FormField
+              label={plain ? "Router address (optional)" : "Gateway IP (optional)"}
+              htmlFor={`${id}-gateway`}
+            >
+              <Input
+                id={`${id}-gateway`}
+                {...form.register("gatewayIpAddress")}
+                placeholder="10.0.0.1"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField
+              label={plain ? "Address range (optional)" : "CIDR (optional)"}
+              htmlFor={`${id}-cidr`}
+            >
+              <Input
+                id={`${id}-cidr`}
+                {...form.register("cidr")}
+                placeholder="10.0.0.0/24"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField label="Port mode" htmlFor={`${id}-mode`}>
+              <Controller
+                control={form.control}
+                name="portMode"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id={`${id}-mode`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Named by outcome, not by network jargon. A customer
+                        picked "Access" because their access point was on that
+                        port, and the VLAN took the whole port and cut the AP
+                        off the guest network. "Trunk" and "access port" are
+                        correct RouterOS terms and meant nothing to them; the
+                        stored values are unchanged, only these labels. */}
+                      <SelectItem value="trunk">
+                        Share the existing cable (tagged) — recommended
+                      </SelectItem>
+                      <SelectItem value="access">
+                        Take a whole port for this zone (untagged)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
+            {portMode === "trunk" ? (
+              <InterfacePicker
+                control={form.control}
+                name="trunkInterface"
+                inputId={`${id}-iface`}
+                label={plain ? "Which cable does it use?" : "Trunk interface"}
+                hint="Read live off your router. This zone rides the cable that is already there, tagged — nothing else on that cable is disturbed. Use this for several Wi-Fi networks from one access point; the AP must tag this zone's VLAN id."
+                manualPlaceholder="bridge"
+                emptyMessage={
+                  allInterfaces.length === 0
+                    ? unreadable
+                    : "Nothing on this router can carry a tagged zone. Type a name in if you know it."
+                }
+                options={trunkOptions}
+                routerSelected={!!selectedRouterId}
+                isLoading={interfacesLoading}
+                isError={interfacesErrored}
+                error={errors.trunkInterface?.message}
+              />
             ) : (
-              <>
-                This creates the network only —{" "}
-                <span className="font-medium text-foreground">no addresses are handed out</span>, so
-                devices will join and get nothing until you create an{" "}
-                <span className="font-medium text-foreground">IP address pool</span> with Interface
-                set to{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
-                  {portMode === "access"
-                    ? watchedInterface || "the port you pick above"
-                    : `vlan${watchedVlanId || "<tag>"}`}
-                </code>
-                .
-              </>
+              <InterfacePicker
+                control={form.control}
+                name="accessPort"
+                inputId={`${id}-iface`}
+                label={plain ? "Which port does it take?" : "Access port"}
+                hint="Read live off your router. This port is handed entirely to this zone, untagged. Whatever is plugged into it leaves its current network — including an access point, which would stop serving the Wi-Fi it serves today."
+                manualPlaceholder="ether3"
+                emptyMessage={
+                  allInterfaces.length === 0
+                    ? unreadable
+                    : "None of this router's ports belong to a bridge, and an access port has to. Add the port to the bridge on the router first, or use Trunk instead."
+                }
+                options={accessOptions}
+                routerSelected={!!selectedRouterId}
+                isLoading={interfacesLoading}
+                isError={interfacesErrored}
+                error={errors.accessPort?.message}
+              />
             )}
-          </div>
-          <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={close}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>
-              {vlan ? "Save changes" : "Create VLAN"}
-            </Button>
-          </DialogFooter>
+            <FormSwitchRow
+              wide
+              label={plain ? "Guests must sign in" : "Captive portal"}
+              description={
+                plain
+                  ? "Anyone joining this zone sees your sign-in screen before they get online."
+                  : "Guests on this VLAN must log in through a hotspot page."
+              }
+              control={switchControl("enableHotspot")}
+            />
+            <FormSwitchRow
+              wide
+              label="Internet access (NAT)"
+              description="Let devices in this zone out to the internet. Turn it off for a zone that should only see your own network — cameras or card readers, say."
+              control={switchControl("natEnabled")}
+            />
+            {vlan && <FormSwitchRow wide label="Enabled" control={switchControl("isEnabled")} />}
+            {accessPortBridge && (
+              <Callout
+                tone="warn"
+                className="sm:col-span-2"
+                title={`${watchedInterface} will be removed from ${accessPortBridge}.`}
+                action={
+                  <Controller
+                    control={form.control}
+                    name="confirmTakesPort"
+                    render={({ field }) => (
+                      <label className="flex min-h-10 cursor-pointer items-start gap-2 font-medium">
+                        <input
+                          type="checkbox"
+                          checked={field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--wy-warn)]"
+                        />
+                        <span>
+                          Yes, take {watchedInterface} out of {accessPortBridge}. Without this the
+                          router refuses the change.
+                        </span>
+                      </label>
+                    )}
+                  />
+                }
+              >
+                Anything plugged into that port loses the network it is on today. If an access point
+                is on it, the Wi-Fi it serves stops working until the port is put back. Choose{" "}
+                <span className="font-medium">Share the existing cable</span> instead to add this
+                zone without taking the port.
+              </Callout>
+            )}
+            <Callout tone="info" className="sm:col-span-2">
+              {watchedHotspot ? (
+                <>
+                  The sign-in page also creates this zone&apos;s{" "}
+                  <span className="font-medium">IP address pool and DHCP</span>, so devices get an
+                  address automatically.
+                </>
+              ) : (
+                <>
+                  This creates the network only —{" "}
+                  <span className="font-medium">no addresses are handed out</span>, so devices will
+                  join and get nothing until you create an{" "}
+                  <span className="font-medium">IP address pool</span> with Interface set to{" "}
+                  <code className="rounded bg-[var(--wy-surface)] px-1 py-0.5 font-[family-name:var(--wy-font-mono)] text-xs">
+                    {portMode === "access"
+                      ? watchedInterface || "the port you pick above"
+                      : `vlan${watchedVlanId || "<tag>"}`}
+                  </code>
+                  .
+                </>
+              )}
+            </Callout>
+          </FormSection>
         </form>
       </DialogContent>
     </Dialog>
@@ -977,6 +897,7 @@ function VlanDialog({
 function InterfacePicker({
   control,
   name,
+  inputId,
   label,
   hint,
   manualPlaceholder,
@@ -989,6 +910,7 @@ function InterfacePicker({
 }: {
   control: Control<VlanFormValues>;
   name: "trunkInterface" | "accessPort";
+  inputId: string;
   label: string;
   hint: string;
   manualPlaceholder: string;
@@ -1003,17 +925,28 @@ function InterfacePicker({
   const nothingToOffer = routerSelected && !isLoading && (isError || options.length === 0);
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs font-medium">{label}</Label>
+    <FormField
+      label={label}
+      htmlFor={inputId}
+      error={error}
+      hint={
+        manual
+          ? "Typed by hand — if this doesn't match the router exactly, applying the zone will fail."
+          : nothingToOffer
+            ? emptyMessage
+            : hint
+      }
+      hintTone={manual ? "warn" : "muted"}
+      labelAction={
         <button
           type="button"
-          className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          className="rounded text-xs text-[var(--wy-text-muted)] underline underline-offset-2 hover:text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
           onClick={() => setManual((m) => !m)}
         >
           {manual ? "Pick from the router" : "Type manually"}
         </button>
-      </div>
+      }
+    >
       <Controller
         control={control}
         name={name}
@@ -1021,6 +954,7 @@ function InterfacePicker({
           manual ? (
             <Input
               {...field}
+              id={inputId}
               value={field.value ?? ""}
               placeholder={manualPlaceholder}
               className="font-mono"
@@ -1031,7 +965,7 @@ function InterfacePicker({
               onValueChange={field.onChange}
               disabled={!routerSelected || isLoading || options.length === 0}
             >
-              <SelectTrigger>
+              <SelectTrigger id={inputId}>
                 <SelectValue
                   placeholder={
                     !routerSelected
@@ -1067,17 +1001,6 @@ function InterfacePicker({
           )
         }
       />
-      {error ? (
-        <p className="text-[11px] text-destructive">{error}</p>
-      ) : manual ? (
-        <p className="text-[11px] text-amber-600 dark:text-amber-500">
-          Typed by hand — if this doesn't match the router exactly, applying the zone will fail.
-        </p>
-      ) : nothingToOffer ? (
-        <p className="text-[11px] text-muted-foreground">{emptyMessage}</p>
-      ) : (
-        <p className="text-[11px] text-muted-foreground">{hint}</p>
-      )}
-    </div>
+    </FormField>
   );
 }

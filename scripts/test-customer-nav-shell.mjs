@@ -1098,11 +1098,52 @@ console.log(
     readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8"),
   );
   const usersPage = strip(readFileSync(join(ROOT, "src/routes/users.tsx"), "utf8"));
+  // Screens migrated to the console PageHeader (OWN_PAGE_HEADER_FEATURES)
+  // draw their own single header from the shell's `pageScope`; every other
+  // feature page, and a migrated screen replaced by the controller notice,
+  // still gets the scope line directly under the tab bar.
   check(
-    "every feature page and /users render the tab bar above the scope line",
-    /<SectionTabs featureId=\{feature\} \/>\s*<CustomerPageScope/.test(featurePage) &&
+    "every feature page and /users render the tab bar above the scope line (or the screen's own PageHeader)",
+    /<SectionTabs featureId=\{feature\} \/>\s*(?:\{\s*\}\s*)?\{!ownPageHeader && \(\s*<CustomerPageScope/.test(
+      featurePage,
+    ) &&
+      /const ownPageHeader = OWN_PAGE_HEADER_FEATURES\.has\(feature\) && !controllerGated;/.test(
+        featurePage,
+      ) &&
       /<SectionTabs featureId="users" \/>\s*<CustomerPageScope/.test(usersPage),
   );
+  {
+    const scopeSrc = strip(scope);
+    const own = [
+      ...(
+        scopeSrc.match(/OWN_PAGE_HEADER_FEATURES[^=]*=\s*new Set\(\[([^\]]*)\]/)?.[1] ?? ""
+      ).matchAll(/"([^"]+)"/g),
+    ].map((m) => m[1]);
+    const VIEW = {
+      alerts: ["AlertsView", "src/components/features/AlertsView.tsx"],
+      dhcp: ["DhcpView", "src/components/network/DhcpManagement.tsx"],
+      vlans: ["VlansView", "src/components/network/VlanManagement.tsx"],
+      "port-forwarding": [
+        "PortForwardingView",
+        "src/components/network/PortForwardingManagement.tsx",
+      ],
+      voip: ["VoipView", "src/components/network/QosManagement.tsx"],
+    };
+    check(
+      "every screen that skips the scope line is handed the scope and draws one PageHeader",
+      own.length > 0 &&
+        own.every((id) => {
+          const [view, file] = VIEW[id] ?? [];
+          if (!view) return false;
+          const src = strip(readFileSync(join(ROOT, file), "utf8"));
+          return (
+            new RegExp(`<${view}\\b[^>]*scope=\\{pageScope\\}`).test(featurePage) &&
+            (src.match(/<PageHeader\b/g) ?? []).length === 1 &&
+            /venue=\{scope\?\.venue\}/.test(src)
+          );
+        }),
+    );
+  }
   check(
     "the rail flyout lists a section's tabs",
     /<SectionFlyout/.test(sidebarCode) &&
