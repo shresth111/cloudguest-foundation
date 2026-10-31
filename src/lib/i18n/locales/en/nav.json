@@ -117,7 +117,7 @@
     "isp-details": "Internet Connection",
     "traffic-lens": "Traffic Lens",
     "security": "Security Score",
-    "blocking": "Block Websites",
+    "blocking": "Blocking",
     "firewall": "Firewall",
     "debugging": "Fix a Problem",
     "tickets": "Support Tickets",
@@ -130,8 +130,10 @@
     "addon": "Add-on",
     "addonTitle": "{{label}} is an add-on that isn't enabled for your organisation"
   },
+  "customerTabMenu": {
+    "advanced": "Advanced"
+  },
   "customerTabGroup": {
-    "advanced": "Advanced",
     "who-can-connect": "Who can connect"
   },
   "sectionTabs": {
@@ -285,7 +287,7 @@
     "deviceOffline": "Not connected now",
     "keepStopsMatching": "If this device's address changes, this rule will stop matching it.",
     "guestWhoNote": "This is a guest's device. Guests' addresses change and are handed to the next guest, so this rule may soon match someone else. To keep one guest device off your WiFi, use",
-    "guestWhoLink": "Block Websites → Guests & devices",
+    "guestWhoLink": "Blocking → Guests & devices",
     "guestWhoTail": "— it blocks the device itself, not its address.",
     "keepChecking": "Checking whether this device keeps its address…",
     "keepAddress": "Keep this device on the same address",

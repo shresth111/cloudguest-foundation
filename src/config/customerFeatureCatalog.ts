@@ -125,7 +125,7 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "security", label: "Security Score", icon: ShieldAlert },
       // "web-filtering" was its own entry; its categories are a section of
       // Block Websites now, so granting "blocking" grants both.
-      { id: "blocking", label: "Block Websites", icon: Ban },
+      { id: "blocking", label: "Blocking", icon: Ban },
       { id: "firewall", label: "Firewall", icon: BrickWall },
       // Moved in from the retired "Access & Policy" group, after the three
       // above, matching customerNav.ts's Security group.

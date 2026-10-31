@@ -52,6 +52,12 @@ export interface CustomerNavItem {
    * it until the next `tabGroup`. Visual only -- it changes no URL, order
    * or permission. */
   tabGroup?: { id: string; label: string };
+  /** Folds this tab into one dropdown tab of the section's tab bar
+   * (`nav:customerTabMenu.<id>`), together with every adjacent tab carrying
+   * the same id. The tab reads "Advanced ▾" and, while one of its screens is
+   * open, "Advanced · IP Addresses". Visual only, like `tabGroup`: every
+   * screen keeps its own id, URL, palette entry and permission rule. */
+  tabMenu?: { id: string; label: string };
 }
 
 export interface CustomerNavGroup {
@@ -72,6 +78,9 @@ export interface CustomerNavGroup {
   presentation?: "rows" | "tabs";
   items: CustomerNavItem[];
 }
+
+/** Network's installer screens, folded into one dropdown tab (`tabMenu`). */
+const ADVANCED_TAB_MENU = { id: "advanced", label: "Advanced" } as const;
 
 /** Single source of truth for the customer-workspace sidebar — shared by
  * the dashboard, users, and feature routes (via the shared `CustomerSidebar`
@@ -176,7 +185,23 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         label: "Guests",
         icon: Users,
         roles: ["owner", "agent"],
-        keywords: ["visitors", "users", "customers", "people", "sessions", "online"],
+        // "unblock" lands here as well as on Security -> Blocking: a blocked
+        // guest's row carries an Unblock action, and this is the screen the
+        // front desk can see (Blocking is owner-only). Hindi beside English
+        // because the palette matches keywords as typed.
+        keywords: [
+          "visitors",
+          "users",
+          "customers",
+          "people",
+          "sessions",
+          "online",
+          "unblock",
+          "blocked guest",
+          "अनब्लॉक",
+          "ब्लॉक हटाएं",
+          "ब्लॉक मेहमान",
+        ],
       },
       {
         id: "teams",
@@ -212,6 +237,19 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     label: "Marketing",
     icon: Megaphone,
     items: [
+      // Moved here from Login Page (same id, same /guest-campaigns route).
+      // FIRST, on the owner's call (2026-10-31): it is free and already in
+      // use, so a non-subscriber's Marketing click lands on something they
+      // have instead of an upsell. Staff cannot see it (owner-only), so their
+      // Marketing row still opens Guest Messaging -- the sidebar row links to
+      // the first tab the caller can see.
+      {
+        id: "campaigns",
+        label: "Login Page Offers",
+        icon: Megaphone,
+        roles: ["owner"],
+        keywords: ["offers", "banner", "survey", "promotion", "ads", "campaigns"],
+      },
       // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5).
       // Outbound WhatsApp/SMS/email TO guests who opted in. Not the same
       // thing as Login Page Offers beside it (captive-portal banners shown
@@ -234,14 +272,6 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         icon: Send,
         roles: ["owner", "agent"],
         keywords: ["whatsapp", "sms", "email", "campaign", "broadcast", "promotion"],
-      },
-      // Moved here from Login Page (same id, same /guest-campaigns route).
-      {
-        id: "campaigns",
-        label: "Login Page Offers",
-        icon: Megaphone,
-        roles: ["owner"],
-        keywords: ["offers", "banner", "survey", "promotion", "ads", "campaigns"],
       },
     ],
   },
@@ -320,15 +350,18 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         roles: ["owner"],
         keywords: ["traffic", "netflow", "bandwidth", "apps", "top sites"],
       },
-      // The router-configuration screens, after a divider in the tab bar:
-      // set once by whoever installed the network and rarely opened again.
+      // The router-configuration screens, folded into ONE "Advanced ▾" tab
+      // (owner's call, 2026-10-31): set once by whoever installed the
+      // network and rarely opened again, so they stay one click away for a
+      // technician without four tabs in the owner's line of sight -- and the
+      // tab bar no longer runs off a phone screen. URLs unchanged.
       {
         id: "dhcp",
         label: "IP Addresses",
         icon: Server,
         roles: ["owner"],
         keywords: ["dhcp", "ip pool", "leases", "static ip"],
-        tabGroup: { id: "advanced", label: "Advanced" },
+        tabMenu: ADVANCED_TAB_MENU,
       },
       {
         id: "vlans",
@@ -336,6 +369,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         icon: Network,
         roles: ["owner"],
         keywords: ["vlan", "segments", "separate network"],
+        tabMenu: ADVANCED_TAB_MENU,
       },
       {
         id: "port-forwarding",
@@ -343,6 +377,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         icon: Share2,
         roles: ["owner"],
         keywords: ["nat", "ports", "cctv", "remote access"],
+        tabMenu: ADVANCED_TAB_MENU,
       },
       {
         id: "voip",
@@ -350,6 +385,7 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         icon: Signal,
         roles: ["owner"],
         keywords: ["voip", "qos", "calls", "voice"],
+        tabMenu: ADVANCED_TAB_MENU,
       },
     ],
   },
@@ -396,10 +432,26 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       },
       {
         id: "blocking",
-        label: "Block Websites",
+        // "Blocking", not "Block Websites": the page has two tabs, Websites
+        // AND Guests & devices (lib/blocking.ts), and an owner looking for a
+        // blocked guest did not think to open a screen named for websites.
+        // Same id, same /blocking URL.
+        label: "Blocking",
         icon: Ban,
         roles: ["owner"],
-        keywords: ["website blocking", "web filter", "block site", "content filter", "block guest"],
+        keywords: [
+          "block websites",
+          "website blocking",
+          "web filter",
+          "block site",
+          "content filter",
+          "block guest",
+          "unblock",
+          "blocked guest",
+          "अनब्लॉक",
+          "ब्लॉक हटाएं",
+          "ब्लॉक मेहमान",
+        ],
       },
       // Owner-only, like every other screen that writes the venue's router.
       // `BrickWall`: unused elsewhere, and it is what the word means. At a
@@ -644,4 +696,29 @@ const RESERVED_FEATURE_HREFS: Record<string, string> = {
  * redirects can't drift apart on where a given nav id actually lives. */
 export function customerFeatureHref(id: string): string {
   return RESERVED_FEATURE_HREFS[id] ?? `/${id}`;
+}
+
+/** One entry of a section's tab bar: a plain tab, or a dropdown tab holding
+ * the adjacent tabs that share a `tabMenu` (Network's "Advanced ▾"). */
+export type SectionTabEntry =
+  | { kind: "tab"; item: CustomerNavItem }
+  | { kind: "menu"; menu: { id: string; label: string }; items: CustomerNavItem[] };
+
+/** Already-filtered tabs -> tab-bar entries, in order. Adjacent tabs with the
+ * same `tabMenu.id` become one `menu` entry; everything else stays a tab.
+ * A menu is kept even when the caller can see only one of its screens, so
+ * an installer screen never reappears as a top-level tab by accident. */
+export function sectionTabEntries(tabs: readonly CustomerNavItem[]): SectionTabEntry[] {
+  const out: SectionTabEntry[] = [];
+  for (const item of tabs) {
+    const last = out[out.length - 1];
+    if (item.tabMenu && last?.kind === "menu" && last.menu.id === item.tabMenu.id) {
+      last.items.push(item);
+    } else if (item.tabMenu) {
+      out.push({ kind: "menu", menu: item.tabMenu, items: [item] });
+    } else {
+      out.push({ kind: "tab", item });
+    }
+  }
+  return out;
 }

@@ -2237,6 +2237,20 @@ jobs:
             "block-scope" 40 "all block-scope checks passed" \
             bun run test:block-scope
 
+      # --- Front desk can unblock a guest at its own venue ----------------
+      #
+      # Owner decision 2026-10-31. Executes lib/guest-unblock.ts (who is
+      # offered Unblock, which rows show it -- server-masked identifiers
+      # included -- and why an org-wide ban is not offered to a venue
+      # account) and pins the X-Location-Id wiring the backend needs.
+      #
+      # Floor 34, observed green at 34.
+      - name: front desk can unblock a guest at its own venue
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "guest-unblock" 34 "all guest-unblock checks passed" \
+            bun run test:guest-unblock
+
       # --- What a block did to their devices -----------------------------
       #
       # cloud-guest #277 added `controller_blocks` to the rule response: one

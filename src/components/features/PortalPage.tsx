@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
+import { Link } from "@tanstack/react-router";
+import { customerFeatureHref } from "@/lib/customerNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1674,6 +1676,17 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   An optional screen guests see before the sign-in form. Use it for a menu, an
                   offer, or house rules. Reaches every guest, iPhones included.
                 </p>
+                {/* Offers live in Marketing -> Login Page Offers now, so the
+                    page they are shown on points at them -- findable from
+                    both sides. A plain link, not a control: the disabled
+                    fieldset around this card does not affect it. */}
+                <Link
+                  to={customerFeatureHref("campaigns")}
+                  data-testid="portal-offers-link"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Offers shown on this page →
+                </Link>
                 <Select
                   value={contentMode}
                   onValueChange={(v) => setContentMode(v as PortalContentMode)}

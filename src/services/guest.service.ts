@@ -299,6 +299,18 @@ function toGuestSession(
   };
 }
 
+/** `X-Organization-Id`, plus `X-Location-Id` for a venue-scoped caller --
+ * see `listAccessRules`. `undefined` when there is neither. */
+function scopeHeaders(
+  organizationId?: string,
+  venueId?: string | null,
+): Record<string, string> | undefined {
+  const headers: Record<string, string> = {};
+  if (organizationId) headers["X-Organization-Id"] = organizationId;
+  if (venueId) headers["X-Location-Id"] = venueId;
+  return Object.keys(headers).length ? headers : undefined;
+}
+
 function toAccessRule(r: BackendAccessRule): GuestAccessRule {
   return {
     kind: "identifier",
@@ -747,9 +759,18 @@ export const guestService = {
   // customer/org-owner session (same class of bug as customer.service.ts's
   // listLocations() before its fix). Callers with no known org (the
   // cross-tenant admin Guest Access page) keep the original fan-out.
-  async listAccessRules(organizationId?: string): Promise<AnyAccessRule[]> {
+  //
+  // `venueId` adds `X-Location-Id`, which a VENUE-scoped caller (front-desk
+  // staff) must send: the backend checks their grant at that venue and 403s
+  // an organization-level ask. Org-scoped callers leave it out and keep
+  // seeing every venue's rules. See lib/guest-unblock.ts.
+  async listAccessRules(
+    organizationId?: string,
+    venueId?: string | null,
+  ): Promise<AnyAccessRule[]> {
     if (organizationId) {
-      const headers = { "X-Organization-Id": organizationId };
+      const headers: Record<string, string> = { "X-Organization-Id": organizationId };
+      if (venueId) headers["X-Location-Id"] = venueId;
       const [identifierRes, deviceRes] = await Promise.allSettled([
         getAllItems<BackendAccessRule>("/guest-access/rules", { headers }),
         getAllItems<BackendDeviceAccessRule>("/guest-access/device-rules", { headers }),
@@ -868,10 +889,11 @@ export const guestService = {
     kind: "identifier" | "device",
     ruleId: string,
     organizationId?: string,
+    venueId?: string | null,
   ): Promise<GuestAccessRule | null> {
     const path = kind === "identifier" ? "/guest-access/rules" : "/guest-access/device-rules";
     const res = await api.post(`${path}/${ruleId}/deactivate`, undefined, {
-      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+      headers: scopeHeaders(organizationId, venueId),
     });
     if (kind !== "identifier") return null;
     const data = (res.data as { data?: unknown } | undefined)?.data;
@@ -888,9 +910,10 @@ export const guestService = {
   async deactivateDeviceRule(
     ruleId: string,
     organizationId?: string,
+    venueId?: string | null,
   ): Promise<DeviceAccessRule | null> {
     const res = await api.post(`/guest-access/device-rules/${ruleId}/deactivate`, undefined, {
-      headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
+      headers: scopeHeaders(organizationId, venueId),
     });
     // Tolerant of both shapes, for the reason terminateSession documents:
     // the interceptor may or may not have stripped the envelope already.

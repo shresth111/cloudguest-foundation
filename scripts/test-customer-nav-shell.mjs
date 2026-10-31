@@ -128,6 +128,7 @@ const {
   NAV_PERMISSION_KEYS,
   rankCustomerPaletteMatch,
   customerPaletteFloor,
+  sectionTabEntries,
 } = await import(`file://${outfile}`);
 
 // ---------------------------------------------------------------------------
@@ -374,7 +375,7 @@ console.log("\nthe sidebar is grouped by task");
       [
         "overview=dashboard,alerts,debugging",
         "guests=users,teams,vouchers,reports",
-        "marketing=marketing,campaigns",
+        "marketing=campaigns,marketing",
         "login-page=portal,business-hours",
         "network=devices,isp-details,traffic-lens,dhcp,vlans,port-forwarding,voip",
         "security=security,blocking,firewall,policies,whitelist,mac-auth",
@@ -533,7 +534,13 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       .join(",") === "dashboard:Dashboard,alerts:Alerts,debugging:Fix a Problem",
   );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
-  check("Blocking is labelled for the job", blocking && blocking.label === "Block Websites");
+  // "Blocking", not "Block Websites": the page blocks guests and devices too
+  // (lib/blocking.ts's two tabs). Same id, same URL.
+  check("Blocking is labelled for the job", blocking && blocking.label === "Blocking");
+  check(
+    "the Blocking page really does cover guests (the rename's premise)",
+    /id: "guests"/.test(readFileSync(join(ROOT, "src/lib/blocking.ts"), "utf8")),
+  );
   check(
     "Blocking is owner-only, like Access Rules its guests tab came from",
     blocking && blocking.roles.join(",") === "owner",
@@ -547,8 +554,9 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
   check(
     "the Network section is Devices, the uplink and Traffic Lens, then the four Advanced settings",
     (CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items ?? [])
-      .map((i) => `${i.id}${i.tabGroup ? `[${i.tabGroup.id}]` : ""}`)
-      .join(",") === "devices,isp-details,traffic-lens,dhcp[advanced],vlans,port-forwarding,voip",
+      .map((i) => `${i.id}${i.tabMenu ? `[${i.tabMenu.id}]` : ""}${i.tabGroup ? "|" : ""}`)
+      .join(",") ===
+      "devices,isp-details,traffic-lens,dhcp[advanced],vlans[advanced],port-forwarding[advanced],voip[advanced]",
   );
   // Old links must keep working: a bookmark to the old address is a
   // redirect to the tab it became, behind the same session guards.
@@ -1235,7 +1243,12 @@ console.log(
     const tabGroups = CUSTOMER_NAVS.filter((n) => n.tabGroup).map((n) => n.tabGroup.id);
     check(
       `${loc}: every tab sub-group has a label`,
-      tabGroups.length === 2 && tabGroups.every((id) => !!nav.customerTabGroup?.[id]),
+      tabGroups.length === 1 && tabGroups.every((id) => !!nav.customerTabGroup?.[id]),
+    );
+    const tabMenus = CUSTOMER_NAVS.filter((n) => n.tabMenu).map((n) => n.tabMenu.id);
+    check(
+      `${loc}: every dropdown tab has a label`,
+      tabMenus.length === 4 && tabMenus.every((id) => !!nav.customerTabMenu?.[id]),
     );
     check(
       `${loc}: the tab bar's accessible name is translated`,
@@ -1253,6 +1266,160 @@ console.log(
   check(
     "every permission key still belongs to a feature that exists",
     Object.keys(NAV_PERMISSION_KEYS).every((id) => CUSTOMER_NAVS.some((n) => n.id === id)),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 14. Owner decisions of 2026-10-31: Offers first in Marketing, Network's
+//     installer tabs in one "Advanced" dropdown, and an Unblock path the
+//     front desk can find.
+// ---------------------------------------------------------------------------
+
+console.log("\nOffers first, one Advanced dropdown, and unblock is findable");
+
+{
+  const owner = customerSidebarGroupsForRole("owner");
+  const agent = customerSidebarGroupsForRole("agent");
+  const ownerMk = owner.find((g) => g.id === "marketing");
+  check(
+    "Marketing opens Login Page Offers first for an owner, Guest Messaging second",
+    ownerMk && ownerMk.items.map((i) => i.id).join(",") === "campaigns,marketing",
+  );
+  const agentMk = agent.find((g) => g.id === "marketing");
+  check(
+    "staff, who cannot see Offers, still land on Guest Messaging",
+    agentMk &&
+      agentMk.items.map((i) => i.id).join(",") === "marketing" &&
+      customerFeatureHref(agentMk.items[0].id) === "/marketing",
+  );
+  {
+    // Same rule by real grants: a role holding marketing.read but not
+    // campaigns.read gets Guest Messaging as its first (only) tab.
+    const mk = filterNavGroupsByPermissions(owner, ["dashboard.view", "marketing.read"]).find(
+      (g) => g.id === "marketing",
+    );
+    check(
+      "a grant set without campaigns.read opens Marketing on Guest Messaging",
+      mk && mk.items[0].id === "marketing",
+    );
+  }
+
+  // The Advanced dropdown: exactly the four installer screens, in order,
+  // with their URLs unchanged, and nothing else folded in.
+  const network = owner.find((g) => g.id === "network");
+  const entries = sectionTabEntries(network.items);
+  check(
+    "Network's tab bar is Devices, Internet Connection, Traffic Lens, then ONE Advanced menu",
+    entries.map((e) => (e.kind === "menu" ? `menu:${e.menu.id}` : e.item.id)).join(",") ===
+      "devices,isp-details,traffic-lens,menu:advanced",
+    entries.map((e) => e.kind).join(","),
+  );
+  const adv = entries.find((e) => e.kind === "menu");
+  check(
+    "the Advanced menu holds exactly the four installer screens, in order",
+    adv && adv.items.map((i) => i.id).join(",") === "dhcp,vlans,port-forwarding,voip",
+  );
+  check(
+    "and every one keeps its own URL",
+    adv &&
+      adv.items.map((i) => customerFeatureHref(i.id)).join(",") ===
+        "/dhcp,/vlans,/port-forwarding,/voip",
+  );
+  check(
+    "only Network has a dropdown tab",
+    CUSTOMER_NAV_GROUPS.filter((g) => g.id !== "network").every((g) =>
+      sectionTabEntries(g.items).every((e) => e.kind === "tab"),
+    ),
+  );
+  check(
+    "a menu survives a permission filter that leaves one of its screens",
+    (() => {
+      const one = sectionTabEntries(
+        network.items.filter((i) => i.id !== "vlans" && i.id !== "voip" && i.id !== "dhcp"),
+      );
+      return one.length === 4 && one[3].kind === "menu" && one[3].items.length === 1;
+    })(),
+  );
+  check(
+    "each Advanced screen is still its own palette entry",
+    ["dhcp", "vlans", "port-forwarding", "voip"].every((id) =>
+      customerNavGroupsForRole("owner").some((g) => g.items.some((i) => i.id === id)),
+    ),
+  );
+
+  const tabsCode = strip(
+    readFileSync(join(ROOT, "src/components/customer/console/SectionTabs.tsx"), "utf8"),
+  );
+  check(
+    "SectionTabs renders a menu entry as a Radix dropdown on the console surface",
+    /sectionTabEntries\(model\.tabs\)/.test(tabsCode) &&
+      /<DropdownMenuTrigger asChild>/.test(tabsCode) &&
+      /<DropdownMenuContent[\s\S]{0,120}className="wy-console/.test(tabsCode),
+  );
+  check(
+    "the trigger is a real button and reads 'Advanced · <screen>' while one is open",
+    /<button\s+type="button"\s+data-tab-menu=/.test(tabsCode) &&
+      /data-active=\{current \? "true" : undefined\}/.test(tabsCode) &&
+      /tabClass\(!!current\)/.test(tabsCode) &&
+      /·/.test(tabsCode),
+  );
+  check(
+    "menu entries are links to the unchanged URLs with aria-current",
+    /<DropdownMenuItem key=\{item\.id\} asChild>\s*<Link\s+to=\{customerFeatureHref\(item\.id\)\}\s+aria-current=\{active \? "page" : undefined\}/.test(
+      tabsCode,
+    ),
+  );
+
+  // Unblock: the palette word lands where the caller can act on it.
+  const kwOf = (id) => CUSTOMER_NAVS.find((n) => n.id === id)?.keywords ?? [];
+  for (const word of ["unblock", "blocked guest", "अनब्लॉक"]) {
+    check(
+      `palette keyword '${word}' is on Guests and on Blocking`,
+      kwOf("users").includes(word) && kwOf("blocking").includes(word),
+    );
+  }
+  {
+    const entriesFor = (role) =>
+      filterNavGroupsByPermissions(customerNavGroupsForRole(role), null).flatMap((g) =>
+        g.items.map((item) => ({
+          id: item.id,
+          value: `${item.label} ${g.label} ${item.label} ${g.label}`,
+          keywords: item.keywords ? [...item.keywords] : undefined,
+        })),
+      );
+    const hits = (role, q) => {
+      const es = entriesFor(role);
+      const floor = customerPaletteFloor(q, es);
+      return es
+        .filter(
+          (e) =>
+            rankCustomerPaletteMatch(e.value, q, e.keywords) >= floor &&
+            rankCustomerPaletteMatch(e.value, q, e.keywords) > 0,
+        )
+        .map((e) => e.id);
+    };
+    check(
+      "staff typing 'unblock' get Guests (the screen they can act on)",
+      hits("agent", "unblock").join(",") === "users",
+      hits("agent", "unblock").join(","),
+    );
+    check(
+      "staff typing 'blocked guest' get Guests",
+      hits("agent", "blocked guest").join(",") === "users",
+    );
+    check(
+      "an owner typing 'unblock' gets Guests and Security › Blocking",
+      hits("owner", "unblock").join(",") === "users,blocking",
+      hits("owner", "unblock").join(","),
+    );
+  }
+
+  // Login Page › Portal points at the offers shown on it.
+  const portal = strip(readFileSync(join(ROOT, "src/components/features/PortalPage.tsx"), "utf8"));
+  check(
+    "Portal links to Login Page Offers through the nav's own href",
+    /to=\{customerFeatureHref\("campaigns"\)\}/.test(portal) &&
+      /Offers shown on this page →/.test(portal),
   );
 }
 

@@ -183,7 +183,7 @@ export function FirewallView({ locationId }: { locationId?: string }) {
       )}{" "}
       {t("blockWebsites.firewallWebsitesPrefix", "To block a website by its name, use")}{" "}
       <Link to="/blocking" className="font-medium text-primary underline-offset-4 hover:underline">
-        {t("customerItem.blocking", "Block Websites")}
+        {t("customerItem.blocking", "Blocking")}
       </Link>
       .
     </p>
