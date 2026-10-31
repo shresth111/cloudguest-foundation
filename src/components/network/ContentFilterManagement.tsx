@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { StatusBadge, type ConsoleStatus } from "@/components/customer/console";
 import i18n from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 import {
@@ -133,10 +133,11 @@ const DEVICE_PUSH_LABEL: Record<ContentFilterDevicePushStatus, string> = {
   failed: "Couldn't apply",
 };
 
-const DEVICE_PUSH_STYLES: Record<ContentFilterDevicePushStatus, string> = {
-  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
-  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
-  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
+/** "Not yet applied" is the neutral grey, not a warning: nothing has failed. */
+const DEVICE_PUSH_STATUS: Record<ContentFilterDevicePushStatus, ConsoleStatus> = {
+  active: "ok",
+  pending: "offline",
+  failed: "crit",
 };
 
 /** Whether this block actually exists on the router.
@@ -155,19 +156,21 @@ const DEVICE_PUSH_STYLES: Record<ContentFilterDevicePushStatus, string> = {
  */
 function DevicePushBadge({ rule }: { rule: ContentFilterRule }) {
   const badge = (
-    <Badge
-      variant="outline"
-      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[rule.devicePushStatus])}
-    >
-      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+    <StatusBadge status={DEVICE_PUSH_STATUS[rule.devicePushStatus]}>
       {DEVICE_PUSH_LABEL[rule.devicePushStatus]}
-    </Badge>
+    </StatusBadge>
   );
   if (rule.devicePushStatus !== "failed" || !rule.devicePushError) return badge;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex cursor-default">{badge}</span>
+        {/* Focusable, so the router's own error reaches keyboard users too. */}
+        <span
+          tabIndex={0}
+          className="inline-flex cursor-default rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+        >
+          {badge}
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs">
         Couldn&apos;t apply this block to your router: {rule.devicePushError}
@@ -392,9 +395,9 @@ export function ContentFilterManagement({ locationId }: { locationId?: string } 
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={r.isEnabled ? "default" : "secondary"}>
+                    <StatusBadge status={r.isEnabled ? "ok" : "offline"} dot={false}>
                       {r.isEnabled ? "Enabled" : "Disabled"}
-                    </Badge>
+                    </StatusBadge>
                   </TableCell>
                   <TableCell>
                     <DevicePushBadge rule={r} />

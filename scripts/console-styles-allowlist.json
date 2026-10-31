@@ -41,8 +41,6 @@
     "src/components/marketing/templates/template-bits.tsx",
     "src/components/netlogs/IpdrConnections.tsx",
     "src/components/netlogs/NetLogsView.tsx",
-    "src/components/network/ContentFilterManagement.tsx",
-    "src/components/network/QueueManagement.tsx",
     "src/components/security/AppBlockBox.tsx",
     "src/components/security/FirewallDevicePicker.tsx",
     "src/components/security/FirewallView.tsx",
