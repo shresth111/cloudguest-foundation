@@ -106,18 +106,24 @@ export function IspLinkCard({
           style={{ background: color }}
         />
         <div className="min-w-0 flex-1">
-          <h3
-            id={`isp-card-${link.id}`}
-            className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold"
-          >
+          {/* The brand badge sits beside the heading, not inside it: its SVG
+              draws the initial as <text>, so inside the <h3> the heading's
+              text read "AAirtel" (it is aria-hidden, but copy, find-in-page
+              and text-based tools still saw the letter). */}
+          <div className="flex min-w-0 items-center gap-1.5">
             <IspProviderIcon providerName={link.providerName} className="h-4 w-4 shrink-0" />
-            <span className="truncate">{link.providerName}</span>
-            {!link.isEnabled && (
-              <span className="rounded bg-[var(--wy-surface-2)] px-1.5 text-[11px] font-medium leading-5 text-[var(--wy-text-faint)]">
-                {t("card.disabled", "Disabled")}
-              </span>
-            )}
-          </h3>
+            <h3
+              id={`isp-card-${link.id}`}
+              className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold"
+            >
+              <span className="truncate">{link.providerName}</span>
+              {!link.isEnabled && (
+                <span className="rounded bg-[var(--wy-surface-2)] px-1.5 text-[11px] font-medium leading-5 text-[var(--wy-text-faint)]">
+                  {t("card.disabled", "Disabled")}
+                </span>
+              )}
+            </h3>
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--wy-text-faint)]">
             <RoleChips link={link} multi={multi} />
             {link.interface && (

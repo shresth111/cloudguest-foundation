@@ -36,6 +36,11 @@ export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
   // batch 3: Logs
   "network-activity",
   "netlogs",
+  // batch 3c: Help, Staff Access, Login Page › Portal
+  "tickets",
+  "how-it-works",
+  "agents",
+  "portal",
 ]);
 
 /** The title + venue a screen's own PageHeader shows: the same nav label

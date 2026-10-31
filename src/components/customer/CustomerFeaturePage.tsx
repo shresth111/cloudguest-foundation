@@ -335,7 +335,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   render the live component, not a fork of it. */}
               {feature === "reports" && <UserReports masked={masked} scope={pageScope} />}
               {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
-              {feature === "portal" && <PortalPage locationId={locationId} />}
+              {feature === "portal" && <PortalPage locationId={locationId} scope={pageScope} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} scope={pageScope} />}
               {feature === "policies" && <PoliciesHub locationId={locationId} scope={pageScope} />}
               {/* Allow-list and Trusted Devices are live everywhere except a
@@ -361,15 +361,15 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 </div>
               )}
               {feature === "teams" && <ManageTeamsPage locationId={locationId} scope={pageScope} />}
-              {feature === "agents" && <AgentsPage locationId={locationId} />}
+              {feature === "agents" && <AgentsPage locationId={locationId} scope={pageScope} />}
               {feature === "advanced" && <AdvancedPage />}
               {/* "audit" no longer has its own nav entry (merged into Admin
                 Logs' Account Activity section) -- keep old bookmarks/links
                 to /customer/:id/audit landing somewhere real instead of the
                 generic-feature fallback. */}
               {feature === "audit" && <AdminLogsView locationId={locationId} />}
-              {feature === "tickets" && <TicketsPage locationId={locationId} />}
-              {feature === "how-it-works" && <HowItWorksView />}
+              {feature === "tickets" && <TicketsPage locationId={locationId} scope={pageScope} />}
+              {feature === "how-it-works" && <HowItWorksView scope={pageScope} />}
               {feature === "alerts" && <AlertsView scope={pageScope} />}
               {feature === "business-hours" && (
                 <OpenHoursView locationId={locationId} scope={pageScope} />

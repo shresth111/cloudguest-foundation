@@ -94,6 +94,12 @@ const MIGRATED = [
   "src/components/netlogs/NetLogsView.tsx",
   "src/components/netlogs/IpdrConnections.tsx",
   "src/components/netlogs/NetLogsCharts.tsx",
+  // batch 3c (2026-10-31): Help (Support Tickets, How It Works), Staff Access,
+  // Login Page › Portal
+  "src/components/features/TicketsPage.tsx",
+  "src/components/customer/HowItWorksPage.tsx",
+  "src/components/features/AgentsPage.tsx",
+  "src/components/features/PortalPage.tsx",
 ];
 
 const PALETTE =

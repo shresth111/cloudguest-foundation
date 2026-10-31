@@ -1172,6 +1172,11 @@ console.log(
       // batch 3: Logs
       "network-activity": ["NetworkActivityLog", "src/components/features/NetworkActivityLog.tsx"],
       netlogs: ["NetLogsView", "src/components/netlogs/NetLogsView.tsx"],
+      // batch 3c
+      tickets: ["TicketsPage", "src/components/features/TicketsPage.tsx"],
+      "how-it-works": ["HowItWorksView", "src/components/customer/HowItWorksPage.tsx"],
+      agents: ["AgentsPage", "src/components/features/AgentsPage.tsx"],
+      portal: ["PortalPage", "src/components/features/PortalPage.tsx"],
     };
     // One screen's source: the whole file, or just `export function <fn>`
     // up to the next top-level export.

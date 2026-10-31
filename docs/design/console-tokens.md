@@ -200,6 +200,7 @@ Each reads these tokens and nothing else, and has a JSDoc on every prop.
 | `FormSection` / `FormField` / `FormSwitchRow`           | Forms: a label-over-field grid (as a `panel`, or `plain` inside a dialog), label/hint/error stacks, and labelled switch rows.                                                                                                                                                                                                                 |
 | `FilterChip`                                            | A pressed/unpressed list filter.                                                                                                                                                                                                                                                                                                              |
 | `EmptyState`                                            | The honest "nothing here yet" block.                                                                                                                                                                                                                                                                                                          |
+| `SectionTabs`                                           | The Section › tab bar above a section's pages (links, not a tablist). Wraps below `sm`; from `sm` up it scrolls, with a 16px mask fade on whichever edge has more tabs.                                                                                                                                                                       |
 
 `CONSOLE_STATUS_WORD` (`status.ts`) is the one default word per state.
 
@@ -213,5 +214,16 @@ fills and raw Tailwind palette colours (`bg-emerald-50`, `text-amber-700`,
 `scripts/console-styles-allowlist.json`. That list only shrinks: a file
 that has gone clean must come off it, or the check fails as stale.
 
-Migrated so far: batch 1 (2026-10-31) -- Network › IP Addresses, Network
-Zones, Port Forwarding, Call Priority, and Home › Alerts.
+Migrated so far (the `MIGRATED` list in the guard is the source of truth):
+
+- batch 1 (2026-10-31) -- Network › IP Addresses, Network Zones, Port
+  Forwarding, Call Priority, and Home › Alerts.
+- batch 2 (2026-10-31) -- Guests, Vouchers, Guest Groups, Reports, Fix a
+  Problem, Open Hours, Staff Activity, Trusted Devices.
+- batch 3c (2026-10-31) -- Help › Support Tickets and How It Works, Staff
+  Access, Login Page › Portal (below `lg` its phone preview opens from a
+  floating Preview button into a bottom sheet).
+
+A migrated screen draws its own `PageHeader` from the shell's `PageScope`
+(`OWN_PAGE_HEADER_FEATURES`) and carries `wy-console` on its own root,
+because the agent view mounts some of them outside the customer shell.

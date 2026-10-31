@@ -7,7 +7,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { ChevronRight, HelpCircle } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { PANEL_SURFACE, PageHeader, type PageScope } from "@/components/customer/console";
 import {
   customerFeatureHref,
   customerSidebarGroupsForRole,
@@ -88,7 +89,7 @@ import { cn } from "@/lib/utils";
  * visual language is literally the sidebar's rather than a second one
  * competing with it.
  */
-export function HowItWorksView() {
+export function HowItWorksView({ scope }: { scope?: PageScope } = {}) {
   const { t } = useTranslation(["help", "nav"], { i18n });
   const navigate = useNavigate();
   // THE SIDEBAR'S GATE, APPLIED TO THE PAGE THAT EXPLAINS THE SIDEBAR.
@@ -133,33 +134,23 @@ export function HowItWorksView() {
     .filter((g) => g.items.length > 0);
 
   return (
-    <div className="space-y-8">
-      {/* Same small icon-badge + title + description header every other
-       * real feature page uses (see OperationsFeatures.tsx's
-       * FeatureHeader), sized as a reference-page header rather than a
-       * hero. The badge reuses the exact HelpCircle icon customerNav.ts
-       * assigns to this sidebar item. */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
-          <HelpCircle className="h-5 w-5 text-white" />
-        </div>
-        <div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-            {t("help:title", "How the dashboard works")}
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {t("help:subtitle", "A quick reference for the screens you have access to.")}
-          </p>
-        </div>
-      </div>
-      <p className="-mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+    <div className="wy-console space-y-5">
+      {/* One header (design review §2 issue 5): the nav label + venue the
+          shell hands over, and this page's one-line purpose. The gradient
+          icon tile and the second title are gone. */}
+      <PageHeader
+        title={scope?.title ?? t("help:title", "How the dashboard works")}
+        venue={scope?.venue}
+        description={t("help:subtitle", "A quick reference for the screens you have access to.")}
+      />
+      <p className="max-w-3xl text-[13px] leading-relaxed text-[var(--wy-text-muted)]">
         {t(
           "help:intro",
           "Everything you need to run your guest WiFi lives here — from checking who's online right now to deciding exactly who gets to connect. Every screen listed below is one you can open; tap any of them to go straight there.",
         )}
       </p>
 
-      {/* One section per sidebar group, open by default so the whole page
+      {/* One Panel per sidebar group, open by default so the whole page
        * is scannable and Cmd+F-searchable without extra clicks, but still
        * collapsible for anyone focusing on one section. */}
       <Accordion type="multiple" defaultValue={navGroups.map((g) => g.id)} className="space-y-4">
@@ -173,25 +164,26 @@ export function HowItWorksView() {
             <AccordionItem
               key={group.id}
               value={group.id}
-              className="premium-card overflow-hidden rounded-2xl border px-4 sm:px-6"
+              className={cn(PANEL_SURFACE, "overflow-hidden border-b")}
             >
-              <AccordionTrigger className="py-4 hover:no-underline sm:py-4">
-                <div className="flex items-center gap-3.5 text-left">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
-                    <GroupIcon className="h-[18px] w-[18px] text-white" />
-                  </div>
-                  <div>
-                    <p className="text-base font-semibold tracking-tight text-foreground">
+              <AccordionTrigger className="min-h-11 rounded-none px-4 py-3 hover:bg-[var(--wy-surface-2)] hover:no-underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--wy-accent)]">
+                <span className="flex min-w-0 items-start gap-3 text-left">
+                  <GroupIcon
+                    aria-hidden
+                    className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-text-faint)]"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[var(--wy-text)]">
                       {t(`nav:customerGroup.${group.id}`, group.label)}
-                    </p>
-                    <p className="mt-0.5 text-sm font-normal text-muted-foreground">
+                    </span>
+                    <span className="mt-0.5 block text-xs font-normal text-[var(--wy-text-muted)]">
                       {t(`help:group.${group.id}`, { defaultValue: "" })}
-                    </p>
-                  </div>
-                </div>
+                    </span>
+                  </span>
+                </span>
               </AccordionTrigger>
-              <AccordionContent>
-                <div className="grid gap-2 pb-2 sm:grid-cols-2">
+              <AccordionContent className="pb-0">
+                <ul className="divide-y divide-[var(--wy-border)] border-t border-[var(--wy-border)]">
                   {group.items.map((item) => {
                     const label = t(`nav:customerItem.${item.id}`, item.label);
                     // A missing description renders as a label-only row
@@ -210,35 +202,39 @@ export function HowItWorksView() {
                       ? !featureAppliesToControllerVenue(item.id, controllerVendor)
                       : false;
                     return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => navigate({ to: customerFeatureHref(item.id) })}
-                        title={viaController ? controllerReason : undefined}
-                        className={cn(
-                          "premium-card premium-card-hover group flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-colors sm:p-5",
-                          viaController && "opacity-60",
-                        )}
-                      >
-                        <ItemIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold text-foreground">{label}</span>
-                            <ChevronRight
-                              aria-hidden
-                              className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                            />
-                          </span>
-                          {description && (
-                            <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
-                              {description}
-                            </span>
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => navigate({ to: customerFeatureHref(item.id) })}
+                          title={viaController ? controllerReason : undefined}
+                          className={cn(
+                            "group flex min-h-11 w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--wy-accent)]",
+                            viaController && "opacity-60",
                           )}
-                        </span>
-                      </button>
+                        >
+                          <ItemIcon
+                            aria-hidden
+                            className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-text-faint)]"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-semibold text-[var(--wy-text)]">
+                              {label}
+                            </span>
+                            {description && (
+                              <span className="mt-0.5 block text-[13px] leading-relaxed text-[var(--wy-text-muted)]">
+                                {description}
+                              </span>
+                            )}
+                          </span>
+                          <ChevronRight
+                            aria-hidden
+                            className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-text-faint)] transition-colors group-hover:text-[var(--wy-accent)]"
+                          />
+                        </button>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
                 {/* One quiet line, in the group it is about, and only when
                     something in that group is actually greyed -- the same
                     placement and the same sentence `CustomerSidebar` uses. A
@@ -250,7 +246,7 @@ export function HowItWorksView() {
                   group.items.some(
                     (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
                   ) && (
-                    <p className="px-1 pb-3 text-xs leading-snug text-muted-foreground">
+                    <p className="border-t border-[var(--wy-border)] px-4 py-2.5 text-xs leading-snug text-[var(--wy-text-faint)]">
                       {controllerReason}
                     </p>
                   )}

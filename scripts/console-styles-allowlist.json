@@ -1,12 +1,8 @@
 {
   "_comment": "Customer-rendered files not yet migrated to the console design system (docs/design/console-tokens.md, design-review \u00a78). This list only shrinks: scripts/check-console-styles.mjs fails on a clean file left here (stale) and on any legacy class in a file not here. Adding a file needs a reason in the commit message.",
   "files": [
-    "src/components/customer/HowItWorksPage.tsx",
-    "src/components/features/AgentsPage.tsx",
     "src/components/features/CampaignsPage.tsx",
     "src/components/features/NetworkIntegrationsPage.tsx",
-    "src/components/features/PortalPage.tsx",
-    "src/components/features/TicketsPage.tsx",
     "src/components/marketing/ChannelStatusStrip.tsx",
     "src/components/marketing/MarketingLockedUpsell.tsx",
     "src/components/marketing/MarketingView.tsx",

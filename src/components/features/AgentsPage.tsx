@@ -6,7 +6,6 @@
  * agentPermissionStore so the /agent surface reflects changes immediately.
  */
 import { useCallback, useEffect, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -23,12 +22,21 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/common/EmptyState";
+import {
+  Callout,
+  EmptyState,
+  FilterChip,
+  FormField,
+  PageHeader,
+  Panel,
+  StatusBadge,
+  SubTabs,
+  type ConsoleStatus,
+  type PageScope,
+} from "@/components/customer/console";
 import { cn } from "@/lib/utils";
 import { FEATURE_GROUPS, ALL_FEATURES } from "@/config/customerFeatureCatalog";
 import { useAgentPermissions, LOCATIONS } from "@/stores/agentPermissionStore";
@@ -89,9 +97,75 @@ function roleErrorMessage(err: unknown, fallback: string): string {
   return message ? message : `${fallback} Check the connection and try again.`;
 }
 
-const inputCls =
-  "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
-const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
+/** A native <select> dressed as the console's Input. */
+const SELECT_CLS =
+  "flex h-9 w-full rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-sm text-[var(--wy-text)] shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] max-sm:h-10";
+
+/** A selectable list row (a staff member, a role): accent outline + soft
+ * fill when selected, visible focus ring. */
+function selectRowCls(selected: boolean) {
+  return cn(
+    "flex min-h-11 w-full items-center gap-3 rounded-[var(--wy-radius)] border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]",
+    selected
+      ? "border-[var(--wy-accent)] bg-[var(--wy-accent-soft)]"
+      : "border-[var(--wy-border)] bg-[var(--wy-surface)] hover:bg-[var(--wy-surface-2)]",
+  );
+}
+
+/** One permission in a checklist: icon/label + a check box. */
+function permRowCls(on: boolean) {
+  return cn(
+    "flex min-h-10 items-center gap-2.5 rounded-[var(--wy-radius)] border px-2.5 py-2 text-left text-[13px]",
+    on
+      ? "border-[color-mix(in_srgb,var(--wy-accent)_40%,transparent)] bg-[var(--wy-accent-soft)]"
+      : "border-[var(--wy-border)] bg-[var(--wy-surface)]",
+  );
+}
+
+function CheckBox({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid h-5 w-5 shrink-0 place-items-center rounded-[4px] border",
+        on
+          ? "border-[var(--wy-accent)] bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]"
+          : "border-[var(--wy-border-strong)]",
+      )}
+    >
+      {on && <Check className="h-3.5 w-3.5" />}
+    </span>
+  );
+}
+
+/** A role's icon tile: neutral when locked, accent otherwise. */
+function iconTileCls(locked: boolean, size: "sm" | "lg" = "sm") {
+  return cn(
+    "grid shrink-0 place-items-center rounded-[var(--wy-radius)]",
+    size === "lg" ? "h-10 w-10" : "h-9 w-9",
+    locked
+      ? "bg-[var(--wy-surface-2)] text-[var(--wy-text-faint)]"
+      : "bg-[var(--wy-accent-soft)] text-[var(--wy-accent)]",
+  );
+}
+
+const GROUP_LABEL =
+  "mb-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--wy-text-faint)]";
+const LIST_HEADING =
+  "text-[11px] font-semibold uppercase tracking-wider text-[var(--wy-text-faint)]";
+const DETAIL_CARD =
+  "flex flex-wrap items-center justify-between gap-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-4 shadow-[var(--wy-shadow)]";
+const DASHED_EMPTY =
+  "flex items-center justify-center rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] p-16 text-center text-[13px] text-[var(--wy-text-muted)]";
+const CORE_TAG =
+  "rounded-full border border-[var(--wy-border)] px-1.5 text-[11px] font-medium text-[var(--wy-text-faint)]";
+
+/** Staff status -> console status (was Badge default/secondary/outline). */
+const STAFF_STATUS: Record<string, ConsoleStatus> = {
+  active: "ok",
+  pending: "info",
+  inactive: "offline",
+};
 
 function passwordStrength(pw: string): { label: string; pct: number; color: string } {
   let score = 0;
@@ -101,95 +175,18 @@ function passwordStrength(pw: string): { label: string; pct: number; color: stri
   if (/\d/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
   const levels = [
-    { label: "Too weak", color: "bg-rose-500" },
-    { label: "Weak", color: "bg-rose-500" },
-    { label: "Fair", color: "bg-amber-500" },
-    { label: "Good", color: "bg-amber-500" },
-    { label: "Strong", color: "bg-emerald-500" },
-    { label: "Very strong", color: "bg-emerald-500" },
+    { label: "Too weak", color: "bg-[var(--wy-crit)]" },
+    { label: "Weak", color: "bg-[var(--wy-crit)]" },
+    { label: "Fair", color: "bg-[var(--wy-warn)]" },
+    { label: "Good", color: "bg-[var(--wy-warn)]" },
+    { label: "Strong", color: "bg-[var(--wy-ok)]" },
+    { label: "Very strong", color: "bg-[var(--wy-ok)]" },
   ];
   const lvl = levels[Math.min(score, levels.length - 1)];
   return { ...lvl, pct: pw ? (score / 5) * 100 : 0 };
 }
 
-/**
- * Small header-accent illustration: a staff ID badge with a shield-check,
- * a small key/permission glyph orbiting it -- role-based access control,
- * what this page actually manages. Same filled-flat-shape character
- * language as the other illustrations shipped this session. Purely
- * decorative -- aria-hidden.
- */
-function StaffAccessIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 76 48"
-      className="hidden h-12 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      <rect
-        x="20"
-        y="4"
-        width="30"
-        height="40"
-        rx="5"
-        fill="#2e2a5c"
-        stroke="#a78bfa"
-        strokeWidth="1.5"
-      />
-      <circle cx="35" cy="16" r="6" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.4" />
-      <path
-        d="M27 32c0-5 3.5-8 8-8s8 3 8 8"
-        stroke="#22d3ee"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <rect x="26" y="36" width="18" height="2.4" rx="1.2" fill="#f0abfc" fillOpacity="0.7" />
-      <motion.g
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { rotate: [0, 8, 0], opacity: [0.85, 1, 0.85] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }
-        }
-        style={{ transformOrigin: "60px 12px" }}
-      >
-        <circle cx="60" cy="12" r="9" fill="#1e1b4b" stroke="#4f46e5" strokeWidth="2" />
-        <path
-          d="M56 12l3 3 6-6"
-          stroke="#4f46e5"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </motion.g>
-      <motion.path
-        d="M28 22l-14 6"
-        stroke="#f0abfc"
-        strokeOpacity="0.4"
-        strokeWidth="1.3"
-        strokeDasharray="1 4"
-        strokeLinecap="round"
-        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
-      />
-      <circle cx="10" cy="30" r="5" fill="#2e2a5c" stroke="#f0abfc" strokeWidth="1.3" />
-      <circle cx="10" cy="28" r="1.6" fill="#f0abfc" />
-      <path
-        d="M7.3 32.5c0-2 1.2-3 2.7-3s2.7 1 2.7 3"
-        stroke="#f0abfc"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-        fill="none"
-      />
-    </svg>
-  );
-}
-
-export function AgentsPage({ locationId }: { locationId?: string } = {}) {
+export function AgentsPage({ locationId, scope }: { locationId?: string; scope?: PageScope } = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const demo = useIsDemo();
@@ -648,74 +645,71 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <ShieldCheck className="h-3.5 w-3.5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">Staff Access</h1>
-            <p className="text-sm text-muted-foreground">
-              Use role-based access control to limit the features your team can access.
-            </p>
-          </div>
-        </div>
-        <StaffAccessIllustration />
-      </div>
+    <div className="wy-console space-y-5">
+      {/* The page's only header (the shell hands over the tab name + venue;
+          the agent view mounts it bare). Icon tile and illustration gone. */}
+      <PageHeader
+        title={scope?.title ?? "Staff Access"}
+        venue={scope?.venue}
+        description="Use role-based access control to limit the features your team can access."
+      />
 
-      <div className="inline-flex rounded-xl border bg-muted/40 p-1">
-        <button
-          onClick={() => setTab("agents")}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-            tab === "agents"
-              ? "bg-card text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Users2 className="h-4 w-4" />
-          Staff
-        </button>
-        <button
-          onClick={() => setTab("roles")}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-            tab === "roles"
-              ? "bg-card text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <UserCog2 className="h-4 w-4" />
-          Roles
-        </button>
-      </div>
+      <SubTabs
+        ariaLabel="Staff Access"
+        idPrefix="staff-access"
+        value={tab}
+        onChange={setTab}
+        options={[
+          {
+            value: "agents",
+            label: (
+              <>
+                <Users2 aria-hidden className="h-4 w-4" />
+                Staff
+              </>
+            ),
+          },
+          {
+            value: "roles",
+            label: (
+              <>
+                <UserCog2 aria-hidden className="h-4 w-4" />
+                Roles
+              </>
+            ),
+          },
+        ]}
+      />
 
-      {tab === "roles" && demo && (
-        <div className="space-y-3">
-          <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
-            Default Staff Role is a Read-Only role &amp; can't be modified. Its permissions are
-            limited to Dashboard, Access Rules &amp; Guest Allow-list by default.
-          </p>
-          <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Roles
-                </h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8"
-                  onClick={() => setAddingRole((v) => !v)}
-                >
-                  <Plus className="h-4 w-4" /> Add New Role
-                </Button>
-              </div>
-              {addingRole && (
-                <Card className="rounded-2xl border-primary/40">
-                  <CardContent className="space-y-2 p-4">
+      <div
+        role="tabpanel"
+        id="staff-access-panel"
+        aria-labelledby={`staff-access-tab-${tab}`}
+        className="space-y-5"
+      >
+        {tab === "roles" && demo && (
+          <div className="space-y-3">
+            <Callout tone="info">
+              Default Staff Role is a Read-Only role &amp; can't be modified. Its permissions are
+              limited to Dashboard, Access Rules &amp; Guest Allow-list by default.
+            </Callout>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr] [&>*]:min-w-0">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className={LIST_HEADING}>Roles</h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => setAddingRole((v) => !v)}
+                  >
+                    <Plus className="h-4 w-4" /> Add New Role
+                  </Button>
+                </div>
+                {addingRole && (
+                  <div className="space-y-2 rounded-[var(--wy-radius)] border border-[var(--wy-accent)] bg-[var(--wy-surface)] p-4">
                     <Input
+                      aria-label="Role name"
                       placeholder="Role name"
                       value={newRoleName}
                       onChange={(e) => setNewRoleName(e.target.value)}
@@ -734,118 +728,100 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         Cancel
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-              <div className="space-y-2">
-                {roles.map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => setSelectedRoleId(r.id)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
-                      selectedRoleId === r.id ? "border-primary bg-primary/5" : "hover:bg-accent",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "grid h-9 w-9 shrink-0 place-items-center rounded-lg",
-                        r.locked ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary",
-                      )}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {roles.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      aria-pressed={selectedRoleId === r.id}
+                      onClick={() => setSelectedRoleId(r.id)}
+                      className={selectRowCls(selectedRoleId === r.id)}
                     >
-                      {r.locked ? <Lock className="h-4 w-4" /> : <UserCog2 className="h-4 w-4" />}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{r.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {r.features.length} permissions{r.locked ? " · locked" : ""}
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                      <span className={iconTileCls(!!r.locked)}>
+                        {r.locked ? <Lock className="h-4 w-4" /> : <UserCog2 className="h-4 w-4" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium">{r.name}</p>
+                        <p className="truncate text-xs text-[var(--wy-text-muted)]">
+                          {r.features.length} permissions{r.locked ? " · locked" : ""}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {selectedRole ? (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        "grid h-11 w-11 place-items-center rounded-xl",
-                        selectedRole.locked
-                          ? "bg-muted text-muted-foreground"
-                          : "bg-primary/10 text-primary",
-                      )}
-                    >
+              {selectedRole ? (
+                <div className="space-y-4">
+                  <div className={DETAIL_CARD}>
+                    <div className="flex items-center gap-3">
+                      <span className={iconTileCls(!!selectedRole.locked, "lg")}>
+                        {selectedRole.locked ? (
+                          <Lock className="h-5 w-5" />
+                        ) : (
+                          <UserCog2 className="h-5 w-5" />
+                        )}
+                      </span>
                       {selectedRole.locked ? (
-                        <Lock className="h-5 w-5" />
+                        <p className="font-semibold">{selectedRole.name}</p>
                       ) : (
-                        <UserCog2 className="h-5 w-5" />
+                        <input
+                          aria-label="Role name"
+                          defaultValue={selectedRole.name}
+                          onBlur={(e) =>
+                            e.target.value.trim() &&
+                            renameRole(selectedRole.id, e.target.value.trim())
+                          }
+                          className="rounded-[var(--wy-radius)] border border-transparent bg-transparent px-1 font-semibold outline-none hover:border-[var(--wy-border-strong)] focus-visible:border-[var(--wy-accent)] focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                        />
                       )}
-                    </span>
-                    {selectedRole.locked ? (
-                      <p className="font-semibold">{selectedRole.name}</p>
-                    ) : (
-                      <input
-                        defaultValue={selectedRole.name}
-                        onBlur={(e) =>
-                          e.target.value.trim() &&
-                          renameRole(selectedRole.id, e.target.value.trim())
-                        }
-                        className="rounded-lg border border-transparent bg-transparent px-1 font-semibold outline-none hover:border-input focus:border-primary"
-                      />
+                    </div>
+                    {!selectedRole.locked && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs"
+                          onClick={() =>
+                            updateRoleFeatures(
+                              selectedRole.id,
+                              ALL_FEATURES.filter((f) => !f.core).map((f) => f.id),
+                            )
+                          }
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs"
+                          onClick={() => updateRoleFeatures(selectedRole.id, [])}
+                        >
+                          Deselect All
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label="Delete role"
+                          className="h-8 text-xs text-[var(--wy-crit)] max-sm:h-10"
+                          onClick={() => {
+                            removeRole(selectedRole.id);
+                            setSelectedRoleId(roles[0]?.id ?? null);
+                            toast.success("Role deleted");
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     )}
                   </div>
-                  {!selectedRole.locked && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 text-xs"
-                        onClick={() =>
-                          updateRoleFeatures(
-                            selectedRole.id,
-                            ALL_FEATURES.filter((f) => !f.core).map((f) => f.id),
-                          )
-                        }
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 text-xs"
-                        onClick={() => updateRoleFeatures(selectedRole.id, [])}
-                      >
-                        Deselect All
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 text-xs text-destructive"
-                        onClick={() => {
-                          removeRole(selectedRole.id);
-                          setSelectedRoleId(roles[0]?.id ?? null);
-                          toast.success("Role deleted");
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
 
-                <Card className="rounded-2xl border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">Select Permissions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
+                  <Panel title="Select Permissions" bodyClassName="space-y-5">
                     {FEATURE_GROUPS.map((g) => (
                       <div key={g.group}>
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          {g.group}
-                        </p>
+                        <p className={GROUP_LABEL}>{g.group}</p>
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {g.items.map((item) => {
                             const Icon = item.icon;
@@ -854,43 +830,33 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                             return (
                               <button
                                 key={item.id}
+                                type="button"
+                                role="checkbox"
+                                aria-checked={on}
                                 disabled={disabled}
                                 onClick={() => toggleRoleFeature(item.id)}
                                 className={cn(
-                                  "flex items-center gap-2.5 rounded-xl border p-2.5 text-left text-sm transition-colors",
-                                  on ? "border-primary/50 bg-primary/5" : "hover:bg-accent",
+                                  permRowCls(on),
+                                  "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]",
+                                  !on && !disabled && "hover:bg-[var(--wy-surface-2)]",
                                   disabled && !item.core && "cursor-not-allowed opacity-60",
                                   item.core && "opacity-70",
                                 )}
                               >
-                                <span
+                                <Icon
+                                  aria-hidden
                                   className={cn(
-                                    "grid h-8 w-8 shrink-0 place-items-center rounded-lg",
-                                    on
-                                      ? "bg-primary/10 text-primary"
-                                      : "bg-muted text-muted-foreground",
+                                    "h-4 w-4 shrink-0",
+                                    on ? "text-[var(--wy-accent)]" : "text-[var(--wy-text-faint)]",
                                   )}
-                                >
-                                  <Icon className="h-4 w-4" />
-                                </span>
+                                />
                                 <span className="min-w-0 flex-1 truncate font-medium">
                                   {item.label}
                                 </span>
                                 {item.core ? (
-                                  <Badge variant="outline" className="text-[9px]">
-                                    Core
-                                  </Badge>
+                                  <span className={CORE_TAG}>Core</span>
                                 ) : (
-                                  <span
-                                    className={cn(
-                                      "grid h-5 w-5 place-items-center rounded-md border",
-                                      on
-                                        ? "border-primary bg-primary text-primary-foreground"
-                                        : "border-border",
-                                    )}
-                                  >
-                                    {on && <Check className="h-3.5 w-3.5" />}
-                                  </span>
+                                  <CheckBox on={on} />
                                 )}
                               </button>
                             );
@@ -898,46 +864,43 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         </div>
                       </div>
                     ))}
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">
-                Select or create a role to edit its permissions.
-              </div>
-            )}
+                  </Panel>
+                </div>
+              ) : (
+                <div className={DASHED_EMPTY}>Select or create a role to edit its permissions.</div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {tab === "roles" && !demo && (
-        <div className="space-y-3">
-          <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
-            Roles here are real RBAC roles — permissions are the platform's fine-grained permission
-            keys (e.g. <code className="rounded bg-background px-1 py-0.5">campaigns.read</code>),
-            grouped below by module. A role's scope (Organization vs Location) is fixed at creation
-            and can't be changed later. Built-in roles can be edited too: saving one creates your
-            organization's own copy, so other organizations aren't affected.
-          </p>
-          <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Roles
-                </h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8"
-                  onClick={() => setCreatingRealRole((v) => !v)}
-                >
-                  <Plus className="h-4 w-4" /> Add New Role
-                </Button>
-              </div>
+        {tab === "roles" && !demo && (
+          <div className="space-y-3">
+            <Callout tone="info">
+              Roles here are real RBAC roles — permissions are the platform's fine-grained
+              permission keys (e.g.{" "}
+              <code className="rounded bg-[var(--wy-surface)] px-1 py-0.5 font-mono text-xs">
+                campaigns.read
+              </code>
+              ), grouped below by module. A role's scope (Organization vs Location) is fixed at
+              creation and can't be changed later. Built-in roles can be edited too: saving one
+              creates your organization's own copy, so other organizations aren't affected.
+            </Callout>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr] [&>*]:min-w-0">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className={LIST_HEADING}>Roles</h3>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    onClick={() => setCreatingRealRole((v) => !v)}
+                  >
+                    <Plus className="h-4 w-4" /> Add New Role
+                  </Button>
+                </div>
 
-              {creatingRealRole && (
-                <Card className="rounded-2xl border-primary/40">
-                  <CardContent className="space-y-2 p-4">
+                {creatingRealRole && (
+                  <div className="space-y-2 rounded-[var(--wy-radius)] border border-[var(--wy-accent)] bg-[var(--wy-surface)] p-4">
                     <RoleForm
                       value={newRealRole}
                       onChange={setNewRealRole}
@@ -963,119 +926,95 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         Cancel
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              <div className="space-y-2">
-                {realRoles.length === 0 && (
-                  <EmptyState
-                    icon={UserCog2}
-                    title="No roles yet"
-                    description="Create a role above to grant your team access."
-                  />
-                )}
-                {realRoles.map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => setSelectedRealRoleId(r.id)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
-                      selectedRealRoleId === r.id
-                        ? "border-primary bg-primary/5"
-                        : "hover:bg-accent",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "grid h-9 w-9 shrink-0 place-items-center rounded-lg",
-                        isProtectedOwnerRole(r)
-                          ? "bg-muted text-muted-foreground"
-                          : "bg-primary/10 text-primary",
-                      )}
-                    >
-                      {isProtectedOwnerRole(r) ? (
-                        <Lock className="h-4 w-4" />
-                      ) : (
-                        <UserCog2 className="h-4 w-4" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{r.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {r.permissions.length} permissions · {SCOPE_TYPE_LABEL[r.scopeType]}
-                        {isBuiltInRole(r) ? " · built-in" : ""}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {selectedRealRole ? (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span
-                      className={cn(
-                        "grid h-11 w-11 shrink-0 place-items-center rounded-xl",
-                        isProtectedOwnerRole(selectedRealRole)
-                          ? "bg-muted text-muted-foreground"
-                          : "bg-primary/10 text-primary",
-                      )}
-                    >
-                      {isProtectedOwnerRole(selectedRealRole) ? (
-                        <Lock className="h-5 w-5" />
-                      ) : (
-                        <UserCog2 className="h-5 w-5" />
-                      )}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-semibold">{selectedRealRole.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {SCOPE_TYPE_LABEL[selectedRealRole.scopeType]} scope
-                        {isBuiltInRole(selectedRealRole) ? " · built-in role" : ""}
-                        {isProtectedOwnerRole(selectedRealRole)
-                          ? " · locked, it keeps your organization able to manage staff access"
-                          : ""}
-                      </p>
-                    </div>
                   </div>
-                  {!isProtectedOwnerRole(selectedRealRole) && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
-                        onClick={() => setEditingRole(selectedRealRole)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" /> Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 text-xs text-destructive"
-                        onClick={() => setDeletingRole(selectedRealRole)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" /> Delete
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                )}
 
-                <Card className="rounded-2xl border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">Permissions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
+                <div className="space-y-2">
+                  {realRoles.length === 0 && (
+                    <EmptyState
+                      icon={UserCog2}
+                      title="No roles yet"
+                      description="Create a role above to grant your team access."
+                    />
+                  )}
+                  {realRoles.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      aria-pressed={selectedRealRoleId === r.id}
+                      onClick={() => setSelectedRealRoleId(r.id)}
+                      className={selectRowCls(selectedRealRoleId === r.id)}
+                    >
+                      <span className={iconTileCls(isProtectedOwnerRole(r))}>
+                        {isProtectedOwnerRole(r) ? (
+                          <Lock className="h-4 w-4" />
+                        ) : (
+                          <UserCog2 className="h-4 w-4" />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium">{r.name}</p>
+                        <p className="truncate text-xs text-[var(--wy-text-muted)]">
+                          {r.permissions.length} permissions · {SCOPE_TYPE_LABEL[r.scopeType]}
+                          {isBuiltInRole(r) ? " · built-in" : ""}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedRealRole ? (
+                <div className="space-y-4">
+                  <div className={DETAIL_CARD}>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className={iconTileCls(isProtectedOwnerRole(selectedRealRole), "lg")}>
+                        {isProtectedOwnerRole(selectedRealRole) ? (
+                          <Lock className="h-5 w-5" />
+                        ) : (
+                          <UserCog2 className="h-5 w-5" />
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold">{selectedRealRole.name}</p>
+                        <p className="text-xs text-[var(--wy-text-muted)]">
+                          {SCOPE_TYPE_LABEL[selectedRealRole.scopeType]} scope
+                          {isBuiltInRole(selectedRealRole) ? " · built-in role" : ""}
+                          {isProtectedOwnerRole(selectedRealRole)
+                            ? " · locked, it keeps your organization able to manage staff access"
+                            : ""}
+                        </p>
+                      </div>
+                    </div>
+                    {!isProtectedOwnerRole(selectedRealRole) && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => setEditingRole(selectedRealRole)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs text-[var(--wy-crit)] max-sm:h-10"
+                          onClick={() => setDeletingRole(selectedRealRole)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <Panel title="Permissions" bodyClassName="space-y-5">
                     {realPermissionGroups.map((g) => {
                       const items = realPermissions.filter((p) => p.permissionGroupId === g.id);
                       if (items.length === 0) return null;
                       return (
                         <div key={g.id}>
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            {g.name}
-                          </p>
+                          <p className={GROUP_LABEL}>{g.name}</p>
                           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {items.map((p) => {
                               const on = selectedRealRole.permissions.includes(p.key);
@@ -1083,24 +1022,13 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                                 <div
                                   key={p.id}
                                   title={p.description ?? p.key}
-                                  className={cn(
-                                    "flex items-center gap-2.5 rounded-xl border p-2.5 text-left text-sm",
-                                    on ? "border-primary/50 bg-primary/5" : "opacity-60",
-                                  )}
+                                  className={cn(permRowCls(on), !on && "opacity-60")}
                                 >
                                   <span className="min-w-0 flex-1 truncate font-medium">
                                     {p.name}
                                   </span>
-                                  <span
-                                    className={cn(
-                                      "grid h-5 w-5 shrink-0 place-items-center rounded-md border",
-                                      on
-                                        ? "border-primary bg-primary text-primary-foreground"
-                                        : "border-border",
-                                    )}
-                                  >
-                                    {on && <Check className="h-3.5 w-3.5" />}
-                                  </span>
+                                  <CheckBox on={on} />
+                                  <span className="sr-only">{on ? "granted" : "not granted"}</span>
                                 </div>
                               );
                             })}
@@ -1108,75 +1036,69 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         </div>
                       );
                     })}
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">
-                Select or create a role to see its permissions.
-              </div>
-            )}
-          </div>
-
-          <EditRoleDialog
-            role={editingRole}
-            onClose={() => setEditingRole(null)}
-            onSave={saveEditedRole}
-            permissionGroups={realPermissionGroups}
-            permissions={realPermissions}
-            locationId={locationId}
-          />
-          <DeleteRoleDialog
-            role={deletingRole}
-            onClose={() => setDeletingRole(null)}
-            onConfirm={confirmDeleteRole}
-          />
-        </div>
-      )}
-
-      {tab === "agents" && (
-        <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-          {/* Agent list */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Staff
-              </h3>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8"
-                onClick={() => setCreating((v) => !v)}
-              >
-                <Plus className="h-4 w-4" /> Add
-              </Button>
+                  </Panel>
+                </div>
+              ) : (
+                <div className={DASHED_EMPTY}>Select or create a role to see its permissions.</div>
+              )}
             </div>
 
-            {creating && (
-              <Card className="rounded-2xl border-primary/40">
-                <CardContent className="space-y-3 p-4">
-                  <div>
-                    <label className={labelCls}>Name</label>
+            <EditRoleDialog
+              role={editingRole}
+              onClose={() => setEditingRole(null)}
+              onSave={saveEditedRole}
+              permissionGroups={realPermissionGroups}
+              permissions={realPermissions}
+              locationId={locationId}
+            />
+            <DeleteRoleDialog
+              role={deletingRole}
+              onClose={() => setDeletingRole(null)}
+              onConfirm={confirmDeleteRole}
+            />
+          </div>
+        )}
+
+        {tab === "agents" && (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_1fr] [&>*]:min-w-0">
+            {/* Agent list */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className={LIST_HEADING}>Staff</h3>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => setCreating((v) => !v)}
+                >
+                  <Plus className="h-4 w-4" /> Add
+                </Button>
+              </div>
+
+              {creating && (
+                <div className="space-y-3 rounded-[var(--wy-radius)] border border-[var(--wy-accent)] bg-[var(--wy-surface)] p-4">
+                  <FormField label="Name" htmlFor="staff-new-name">
                     <Input
+                      id="staff-new-name"
                       placeholder="Enter Staff Name"
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       className="h-9"
                     />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Email</label>
+                  </FormField>
+                  <FormField label="Email" htmlFor="staff-new-email">
                     <Input
+                      id="staff-new-email"
                       placeholder="Enter Staff Email"
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                       className="h-9"
                     />
-                  </div>
+                  </FormField>
                   {demo && (
-                    <div>
-                      <label className={labelCls}>Password</label>
+                    <FormField label="Password" htmlFor="staff-new-password">
                       <Input
+                        id="staff-new-password"
                         type="password"
                         placeholder="Choose Password"
                         value={form.password}
@@ -1185,27 +1107,27 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                       />
                       {form.password && (
                         <div className="mt-1.5">
-                          <div className="h-1 overflow-hidden rounded-full bg-muted">
+                          <div className="h-1 overflow-hidden rounded-full bg-[var(--wy-surface-2)]">
                             <div
                               className={cn("h-full rounded-full transition-all", strength.color)}
                               style={{ width: `${strength.pct}%` }}
                             />
                           </div>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
+                          <p className="mt-1 text-[11px] text-[var(--wy-text-muted)]">
                             Password strength: {strength.label}
                           </p>
                         </div>
                       )}
-                    </div>
+                    </FormField>
                   )}
                   {!demo && (
-                    <p className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">
+                    <Callout tone="info" className="text-xs">
                       A temporary password will be generated and the staff member invited by email.
-                    </p>
+                    </Callout>
                   )}
-                  <div>
-                    <label className={labelCls}>Mobile No.</label>
+                  <FormField label="Mobile No." htmlFor="staff-new-mobile">
                     <Input
+                      id="staff-new-mobile"
                       placeholder="Enter Staff's Mobile Number"
                       value={form.mobile}
                       onChange={(e) =>
@@ -1213,13 +1135,13 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                       }
                       className="h-9"
                     />
-                  </div>
-                  <div>
-                    <label className={labelCls}>Staff Role</label>
+                  </FormField>
+                  <FormField label="Staff Role" htmlFor="staff-new-role">
                     <select
+                      id="staff-new-role"
                       value={form.roleId}
                       onChange={(e) => setForm({ ...form, roleId: e.target.value })}
-                      className={inputCls}
+                      className={SELECT_CLS}
                     >
                       <option value="">Choose a role</option>
                       {roleOptions.map((r) => (
@@ -1228,28 +1150,24 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </FormField>
                   {demo && (
-                    <div>
-                      <label className={labelCls}>Select Locations</label>
+                    <fieldset className="min-w-0">
+                      <legend className="mb-1.5 text-xs font-medium text-[var(--wy-text)]">
+                        Select Locations
+                      </legend>
                       <div className="flex flex-wrap gap-1.5">
                         {LOCATIONS.map((loc) => (
-                          <button
+                          <FilterChip
                             key={loc}
-                            type="button"
+                            pressed={form.locations.includes(loc)}
                             onClick={() => toggleLocation(loc)}
-                            className={cn(
-                              "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                              form.locations.includes(loc)
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "text-muted-foreground hover:bg-accent",
-                            )}
                           >
                             {loc}
-                          </button>
+                          </FilterChip>
                         ))}
                       </div>
-                    </div>
+                    </fieldset>
                   )}
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" className="h-8 flex-1" onClick={create}>
@@ -1264,132 +1182,132 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                       Cancel
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <div className="space-y-2">
-              {agents.length === 0 && (
-                <EmptyState
-                  icon={Users2}
-                  title="No staff yet"
-                  description="Add a staff member above to invite them to your team."
-                />
+                </div>
               )}
-              {agents.map((a) => {
-                const role = roleOptions.find((r) => r.id === a.roleId);
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() => setSelectedId(a.id)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors",
-                      selectedId === a.id ? "border-primary bg-primary/5" : "hover:bg-accent",
-                    )}
-                  >
-                    <Avatar className="h-9 w-9">
-                      <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                        {a.name
+
+              <div className="space-y-2">
+                {agents.length === 0 && (
+                  <EmptyState
+                    icon={Users2}
+                    title="No staff yet"
+                    description="Add a staff member above to invite them to your team."
+                  />
+                )}
+                {agents.map((a) => {
+                  const role = roleOptions.find((r) => r.id === a.roleId);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      aria-pressed={selectedId === a.id}
+                      onClick={() => setSelectedId(a.id)}
+                      className={selectRowCls(selectedId === a.id)}
+                    >
+                      <Avatar className="h-9 w-9">
+                        <AvatarFallback className="bg-[var(--wy-accent-soft)] text-xs font-semibold text-[var(--wy-accent)]">
+                          {a.name
+                            .split(" ")
+                            .map((w) => w[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium">{a.name}</p>
+                        <p className="truncate text-xs text-[var(--wy-text-muted)]">
+                          {role?.name ?? "No role"}
+                        </p>
+                      </div>
+                      <StatusBadge
+                        status={STAFF_STATUS[a.status] ?? "offline"}
+                        className="capitalize"
+                      >
+                        {a.status}
+                      </StatusBadge>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Agent detail */}
+            {selected ? (
+              <div className="space-y-4">
+                <div className={DETAIL_CARD}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className="bg-[var(--wy-accent-soft)] font-semibold text-[var(--wy-accent)]">
+                        {selected.name
                           .split(" ")
                           .map((w) => w[0])
                           .join("")
                           .slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{a.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {role?.name ?? "No role"}
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{selected.name}</p>
+                      <p className="break-all text-xs text-[var(--wy-text-muted)]">
+                        {selected.email}
+                        {selected.mobile ? ` · ${selected.mobile}` : ""}
                       </p>
                     </div>
-                    <Badge
-                      variant={
-                        a.status === "active"
-                          ? "default"
-                          : a.status === "pending"
-                            ? "secondary"
-                            : "outline"
-                      }
-                      className="text-[10px] capitalize"
-                    >
-                      {a.status}
-                    </Badge>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Agent detail */}
-          {selected ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-11 w-11">
-                    <AvatarFallback className="bg-primary/10 font-semibold text-primary">
-                      {selected.name
-                        .split(" ")
-                        .map((w) => w[0])
-                        .join("")
-                        .slice(0, 2)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-semibold">{selected.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {selected.email}
-                      {selected.mobile ? ` · ${selected.mobile}` : ""}
-                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={selected.status === "active"}
+                        onCheckedChange={(v) =>
+                          updateAgent(selected.id, { status: v ? "active" : "inactive" })
+                        }
+                      />{" "}
+                      Active
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={selected.dataMasking}
+                        onCheckedChange={(v) => updateAgent(selected.id, { dataMasking: v })}
+                      />{" "}
+                      Data masking
+                    </label>
+                    {demo && (
+                      <Button size="sm" variant="outline" onClick={() => previewAs(selected.id)}>
+                        <Eye className="h-4 w-4" /> Preview as staff{" "}
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {!isOwnerRole && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Remove staff member"
+                        className="text-[var(--wy-crit)] max-sm:h-10"
+                        onClick={() => {
+                          removeAgent(selected.id);
+                          setSelectedId(null);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-4">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={selected.status === "active"}
-                      onCheckedChange={(v) =>
-                        updateAgent(selected.id, { status: v ? "active" : "inactive" })
-                      }
-                    />{" "}
-                    Active
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={selected.dataMasking}
-                      onCheckedChange={(v) => updateAgent(selected.id, { dataMasking: v })}
-                    />{" "}
-                    Data masking
-                  </label>
-                  {demo && (
-                    <Button size="sm" variant="outline" onClick={() => previewAs(selected.id)}>
-                      <Eye className="h-4 w-4" /> Preview as staff{" "}
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                  {!isOwnerRole && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={() => {
-                        removeAgent(selected.id);
-                        setSelectedId(null);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
 
-              <Card className="rounded-2xl border-0 shadow-sm">
-                <CardContent className="grid gap-4 p-5 sm:grid-cols-2">
-                  <div>
-                    <label className={labelCls}>Staff Role</label>
+                <Panel bodyClassName="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    label="Staff Role"
+                    htmlFor="staff-role"
+                    hint={
+                      isSelf
+                        ? "You can't change your own role here -- ask another admin to do it."
+                        : undefined
+                    }
+                  >
                     <select
+                      id="staff-role"
                       value={selected.roleId}
                       disabled={isSelf}
                       onChange={(e) => updateAgent(selected.id, { roleId: e.target.value })}
-                      className={cn(inputCls, isSelf && "cursor-not-allowed opacity-60")}
+                      className={cn(SELECT_CLS, isSelf && "cursor-not-allowed opacity-60")}
                       title={
                         isSelf
                           ? "You can't change your own role -- ask another admin to change it for you."
@@ -1403,21 +1321,19 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         </option>
                       ))}
                     </select>
-                    {isSelf && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        You can't change your own role here -- ask another admin to do it.
-                      </p>
-                    )}
-                  </div>
+                  </FormField>
                   {demo && (
-                    <div>
-                      <label className={labelCls}>Select Locations</label>
+                    <fieldset className="min-w-0">
+                      <legend className="mb-1.5 text-xs font-medium text-[var(--wy-text)]">
+                        Select Locations
+                      </legend>
                       <div className="flex flex-wrap gap-1.5">
                         {LOCATIONS.map((loc) => {
                           const on = selected.locations.includes(loc);
                           return (
-                            <button
+                            <FilterChip
                               key={loc}
+                              pressed={on}
                               onClick={() =>
                                 updateAgent(selected.id, {
                                   locations: on
@@ -1425,26 +1341,18 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                                     : [...selected.locations, loc],
                                 })
                               }
-                              className={cn(
-                                "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                                on
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : "text-muted-foreground hover:bg-accent",
-                              )}
                             >
                               {loc}
-                            </button>
+                            </FilterChip>
                           );
                         })}
                       </div>
-                    </div>
+                    </fieldset>
                   )}
-                </CardContent>
-              </Card>
+                </Panel>
 
-              {!demo && (
-                <Card className="rounded-2xl border-0 shadow-sm">
-                  <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5 text-sm text-muted-foreground">
+                {!demo && (
+                  <Panel bodyClassName="flex flex-wrap items-center justify-between gap-3 text-[13px] text-[var(--wy-text-muted)]">
                     <span>
                       Permissions are set by the role you assign to this staff member, not by this
                       page.
@@ -1457,55 +1365,49 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                     >
                       View role permissions
                     </Button>
-                  </CardContent>
-                </Card>
-              )}
+                  </Panel>
+                )}
 
-              {demo && (
-                <Card className="rounded-2xl border-0 shadow-sm">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <ShieldCheck className="h-4 w-4 text-primary" /> Permissions from role:{" "}
-                      {roles.find((r) => r.id === selected.roleId)?.name}
-                    </CardTitle>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 text-xs"
-                      onClick={() => setTab("roles")}
-                    >
-                      Edit role permissions
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
+                {demo && (
+                  <Panel
+                    title={
+                      <span className="flex items-center gap-2">
+                        <ShieldCheck aria-hidden className="h-4 w-4 text-[var(--wy-accent)]" />
+                        Permissions from role: {roles.find((r) => r.id === selected.roleId)?.name}
+                      </span>
+                    }
+                    bodyClassName="space-y-5"
+                    actions={
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-xs"
+                        onClick={() => setTab("roles")}
+                      >
+                        Edit role permissions
+                      </Button>
+                    }
+                  >
                     {FEATURE_GROUPS.map((g) => {
                       const role = roles.find((r) => r.id === selected.roleId);
                       const items = g.items.filter((i) => i.core || role?.features.includes(i.id));
                       if (items.length === 0) return null;
                       return (
                         <div key={g.group}>
-                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            {g.group}
-                          </p>
+                          <p className={GROUP_LABEL}>{g.group}</p>
                           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {items.map((item) => {
                               const Icon = item.icon;
                               return (
-                                <div
-                                  key={item.id}
-                                  className="flex items-center gap-2.5 rounded-xl border border-primary/50 bg-primary/5 p-2.5 text-sm"
-                                >
-                                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                                    <Icon className="h-4 w-4" />
-                                  </span>
+                                <div key={item.id} className={permRowCls(true)}>
+                                  <Icon
+                                    aria-hidden
+                                    className="h-4 w-4 shrink-0 text-[var(--wy-accent)]"
+                                  />
                                   <span className="min-w-0 flex-1 truncate font-medium">
                                     {item.label}
                                   </span>
-                                  {item.core && (
-                                    <Badge variant="outline" className="text-[9px]">
-                                      Core
-                                    </Badge>
-                                  )}
+                                  {item.core && <span className={CORE_TAG}>Core</span>}
                                 </div>
                               );
                             })}
@@ -1513,17 +1415,15 @@ export function AgentsPage({ locationId }: { locationId?: string } = {}) {
                         </div>
                       );
                     })}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center rounded-2xl border border-dashed p-16 text-sm text-muted-foreground">
-              Select or create a staff member to manage access.
-            </div>
-          )}
-        </div>
-      )}
+                  </Panel>
+                )}
+              </div>
+            ) : (
+              <div className={DASHED_EMPTY}>Select or create a staff member to manage access.</div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
