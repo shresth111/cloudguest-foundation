@@ -84,7 +84,11 @@
    * `BlinkMacSystemFont` and "Segoe UI Variable Text" are added for the
    * same free wins as in the portal stack (Chrome/Edge on macOS; Windows
    * 11's actual system font, which HTML has to name explicitly). */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI", sans-serif;
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text",
+    "Segoe UI", Roboto, "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati",
+    "Noto Sans Gurmukhi", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil",
+    "Noto Sans Telugu", "Nirmala UI", sans-serif;
   /* Display face for page titles, section headings, and big metric
    * numbers -- Space Grotesk was already the de-facto display face
    * (hand-copied into 15+ inline `style={{ fontFamily: ... }}` props
@@ -104,17 +108,27 @@
   /* Modern elevation: a crisp hairline + a wide, very soft ambient pool,
    * rather than one mid-strength blur. Reads closer to Linear/Vercel --
    * surfaces feel like paper on a canvas instead of drop-shadowed boxes. */
-  --shadow-soft: 0 0 0 1px oklch(0.22 0.03 265 / 0.04), 0 1px 2px oklch(0.22 0.03 265 / 0.04), 0 8px 24px -12px oklch(0.22 0.03 265 / 0.12);
-  --shadow-elevated: 0 0 0 1px oklch(0.22 0.03 265 / 0.05), 0 2px 4px oklch(0.22 0.03 265 / 0.04), 0 18px 42px -16px oklch(0.22 0.03 265 / 0.18);
+  --shadow-soft:
+    0 0 0 1px oklch(0.22 0.03 265 / 0.04), 0 1px 2px oklch(0.22 0.03 265 / 0.04),
+    0 8px 24px -12px oklch(0.22 0.03 265 / 0.12);
+  --shadow-elevated:
+    0 0 0 1px oklch(0.22 0.03 265 / 0.05), 0 2px 4px oklch(0.22 0.03 265 / 0.04),
+    0 18px 42px -16px oklch(0.22 0.03 265 / 0.18);
   --shadow-glow: 0 0 0 1px oklch(0.55 0.19 265 / 0.14), 0 20px 46px -22px oklch(0.5 0.2 265 / 0.45);
   --shadow-ring: 0 0 0 1px oklch(0.55 0.19 265 / 0.18), 0 14px 34px -20px oklch(0.5 0.2 265 / 0.45);
   --gradient-primary: linear-gradient(135deg, oklch(0.5 0.2 268), oklch(0.62 0.16 232));
   /* Ambient canvas wash, indigo-led to match --primary (it used to be teal,
    * a leftover from the pre-indigo brand) and toned down so dense tables
    * and charts sit on a near-neutral surface. */
-  --gradient-mesh: radial-gradient(1200px 560px at 6% -14%, oklch(0.58 0.18 268 / 0.1), transparent 64%),
-                   radial-gradient(900px 440px at 104% 2%, oklch(0.66 0.13 205 / 0.08), transparent 62%);
-  --gradient-brand: linear-gradient(135deg, oklch(0.7 0.15 190), oklch(0.55 0.13 210) 55%, oklch(0.5 0.14 250));
+  --gradient-mesh:
+    radial-gradient(1200px 560px at 6% -14%, oklch(0.58 0.18 268 / 0.1), transparent 64%),
+    radial-gradient(900px 440px at 104% 2%, oklch(0.66 0.13 205 / 0.08), transparent 62%);
+  --gradient-brand: linear-gradient(
+    135deg,
+    oklch(0.7 0.15 190),
+    oklch(0.55 0.13 210) 55%,
+    oklch(0.5 0.14 250)
+  );
   --gradient-accent: linear-gradient(135deg, oklch(0.72 0.15 188), oklch(0.56 0.13 240));
   --gradient-success: linear-gradient(135deg, oklch(0.72 0.15 155), oklch(0.7 0.14 175));
   --gradient-warning: linear-gradient(135deg, oklch(0.78 0.17 70), oklch(0.7 0.19 40));
@@ -130,7 +144,6 @@
   --dur-med: 240ms;
   --gradient-surface: linear-gradient(180deg, oklch(1 0 0 / 0.6), oklch(1 0 0 / 0));
 }
-
 
 :root {
   /* THE guest-portal font stack, defined once for CSS. Mirrors
@@ -153,8 +166,8 @@
   --pg-font-stack:
     -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, system-ui,
     "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Gujarati", "Noto Sans Gurmukhi",
-    "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu",
-    "Nirmala UI", sans-serif;
+    "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Tamil", "Noto Sans Telugu", "Nirmala UI",
+    sans-serif;
   /* Slightly softer corner scale + a cleaner, near-neutral canvas: the old
    * 0.75rem/blue-tinted paper read a little dated next to the indigo brand. */
   --radius: 0.875rem;
@@ -384,7 +397,7 @@
   --card-foreground: oklch(0.21 0.03 258);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.03 258);
-  --primary: #6C4EFF;
+  --primary: #6c4eff;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.955 0.008 258);
   --secondary-foreground: oklch(0.28 0.03 258);
@@ -444,7 +457,9 @@
  * treatment of its own primary CTAs. */
 .btn-glow {
   box-shadow: var(--shadow-glow);
-  transition: box-shadow 150ms ease, transform 150ms ease;
+  transition:
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 .btn-glow:hover {
   box-shadow:
@@ -588,6 +603,58 @@
   color-scheme: dark;
 }
 
+/* The owner's colours (2026-10-31): the console layout, in the dashboard's
+ * original palette -- violet #6C4EFF accent on #F8F9FC, and the indigo
+ * gradient chrome (sidebar + top bar) the customer portal has always had.
+ * Status and chart-series tokens are unchanged; they carry meaning, not
+ * brand. Dark mode keeps the console's dark content tokens, with the same
+ * indigo chrome, as the original did. */
+.wy-console {
+  --wy-bg: #f8f9fc;
+  --wy-accent: #6c4eff;
+  --wy-accent-soft: #efebff;
+}
+.dark .wy-console,
+.dark.wy-console {
+  --wy-accent: #b4a7ff;
+  --wy-accent-fg: #1e1b4b;
+  --wy-accent-soft: #2c2560;
+}
+/* Chrome: re-point the surface/text tokens inside the rail and the top bar
+ * at the indigo palette, so every control in them (search box, pills,
+ * menus' triggers, nav rows) follows without per-component edits. */
+.wy-console.customer-rail,
+.wy-console .wy-topbar,
+.dark .wy-console.customer-rail,
+.dark .wy-console .wy-topbar {
+  --wy-surface: #241f5c;
+  --wy-surface-2: rgb(255 255 255 / 0.1);
+  --wy-border: rgb(255 255 255 / 0.12);
+  --wy-border-strong: rgb(255 255 255 / 0.22);
+  --wy-text: #ffffff;
+  --wy-text-muted: #d6d3f0;
+  --wy-text-faint: #b9b4e0;
+  --wy-accent: #b4a7ff;
+  --wy-accent-fg: #1e1b4b;
+  --wy-accent-soft: #4c1d95;
+  --sidebar: transparent;
+  --sidebar-foreground: #d6d3f0;
+  --sidebar-accent: #4c1d95;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-primary: #b4a7ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 0.12);
+  --sidebar-ring: #8b6bff;
+  color-scheme: dark;
+}
+.wy-console.customer-rail [data-sidebar="sidebar"],
+.wy-console.customer-rail[data-sidebar="sidebar"] {
+  background-image: linear-gradient(to bottom, #1e1b4b 0%, #2a2560 30%, #312e81 60%, #4c1d95 100%);
+}
+.wy-console .wy-topbar {
+  background-image: linear-gradient(to right, #1e1b4b, #312e81);
+}
+
 @layer base {
   .wy-console {
     color: var(--wy-text);
@@ -661,7 +728,11 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  h1, h2, h3, h4, h5 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5 {
     letter-spacing: -0.02em;
   }
 
@@ -671,8 +742,13 @@
   }
 
   /* Elegant scrollbar */
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
   ::-webkit-scrollbar-thumb {
     background: color-mix(in oklab, var(--color-foreground) 15%, transparent);
     border-radius: 8px;
@@ -692,39 +768,87 @@
  * only (no layout thrash) and fully disabled under reduced-motion.
  */
 @keyframes aurora-drift-1 {
-  0%, 100% { transform: translate(-4%, -6%) scale(1); }
-  50% { transform: translate(6%, 8%) scale(1.18); }
+  0%,
+  100% {
+    transform: translate(-4%, -6%) scale(1);
+  }
+  50% {
+    transform: translate(6%, 8%) scale(1.18);
+  }
 }
 @keyframes aurora-drift-2 {
-  0%, 100% { transform: translate(4%, 4%) scale(1); }
-  50% { transform: translate(-8%, -5%) scale(1.12); }
+  0%,
+  100% {
+    transform: translate(4%, 4%) scale(1);
+  }
+  50% {
+    transform: translate(-8%, -5%) scale(1.12);
+  }
 }
 @keyframes aurora-drift-3 {
-  0%, 100% { transform: translate(0, 6%) scale(1); }
-  50% { transform: translate(7%, -8%) scale(1.08); }
+  0%,
+  100% {
+    transform: translate(0, 6%) scale(1);
+  }
+  50% {
+    transform: translate(7%, -8%) scale(1.08);
+  }
 }
 @keyframes grid-pan {
-  0% { background-position: 0 0; }
-  100% { background-position: 48px 48px; }
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 48px 48px;
+  }
 }
 @keyframes float-badge {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 @keyframes glow-pulse {
-  0%, 100% { opacity: 0.55; transform: scale(1); }
-  50% { opacity: 0.9; transform: scale(1.06); }
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
 }
 
-.aurora-blob-1 { animation: aurora-drift-1 22s ease-in-out infinite; }
-.aurora-blob-2 { animation: aurora-drift-2 26s ease-in-out infinite; }
-.aurora-blob-3 { animation: aurora-drift-3 19s ease-in-out infinite; }
-.aurora-grid { animation: grid-pan 14s linear infinite; }
-.float-badge { animation: float-badge 6s ease-in-out infinite; }
-.glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
+.aurora-blob-1 {
+  animation: aurora-drift-1 22s ease-in-out infinite;
+}
+.aurora-blob-2 {
+  animation: aurora-drift-2 26s ease-in-out infinite;
+}
+.aurora-blob-3 {
+  animation: aurora-drift-3 19s ease-in-out infinite;
+}
+.aurora-grid {
+  animation: grid-pan 14s linear infinite;
+}
+.float-badge {
+  animation: float-badge 6s ease-in-out infinite;
+}
+.glow-pulse {
+  animation: glow-pulse 4s ease-in-out infinite;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-grid, .float-badge, .glow-pulse {
+  .aurora-blob-1,
+  .aurora-blob-2,
+  .aurora-blob-3,
+  .aurora-grid,
+  .float-badge,
+  .glow-pulse {
     animation: none !important;
   }
 }
@@ -739,7 +863,10 @@
   background: var(--color-card);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-soft);
-  transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease;
+  transition:
+    box-shadow 200ms ease,
+    transform 200ms ease,
+    border-color 200ms ease;
 }
 @utility premium-card-hover {
   &:hover {
@@ -748,7 +875,6 @@
     transform: translateY(-2px);
   }
 }
-
 
 @utility mesh-bg {
   background-image: var(--gradient-mesh);
@@ -773,8 +899,12 @@
 }
 
 @keyframes shimmer-slide {
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
 }
 
 @utility shimmer {
@@ -799,18 +929,37 @@
  * spec describes.
  */
 @keyframes pg-blob-drift {
-  0%, 100% { transform: translate(-6%, -8%) scale(1); }
-  33% { transform: translate(8%, 4%) scale(1.15); }
-  66% { transform: translate(-4%, 10%) scale(0.94); }
+  0%,
+  100% {
+    transform: translate(-6%, -8%) scale(1);
+  }
+  33% {
+    transform: translate(8%, 4%) scale(1.15);
+  }
+  66% {
+    transform: translate(-4%, 10%) scale(0.94);
+  }
 }
 @keyframes pg-blob-drift-2 {
-  0%, 100% { transform: translate(6%, 8%) scale(1); }
-  50% { transform: translate(-9%, -6%) scale(1.2); }
+  0%,
+  100% {
+    transform: translate(6%, 8%) scale(1);
+  }
+  50% {
+    transform: translate(-9%, -6%) scale(1.2);
+  }
 }
-.pg-glow-1 { animation: pg-blob-drift 24s ease-in-out infinite; }
-.pg-glow-2 { animation: pg-blob-drift-2 28s ease-in-out infinite; }
+.pg-glow-1 {
+  animation: pg-blob-drift 24s ease-in-out infinite;
+}
+.pg-glow-2 {
+  animation: pg-blob-drift-2 28s ease-in-out infinite;
+}
 @media (prefers-reduced-motion: reduce) {
-  .pg-glow-1, .pg-glow-2 { animation: none !important; }
+  .pg-glow-1,
+  .pg-glow-2 {
+    animation: none !important;
+  }
 }
 
 /**
@@ -823,14 +972,22 @@
  * doing anything a browser doesn't already do natively.
  */
 @keyframes pg-enter {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .pg-enter {
   animation: pg-enter 0.2s ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pg-enter { animation: none; }
+  .pg-enter {
+    animation: none;
+  }
 }
 
 /* Two-option sliding tab pill (GuestSignInCard's sign-in-method tablist).
@@ -849,7 +1006,9 @@
   transform: translateX(calc(100% + 4px));
 }
 @media (prefers-reduced-motion: reduce) {
-  .pg-tab-pill { transition: none; }
+  .pg-tab-pill {
+    transition: none;
+  }
 }
 
 /* v3 polish pass: CSS-only replacement for the three `framer-motion`
@@ -866,14 +1025,22 @@
  * surface's earlier framer-motion removal (see the block above) already
  * fixed elsewhere -- see the v3 spec's Part 3 for why this stays CSS. */
 @keyframes pg-pulse-dot {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 .pg-pulse-dot {
   animation: pg-pulse-dot 1.2s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pg-pulse-dot { animation: none; opacity: 0.6; }
+  .pg-pulse-dot {
+    animation: none;
+    opacity: 0.6;
+  }
 }
 
 /**
@@ -924,8 +1091,8 @@
    * paper is a cool violet-white, and side by side the temperature was the
    * first thing that read as "two different products". Visible on the
    * no-photo canvas and behind the card. */
-  --pg-canvas: #F8F8FC;
-  --pg-surface: #FFFFFF;
+  --pg-canvas: #f8f8fc;
+  --pg-surface: #ffffff;
   /* wyfyguest.com `--color-ink` (indigo-950), the site's body colour and the
    * colour of every heading on it. Was #0F172A (slate-900) -- the same
    * lightness, a different hue family, and the single largest carrier of
@@ -939,7 +1106,7 @@
    * this is a hue change with no contrast consequence -- confirmed
    * end-to-end by `npm run measure:portal-contrast`, which measures the real
    * composited pixels rather than the token in isolation. */
-  --pg-ink: #1E1B4B;
+  --pg-ink: #1e1b4b;
   /* wyfyguest.com violet-700, the site's `.eyebrow` colour and the accent in
    * its logo lockup. The one saturated brand colour the portal uses, and it
    * is used in exactly two places: the greeting eyebrow above the venue's
@@ -951,7 +1118,7 @@
    * Deliberately not `--pr-primary`: that is the *venue's* colour, it is
    * unbounded, and its own default (#6366f1) measures 4.47:1 on white --
    * it fails as small text before a venue has changed anything. */
-  --pg-brand-accent: #6D28D9;
+  --pg-brand-accent: #6d28d9;
   /* captive-portal-v7-design-spec.md §1.5/§7.4-4 -- was #64748B (slate-500).
    * Every ratio below is computed (sRGB relative luminance, WCAG 2.x
    * formula), not eyeballed; see this token block's `--pg-ink-faint` note
@@ -983,14 +1150,14 @@
    * NOT the placeholder colour any more -- v7 §7.2/§7.4-4, a placeholder
    * is not a label, and PG_INPUT now uses `--pg-ink-muted` for its
    * example text plus a real <Label htmlFor> for the actual name. */
-  --pg-ink-faint: #505E73;
-  --pg-border: #E2E8F0;
-  --pg-danger: #DC2626;
-  --pg-danger-bg: #FEF2F2;
-  --pg-danger-border: #FECACA;
+  --pg-ink-faint: #505e73;
+  --pg-border: #e2e8f0;
+  --pg-danger: #dc2626;
+  --pg-danger-bg: #fef2f2;
+  --pg-danger-border: #fecaca;
   /* Matches ConnectedIllustration's existing verified badge -- reuse, not a
    * second green. */
-  --pg-success: #10B981;
+  --pg-success: #10b981;
   /* v7 §7.3: gives the shell root an explicit, scale-aware font-size so
    * that everything inheriting from it (button labels, plain <p>/<span>
    * text with no size utility of its own) responds to the in-page text-size
@@ -1044,9 +1211,9 @@
  * over *any* image whatsoever. See src/lib/portal-backdrop.ts for the full
  * derivation and the constants it produced. */
 .portal-runtime[data-pg-scrim="dark"] {
-  --pg-ink: #FFFFFF;
-  --pg-ink-muted: #FFFFFF;
-  --pg-ink-faint: #FFFFFF;
+  --pg-ink: #ffffff;
+  --pg-ink-muted: #ffffff;
+  --pg-ink-faint: #ffffff;
 }
 
 /* ...and flipped straight back wherever text is standing on a surface of
@@ -1062,9 +1229,9 @@
 .portal-runtime[data-pg-scrim="dark"] input,
 .portal-runtime[data-pg-scrim="dark"] textarea,
 .portal-runtime[data-pg-scrim="dark"] select {
-  --pg-ink: #1E1B4B;
+  --pg-ink: #1e1b4b;
   --pg-ink-muted: #475569;
-  --pg-ink-faint: #505E73;
+  --pg-ink-faint: #505e73;
 }
 
 /* v7 §7.4-6 -- OS-honouring token blocks, same shape as the
@@ -1084,7 +1251,7 @@
   .portal-runtime {
     --pg-ink-muted: #334155;
     --pg-ink-faint: #334155;
-    --pg-border: #64748B;
+    --pg-border: #64748b;
   }
   /* v7 Part 3. `--pg-border` above reaches `PortalCard`, which asks for it
    * by token -- but `GUEST_LEGIBILITY_CARD_CLASS` hard-codes
@@ -1097,7 +1264,7 @@
    * 1.4.11's 3:1 for a non-text boundary, and both colours are ours so the
    * ratio holds whatever the photo does. */
   .portal-runtime .pg-surface-card {
-    border-color: #64748B;
+    border-color: #64748b;
   }
   /* v7 §1.4 / §7.5 composition rule: under an explicit request for more
    * contrast, **drop the photo and the scrim entirely** and let the text
@@ -1116,7 +1283,7 @@
     display: none !important;
   }
   .portal-runtime[data-pg-scrim="dark"] {
-    --pg-ink: #1E1B4B;
+    --pg-ink: #1e1b4b;
     --pg-ink-muted: #334155;
     --pg-ink-faint: #334155;
   }
@@ -1130,7 +1297,7 @@
 .portal-runtime[data-pg-contrast="more"] {
   --pg-ink-muted: #334155;
   --pg-ink-faint: #334155;
-  --pg-border: #64748B;
+  --pg-border: #64748b;
 }
 
 /* The in-page control's half of the drop-the-photo rule above -- same
@@ -1140,7 +1307,7 @@
   display: none !important;
 }
 .portal-runtime[data-pg-contrast="more"][data-pg-scrim="dark"] {
-  --pg-ink: #1E1B4B;
+  --pg-ink: #1e1b4b;
   --pg-ink-muted: #334155;
   --pg-ink-faint: #334155;
 }
@@ -1300,7 +1467,9 @@
  * nesting, which applies to a *consumer* of a utility, not the utility
  * definition itself. */
 @media (min-width: 1280px) {
-  .pg-display { font-size: calc(3.125rem * var(--pg-type-scale, 1)); } /* 50px @ 16px root */
+  .pg-display {
+    font-size: calc(3.125rem * var(--pg-type-scale, 1));
+  } /* 50px @ 16px root */
 }
 @utility pg-title {
   /* Mobile-first: 24px on the phone widths this surface is designed for
@@ -1339,7 +1508,9 @@
    reason: this targets the utility definition itself, not a consumer of
    it, which is not what Tailwind's `@variant` nesting does. */
 @media (min-width: 640px) {
-  .pg-title { font-size: calc(1.75rem * var(--pg-type-scale, 1)); } /* 28px @ 16px root */
+  .pg-title {
+    font-size: calc(1.75rem * var(--pg-type-scale, 1));
+  } /* 28px @ 16px root */
 }
 @utility pg-subtitle {
   font-size: calc(1.25rem * var(--pg-type-scale, 1)); /* 20px @ 16px root */
@@ -1451,8 +1622,12 @@
  * length varies per icon, so callers pass it in as `--pg-draw-length`
  * (inline style) rather than this utility hardcoding one value. */
 @keyframes pg-draw {
-  from { stroke-dashoffset: var(--pg-draw-length, 100); }
-  to { stroke-dashoffset: 0; }
+  from {
+    stroke-dashoffset: var(--pg-draw-length, 100);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 .pg-draw {
   stroke-dasharray: var(--pg-draw-length, 100);
@@ -1461,7 +1636,10 @@
   animation-delay: var(--pg-draw-delay, 0s);
 }
 @media (prefers-reduced-motion: reduce) {
-  .pg-draw { animation: none; stroke-dashoffset: 0; }
+  .pg-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
 }
 /* The verified-badge pulse and cyan activity dot are ongoing (not
  * one-shot draw-ins) -- same CSS-only technique as `pg-pulse-dot` above,
@@ -1470,22 +1648,37 @@
  * slower, more deliberate cadence suited to a one-time celebratory beat
  * rather than a loading indicator. */
 @keyframes pg-badge-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.9; }
-  50% { transform: scale(1.08); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
 }
 .pg-badge-pulse {
   animation: pg-badge-pulse 2.2s ease-in-out infinite;
   transform-origin: center;
 }
 @keyframes pg-dot-pulse {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 .pg-dot-pulse {
   animation: pg-dot-pulse 1.6s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pg-badge-pulse, .pg-dot-pulse { animation: none; }
+  .pg-badge-pulse,
+  .pg-dot-pulse {
+    animation: none;
+  }
 }
 
 /* Ongoing "data flowing" dash-offset loop -- the fourth (of four)
@@ -1495,13 +1688,17 @@
  * than a one-shot draw-in, so it's a separate utility rather than a
  * `pg-draw` variant. */
 @keyframes pg-flow-dash {
-  to { stroke-dashoffset: -16; }
+  to {
+    stroke-dashoffset: -16;
+  }
 }
 .pg-flow-dash {
   animation: pg-flow-dash 1.4s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pg-flow-dash { animation: none; }
+  .pg-flow-dash {
+    animation: none;
+  }
 }
 
 /**
@@ -1543,7 +1740,9 @@
   initial-value: 0deg;
 }
 @keyframes m-beam-spin {
-  to { --m-beam-angle: 360deg; }
+  to {
+    --m-beam-angle: 360deg;
+  }
 }
 .m-stat-beam {
   isolation: isolate;
@@ -1560,14 +1759,18 @@
     color-mix(in oklab, var(--color-primary) 85%, transparent) 8%,
     transparent 22%
   );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   animation: m-beam-spin 3.4s linear infinite;
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .m-stat-beam::after { animation: none; }
+  .m-stat-beam::after {
+    animation: none;
+  }
 }
 
 /* MTable's loading state -- shimmering skeleton rows in place of real
@@ -1604,8 +1807,15 @@
  * copy/CTA it sits behind (Part 5's "never persistent chrome" rule,
  * applied to the one moment this surface allows it at all). */
 @keyframes m-sparkle-drift {
-  0%, 100% { transform: translateY(0); opacity: 0.5; }
-  50% { transform: translateY(-6px); opacity: 0.85; }
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(-6px);
+    opacity: 0.85;
+  }
 }
 .m-empty-sparkle {
   background-image: radial-gradient(
@@ -1619,7 +1829,9 @@
   animation: m-sparkle-drift 8s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .m-empty-sparkle { animation: none; }
+  .m-empty-sparkle {
+    animation: none;
+  }
 }
 
 /* MDrawer/MDialog mount transition -- a Magic UI "Blur Fade"-style
@@ -1632,16 +1844,34 @@
  * animate). Uses the shared `--ease-emphasized`/`--dur-med` tokens --
  * see this block's own header comment. */
 @keyframes m-panel-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.98); filter: blur(4px); }
-  to { opacity: 1; transform: none; filter: blur(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
 }
 @keyframes m-drawer-in {
-  from { opacity: 0; transform: translateX(28px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 @keyframes m-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .m-dialog-panel-in {
   animation: m-panel-in var(--dur-med) var(--ease-emphasized) both;
@@ -1653,7 +1883,11 @@
   animation: m-backdrop-in var(--dur-fast) ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .m-dialog-panel-in, .m-drawer-panel-in, .m-backdrop-in { animation: none; }
+  .m-dialog-panel-in,
+  .m-drawer-panel-in,
+  .m-backdrop-in {
+    animation: none;
+  }
 }
 
 /* Portal shell viewport floor (guest route) -- Tailwind's `min-h-dvh`
