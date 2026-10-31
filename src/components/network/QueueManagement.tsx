@@ -55,6 +55,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatCard, SectionHeader } from "@/components/ui-ext";
+import { Callout } from "@/components/customer/console";
 import {
   useQueueProfiles,
   useQueueAssignments,
@@ -625,14 +626,14 @@ function AssignmentDialog({
             Attach a bandwidth profile to an organization, location, or router.
           </DialogDescription>
           {UNENFORCED_TARGET_TYPES.has(targetType) && (
-            <p
-              role="note"
-              className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
-            >
+            // `wy-console` here because this dialog is portaled to <body>
+            // (and the page itself renders outside the customer shell), so
+            // the console tokens the Callout reads must be scoped locally.
+            <Callout tone="warn" role="note" className="wy-console text-xs">
               {NOT_SUPPORTED_YET}. An assignment to an organization, location or router is saved but
               never reaches a device, so new ones cannot be created here. Guest speed is set under
               Access Rules → Guest WiFi Limits.
-            </p>
+            </Callout>
           )}
         </DialogHeader>
         <div className="grid gap-3">
