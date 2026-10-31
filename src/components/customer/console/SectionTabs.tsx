@@ -1,4 +1,4 @@
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -65,18 +65,34 @@ export function SectionTabs({ featureId, className }: { featureId: string; class
     if (redirectTo) navigate({ to: redirectTo, replace: true });
   }, [redirectTo, navigate]);
 
+  // On a narrow screen the bar scrolls sideways; bring the current tab into
+  // view so Reports (the fourth Guests tab) is not off the right edge on a
+  // phone. Horizontal only -- the page itself must not jump.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navRef.current;
+    const current = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !current) return;
+    const overflowRight =
+      current.offsetLeft + current.offsetWidth - (nav.scrollLeft + nav.clientWidth);
+    if (overflowRight > 0 || current.offsetLeft < nav.scrollLeft) {
+      nav.scrollLeft = Math.max(0, current.offsetLeft - 16);
+    }
+  }, [featureId]);
+
   if (!model.section || model.tabs.length < 2) return null;
   const sectionLabel = t(`customerGroup.${model.section.id}`, model.section.label);
 
   return (
     <nav
+      ref={navRef}
       data-section-tabs={model.section.id}
       aria-label={t("sectionTabs.label", {
         section: sectionLabel,
         defaultValue: "{{section}} pages",
       })}
       className={cn(
-        "-mx-1 mb-4 flex items-end gap-1 overflow-x-auto border-b border-[var(--wy-border)] px-1 [scrollbar-width:thin]",
+        "relative -mx-1 mb-4 flex items-end gap-1 overflow-x-auto border-b border-[var(--wy-border)] px-1 [scrollbar-width:thin]",
         className,
       )}
     >
@@ -118,7 +134,10 @@ export function SectionTabs({ featureId, className }: { featureId: string; class
               {locked && (
                 <span
                   className="inline-flex shrink-0 items-center gap-1 rounded border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-1.5 py-px text-[10px] font-semibold text-[var(--wy-text-faint)]"
-                  title={`${label} is an add-on that isn't enabled for your organisation`}
+                  title={t("customerItemBadge.addonTitle", {
+                    label,
+                    defaultValue: "{{label}} is an add-on that isn't enabled for your organisation",
+                  })}
                 >
                   <Lock aria-hidden className="h-2.5 w-2.5" />
                   {t("customerItemBadge.addon", "Add-on")}

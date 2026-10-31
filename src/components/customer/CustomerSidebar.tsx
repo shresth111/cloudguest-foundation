@@ -503,7 +503,10 @@ function SidebarEntries({
             {locked && (
               <span
                 className="ml-auto inline-flex shrink-0 items-center gap-1 rounded border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-1.5 py-px text-[10px] font-semibold text-[var(--wy-text-faint)] group-data-[collapsible=icon]:hidden"
-                title={`${label} is an add-on that isn't enabled for your organisation`}
+                title={t("customerItemBadge.addonTitle", {
+                  label,
+                  defaultValue: "{{label}} is an add-on that isn't enabled for your organisation",
+                })}
               >
                 <Lock aria-hidden className="h-2.5 w-2.5" />
                 {t("customerItemBadge.addon", "Add-on")}

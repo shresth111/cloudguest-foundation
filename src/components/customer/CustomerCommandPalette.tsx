@@ -23,6 +23,7 @@ import {
   getCustomerLoginRole,
 } from "@/lib/customerNav";
 import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
+import { customerPaletteFloor, rankCustomerPaletteMatch } from "@/lib/customerPaletteFilter";
 import { cn } from "@/lib/utils";
 import { useCustomerLocations, useMyPermissions } from "@/hooks/useCustomerDashboard";
 
@@ -70,6 +71,33 @@ export function CustomerCommandPalette({
   const groups = filterNavGroupsByPermissions(customerNavGroupsForRole(role), permissions);
   const { t } = useTranslation("nav", { i18n });
 
+  // Controlled so the ranking can see the whole list (customerPaletteFloor):
+  // only the best band of matches is shown, so Enter opens a screen typed by
+  // its own name, never one that merely shares letters with it.
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
+  const entryOf = (
+    group: (typeof groups)[number],
+    item: (typeof groups)[number]["items"][number],
+  ) => {
+    const label = t(`customerItem.${item.id}`, item.label);
+    const groupLabel = t(`customerGroup.${group.id}`, group.label);
+    return {
+      value: `${label} ${groupLabel} ${item.label} ${group.label}`,
+      keywords: item.keywords ? [...item.keywords] : undefined,
+    };
+  };
+  const floor = customerPaletteFloor(
+    search,
+    groups.flatMap((g) => g.items.map((item) => entryOf(g, item))),
+  );
+  const filter = (value: string, s: string, keywords?: string[]) => {
+    const score = rankCustomerPaletteMatch(value, s, keywords);
+    return score >= floor ? score : 0;
+  };
+
   // The console look needs classes on the dialog itself, which the shared
   // `CommandDialog` does not take, so it is composed here from the same
   // three primitives (Dialog > DialogContent > Command). `wy-console` on the
@@ -81,8 +109,13 @@ export function CustomerCommandPalette({
         <DialogDescription className="sr-only">
           {t("consoleShell.palette.hint", "Type to find a page, a venue or an action.")}
         </DialogDescription>
-        <Command className="bg-transparent text-[var(--wy-text)] [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-[var(--wy-text-faint)] [&_[cmdk-group]]:px-1.5 [&_[cmdk-input-wrapper]]:border-[var(--wy-border)] [&_[cmdk-input]]:h-12 [&_[cmdk-input]]:text-[14px] [&_[cmdk-item]]:h-9 [&_[cmdk-item]]:rounded-md [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item][data-selected=true]]:bg-[var(--wy-surface-2)] [&_[cmdk-item][data-selected=true]]:text-[var(--wy-text)]">
+        <Command
+          filter={filter}
+          className="bg-transparent text-[var(--wy-text)] [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-[var(--wy-text-faint)] [&_[cmdk-group]]:px-1.5 [&_[cmdk-input-wrapper]]:border-[var(--wy-border)] [&_[cmdk-input]]:h-12 [&_[cmdk-input]]:text-[14px] [&_[cmdk-item]]:h-9 [&_[cmdk-item]]:rounded-md [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:text-[13px] [&_[cmdk-item][data-selected=true]]:bg-[var(--wy-surface-2)] [&_[cmdk-item][data-selected=true]]:text-[var(--wy-text)]"
+        >
           <CommandInput
+            value={search}
+            onValueChange={setSearch}
             placeholder={t(
               "commandPalette.placeholder",
               "Search for anything — guests, offers, vouchers, staff…",
@@ -110,11 +143,14 @@ export function CustomerCommandPalette({
                         // call) still lands on मेहमान. In English they repeat,
                         // which is harmless.
                         //
-                        // Then the screen's synonyms (`keywords`): now that most
-                        // screens are tabs inside a section rather than rows,
-                        // this is how "coupon" or "whatsapp" still goes straight
-                        // to Vouchers or Guest Messaging.
-                        value={`${label} ${groupLabel} ${item.label} ${group.label} ${(item.keywords ?? []).join(" ")}`}
+                        // The screen's synonyms ride separately as `keywords`,
+                        // ranked below the names by `rankCustomerPaletteMatch`:
+                        // now that most screens are tabs inside a section, this
+                        // is how "coupon" or "whatsapp" still goes straight to
+                        // Vouchers or Guest Messaging, without a synonym list
+                        // outranking a screen typed by its own name.
+                        value={`${label} ${groupLabel} ${item.label} ${group.label}`}
+                        keywords={item.keywords ? [...item.keywords] : undefined}
                         onSelect={() => {
                           onOpenChange(false);
                           navigate({ to: customerFeatureHref(item.id) });

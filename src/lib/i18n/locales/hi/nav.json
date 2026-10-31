@@ -127,7 +127,8 @@
     "how-it-works": "यह कैसे काम करता है"
   },
   "customerItemBadge": {
-    "addon": "ऐड-ऑन"
+    "addon": "ऐड-ऑन",
+    "addonTitle": "{{label}} एक ऐड-ऑन है जो आपके संगठन के लिए चालू नहीं है"
   },
   "customerTabGroup": {
     "advanced": "एडवांस्ड",

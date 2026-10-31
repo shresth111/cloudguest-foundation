@@ -127,7 +127,8 @@
     "how-it-works": "How It Works"
   },
   "customerItemBadge": {
-    "addon": "Add-on"
+    "addon": "Add-on",
+    "addonTitle": "{{label}} is an add-on that isn't enabled for your organisation"
   },
   "customerTabGroup": {
     "advanced": "Advanced",

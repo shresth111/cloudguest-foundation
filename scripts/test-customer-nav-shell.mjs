@@ -74,7 +74,8 @@ const p = (rel) => join(ROOT, rel).replace(/\\/g, "/");
 writeFileSync(
   entry,
   `export * from "${p("src/lib/customerNav.ts")}";
-   export * from "${p("src/lib/customerNavPermissions.ts")}";`,
+   export * from "${p("src/lib/customerNavPermissions.ts")}";
+   export * from "${p("src/lib/customerPaletteFilter.ts")}";`,
 );
 
 const outfile = join(outdir, "bundle.mjs");
@@ -125,6 +126,8 @@ const {
   filterNavGroupsByPermissions,
   resolveSectionTabs,
   NAV_PERMISSION_KEYS,
+  rankCustomerPaletteMatch,
+  customerPaletteFloor,
 } = await import(`file://${outfile}`);
 
 // ---------------------------------------------------------------------------
@@ -278,9 +281,18 @@ check(
 );
 check(
   "the palette matches on the translated AND the English names, then the synonyms",
-  /value=\{`\$\{label\} \$\{groupLabel\} \$\{item\.label\} \$\{group\.label\} \$\{\(item\.keywords \?\? \[\]\)\.join\(" "\)\}`\}/.test(
+  /value=\{`\$\{label\} \$\{groupLabel\} \$\{item\.label\} \$\{group\.label\}`\}/.test(
     paletteCode,
-  ),
+  ) && /keywords=\{item\.keywords \? \[\.\.\.item\.keywords\] : undefined\}/.test(paletteCode),
+);
+check(
+  "the palette ranks with customerPaletteFilter and shows only the best band",
+  /<Command\s+filter=\{filter\}/.test(paletteCode) &&
+    /customerPaletteFloor\(\s*search,/.test(paletteCode) &&
+    /rankCustomerPaletteMatch\(value, s, keywords\)/.test(paletteCode) &&
+    /return score >= floor \? score : 0/.test(paletteCode) &&
+    /value=\{search\}/.test(paletteCode) &&
+    /onValueChange=\{setSearch\}/.test(paletteCode),
 );
 check(
   "every palette entry is a screen, by its own label (not one entry per section)",
@@ -1130,6 +1142,80 @@ console.log(
     CUSTOMER_NAVS.filter((n) => !n.keywords?.length)
       .map((n) => n.id)
       .join(","),
+  );
+
+  // Palette ranking, run on the real entries the palette builds (same value
+  // string, same synonyms, same floor). "Enter opens it" is asserted the
+  // strict way: the screen is the single best score AND the first shown entry
+  // in menu order, so it holds whether or not cmdk reorders groups.
+  for (const loc of ["en", "hi"]) {
+    const nav = JSON.parse(
+      readFileSync(join(ROOT, `src/lib/i18n/locales/${loc}/nav.json`), "utf8"),
+    );
+    for (const role of ["owner", "agent"]) {
+      const entries = customerNavGroupsForRole(role).flatMap((g) => {
+        const groupLabel = nav.customerGroup?.[g.id] ?? g.label;
+        return g.items.map((item) => {
+          const label = nav.customerItem?.[item.id] ?? item.label;
+          return {
+            id: item.id,
+            label,
+            value: `${label} ${groupLabel} ${item.label} ${g.label}`,
+            keywords: item.keywords ? [...item.keywords] : undefined,
+          };
+        });
+      });
+      const opens = (q) => {
+        const floor = customerPaletteFloor(q, entries);
+        const shown = entries
+          .map((e) => ({ id: e.id, score: rankCustomerPaletteMatch(e.value, q, e.keywords) }))
+          .filter((e) => e.score > 0 && e.score >= floor);
+        if (!shown.length) return null;
+        const best = Math.max(...shown.map((e) => e.score));
+        const top = shown.filter((e) => e.score === best);
+        return top[0].id === shown[0].id ? shown[0].id : `${shown[0].id}|best:${top[0].id}`;
+      };
+      const wrong = entries
+        .map((e) => [e.label, e.id, opens(e.label)])
+        .filter(([, id, got]) => got !== id)
+        .map(([l, id, got]) => `"${l}"->${got} (want ${id})`);
+      check(
+        `${loc}/${role}: typing any screen's own name opens that screen`,
+        wrong.length === 0,
+        wrong.join("; "),
+      );
+      if (loc === "en") {
+        const want = {
+          vouchers: "vouchers",
+          voucher: "vouchers",
+          coupon: "vouchers",
+          "access code": "vouchers",
+          whatsapp: "marketing",
+          reports: "reports",
+          netlogs: "netlogs",
+          dhcp: role === "owner" ? "dhcp" : null,
+          "port forwarding": role === "owner" ? "port-forwarding" : null,
+        };
+        const bad = Object.entries(want)
+          .filter(([, id]) => id)
+          .filter(([q, id]) => opens(q) !== id)
+          .map(([q, id]) => `"${q}"->${opens(q)} (want ${id})`);
+        check(
+          `${role}: synonyms and short names open the right tab`,
+          bad.length === 0,
+          bad.join("; "),
+        );
+      }
+    }
+  }
+  check(
+    "a typo still finds something (fuzzy fallback survives the floor)",
+    (() => {
+      const e = [{ value: "Vouchers Guests Vouchers Guests" }];
+      const f = customerPaletteFloor("vchrs", e);
+      const sc = rankCustomerPaletteMatch(e[0].value, "vchrs");
+      return sc > 0 && sc >= f;
+    })(),
   );
 
   // Every new label is translated.
