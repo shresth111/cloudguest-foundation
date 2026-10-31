@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Columns3, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/customer/console";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -186,14 +187,17 @@ export function TrafficLensFlowRecords({
   const kept_for = retentionNote(r?.retention_days);
 
   return (
-    <section aria-label="Records" className="premium-card overflow-hidden rounded-2xl">
+    <section
+      aria-label="Records"
+      className="overflow-hidden rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] shadow-[var(--wy-shadow)]"
+    >
       <form
         onSubmit={submit}
         aria-label="Connection records"
-        className="space-y-4 border-b border-border p-5 sm:p-6"
+        className="space-y-4 border-b border-[var(--wy-border)] p-4 sm:p-5"
       >
         <div className="space-y-1.5">
-          <h3 className="font-display text-xl font-semibold tracking-tight">Records</h3>
+          <h2 className="text-sm font-semibold text-[var(--wy-text)]">Records</h2>
           <p className="max-w-3xl text-sm text-muted-foreground">{LENS_CONNECTIONS_INTRO}</p>
           <AboutRecords>
             {LENS_CONNECTIONS_ABOUT.map((line) => (
@@ -203,8 +207,11 @@ export function TrafficLensFlowRecords({
           </AboutRecords>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
-          <p className="font-display text-lg font-semibold tabular-nums" aria-live="polite">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] px-4 py-3">
+          <p
+            className="text-base font-semibold tabular-nums text-[var(--wy-text)]"
+            aria-live="polite"
+          >
             {q.isLoading
               ? "Loading records…"
               : r && state?.kind === "rows"
@@ -281,7 +288,7 @@ export function TrafficLensFlowRecords({
         {filtersOpen && (
           <div
             id="lens-flow-filters"
-            className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-4"
+            className="flex flex-wrap items-end gap-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-4"
           >
             {FLOW_RECORD_FILTERS.filter((f) =>
               (LENS_FLOW_FILTER_FIELDS as readonly string[]).includes(f.field),
@@ -337,20 +344,19 @@ export function TrafficLensFlowRecords({
         )}
       </form>
 
-      <div className="space-y-4 p-5 sm:p-6">
+      <div className="space-y-4 p-4 sm:p-5">
         {/* Whenever the API says the period is incomplete, above everything. */}
         {incomplete && (
-          <div role="alert" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
-            <p className="text-sm font-semibold">{incomplete.title}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{incomplete.body}</p>
-          </div>
+          <Callout role="alert" tone="warn" title={incomplete.title}>
+            <p className="text-xs text-[var(--wy-text-muted)]">{incomplete.body}</p>
+          </Callout>
         )}
 
         {q.isLoading ? (
           <div
             role="status"
             aria-label="Loading records"
-            className="h-40 animate-pulse rounded-xl bg-muted"
+            className="h-40 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]"
           />
         ) : refusal === "forbidden" || refusal === "licence" ? (
           <Plain title={LENS_NOTICES[refusal].title}>{LENS_NOTICES[refusal].body}</Plain>

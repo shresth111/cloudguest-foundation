@@ -119,7 +119,7 @@ check(
 );
 check(
   "the saved-campaigns list exists and is named",
-  /Saved campaigns/.test(code) && /filtered\.map/.test(code),
+  /Saved campaigns/.test(code) && /rows=\{filtered\}/.test(code),
 );
 check(
   "a row carries exactly ONE status control",

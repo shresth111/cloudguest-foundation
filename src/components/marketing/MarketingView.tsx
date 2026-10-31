@@ -1,18 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import {
-  FileText,
-  Info,
-  Megaphone,
-  ScrollText,
-  ShieldOff,
-  Users,
-  KeyRound,
-  Coins,
-} from "lucide-react";
+import { FileText, Megaphone, ScrollText, ShieldOff, Users, KeyRound, Coins } from "lucide-react";
 import i18n from "@/lib/i18n";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Callout, PageHeader, SubTabs, type PageScope } from "@/components/customer/console";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageSkeleton } from "@/components/common/LoadingSkeleton";
@@ -89,9 +80,12 @@ function isTab(v: unknown): v is MarketingTab {
 export function MarketingView({
   locationId,
   syncWithUrl = false,
+  scope,
 }: {
   locationId?: string;
   syncWithUrl?: boolean;
+  /** The shell's title + venue ("All venues" for an org-wide caller) for the one PageHeader. */
+  scope?: PageScope;
 }) {
   const { t } = useTranslation("marketing", { i18n });
   const navigate = useNavigate();
@@ -127,13 +121,21 @@ export function MarketingView({
     }
   };
 
-  const intro = (
-    <p className="max-w-3xl text-sm text-muted-foreground">
-      {t(
-        "intro",
-        "Send WhatsApp, SMS and email campaigns to guests who opted in to hear from you on your WiFi login page.",
-      )}
-    </p>
+  const intro = t(
+    "intro",
+    "Send WhatsApp, SMS and email campaigns to guests who opted in to hear from you on your WiFi login page.",
+  );
+  // The one header, on every state: locked, lapsed, loading, refused, live.
+  const withHeader = (body: ReactNode, actions?: ReactNode) => (
+    <div className="space-y-5">
+      <PageHeader
+        title={scope?.title ?? t("title", "Guest Messaging")}
+        venue={scope?.venue}
+        description={intro}
+        actions={actions}
+      />
+      {body}
+    </div>
   );
 
   const code = status.error ? marketingErrorCode(status.error) : null;
@@ -143,93 +145,89 @@ export function MarketingView({
   // the upsell without waiting for the status call -- but it is never
   // allowed to UNLOCK anything; only a 2xx from /marketing/status does that.
   if (!demo && (code === "feature_not_entitled" || (entitled === false && !status.data))) {
-    return <MarketingLockedUpsell locationId={locationId} />;
+    return withHeader(<MarketingLockedUpsell locationId={locationId} />);
   }
   if (code === "license_not_active") {
-    return <MarketingLicenceLapsed />;
+    return withHeader(<MarketingLicenceLapsed />);
   }
   if (status.isLoading) {
-    return <PageSkeleton />;
+    return withHeader(<PageSkeleton />);
   }
   if (status.error) {
     if (code === "forbidden" || code === "permission_denied") {
-      return (
+      return withHeader(
         <EmptyState
           icon={ShieldOff}
           title="Your role doesn't include Guest Messaging"
           description="Ask your account owner to give your role Marketing access in Staff Access."
-        />
+        />,
       );
     }
-    return (
+    return withHeader(
       <ErrorState
         title="Couldn't load Guest Messaging"
         description={marketingErrorMessage(status.error, "The server didn't answer.")}
         onRetry={() => void status.refetch()}
-      />
+      />,
     );
   }
-  if (!status.data) return <PageSkeleton />;
+  if (!status.data) return withHeader(<PageSkeleton />);
 
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        {intro}
-        <CreditsChip onOpen={() => go({ tab: "credits", campaign: null })} />
-      </div>
+  return withHeader(
+    <>
       {demo && (
-        <p
-          role="note"
-          data-testid="marketing-demo-banner"
-          className="flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200"
-        >
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <span>
+        <div data-testid="marketing-demo-banner">
+          <Callout role="note" tone="info">
             {t(
               "demo.banner",
               "Demo workspace: sample guests, campaigns and numbers. Everything works, but nothing is actually sent, and your changes last only until you reload.",
             )}
-          </span>
-        </p>
+          </Callout>
+        </div>
       )}
       <ChannelStatusStrip channels={status.data.channels} />
 
-      <Tabs value={tab} onValueChange={(v) => isTab(v) && go({ tab: v, campaign: null })}>
-        <TabsList className="h-auto w-full flex-wrap justify-start sm:w-auto">
-          {TABS.map((o) => {
+      <div>
+        <SubTabs
+          ariaLabel={scope?.title ?? t("title", "Guest Messaging")}
+          idPrefix="marketing-tab"
+          value={tab}
+          onChange={(v) => go({ tab: v, campaign: null })}
+          options={TABS.map((o) => {
             const Icon = o.icon;
-            return (
-              <TabsTrigger key={o.id} value={o.id} className="gap-2 px-3 py-1.5">
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                {t(o.i18nKey, o.fallback)}
-              </TabsTrigger>
-            );
+            return {
+              value: o.id,
+              label: (
+                <>
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                  {t(o.i18nKey, o.fallback)}
+                </>
+              ),
+            };
           })}
-        </TabsList>
-
-        <TabsContent value="campaigns" className="mt-5">
-          <CampaignList
-            status={status.data}
-            onOpenCampaign={(id) => go({ campaign: id })}
-            onGoToTab={(t2) => go({ tab: t2, campaign: null })}
-          />
-        </TabsContent>
-        <TabsContent value="templates" className="mt-5">
-          <TemplateGallery status={status.data} />
-        </TabsContent>
-        <TabsContent value="audience" className="mt-5">
-          <AudienceTab status={status.data} />
-        </TabsContent>
-        <TabsContent value="credits" className="mt-5">
-          <CreditsTab />
-        </TabsContent>
-        <TabsContent value="channels" className="mt-5">
-          <ChannelsTab status={status.data} />
-        </TabsContent>
-        <TabsContent value="deliveries" className="mt-5">
-          <DeliveryLogTable onOpenCampaign={(id) => go({ campaign: id })} />
-        </TabsContent>
-      </Tabs>
+        />
+        <div
+          id="marketing-tab-panel"
+          role="tabpanel"
+          aria-labelledby={`marketing-tab-tab-${tab}`}
+          className="mt-5"
+        >
+          {tab === "campaigns" && (
+            <CampaignList
+              status={status.data}
+              onOpenCampaign={(id) => go({ campaign: id })}
+              onGoToTab={(t2) => go({ tab: t2, campaign: null })}
+            />
+          )}
+          {tab === "templates" && <TemplateGallery status={status.data} />}
+          {tab === "audience" && <AudienceTab status={status.data} />}
+          {tab === "credits" && <CreditsTab />}
+          {tab === "channels" && <ChannelsTab status={status.data} />}
+          {tab === "deliveries" && (
+            <DeliveryLogTable onOpenCampaign={(id) => go({ campaign: id })} />
+          )}
+        </div>
+      </div>
 
       <CampaignDetailSheet
         campaignId={openCampaignId}
@@ -237,7 +235,8 @@ export function MarketingView({
         onClose={() => go({ campaign: null })}
         onGoToChannels={() => go({ tab: "channels", campaign: null })}
       />
-    </div>
+    </>,
+    <CreditsChip onOpen={() => go({ tab: "credits", campaign: null })} />,
   );
 }
 

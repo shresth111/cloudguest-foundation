@@ -112,7 +112,9 @@ export function AudienceFilterForm({
             onChange={(e) => set({ visited_to: e.target.value || null })}
           />
         </div>
-        {dateError && <p className="text-[11px] text-red-600 sm:col-span-2">{dateError}</p>}
+        {dateError && (
+          <p className="text-[11px] text-[var(--wy-crit)] sm:col-span-2">{dateError}</p>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="af-min">At least … visits</Label>
           <Input
@@ -135,7 +137,9 @@ export function AudienceFilterForm({
             onChange={(e) => set({ max_visits: intOrNull(e.target.value, 1, 100000) })}
           />
         </div>
-        {visitsError && <p className="text-[11px] text-red-600 sm:col-span-2">{visitsError}</p>}
+        {visitsError && (
+          <p className="text-[11px] text-[var(--wy-crit)] sm:col-span-2">{visitsError}</p>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="af-away">Not seen for at least … days</Label>
           <Input

@@ -117,7 +117,7 @@ export function CreditLedgerTable() {
         <SelectTrigger className="w-48" aria-label="Entry type">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="wy-console">
           <SelectItem value="all">All entries</SelectItem>
           {Object.entries(TYPE_LABEL).map(([k, v]) => (
             <SelectItem key={k} value={k}>
@@ -169,8 +169,8 @@ export function CreditLedgerTable() {
                     <TableCell
                       className={cn(
                         "text-right tabular-nums",
-                        r.delta_available_minor > 0 && "text-emerald-600",
-                        r.delta_available_minor < 0 && "text-red-600",
+                        r.delta_available_minor > 0 && "text-[var(--wy-ok)]",
+                        r.delta_available_minor < 0 && "text-[var(--wy-crit)]",
                       )}
                     >
                       {r.delta_available_minor === 0

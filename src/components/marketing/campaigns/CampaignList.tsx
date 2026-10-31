@@ -1,8 +1,15 @@
 import { useState } from "react";
-import { Megaphone, Plus, Search } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
+import { Megaphone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {
+  DataTable,
+  Panel,
+  Toolbar,
+  ToolbarSearch,
+  type DataTableColumn,
+} from "@/components/customer/console";
 import {
   Select,
   SelectContent,
@@ -10,17 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
-import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import {
   useDebounced,
   useMarketingCampaigns,
@@ -46,6 +44,8 @@ import {
 import { CampaignComposerSheet } from "./CampaignComposerSheet";
 import { VenueFilterSelect } from "../audience/VenuePicker";
 import type { MarketingTab } from "../MarketingView";
+
+const started = (c: MarketingCampaign) => c.status !== "draft" && c.status !== "scheduled";
 
 /** The time a row is best described by: when it went (or will go) out. */
 function whenOf(c: MarketingCampaign): { label: string; at: string | null } {
@@ -78,6 +78,7 @@ export function CampaignList({
   onOpenCampaign: (id: string) => void;
   onGoToTab: (t: MarketingTab) => void;
 }) {
+  const { t } = useTranslation("marketing", { i18n });
   const can = useMarketingCan();
   // Org-scoped callers see every venue's campaigns, so each row names its
   // venues (§4.5 location_id; null = org-wide or a multi-venue audience).
@@ -104,23 +105,126 @@ export function CampaignList({
   const filtered = statusFilter !== "all" || channel !== "all" || venue !== "all" || !!search;
   const totalOptedIn = MARKETING_CHANNELS.reduce((n, c) => n + (status.consent_counts[c] ?? 0), 0);
 
+  const columns: DataTableColumn<MarketingCampaign>[] = [
+    {
+      id: "campaign",
+      header: "Campaign",
+      mobile: "title",
+      className: "whitespace-normal",
+      cell: (c) => (
+        <div className="min-w-0">
+          <p className="font-medium text-[var(--wy-text)]">{c.name}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[var(--wy-text-muted)]">
+            <ChannelTag channel={c.channel} />
+            <span className="truncate">{c.template.name}</span>
+          </div>
+        </div>
+      ),
+    },
+    { id: "status", header: "Status", cell: (c) => <CampaignStatusTag status={c.status} /> },
+    // Org-scoped callers only: each row names its venues.
+    ...(orgScoped
+      ? [
+          {
+            id: "venues",
+            header: "Venues",
+            visibleFrom: "lg" as const,
+            cell: (c: MarketingCampaign) =>
+              venueLabel(c.location_id, c.audience_filter?.location_ids ?? null),
+          },
+        ]
+      : []),
+    {
+      id: "when",
+      header: "When",
+      visibleFrom: "md",
+      cell: (c) => {
+        const w = whenOf(c);
+        return (
+          <span className="text-xs">
+            <span className="text-[var(--wy-text-faint)]">{w.label}</span>
+            <br />
+            {formatDateTime(w.at)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "recipients",
+      header: "Recipients",
+      align: "right",
+      cell: (c) => (
+        <span className="tabular-nums">{started(c) ? formatCount(c.stats.recipients) : "—"}</span>
+      ),
+    },
+    {
+      id: "accepted",
+      header: "Accepted by provider",
+      align: "right",
+      cell: (c) => (
+        <span className="tabular-nums">{started(c) ? formatCount(c.stats.submitted) : "—"}</span>
+      ),
+    },
+    {
+      id: "failed",
+      header: "Failed",
+      align: "right",
+      cell: (c) => (
+        <span className="tabular-nums">{started(c) ? formatCount(c.stats.failed) : "—"}</span>
+      ),
+    },
+  ];
+
+  const emptyState = filtered ? (
+    <EmptyState
+      icon={Megaphone}
+      title="No campaigns match"
+      description="Try another status, channel or search."
+    />
+  ) : (
+    <EmptyState
+      icon={Megaphone}
+      title="No campaigns yet"
+      description={
+        totalOptedIn === 0
+          ? "No guest has opted in yet, so a campaign would reach nobody today. You can still prepare one; start by turning on the opt-in in Audience."
+          : "Pick a template, choose who gets it and send or schedule it."
+      }
+      action={
+        can("create")
+          ? { label: "Create your first campaign", onClick: () => setComposerOpen(true) }
+          : undefined
+      }
+    >
+      {totalOptedIn === 0 && (
+        <Button variant="link" className="mt-2" onClick={() => onGoToTab("audience")}>
+          Go to Audience
+        </Button>
+      )}
+    </EmptyState>
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-1 flex-wrap gap-2">
-          <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchText}
-              onChange={(e) => {
-                setSearchText(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search campaigns"
-              className="pl-8"
-              aria-label="Search campaigns"
-            />
-          </div>
+      <Panel flush>
+        <Toolbar
+          divided
+          actions={
+            can("create") ? (
+              <Button onClick={() => setComposerOpen(true)}>
+                <Plus className="h-4 w-4" aria-hidden /> New campaign
+              </Button>
+            ) : undefined
+          }
+        >
+          <ToolbarSearch
+            value={searchText}
+            onValueChange={(v) => {
+              setSearchText(v);
+              setPage(1);
+            }}
+            placeholder="Search campaigns"
+          />
           <Select
             value={statusFilter}
             onValueChange={(v) => {
@@ -128,10 +232,10 @@ export function CampaignList({
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-36" aria-label="Status">
+            <SelectTrigger className="w-full sm:w-36" aria-label="Status">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="wy-console">
               <SelectItem value="all">All statuses</SelectItem>
               {CAMPAIGN_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>
@@ -147,10 +251,10 @@ export function CampaignList({
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-36" aria-label="Channel">
+            <SelectTrigger className="w-full sm:w-36" aria-label="Channel">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="wy-console">
               <SelectItem value="all">All channels</SelectItem>
               {MARKETING_CHANNELS.map((c) => (
                 <SelectItem key={c} value={c}>
@@ -166,135 +270,43 @@ export function CampaignList({
               setPage(1);
             }}
           />
-        </div>
-        {can("create") && (
-          <Button onClick={() => setComposerOpen(true)}>
-            <Plus className="h-4 w-4" /> New campaign
-          </Button>
-        )}
-      </div>
+        </Toolbar>
 
-      {list.isLoading ? (
-        <LoadingSkeleton rows={5} />
-      ) : list.isError ? (
-        <ErrorState
-          title="Couldn't load campaigns"
-          description={marketingErrorMessage(list.error)}
-          onRetry={() => void list.refetch()}
-        />
-      ) : rows.length === 0 ? (
-        filtered ? (
-          <EmptyState
-            icon={Megaphone}
-            title="No campaigns match"
-            description="Try another status, channel or search."
-          />
+        {list.isError ? (
+          <div className="p-4">
+            <ErrorState
+              title="Couldn't load campaigns"
+              description={marketingErrorMessage(list.error)}
+              onRetry={() => void list.refetch()}
+            />
+          </div>
         ) : (
-          <EmptyState
-            icon={Megaphone}
-            title="No campaigns yet"
-            description={
-              totalOptedIn === 0
-                ? "No guest has opted in yet, so a campaign would reach nobody today. You can still prepare one; start by turning on the opt-in in Audience."
-                : "Pick a template, choose who gets it and send or schedule it."
+          <DataTable
+            ariaLabel={t("tabs.campaigns", "Campaigns")}
+            columns={columns}
+            rows={rows}
+            rowKey={(c) => c.id}
+            loading={list.isLoading}
+            loadingLabel={t("campaignList.loading", "Loading campaigns…")}
+            empty={emptyState}
+            onRowClick={(c) => onOpenCampaign(c.id)}
+            rowLabel={(c) => t("campaignList.open", "Open {{name}}", { name: c.name })}
+            density="comfortable"
+            footer={
+              rows.length > 0 ? (
+                <Pager
+                  inTable
+                  page={list.data?.page ?? page}
+                  totalPages={list.data?.total_pages ?? 1}
+                  totalItems={list.data?.total_items ?? 0}
+                  onPage={setPage}
+                  busy={list.isFetching}
+                />
+              ) : undefined
             }
-            action={
-              can("create")
-                ? { label: "Create your first campaign", onClick: () => setComposerOpen(true) }
-                : undefined
-            }
-          >
-            {totalOptedIn === 0 && (
-              <Button variant="link" className="mt-2" onClick={() => onGoToTab("audience")}>
-                Go to Audience
-              </Button>
-            )}
-          </EmptyState>
-        )
-      ) : (
-        <Card className="premium-card">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Campaign</TableHead>
-                    <TableHead>Status</TableHead>
-                    {orgScoped && <TableHead className="hidden lg:table-cell">Venues</TableHead>}
-                    <TableHead className="hidden md:table-cell">When</TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">Recipients</TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">
-                      Accepted by provider
-                    </TableHead>
-                    <TableHead className="hidden text-right sm:table-cell">Failed</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((c) => {
-                    const w = whenOf(c);
-                    const started = c.status !== "draft" && c.status !== "scheduled";
-                    return (
-                      <TableRow
-                        key={c.id}
-                        className="cursor-pointer"
-                        onClick={() => onOpenCampaign(c.id)}
-                      >
-                        <TableCell>
-                          <button
-                            type="button"
-                            className="text-left font-medium hover:underline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenCampaign(c.id);
-                            }}
-                          >
-                            {c.name}
-                          </button>
-                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                            <ChannelTag channel={c.channel} />
-                            <span className="truncate">{c.template.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <CampaignStatusTag status={c.status} />
-                        </TableCell>
-                        {orgScoped && (
-                          <TableCell className="hidden text-xs lg:table-cell">
-                            {venueLabel(c.location_id, c.audience_filter?.location_ids ?? null)}
-                          </TableCell>
-                        )}
-                        <TableCell className="hidden text-xs md:table-cell">
-                          <span className="text-muted-foreground">{w.label}</span>
-                          <br />
-                          {formatDateTime(w.at)}
-                        </TableCell>
-                        <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                          {started ? formatCount(c.stats.recipients) : "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                          {started ? formatCount(c.stats.submitted) : "—"}
-                        </TableCell>
-                        <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                          {started ? formatCount(c.stats.failed) : "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      {rows.length > 0 && (
-        <Pager
-          page={list.data?.page ?? page}
-          totalPages={list.data?.total_pages ?? 1}
-          totalItems={list.data?.total_items ?? 0}
-          onPage={setPage}
-          busy={list.isFetching}
-        />
-      )}
+          />
+        )}
+      </Panel>
 
       <CampaignComposerSheet
         open={composerOpen}

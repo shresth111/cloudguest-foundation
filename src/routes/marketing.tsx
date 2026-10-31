@@ -21,7 +21,7 @@ export const Route = createFileRoute("/marketing")({
   ssr: false,
   validateSearch: z.object({
     tab: z
-      .enum(["campaigns", "templates", "audience", "deliveries", "channels"])
+      .enum(["campaigns", "templates", "audience", "deliveries", "channels", "credits"])
       .optional()
       .catch(undefined),
     campaign: z.string().uuid().optional().catch(undefined),

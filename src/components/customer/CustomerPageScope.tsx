@@ -41,6 +41,10 @@ export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
   "how-it-works",
   "agents",
   "portal",
+  // batch 3b
+  "traffic-lens",
+  "marketing",
+  "campaigns",
 ]);
 
 /** The title + venue a screen's own PageHeader shows: the same nav label

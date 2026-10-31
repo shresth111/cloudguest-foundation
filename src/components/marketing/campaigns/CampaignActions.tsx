@@ -130,7 +130,7 @@ export function TestSendDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+      <DialogContent className="wy-console w-[calc(100vw-2rem)] max-w-md">
         <DialogHeader>
           <DialogTitle>Send a test</DialogTitle>
           <DialogDescription>
@@ -153,9 +153,9 @@ export function TestSendDialog({
           />
           <p className="text-[11px] text-muted-foreground">
             One per line or comma-separated.
-            {addresses.length > 3 && <span className="text-red-600"> At most 3.</span>}
+            {addresses.length > 3 && <span className="text-[var(--wy-crit)]"> At most 3.</span>}
             {invalid.length > 0 && (
-              <span className="text-red-600"> Not valid: {invalid.join(", ")}.</span>
+              <span className="text-[var(--wy-crit)]"> Not valid: {invalid.join(", ")}.</span>
             )}
           </p>
         </div>
@@ -173,9 +173,9 @@ export function TestSendDialog({
             {results.results.map((r, i) => (
               <li key={`${r.to_masked}-${i}`} className="flex items-center gap-2">
                 {r.status === "submitted" ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
+                  <CheckCircle2 className="h-4 w-4 text-[var(--wy-ok)]" aria-hidden />
                 ) : (
-                  <XCircle className="h-4 w-4 text-red-600" aria-hidden />
+                  <XCircle className="h-4 w-4 text-[var(--wy-crit)]" aria-hidden />
                 )}
                 <span className="font-mono text-xs">{r.to_masked}</span>
                 <span className="text-xs text-muted-foreground">
@@ -190,7 +190,7 @@ export function TestSendDialog({
         {error && (
           <p
             role="alert"
-            className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+            className="rounded-md bg-[var(--wy-crit-soft)] p-2 text-sm text-[var(--wy-crit)]"
           >
             {error}
           </p>
@@ -379,7 +379,7 @@ export function ScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+      <DialogContent className="wy-console w-[calc(100vw-2rem)] max-w-md">
         <DialogHeader>
           <DialogTitle>{mode === "now" ? "Send now?" : "Schedule campaign"}</DialogTitle>
           <DialogDescription>
@@ -396,7 +396,7 @@ export function ScheduleDialog({
           </p>
         )}
         {needsAck && cs && (
-          <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+          <div className="space-y-2 rounded-md border border-[color-mix(in_srgb,var(--wy-warn)_32%,transparent)] bg-[var(--wy-warn-soft)] p-2.5 text-sm text-[var(--wy-text)]">
             <p>{fallbackReason(label(campaign.channel), cs)}</p>
             <label className="flex items-start gap-2 font-medium">
               <Checkbox
@@ -410,7 +410,7 @@ export function ScheduleDialog({
           </div>
         )}
         {notLive && (
-          <p className="rounded-md bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+          <p className="rounded-md bg-[var(--wy-warn-soft)] p-2 text-sm text-[var(--wy-text)]">
             {channelNotLiveCopy(label(campaign.channel))}
           </p>
         )}
@@ -429,8 +429,12 @@ export function ScheduleDialog({
               value={when}
               onChange={(e) => setWhen(e.target.value)}
             />
-            {tooSoon && <p className="text-[11px] text-red-600">At least 5 minutes from now.</p>}
-            {tooFar && <p className="text-[11px] text-red-600">Within the next 60 days.</p>}
+            {tooSoon && (
+              <p className="text-[11px] text-[var(--wy-crit)]">At least 5 minutes from now.</p>
+            )}
+            {tooFar && (
+              <p className="text-[11px] text-[var(--wy-crit)]">Within the next 60 days.</p>
+            )}
           </div>
         )}
         {quietApplies && (
@@ -444,7 +448,7 @@ export function ScheduleDialog({
         {error && (
           <div
             role="alert"
-            className="space-y-2 rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+            className="space-y-2 rounded-md bg-[var(--wy-crit-soft)] p-2 text-sm text-[var(--wy-crit)]"
           >
             <p>{error}</p>
             {suggested && mode === "later" && (

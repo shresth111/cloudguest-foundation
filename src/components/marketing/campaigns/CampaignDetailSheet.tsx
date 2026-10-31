@@ -107,7 +107,7 @@ export function CampaignDetailSheet({
 
   return (
     <Sheet open={!!campaignId} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+      <SheetContent side="right" className="wy-console w-full overflow-y-auto sm:max-w-2xl">
         {q.isLoading ? (
           <div className="pt-8">
             <LoadingSkeleton rows={6} />
@@ -133,7 +133,7 @@ export function CampaignDetailSheet({
                       data-testid="campaign-provider"
                       className={
                         c.provider.source === "own"
-                          ? "rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800 dark:bg-violet-500/15 dark:text-violet-300"
+                          ? "rounded-full bg-[var(--wy-info-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--wy-info)]"
                           : "rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
                       }
                     >
@@ -156,7 +156,7 @@ export function CampaignDetailSheet({
               <div
                 role="alert"
                 data-testid="own-provider-failure"
-                className="space-y-1 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
+                className="space-y-1 rounded-md border border-[color-mix(in_srgb,var(--wy-crit)_32%,transparent)] bg-[var(--wy-crit-soft)] p-3 text-sm text-[var(--wy-crit)]"
               >
                 <p className="flex items-start gap-1.5 font-medium">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -175,7 +175,7 @@ export function CampaignDetailSheet({
               </div>
             ) : (
               c.last_error && (
-                <p className="flex items-start gap-1.5 rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                <p className="flex items-start gap-1.5 rounded-md bg-[var(--wy-crit-soft)] p-2 text-sm text-[var(--wy-crit)]">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {c.last_error}
                 </p>
               )
@@ -321,7 +321,7 @@ export function CampaignDetailSheet({
                   </div>
                 )}
                 {(c.stats.capped_by_credits ?? 0) > 0 && (
-                  <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                  <p className="rounded-md bg-[var(--wy-warn-soft)] p-2 text-xs text-[var(--wy-text)]">
                     {c.stats.capped_by_credits!.toLocaleString("en-IN")} more guest
                     {c.stats.capped_by_credits === 1 ? " was" : "s were"} reachable when sending
                     started, but your credits didn't cover them, so they weren't sent to.

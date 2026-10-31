@@ -38,7 +38,7 @@ function RequestTopUp() {
   if (pending) {
     return (
       <p className="flex items-center gap-1.5 text-sm">
-        <Clock className="h-4 w-4 text-amber-600" aria-hidden />
+        <Clock className="h-4 w-4 text-[var(--wy-warn)]" aria-hidden />
         Top-up requested: ticket #{pending.id.slice(0, 8)} is open.
       </p>
     );
@@ -112,7 +112,7 @@ export function CreditsTab() {
 
   return (
     <div className="space-y-5">
-      <Card className="premium-card">
+      <Card className="rounded-[var(--wy-radius)] shadow-[var(--wy-shadow)]">
         <CardContent className="grid gap-4 p-4 sm:grid-cols-3 sm:p-5">
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -122,8 +122,8 @@ export function CreditsTab() {
               data-testid="credits-available"
               className={cn(
                 "mt-1 flex items-center gap-2 text-3xl font-semibold tabular-nums",
-                tone === "low" && "text-amber-600",
-                tone === "empty" && "text-red-600",
+                tone === "low" && "text-[var(--wy-warn)]",
+                tone === "empty" && "text-[var(--wy-crit)]",
               )}
             >
               <Coins className="h-6 w-6" aria-hidden />

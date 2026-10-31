@@ -28,7 +28,7 @@ export function SmsCounter({ body, linkBudget }: { body: string; linkBudget?: nu
       className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground"
       aria-live="polite"
     >
-      <span className={cn(rawTooLong && "font-medium text-red-600")}>
+      <span className={cn(rawTooLong && "font-medium text-[var(--wy-crit)]")}>
         {raw.length.toLocaleString()} / {SMS_MAX_RAW_LENGTH.toLocaleString()} characters
       </span>
       <span>
@@ -36,12 +36,12 @@ export function SmsCounter({ body, linkBudget }: { body: string; linkBudget?: nu
         {raw.segments === 1 ? "" : "s"}
         {raw.segments > 0 && ` · ${raw.remainingInSegment} left in this part`}
       </span>
-      <span className={cn(tooLong && "font-medium text-red-600")}>
+      <span className={cn(tooLong && "font-medium text-[var(--wy-crit)]")}>
         Longest case: {worst.segments} part{worst.segments === 1 ? "" : "s"} (max{" "}
         {SMS_MAX_WORST_CASE_SEGMENTS})
       </span>
       {raw.encoding === "ucs2" && (
-        <span className="w-full text-amber-700 dark:text-amber-400">
+        <span className="w-full text-[var(--wy-warn)]">
           A character outside the basic SMS alphabet (₹, emoji, Hindi…) switches the whole message
           to 70 characters per part.
         </span>

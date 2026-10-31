@@ -394,7 +394,7 @@ try {
   );
   await chip.click();
   await page.getByTestId("credits-available").waitFor();
-  const tab = await page.locator('[role="tabpanel"][data-state="active"]').innerText();
+  const tab = await page.locator('#marketing-tab-panel[role="tabpanel"]').innerText();
   // SMS was verified above, so it now sends through the venue's own
   // Ping4SMS too: only WhatsApp is charged.
   check(

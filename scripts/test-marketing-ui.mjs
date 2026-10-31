@@ -335,7 +335,11 @@ check(
     !/checkbox/i.test(locHtml),
 );
 for (const [file, re] of [
-  ["src/components/marketing/campaigns/CampaignList.tsx", /orgScoped && <TableHead[^>]*>Venues/],
+  // The Venues column exists only for an org-scoped caller (DataTable column).
+  [
+    "src/components/marketing/campaigns/CampaignList.tsx",
+    /\.\.\.\(orgScoped\s*\?\s*\[\s*\{\s*id: "venues",\s*header: "Venues"/,
+  ],
   ["src/components/marketing/audience/ContactsTable.tsx", /<VenueFilterSelect/],
   ["src/components/marketing/campaigns/CampaignList.tsx", /<VenueFilterSelect/],
   ["src/components/marketing/deliveries/DeliveryLogTable.tsx", /<VenueFilterSelect/],

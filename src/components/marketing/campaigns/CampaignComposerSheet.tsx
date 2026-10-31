@@ -385,7 +385,7 @@ export function CampaignComposerSheet({
 
   return (
     <Sheet open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+      <SheetContent side="right" className="wy-console w-full overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
           <SheetTitle>{draft ? `Edit “${draft.name}”` : "New campaign"}</SheetTitle>
           <SheetDescription>
@@ -458,7 +458,7 @@ export function CampaignComposerSheet({
                   })}
                 </div>
                 {!channelLive && (
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <p className="text-xs text-[var(--wy-warn)]">
                     {channelNotLiveCopy(label(channel))} You can still prepare a draft.
                   </p>
                 )}
@@ -469,7 +469,7 @@ export function CampaignComposerSheet({
                 {templates.isLoading ? (
                   <LoadingSkeleton rows={4} />
                 ) : templates.isError ? (
-                  <p className="text-sm text-red-600">
+                  <p className="text-sm text-[var(--wy-crit)]">
                     {marketingErrorMessage(templates.error, "Couldn't load templates.")}
                   </p>
                 ) : channelTemplates.length === 0 ? (
@@ -515,9 +515,7 @@ export function CampaignComposerSheet({
                           <span
                             className={cn(
                               "mt-1.5 flex items-start gap-1 text-[11px]",
-                              s?.ok
-                                ? "text-emerald-700 dark:text-emerald-400"
-                                : "text-amber-700 dark:text-amber-400",
+                              s?.ok ? "text-[var(--wy-ok)]" : "text-[var(--wy-warn)]",
                             )}
                           >
                             {s?.ok ? (
@@ -571,7 +569,7 @@ export function CampaignComposerSheet({
                         <p
                           className={cn(
                             "text-[11px]",
-                            val.length > max ? "text-red-600" : "text-muted-foreground",
+                            val.length > max ? "text-[var(--wy-crit)]" : "text-muted-foreground",
                           )}
                         >
                           {val.length}/{max}
@@ -657,7 +655,7 @@ export function CampaignComposerSheet({
                   {preview.isFetching && <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
                 </p>
                 {preview.isError ? (
-                  <p className="text-sm text-red-600">
+                  <p className="text-sm text-[var(--wy-crit)]">
                     {marketingErrorMessage(preview.error, "Couldn't render the preview.")}
                   </p>
                 ) : preview.data ? (
@@ -678,7 +676,7 @@ export function CampaignComposerSheet({
                       </p>
                     )}
                     {preview.data.missing_variables.length > 0 && (
-                      <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                      <p className="flex items-start gap-1.5 text-xs text-[var(--wy-warn)]">
                         <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
                         Not filled in, will be blank: {preview.data.missing_variables.join(", ")}.
                         Go back to Details to set{" "}
@@ -692,7 +690,7 @@ export function CampaignComposerSheet({
               </div>
 
               {cs && needsFallbackAcknowledgement(cs) && (
-                <p className="flex items-start gap-1.5 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                <p className="flex items-start gap-1.5 rounded-md bg-[var(--wy-warn-soft)] p-3 text-sm text-[var(--wy-text)]">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                   <span>
                     {fallbackReason(label(channel), cs)} You'll be asked to confirm that when you
@@ -701,7 +699,7 @@ export function CampaignComposerSheet({
                 </p>
               )}
               {blockers.length > 0 && (
-                <ul className="space-y-1 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                <ul className="space-y-1 rounded-md bg-[var(--wy-warn-soft)] p-3 text-sm text-[var(--wy-text)]">
                   {blockers.map((b) => (
                     <li key={b} className="flex items-start gap-1.5">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {b}
@@ -745,7 +743,7 @@ export function CampaignComposerSheet({
           {error && (
             <p
               role="alert"
-              className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+              className="rounded-md bg-[var(--wy-crit-soft)] p-2 text-sm text-[var(--wy-crit)]"
             >
               {error}
             </p>

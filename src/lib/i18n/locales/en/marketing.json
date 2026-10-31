@@ -48,5 +48,9 @@
   },
   "notConfigured": "Not set up",
   "reachable": "Reachable",
-  "optedIn": "Opted in"
+  "optedIn": "Opted in",
+  "campaignList": {
+    "loading": "Loading campaigns…",
+    "open": "Open {{name}}"
+  }
 }

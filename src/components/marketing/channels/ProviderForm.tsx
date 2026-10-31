@@ -126,7 +126,7 @@ export function ProviderForm({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !save.isPending && onOpenChange(o)}>
-      <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] max-w-lg overflow-y-auto">
+      <DialogContent className="wy-console max-h-[92vh] w-[calc(100vw-2rem)] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {own ? `Your own ${label(channel)} provider` : `Use your own ${label(channel)} account`}
@@ -143,7 +143,7 @@ export function ProviderForm({
             <SelectTrigger aria-label="Provider">
               <SelectValue placeholder="Choose a provider" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="wy-console">
               {types.map((t) => (
                 <SelectItem key={t.type} value={t.type} disabled={!t.available}>
                   {t.label}
@@ -153,7 +153,7 @@ export function ProviderForm({
             </SelectContent>
           </Select>
           {replacing && (
-            <p className="text-[11px] text-amber-700 dark:text-amber-400">
+            <p className="text-[11px] text-[var(--wy-warn)]">
               Switching provider replaces the saved one; fill in every field, including secrets.
             </p>
           )}
@@ -193,7 +193,7 @@ export function ProviderForm({
                       <SelectTrigger id={id}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="wy-console">
                         {f.options?.map((o) => (
                           <SelectItem key={o.value} value={o.value}>
                             {o.label}
@@ -217,7 +217,7 @@ export function ProviderForm({
                     />
                   )}
                   {err ? (
-                    <p className="text-[11px] text-red-600">{err}</p>
+                    <p className="text-[11px] text-[var(--wy-crit)]">{err}</p>
                   ) : f.help ? (
                     <p className="text-[11px] text-muted-foreground">{f.help}</p>
                   ) : null}
@@ -230,7 +230,7 @@ export function ProviderForm({
         {error && (
           <p
             role="alert"
-            className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+            className="rounded-md bg-[var(--wy-crit-soft)] p-2 text-sm text-[var(--wy-crit)]"
           >
             {error}
           </p>

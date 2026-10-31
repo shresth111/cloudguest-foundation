@@ -1177,6 +1177,10 @@ console.log(
       "how-it-works": ["HowItWorksView", "src/components/customer/HowItWorksPage.tsx"],
       agents: ["AgentsPage", "src/components/features/AgentsPage.tsx"],
       portal: ["PortalPage", "src/components/features/PortalPage.tsx"],
+      // batch 3b
+      "traffic-lens": ["TrafficLensView", "src/components/traffic-lens/TrafficLensView.tsx"],
+      marketing: ["MarketingView", "src/components/marketing/MarketingView.tsx"],
+      campaigns: ["CampaignsPage", "src/components/features/CampaignsPage.tsx"],
     };
     // One screen's source: the whole file, or just `export function <fn>`
     // up to the next top-level export.

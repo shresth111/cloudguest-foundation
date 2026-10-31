@@ -16,8 +16,15 @@ import {
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DataTable,
+  PageHeader,
+  Panel,
+  StatTile,
+  Toolbar,
+  ToolbarSearch,
+  type PageScope,
+} from "@/components/customer/console";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,14 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
@@ -242,7 +241,7 @@ const demoAssetSeed = (campaignId: string): CampaignAsset[] => [
   },
 ];
 
-export function CampaignsPage({ locationId }: { locationId?: string }) {
+export function CampaignsPage({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
   const demo = useIsDemo();
   const [items, setItems] = useState<Campaign[]>(demo ? DEMO_SEED : []);
   const [loading, setLoading] = useState(!demo);
@@ -745,82 +744,19 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
 
   return (
     <div className="space-y-6">
-      {/* The two controls the hero used to hold, in the plain form they
-       * should always have had: a search over the list, and Create. Same
-       * filter state, same handlers -- no band, no illustration, no third
-       * copy of this page's own title. */}
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search campaigns…"
-            value={filters.search}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            className="h-9 pl-8"
-            aria-label="Search campaigns by name"
-          />
-        </div>
-        <Select
-          value={filters.type || "__all"}
-          onValueChange={(v) => setFilters((f) => ({ ...f, type: v === "__all" ? "" : v }))}
-        >
-          <SelectTrigger className="h-9 w-[160px]" aria-label="Filter by campaign type">
-            <SelectValue placeholder="All types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all">All types</SelectItem>
-            {TYPES.map((t) => (
-              <SelectItem key={t} value={t}>
-                {t}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {/* Business Unit is demo-only seed data -- a real campaign carries no
-            businessUnit, because this page is already scoped to one location
-            and the shell prints which. Same demo gating as the create form. */}
-        {demo && (
-          <Select
-            value={filters.businessUnit || "__all"}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, businessUnit: v === "__all" ? "" : v }))
-            }
-          >
-            <SelectTrigger className="h-9 w-[160px]" aria-label="Filter by business unit">
-              <SelectValue placeholder="All business units" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all">All business units</SelectItem>
-              {UNITS.map((u) => (
-                <SelectItem key={u} value={u}>
-                  {u}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        <Input
-          type="date"
-          value={filters.startDate}
-          onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))}
-          className="h-9 w-[150px]"
-          aria-label="Campaigns starting on or after"
-        />
-        {filtersActive && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9"
-            onClick={() => setFilters(emptyFilters)}
-          >
-            Clear
+      {/* The console PageHeader: the nav label, the venue chip and the one
+       * primary action. Search and filters moved down onto the Saved
+       * campaigns list they filter. */}
+      <PageHeader
+        title={scope?.title ?? "Login Page Offers"}
+        venue={scope?.venue}
+        actions={
+          <Button onClick={() => openCreate("SURVEY")}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Create Campaign
           </Button>
-        )}
-        <Button className="ml-auto h-9" onClick={() => openCreate("SURVEY")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Campaign
-        </Button>
-      </div>
+        }
+      />
 
       {/* The two things this product does, side by side, with the marketing
        * copy taken out and the invented sample data replaced by the venue's
@@ -849,114 +785,111 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
        * one click away, on the card named after surveys. */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Survey & Feedback */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] text-white shadow-sm shadow-indigo-500/20">
-              <MessageSquareText className="h-4.5 w-4.5" />
+        <Panel
+          title={
+            <span className="flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4 text-[var(--wy-text-faint)]" aria-hidden />
+              Survey &amp; Feedback
             </span>
-            <CardTitle className="text-sm">Survey &amp; Feedback</CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              className="ml-auto"
-              onClick={() => openCreate("SURVEY")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
+          }
+          actions={
+            <Button size="sm" variant="outline" onClick={() => openCreate("SURVEY")}>
+              <Plus className="h-4 w-4" aria-hidden />
               New survey
             </Button>
-          </CardHeader>
-          <CardContent>
-            {surveys.length === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">
-                No surveys yet. Ask guests a few questions when they connect.
-              </p>
-            ) : (
-              <ul className="divide-y">
-                {surveys.map((c) => (
-                  <li key={c.id} className="flex items-center gap-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{c.name}</p>
-                      <p className="text-xs capitalize text-muted-foreground">{c.status}</p>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => openManage(c)}>
-                      <ListChecks className="mr-2 h-4 w-4" />
-                      Questions
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+          }
+        >
+          {surveys.length === 0 ? (
+            <p className="py-2 text-sm text-muted-foreground">
+              No surveys yet. Ask guests a few questions when they connect.
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--wy-border)]">
+              {surveys.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{c.name}</p>
+                    <p className="text-xs capitalize text-muted-foreground">{c.status}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => openManage(c)}>
+                    <ListChecks className="mr-2 h-4 w-4" />
+                    Questions
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
 
         {/* Discounts & Banners -- the coupon half, designed as coupons. */}
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] text-white shadow-sm shadow-indigo-500/20">
-              <TicketPercent className="h-4.5 w-4.5" />
+        <Panel
+          title={
+            <span className="flex items-center gap-2">
+              <TicketPercent className="h-4 w-4 text-[var(--wy-text-faint)]" aria-hidden />
+              Coupons &amp; Banners
             </span>
-            <CardTitle className="text-sm">Coupons &amp; Banners</CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              className="ml-auto"
-              onClick={() => openCreate("BANNER")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
+          }
+          actions={
+            <Button size="sm" variant="outline" onClick={() => openCreate("BANNER")}>
+              <Plus className="h-4 w-4" aria-hidden />
               New offer
             </Button>
-          </CardHeader>
-          <CardContent>
-            {banners.length === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">
-                No offers yet. Show a banner and a coupon code when guests connect.
-              </p>
-            ) : (
-              <ul className="divide-y">
-                {banners.map(({ campaign, asset }) => (
-                  <li key={campaign.id} className="flex items-center gap-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{campaign.name}</p>
-                      <p className="text-xs capitalize text-muted-foreground">
-                        {campaign.status}
-                        {asset?.couponExpiresAt
-                          ? ` · valid until ${new Date(asset.couponExpiresAt).toLocaleDateString(
-                              undefined,
-                              { year: "numeric", month: "short", day: "numeric" },
-                            )}`
-                          : ""}
-                      </p>
-                    </div>
-                    {asset?.couponCode ? (
-                      <span className="shrink-0 rounded-lg border-2 border-dashed border-amber-300 bg-amber-50 px-3 py-1 font-mono text-sm font-bold tracking-[0.15em] text-amber-800">
-                        {asset.couponCode}
-                      </span>
-                    ) : (
-                      <span className="shrink-0 text-xs text-muted-foreground">No coupon</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {bannersTruncated > 0 && (
-              <p className="pt-2 text-xs text-muted-foreground">
-                +{bannersTruncated} more in the list below.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+          }
+        >
+          {banners.length === 0 ? (
+            <p className="py-2 text-sm text-muted-foreground">
+              No offers yet. Show a banner and a coupon code when guests connect.
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--wy-border)]">
+              {banners.map(({ campaign, asset }) => (
+                <li key={campaign.id} className="flex items-center gap-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{campaign.name}</p>
+                    <p className="text-xs capitalize text-muted-foreground">
+                      {campaign.status}
+                      {asset?.couponExpiresAt
+                        ? ` · valid until ${new Date(asset.couponExpiresAt).toLocaleDateString(
+                            undefined,
+                            { year: "numeric", month: "short", day: "numeric" },
+                          )}`
+                        : ""}
+                    </p>
+                  </div>
+                  {asset?.couponCode ? (
+                    <span className="shrink-0 rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] bg-[var(--wy-surface-2)] px-2.5 py-1 font-[family-name:var(--wy-font-mono)] text-[13px] font-semibold tracking-[0.12em] text-[var(--wy-text)]">
+                      {asset.couponCode}
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground">No coupon</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {bannersTruncated > 0 && (
+            <p className="pt-2 text-xs text-muted-foreground">
+              +{bannersTruncated} more in the list below.
+            </p>
+          )}
+        </Panel>
       </div>
 
       {showCreate && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setShowCreate(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="campaign-create-title"
+            className="w-full max-w-md rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-semibold tracking-tight">Create Campaign</h3>
+            <h3 id="campaign-create-title" className="text-base font-semibold">
+              Create Campaign
+            </h3>
             <div className="mt-3 space-y-3">
               <div>
                 <Label>
@@ -1005,7 +938,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                     <SelectTrigger>
                       <SelectValue placeholder="Choose business unit" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="wy-console">
                       {UNITS.map((u) => (
                         <SelectItem key={u} value={u}>
                           {u}
@@ -1026,7 +959,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="wy-console">
                     {TYPES.map((t) => (
                       <SelectItem key={t} value={t}>
                         {t}
@@ -1048,11 +981,14 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
 
       {resultsFor && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setResultsFor(null)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Answers — ${resultsFor.name}`}
+            className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-1 flex items-center justify-between">
@@ -1060,10 +996,12 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                 Answers — {resultsFor.name}
               </h3>
               <button
+                type="button"
                 onClick={() => setResultsFor(null)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
+                aria-label="Close"
+                className="rounded-[var(--wy-radius)] p-1 text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
             <p className="mb-4 text-xs text-muted-foreground">
@@ -1092,12 +1030,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                     { label: "Answered", value: resultsData.totalResponses },
                     { label: "Skipped", value: resultsData.totalSkipped },
                   ].map((k) => (
-                    <div key={k.label} className="rounded-xl bg-muted/40 px-3 py-2.5 text-center">
-                      <p className="text-xs text-muted-foreground">{k.label}</p>
-                      <p className="text-lg font-semibold tabular-nums">
-                        {k.value.toLocaleString()}
-                      </p>
-                    </div>
+                    <StatTile key={k.label} label={k.label} value={k.value.toLocaleString()} />
                   ))}
                 </div>
 
@@ -1176,11 +1109,14 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
 
       {manageFor && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={closeManage}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border bg-card p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Manage Questions — ${manageFor.name}`}
+            className="w-full max-w-lg rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-1 flex items-center justify-between">
@@ -1188,10 +1124,12 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                 Manage Questions — {manageFor.name}
               </h3>
               <button
+                type="button"
                 onClick={closeManage}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
+                aria-label="Close"
+                className="rounded-[var(--wy-radius)] p-1 text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
             <p className="mb-4 text-xs text-muted-foreground">
@@ -1252,7 +1190,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="wy-console">
                     {ANSWER_TYPES.map((a) => (
                       <SelectItem key={a.value} value={a.value}>
                         {a.label}
@@ -1292,11 +1230,14 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
 
       {previewFor && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={closePreview}
         >
           <div
-            className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Guest Preview — ${previewFor.name}`}
+            className="max-h-[92vh] w-full max-w-sm overflow-y-auto rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-5 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-1 flex items-center justify-between">
@@ -1304,10 +1245,12 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                 Guest Preview — {previewFor.name}
               </h3>
               <button
+                type="button"
                 onClick={closePreview}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
+                aria-label="Close"
+                className="rounded-[var(--wy-radius)] p-1 text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
             <p className="mb-3 text-xs text-muted-foreground">
@@ -1320,7 +1263,9 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
 
             {/* Device mockup -- same phone-frame + indigo gradient look as
                 /preview/portal/:locationId (today's Portal Preview), so this
-                reads as the same feature family. */}
+                reads as the same feature family. It draws the GUEST portal,
+                not the console, so it keeps the portal's own colours as
+                literal values rather than console tokens. */}
             <div className="mx-auto w-full max-w-[260px] rounded-[2rem] border-8 border-foreground/90 bg-foreground/90 p-1.5 shadow-xl">
               <div
                 className="relative min-h-[420px] overflow-hidden rounded-[1.4rem]"
@@ -1330,7 +1275,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
               >
                 {previewLoading && (
                   <div className="absolute inset-0 z-20 grid place-items-center bg-white/60">
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#6366f1] border-t-transparent" />
                   </div>
                 )}
                 <div className="relative z-10 flex min-h-[420px] flex-col px-4 pb-4 pt-5 text-slate-900">
@@ -1356,7 +1301,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                   </div>
 
                   <div
-                    className="flex flex-1 flex-col rounded-2xl border border-indigo-100/80 bg-white p-3.5"
+                    className="flex flex-1 flex-col rounded-[16px] border border-[#e0e7ff]/80 bg-white p-3.5"
                     style={{ boxShadow: "0 16px 40px -18px rgba(79,70,229,0.3)" }}
                   >
                     {previewFor.type === "SURVEY" ? (
@@ -1373,7 +1318,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                             >
                               <p className="mb-1.5 text-[11px] font-semibold text-slate-700">
                                 {i + 1}. {q.questionText}
-                                {q.isRequired && <span className="text-rose-500"> *</span>}
+                                {q.isRequired && <span className="text-[#f43f5e]"> *</span>}
                               </p>
                               {q.answerType === "free_text" ? (
                                 <div className="rounded-lg border border-slate-200 px-2 py-1.5 text-[10px] text-slate-400">
@@ -1382,7 +1327,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                               ) : q.answerType === "rating_5" ? (
                                 <div className="flex gap-1">
                                   {[1, 2, 3, 4, 5].map((n) => (
-                                    <Star key={n} className="h-3.5 w-3.5 text-amber-300" />
+                                    <Star key={n} className="h-3.5 w-3.5 text-[#fcd34d]" />
                                   ))}
                                 </div>
                               ) : (
@@ -1418,8 +1363,8 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                             />
                           </div>
                         )}
-                        <div className="flex flex-col items-center gap-2 rounded-xl bg-amber-50 px-3 py-4 text-center">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700">
+                        <div className="flex flex-col items-center gap-2 rounded-xl bg-[#fffbeb] px-3 py-4 text-center">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#fef3c7] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#b45309]">
                             <TicketPercent className="h-3 w-3" />
                             Offer
                           </span>
@@ -1432,7 +1377,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                             <p className="text-[10px] text-slate-600">{previewAssets[0].subtext}</p>
                           )}
                           {previewAssets[0].couponCode && (
-                            <span className="rounded-lg border-2 border-dashed border-amber-300 bg-white px-3 py-1 font-mono text-[12px] font-bold tracking-[0.15em] text-amber-800">
+                            <span className="rounded-lg border-2 border-dashed border-[#fcd34d] bg-white px-3 py-1 font-mono text-[12px] font-bold tracking-[0.15em] text-[#92400e]">
                               {previewAssets[0].couponCode}
                             </span>
                           )}
@@ -1463,7 +1408,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                           />
                         </div>
                         {previewAssets[0].clickUrl && (
-                          <p className="flex items-center justify-center gap-1 text-[10px] text-indigo-600">
+                          <p className="flex items-center justify-center gap-1 text-[10px] text-[#4f46e5]">
                             <ExternalLink className="h-3 w-3" />
                             Tap to open offer
                           </p>
@@ -1478,7 +1423,7 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                     ) : previewAssets[0]?.clickUrl ? (
                       <div className="py-4 text-center text-[11px] text-slate-600">
                         No banner image — guests will be redirected straight to
-                        <span className="mt-1 block truncate font-medium text-indigo-600">
+                        <span className="mt-1 block truncate font-medium text-[#4f46e5]">
                           {previewAssets[0].clickUrl}
                         </span>
                       </div>
@@ -1558,21 +1503,85 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
        * the recent communication campaigns you had setup") was the exact kind
        * of restatement the report asked to drop: a list of campaigns does not
        * need to be told what it is. */}
-      <div>
-        <h3 className="mb-3 text-base font-semibold tracking-tight">Saved campaigns</h3>
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="p-4">
-                <LoadingSkeleton rows={4} />
-              </div>
-            ) : loadError ? (
-              <EmptyState
-                icon={ClipboardList}
-                title="Couldn't load your campaigns"
-                description="Nothing was changed. Refresh to try again — if it keeps happening, raise a support ticket."
-              />
-            ) : filtered.length === 0 ? (
+      <Panel title="Saved campaigns" flush>
+        <Toolbar divided>
+          <ToolbarSearch
+            placeholder="Search campaigns…"
+            aria-label="Search campaigns by name"
+            value={filters.search}
+            onValueChange={(v) => setFilters((f) => ({ ...f, search: v }))}
+          />
+          <Select
+            value={filters.type || "__all"}
+            onValueChange={(v) => setFilters((f) => ({ ...f, type: v === "__all" ? "" : v }))}
+          >
+            <SelectTrigger className="w-full sm:w-40" aria-label="Filter by campaign type">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent className="wy-console">
+              <SelectItem value="__all">All types</SelectItem>
+              {TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Business Unit is demo-only seed data -- a real campaign carries no
+            businessUnit, because this page is already scoped to one location
+            and the shell prints which. Same demo gating as the create form. */}
+          {demo && (
+            <Select
+              value={filters.businessUnit || "__all"}
+              onValueChange={(v) =>
+                setFilters((f) => ({ ...f, businessUnit: v === "__all" ? "" : v }))
+              }
+            >
+              <SelectTrigger className="w-full sm:w-40" aria-label="Filter by business unit">
+                <SelectValue placeholder="All business units" />
+              </SelectTrigger>
+              <SelectContent className="wy-console">
+                <SelectItem value="__all">All business units</SelectItem>
+                {UNITS.map((u) => (
+                  <SelectItem key={u} value={u}>
+                    {u}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Input
+            type="date"
+            value={filters.startDate}
+            onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))}
+            className="h-10 w-full sm:h-9 sm:w-40"
+            aria-label="Campaigns starting on or after"
+          />
+          {filtersActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 sm:h-9"
+              onClick={() => setFilters(emptyFilters)}
+            >
+              Clear
+            </Button>
+          )}
+        </Toolbar>
+        {loadError ? (
+          <EmptyState
+            icon={ClipboardList}
+            title="Couldn't load your campaigns"
+            description="Nothing was changed. Refresh to try again — if it keeps happening, raise a support ticket."
+          />
+        ) : (
+          <DataTable
+            ariaLabel="Saved campaigns"
+            rows={filtered}
+            rowKey={(c) => c.id}
+            loading={loading}
+            loadingLabel="Loading campaigns…"
+            empty={
               <EmptyState
                 icon={ClipboardList}
                 title="No campaigns"
@@ -1582,138 +1591,139 @@ export function CampaignsPage({ locationId }: { locationId?: string }) {
                     : "Create a campaign above to reach guests over your WiFi."
                 }
               />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide">
-                      Name
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide">
-                      Type
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide">
-                      Status
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide">
-                      Impressions
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide">
-                      Conversions
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide text-right">
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((c) => (
-                    <TableRow key={c.id} className="border-b">
-                      <TableCell className="font-medium">
-                        {c.type === "SURVEY" ? (
-                          <button
-                            className="hover:underline text-left"
-                            onClick={() => openManage(c)}
-                          >
-                            {c.name}
-                          </button>
-                        ) : (
-                          c.name
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{c.type}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          disabled={selectableStatuses(c.status).length === 1}
-                          value={c.status}
-                          onValueChange={(v) => updateStatus(c.id, v)}
-                        >
-                          <SelectTrigger className="h-7 w-28">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {STATUSES.filter((s) => selectableStatuses(c.status).includes(s)).map(
-                              (s) => (
-                                <SelectItem key={s} value={s} className="capitalize">
-                                  {s}
-                                </SelectItem>
-                              ),
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        {c.impressions === null ? (
-                          <span className="text-muted-foreground">--</span>
-                        ) : (
-                          c.impressions.toLocaleString()
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {c.conversions === null ? (
-                          <span className="text-muted-foreground">--</span>
-                        ) : (
-                          c.conversions.toLocaleString()
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {c.type === "SURVEY" && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Manage questions"
-                              onClick={() => openManage(c)}
-                            >
-                              <ListChecks className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="See answers"
-                              onClick={() => openResults(c)}
-                            >
-                              <BarChart3 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Preview as a guest"
-                          onClick={() => openPreview(c)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Copy campaign ID"
-                          onClick={() => copyCampaignId(c.id)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive"
-                          title={`Delete ${c.name}`}
-                          aria-label={`Delete ${c.name}`}
-                          onClick={() => removeCampaign(c.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            }
+            density="comfortable"
+            actionsLabel="Actions"
+            columns={[
+              {
+                id: "name",
+                header: "Name",
+                mobile: "title",
+                className: "whitespace-normal font-medium",
+                cell: (c) =>
+                  c.type === "SURVEY" ? (
+                    <button
+                      type="button"
+                      className="rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                      onClick={() => openManage(c)}
+                    >
+                      {c.name}
+                    </button>
+                  ) : (
+                    c.name
+                  ),
+              },
+              {
+                id: "type",
+                header: "Type",
+                cell: (c) => (
+                  <span className="inline-flex h-5 items-center rounded-[calc(var(--wy-radius)-2px)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-1.5 text-[11px] font-medium text-[var(--wy-text-muted)]">
+                    {c.type}
+                  </span>
+                ),
+              },
+              {
+                id: "status",
+                header: "Status",
+                cell: (c) => (
+                  <Select
+                    disabled={selectableStatuses(c.status).length === 1}
+                    value={c.status}
+                    onValueChange={(v) => updateStatus(c.id, v)}
+                  >
+                    <SelectTrigger className="h-8 w-28" aria-label={`Status of ${c.name}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="wy-console">
+                      {STATUSES.filter((s) => selectableStatuses(c.status).includes(s)).map((s) => (
+                        <SelectItem key={s} value={s} className="capitalize">
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ),
+              },
+              {
+                id: "impressions",
+                header: "Impressions",
+                align: "right",
+                cell: (c) =>
+                  c.impressions === null ? (
+                    <span className="text-[var(--wy-text-faint)]">--</span>
+                  ) : (
+                    <span className="tabular-nums">{c.impressions.toLocaleString()}</span>
+                  ),
+              },
+              {
+                id: "conversions",
+                header: "Conversions",
+                align: "right",
+                cell: (c) =>
+                  c.conversions === null ? (
+                    <span className="text-[var(--wy-text-faint)]">--</span>
+                  ) : (
+                    <span className="tabular-nums">{c.conversions.toLocaleString()}</span>
+                  ),
+              },
+            ]}
+            rowActions={(c) => (
+              <div className="flex justify-end">
+                {c.type === "SURVEY" && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Manage questions"
+                      aria-label={`Manage questions for ${c.name}`}
+                      onClick={() => openManage(c)}
+                    >
+                      <ListChecks className="h-4 w-4" aria-hidden />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="See answers"
+                      aria-label={`See answers for ${c.name}`}
+                      onClick={() => openResults(c)}
+                    >
+                      <BarChart3 className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Preview as a guest"
+                  aria-label={`Preview ${c.name} as a guest`}
+                  onClick={() => openPreview(c)}
+                >
+                  <Eye className="h-4 w-4" aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Copy campaign ID"
+                  aria-label={`Copy the ID of ${c.name}`}
+                  onClick={() => copyCampaignId(c.id)}
+                >
+                  <Copy className="h-4 w-4" aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-[var(--wy-crit)]"
+                  title={`Delete ${c.name}`}
+                  aria-label={`Delete ${c.name}`}
+                  onClick={() => removeCampaign(c.id)}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          />
+        )}
+      </Panel>
     </div>
   );
 }

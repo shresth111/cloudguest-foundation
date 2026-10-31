@@ -272,7 +272,7 @@ export function TemplateEditorDialog({
 
   const Issues = ({ list }: { list: string[] }) =>
     list.length ? (
-      <ul className="space-y-0.5 text-[11px] text-red-600">
+      <ul className="space-y-0.5 text-[11px] text-[var(--wy-crit)]">
         {list.map((i) => (
           <li key={i}>{ISSUE_COPY[i] ?? i}</li>
         ))}
@@ -281,7 +281,7 @@ export function TemplateEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto">
+      <DialogContent className="wy-console max-h-[92vh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{template ? `Edit “${template.name}”` : "New template"}</DialogTitle>
           <DialogDescription>
@@ -306,7 +306,7 @@ export function TemplateEditorDialog({
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="wy-console">
                 {TEMPLATE_CATEGORIES.map((c) => (
                   <SelectItem key={c} value={c} className="capitalize">
                     {c === "winback" ? "Win-back" : c.charAt(0).toUpperCase() + c.slice(1)}
@@ -372,7 +372,7 @@ export function TemplateEditorDialog({
                   <Issues list={smsIssues} />
                 </div>
                 {dltBodyChanged && (
-                  <p className="flex items-start gap-1.5 rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                  <p className="flex items-start gap-1.5 rounded-md bg-[var(--wy-warn-soft)] p-2 text-xs text-[var(--wy-text)]">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                     This template has a DLT template ID. Carriers drop SMS whose text doesn't match
                     the registered template exactly, so changing the text means registering it again
@@ -495,7 +495,7 @@ export function TemplateEditorDialog({
         {serverError && (
           <p
             role="alert"
-            className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+            className="rounded-md bg-[var(--wy-crit-soft)] p-2 text-sm text-[var(--wy-crit)]"
           >
             {serverError}
             {conflict &&
