@@ -86,6 +86,7 @@
   "customerGroup": {
     "overview": "होम",
     "guests": "मेहमान",
+    "marketing": "मार्केटिंग",
     "login-page": "लॉगिन पेज",
     "network": "नेटवर्क",
     "security": "सुरक्षा",
@@ -127,6 +128,13 @@
   },
   "customerItemBadge": {
     "addon": "ऐड-ऑन"
+  },
+  "customerTabGroup": {
+    "advanced": "एडवांस्ड",
+    "who-can-connect": "कौन जुड़ सकता है"
+  },
+  "sectionTabs": {
+    "label": "{{section}} के पेज"
   },
   "commandPalette": {
     "placeholder": "कुछ भी खोजें — मेहमान, ऑफ़र, वाउचर, स्टाफ़…",

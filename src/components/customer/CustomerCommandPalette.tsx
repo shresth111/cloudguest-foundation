@@ -29,6 +29,11 @@ import { useCustomerLocations, useMyPermissions } from "@/hooks/useCustomerDashb
 /**
  * Cmd/Ctrl-K over every customer feature, by name.
  *
+ * Every screen is its own entry, by its own name, under its section's
+ * heading -- including the ones that are tabs rather than sidebar rows
+ * (docs/design/nav-consolidation.md). Typing "vouchers" lists Vouchers, not
+ * "Guests".
+ *
  * This arrived with the nav restructure that folded 26 sidebar rows into
  * nine, as the escape hatch that made the folding survivable. The folding
  * was reverted; this was not. Typing "port forwarding" beating scrolling a
@@ -104,7 +109,12 @@ export function CustomerCommandPalette({
                         // types "guests" (the word on every help doc and support
                         // call) still lands on मेहमान. In English they repeat,
                         // which is harmless.
-                        value={`${label} ${groupLabel} ${item.label} ${group.label}`}
+                        //
+                        // Then the screen's synonyms (`keywords`): now that most
+                        // screens are tabs inside a section rather than rows,
+                        // this is how "coupon" or "whatsapp" still goes straight
+                        // to Vouchers or Guest Messaging.
+                        value={`${label} ${groupLabel} ${item.label} ${group.label} ${(item.keywords ?? []).join(" ")}`}
                         onSelect={() => {
                           onOpenChange(false);
                           navigate({ to: customerFeatureHref(item.id) });

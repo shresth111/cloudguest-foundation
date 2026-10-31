@@ -19,8 +19,10 @@
  * kept verbatim where they still apply and inverted where the expression
  * they named moved back:
  *
- *   1. THE MENU IS ALL OF THEM. Eight groups, every feature its own row,
- *      rendered from `customerNav.ts` through the same two filters.
+ *   1. THE MENU IS ALL OF THEM. Every feature is still in `customerNav.ts`
+ *      and still reached through the same two filters -- since the
+ *      sections-with-tabs change (section 13) as a Home row or as a tab of
+ *      one of ten rows, rather than as a row of its own.
  *   2. THE SHELL IS STILL THE SHARED PRIMITIVE. `components/ui/sidebar.tsx`,
  *      not a hand-rolled `<aside>` -- cookie-persisted collapse, Cmd/Ctrl-B,
  *      a Radix Sheet mobile drawer, focus rings. The hand-rolled one lost
@@ -69,7 +71,11 @@ function check(name, ok, extra = "") {
 const outdir = mkdtempSync(join(tmpdir(), "customer-nav-shell-"));
 const entry = join(outdir, "entry.mjs");
 const p = (rel) => join(ROOT, rel).replace(/\\/g, "/");
-writeFileSync(entry, `export * from "${p("src/lib/customerNav.ts")}";`);
+writeFileSync(
+  entry,
+  `export * from "${p("src/lib/customerNav.ts")}";
+   export * from "${p("src/lib/customerNavPermissions.ts")}";`,
+);
 
 const outfile = join(outdir, "bundle.mjs");
 await build({
@@ -113,13 +119,19 @@ const {
   customerNavGroupsForRole,
   customerNavsForRole,
   customerSidebarGroupsForRole,
+  customerSidebarEntries,
+  customerNavGroupOf,
+  featureHasSectionTabs,
+  filterNavGroupsByPermissions,
+  resolveSectionTabs,
+  NAV_PERMISSION_KEYS,
 } = await import(`file://${outfile}`);
 
 // ---------------------------------------------------------------------------
 // 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 30 features in seven sidebar groups plus Account");
+console.log("\nthe customer menu is 30 features in eight sidebar groups plus Account");
 
 // Nine since the Marketing add-on arrived as its own group, directly after
 // Engagement (wyfy-specs/guest-marketing-campaigns.md §3.5): outbound guest
@@ -129,10 +141,13 @@ console.log("\nthe customer menu is 30 features in seven sidebar groups plus Acc
 // Then the task-based regroup: seven sidebar groups (Home / Guests / Login
 // Page / Network / Security / Help / Logs) plus "Account", which holds only
 // Staff Access and never renders in the sidebar (it is in the avatar menu).
-check("there are eight groups", CUSTOMER_NAV_GROUPS.length === 8, `${CUSTOMER_NAV_GROUPS.length}`);
+// Then sections with tabs (docs/design/nav-consolidation.md): Marketing is
+// a group again -- Guest Messaging and Login Page Offers -- so eight sidebar
+// groups plus Account.
+check("there are nine groups", CUSTOMER_NAV_GROUPS.length === 9, `${CUSTOMER_NAV_GROUPS.length}`);
 check(
-  "seven of them render in the sidebar",
-  customerSidebarGroupsForRole("owner").length === 7,
+  "eight of them render in the sidebar",
+  customerSidebarGroupsForRole("owner").length === 8,
   `${customerSidebarGroupsForRole("owner").length}`,
 );
 // 26: main removed the "Notifications" preferences screen (25), a branch
@@ -171,9 +186,9 @@ check("there are 30 features", CUSTOMER_NAVS.length === 30, `${CUSTOMER_NAVS.len
 // Nine until Operations went: its only row, Fix a Problem, moved up into
 // Overview (section 7 pins where), and a group of nothing is not kept.
 check(
-  "the eight groups are the canonical ones",
+  "the nine groups are the canonical ones",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(",") ===
-    "overview,guests,login-page,network,security,help,logs,account",
+    "overview,guests,marketing,login-page,network,security,logs,help,account",
   CUSTOMER_NAV_GROUPS.map((g) => g.id).join(","),
 );
 const dupes = CUSTOMER_NAVS.map((n) => n.id).filter((id, i, all) => all.indexOf(id) !== i);
@@ -262,8 +277,14 @@ check(
     /t\(`customerGroup\.\$\{group\.id\}`, group\.label\)/.test(paletteCode),
 );
 check(
-  "the palette matches on the translated AND the English names",
-  /value=\{`\$\{label\} \$\{groupLabel\} \$\{item\.label\} \$\{group\.label\}`\}/.test(paletteCode),
+  "the palette matches on the translated AND the English names, then the synonyms",
+  /value=\{`\$\{label\} \$\{groupLabel\} \$\{item\.label\} \$\{group\.label\} \$\{\(item\.keywords \?\? \[\]\)\.join\(" "\)\}`\}/.test(
+    paletteCode,
+  ),
+);
+check(
+  "every palette entry is a screen, by its own label (not one entry per section)",
+  /group\.items\.map\(\(item\)/.test(paletteCode) && /<span>\{label\}<\/span>/.test(paletteCode),
 );
 check(
   "the palette renders no untranslated label",
@@ -340,12 +361,13 @@ console.log("\nthe sidebar is grouped by task");
     rows(customerSidebarGroupsForRole("owner")) ===
       [
         "overview=dashboard,alerts,debugging",
-        "guests=users,vouchers,teams,marketing,reports",
-        "login-page=portal,campaigns,business-hours",
-        "network=devices,isp-details,dhcp,vlans,port-forwarding,voip,traffic-lens",
+        "guests=users,teams,vouchers,reports",
+        "marketing=marketing,campaigns",
+        "login-page=portal,business-hours",
+        "network=devices,isp-details,traffic-lens,dhcp,vlans,port-forwarding,voip",
         "security=security,blocking,firewall,policies,whitelist,mac-auth",
-        "help=tickets,how-it-works",
         "logs=admin-logs,network-activity,netlogs",
+        "help=tickets,how-it-works",
       ].join(" | "),
     rows(customerSidebarGroupsForRole("owner")),
   );
@@ -368,25 +390,16 @@ console.log("\nthe sidebar is grouped by task");
     "no sidebar group is left empty for staff",
     customerSidebarGroupsForRole("agent").every((g) => g.items.length > 0),
   );
+  // Logs used to be the one collapsible group (closed by default, so its
+  // three rows did not push the rail past a laptop's fold). As one section
+  // row there is nothing left to collapse, and a disclosure around a single
+  // row would be a click that reveals one link. Retired, not left dangling.
   check(
-    "Logs is the one collapsible group",
-    /COLLAPSIBLE_GROUP_IDS[^=]*=\s*new Set\(\["logs"\]\)/.test(sidebarCode),
+    "Logs is one row now, so the collapsible-group machinery is gone",
+    !/COLLAPSIBLE_GROUP_IDS/.test(sidebarCode) &&
+      !/CollapsibleTrigger/.test(sidebarCode) &&
+      !/groupOpenStorageKey/.test(sidebarCode),
   );
-  check(
-    "it opens when the current page is one of its rows",
-    /containsActive\s*\|\|/.test(sidebarCode) &&
-      /if \(containsActive\) setOpen\(true\)/.test(sidebarCode),
-  );
-  check(
-    "the user's toggle is persisted",
-    /localStorage\.setItem\(groupOpenStorageKey/.test(sidebarCode),
-  );
-  check(
-    "the icon rail always shows its icons",
-    /open=\{railCollapsed \|\| open\}/.test(sidebarCode) &&
-      /disabled=\{railCollapsed\}/.test(sidebarCode),
-  );
-  check("the toggle is a Radix CollapsibleTrigger", /<CollapsibleTrigger/.test(sidebarCode));
 }
 
 // ---------------------------------------------------------------------------
@@ -520,10 +533,10 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "the same screen reachable as a row and as a tab is two homes for one setting",
   );
   check(
-    "the Network group is Devices and the uplink first, then the five settings rows and Traffic Lens",
+    "the Network section is Devices, the uplink and Traffic Lens, then the four Advanced settings",
     (CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items ?? [])
-      .map((i) => i.id)
-      .join(",") === "devices,isp-details,dhcp,vlans,port-forwarding,voip,traffic-lens",
+      .map((i) => `${i.id}${i.tabGroup ? `[${i.tabGroup.id}]` : ""}`)
+      .join(",") === "devices,isp-details,traffic-lens,dhcp[advanced],vlans,port-forwarding,voip",
   );
   // Old links must keep working: a bookmark to the old address is a
   // redirect to the tab it became, behind the same session guards.
@@ -831,6 +844,329 @@ for (const loc of ["en", "hi"]) {
     "the en label agrees with the code label for the fix-it page",
     en.customerItem.debugging === "Fix a Problem",
     en.customerItem.debugging,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 13. Sections with tabs (docs/design/nav-consolidation.md).
+//
+// The owner asked for fewer sidebar rows. The last time this was tried (#219)
+// it was reverted (#220) because screens got harder to find, so this pins the
+// new shape AND every way the old one could still be reached: by URL, by the
+// palette under their own names, and by a tab shown exactly when its row
+// would have been.
+// ---------------------------------------------------------------------------
+
+console.log(
+  "\nthe sidebar is ten rows, and every screen is still a tab, a URL and a palette entry",
+);
+
+{
+  const rowIds = (role) =>
+    customerSidebarEntries(customerSidebarGroupsForRole(role)).map((e) =>
+      e.kind === "item" ? e.item.id : `[${e.group.id}]`,
+    );
+  check(
+    "owner: the ten rows are the pinned ones",
+    rowIds("owner").join(",") ===
+      "dashboard,alerts,debugging,[guests],[marketing],[login-page],[network],[security],[logs],[help]",
+    rowIds("owner").join(","),
+  );
+  check(
+    "agent: eight rows (no Login Page or Security tabs for a staff sign-in)",
+    rowIds("agent").join(",") ===
+      "dashboard,alerts,debugging,[guests],[marketing],[network],[logs],[help]",
+    rowIds("agent").join(","),
+  );
+  check(
+    "only Home is rows; every other sidebar group is one tabbed section with an icon",
+    CUSTOMER_NAV_GROUPS.filter((g) => g.presentation === "rows")
+      .map((g) => g.id)
+      .join(",") === "overview" &&
+      CUSTOMER_NAV_GROUPS.filter((g) => g.id !== "overview" && g.id !== "account").every(
+        (g) => g.presentation === undefined && typeof g.icon === "function",
+      ),
+  );
+  // The rail shows icons only: the ten row glyphs must differ.
+  const glyphs = customerSidebarEntries(customerSidebarGroupsForRole("owner")).map((e) =>
+    e.kind === "item" ? e.item.icon.name : e.group.icon.name,
+  );
+  const dupGlyphs = glyphs.filter((g, i) => glyphs.indexOf(g) !== i);
+  check("no two sidebar rows share a glyph", dupGlyphs.length === 0, dupGlyphs.join(", "));
+
+  // Nothing became unreachable. For each role, every feature the old menu
+  // offered as a row is now: a Home row or a tab of a row that is present,
+  // a URL, and a palette entry under its own id.
+  for (const role of ["owner", "agent"]) {
+    const groups = customerSidebarGroupsForRole(role);
+    const entries = customerSidebarEntries(groups);
+    const palette = customerNavGroupsForRole(role).flatMap((g) => g.items.map((i) => i.id));
+    const lost = [];
+    for (const g of groups) {
+      for (const item of g.items) {
+        const asRow = entries.some((e) => e.kind === "item" && e.item.id === item.id);
+        const asTab = entries.some(
+          (e) => e.kind === "section" && e.group.items.some((i) => i.id === item.id),
+        );
+        const model = resolveSectionTabs(
+          item.id,
+          CUSTOMER_NAV_GROUPS,
+          groups,
+          null,
+          customerFeatureHref,
+        );
+        const tabShown = model.tabs.some((i) => i.id === item.id) || model.tabs.length === 0;
+        if (!(asRow || asTab) || !tabShown || !palette.includes(item.id)) lost.push(item.id);
+        if (!customerFeatureHref(item.id).startsWith("/")) lost.push(`${item.id}(href)`);
+      }
+    }
+    check(
+      `${role}: every offered screen is a row or a tab, a URL and a palette entry`,
+      lost.length === 0,
+      lost.join(", "),
+    );
+  }
+  check(
+    "the palette still holds all 30 screens for an owner (Staff Access included)",
+    customerNavGroupsForRole("owner").flatMap((g) => g.items).length === 30,
+  );
+
+  // Section rows open the first tab the caller can see -- per tab, by the
+  // same permission filter the rows used.
+  check(
+    "a section row links to its first visible tab",
+    /href = customerFeatureHref\(tabs\[0\]\.id\)/.test(sidebarCode),
+  );
+  {
+    const onlyOffers = filterNavGroupsByPermissions(customerSidebarGroupsForRole("owner"), [
+      "dashboard.view",
+      "campaigns.read",
+    ]);
+    const mk = onlyOffers.find((g) => g.id === "marketing");
+    check(
+      "a role holding only campaigns.read gets Marketing with one tab, opening Login Page Offers",
+      mk &&
+        mk.items.map((i) => i.id).join(",") === "campaigns" &&
+        customerFeatureHref(mk.items[0].id) === "/guest-campaigns",
+    );
+    check(
+      "a section whose tabs are all filtered out is dropped",
+      !onlyOffers.some((g) =>
+        ["guests", "network", "security", "logs", "login-page"].includes(g.id),
+      ),
+      onlyOffers.map((g) => g.id).join(","),
+    );
+    check(
+      "how-it-works (no permission key) keeps Help alive for any grant set",
+      onlyOffers.some(
+        (g) => g.id === "help" && g.items.map((i) => i.id).join(",") === "how-it-works",
+      ),
+    );
+  }
+
+  // A screen opened by URL that its tab bar would not offer.
+  const owner = customerSidebarGroupsForRole("owner");
+  const agent = customerSidebarGroupsForRole("agent");
+  {
+    const m = resolveSectionTabs("guest-x", CUSTOMER_NAV_GROUPS, owner, null, customerFeatureHref);
+    check("an unknown id has no tab bar", m.section === null && m.redirectTo === null);
+  }
+  for (const id of ["dashboard", "alerts", "debugging", "agents"]) {
+    const m = resolveSectionTabs(id, CUSTOMER_NAV_GROUPS, owner, null, customerFeatureHref);
+    check(
+      `${id}: no tab bar (Home row / avatar menu)`,
+      m.section === null && m.tabs.length === 0 && !featureHasSectionTabs(id),
+    );
+  }
+  check(
+    "every other sidebar screen has a tab bar",
+    CUSTOMER_NAV_GROUPS.filter((g) => g.id !== "overview" && g.id !== "account")
+      .flatMap((g) => g.items)
+      .every((i) => featureHasSectionTabs(i.id)),
+  );
+  {
+    const m = resolveSectionTabs("vouchers", CUSTOMER_NAV_GROUPS, owner, null, customerFeatureHref);
+    check(
+      "Guests › Vouchers: the four Guests tabs, no redirect, while grants are unknown",
+      m.section?.id === "guests" &&
+        m.tabs.map((i) => i.id).join(",") === "users,teams,vouchers,reports" &&
+        m.redirectTo === null,
+    );
+  }
+  {
+    // Real grants exclude vouchers but allow guests: leave for the first
+    // visible tab instead of rendering a screen the backend will refuse.
+    const m = resolveSectionTabs(
+      "vouchers",
+      CUSTOMER_NAV_GROUPS,
+      owner,
+      ["guest_users.read", "reports.read"],
+      customerFeatureHref,
+    );
+    check(
+      "hidden by real grants -> redirect to the first visible tab",
+      m.redirectTo === "/users" && !m.tabs.some((i) => i.id === "vouchers"),
+      JSON.stringify({ r: m.redirectTo, t: m.tabs.map((i) => i.id) }),
+    );
+  }
+  {
+    // Nothing else in the section is visible either: render as before,
+    // never a blank page or a bounce loop.
+    const m = resolveSectionTabs(
+      "voip",
+      CUSTOMER_NAV_GROUPS,
+      owner,
+      ["dashboard.view"],
+      customerFeatureHref,
+    );
+    check(
+      "hidden by real grants with the whole section hidden -> render, no redirect",
+      m.redirectTo === null && m.tabs.map((i) => i.id).join(",") === "voip",
+    );
+  }
+  {
+    // The login-role radio is not authorization: an agent sign-in that
+    // opens /guest-portal sees the page, with its own tab in the bar.
+    const m = resolveSectionTabs("portal", CUSTOMER_NAV_GROUPS, agent, null, customerFeatureHref);
+    check(
+      "hidden only by the login role -> render, with its own tab shown",
+      m.redirectTo === null && m.tabs.map((i) => i.id).join(",") === "portal",
+    );
+    const n = resolveSectionTabs("dhcp", CUSTOMER_NAV_GROUPS, agent, null, customerFeatureHref);
+    check(
+      "...and it sits in its canonical place among the visible tabs",
+      n.redirectTo === null && n.tabs.map((i) => i.id).join(",") === "devices,dhcp",
+      n.tabs.map((i) => i.id).join(","),
+    );
+  }
+  {
+    // Empty / failed / loading grants mean "we don't know": no redirect.
+    const ok = [null, undefined, []].every(
+      (perms) =>
+        resolveSectionTabs("firewall", CUSTOMER_NAV_GROUPS, owner, perms, customerFeatureHref)
+          .redirectTo === null,
+    );
+    check("absent, failed or empty grants never redirect", ok);
+  }
+
+  // The tab bar component and where it renders.
+  const tabsSrc = readFileSync(
+    join(ROOT, "src/components/customer/console/SectionTabs.tsx"),
+    "utf8",
+  );
+  const tabsCode = strip(tabsSrc);
+  check(
+    "SectionTabs evaluates the sidebar's own filters",
+    /resolveSectionTabs\(/.test(tabsCode) &&
+      /customerSidebarGroupsForRole\(getCustomerLoginRole\(\)\)/.test(tabsCode) &&
+      /useMyPermissions\(\)/.test(tabsCode),
+  );
+  check(
+    "tabs are links to the unchanged URLs, with aria-current, inside a labelled nav",
+    /<nav/.test(tabsCode) &&
+      /aria-label=/.test(tabsCode) &&
+      /<Link/.test(tabsCode) &&
+      /to=\{customerFeatureHref\(item\.id\)\}/.test(tabsCode) &&
+      /aria-current=\{active \? "page" : undefined\}/.test(tabsCode) &&
+      !/role="tablist"/.test(tabsCode),
+  );
+  check(
+    "the redirect replaces history (back does not bounce)",
+    /navigate\(\{ to: redirectTo, replace: true \}\)/.test(tabsCode),
+  );
+  check(
+    "tabs keep the add-on lock badge and the controller-venue muting",
+    /GUEST_MARKETING_FEATURE_KEY/.test(tabsCode) &&
+      /TRAFFIC_LENS_FEATURE_KEY/.test(tabsCode) &&
+      /featureAppliesToControllerVenue\(item\.id, controllerVendor\)/.test(tabsCode) &&
+      /title=\{viaController \? controllerReason : undefined\}/.test(tabsCode),
+  );
+  check("tabs have a visible focus ring", /focus-visible:ring-2/.test(tabsCode));
+  const featurePage = strip(
+    readFileSync(join(ROOT, "src/components/customer/CustomerFeaturePage.tsx"), "utf8"),
+  );
+  const usersPage = strip(readFileSync(join(ROOT, "src/routes/users.tsx"), "utf8"));
+  check(
+    "every feature page and /users render the tab bar above the scope line",
+    /<SectionTabs featureId=\{feature\} \/>\s*<CustomerPageScope/.test(featurePage) &&
+      /<SectionTabs featureId="users" \/>\s*<CustomerPageScope/.test(usersPage),
+  );
+  check(
+    "the rail flyout lists a section's tabs",
+    /<SectionFlyout/.test(sidebarCode) &&
+      /tooltip=\{collapsed \? tooltip : undefined\}/.test(sidebarCode),
+  );
+  check(
+    "a section row is current on any of its pages (even one its filters hid)",
+    /customerNavGroupOf\(activeFeatureId\)/.test(sidebarCode) &&
+      /active = activeGroupId === group\.id/.test(sidebarCode),
+  );
+  check(
+    "customerNavGroupOf finds every feature's section",
+    CUSTOMER_NAVS.every((i) => customerNavGroupOf(i.id)?.items.includes(i)),
+  );
+  check(
+    "the breadcrumb is Section › Tab, from the same groups",
+    /t\(`customerGroup\.\$\{crumb\.groupId\}`, crumb\.groupLabel\)/.test(headerCode) &&
+      /t\(`customerItem\.\$\{crumb\.itemId\}`, crumb\.itemLabel\)/.test(headerCode),
+  );
+
+  // Palette synonyms.
+  const kw = (id) => CUSTOMER_NAVS.find((n) => n.id === id)?.keywords ?? [];
+  check(
+    "typing 'coupon' or 'access code' still finds Vouchers",
+    kw("vouchers").includes("coupon") && kw("vouchers").includes("access code"),
+  );
+  check("typing 'whatsapp' still finds Guest Messaging", kw("marketing").includes("whatsapp"));
+  check("typing 'dhcp' still finds IP Addresses", kw("dhcp").includes("dhcp"));
+  check(
+    "every screen carries synonyms, all lower-case",
+    CUSTOMER_NAVS.every(
+      (n) =>
+        Array.isArray(n.keywords) &&
+        n.keywords.length > 0 &&
+        n.keywords.every((k) => k === k.toLowerCase()),
+    ),
+    CUSTOMER_NAVS.filter((n) => !n.keywords?.length)
+      .map((n) => n.id)
+      .join(","),
+  );
+
+  // Every new label is translated.
+  for (const loc of ["en", "hi"]) {
+    const nav = JSON.parse(
+      readFileSync(join(ROOT, `src/lib/i18n/locales/${loc}/nav.json`), "utf8"),
+    );
+    const help = JSON.parse(
+      readFileSync(join(ROOT, `src/lib/i18n/locales/${loc}/help.json`), "utf8"),
+    );
+    const missingGroups = CUSTOMER_NAV_GROUPS.map((g) => g.id).filter(
+      (id) => !nav.customerGroup?.[id],
+    );
+    check(`${loc}: every section has a label`, missingGroups.length === 0, missingGroups.join(","));
+    const missingItems = CUSTOMER_NAVS.map((n) => n.id).filter((id) => !nav.customerItem?.[id]);
+    check(`${loc}: every screen has a label`, missingItems.length === 0, missingItems.join(","));
+    const tabGroups = CUSTOMER_NAVS.filter((n) => n.tabGroup).map((n) => n.tabGroup.id);
+    check(
+      `${loc}: every tab sub-group has a label`,
+      tabGroups.length === 2 && tabGroups.every((id) => !!nav.customerTabGroup?.[id]),
+    );
+    check(
+      `${loc}: the tab bar's accessible name is translated`,
+      /\{\{section\}\}/.test(nav.sectionTabs?.label ?? ""),
+    );
+    const missingHelp = customerSidebarGroupsForRole("owner")
+      .map((g) => g.id)
+      .filter((id) => !help.group?.[id]);
+    check(
+      `${loc}: How It Works describes every section`,
+      missingHelp.length === 0,
+      missingHelp.join(","),
+    );
+  }
+  check(
+    "every permission key still belongs to a feature that exists",
+    Object.keys(NAV_PERMISSION_KEYS).every((id) => CUSTOMER_NAVS.some((n) => n.id === id)),
   );
 }
 

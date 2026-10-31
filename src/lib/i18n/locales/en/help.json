@@ -4,8 +4,9 @@
   "intro": "Everything you need to run your guest WiFi lives here — from checking who's online right now to deciding exactly who gets to connect. Every screen listed below is one you can open; tap any of them to go straight there.",
   "group": {
     "overview": "Where to start: how your guest WiFi is doing right now, what needs attention, and what to do when a guest can't get online.",
-    "guests": "The people on your WiFi — who they are, their codes and groups, the messages you send them, and the numbers.",
-    "login-page": "What a guest sees before they're online — your branded page, the offers on it, and the hours WiFi is open.",
+    "guests": "The people on your WiFi — who they are, their groups and codes, and the numbers.",
+    "marketing": "Promote something to your guests — WhatsApp, SMS and email messages after the visit, and offers on the login page during it.",
+    "login-page": "What a guest sees before they're online — your branded page and the hours WiFi is open.",
     "network": "Your hardware and the plumbing behind your guest WiFi — devices, internet connection, addresses, separation, forwarding and call quality.",
     "security": "What your guest WiFi is protected against, what to block, and who is allowed to connect.",
     "help": "Get help from our team, and learn how the dashboard works.",

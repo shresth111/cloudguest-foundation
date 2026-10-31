@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerPageScope } from "@/components/customer/CustomerPageScope";
+import { SectionTabs } from "@/components/customer/console/SectionTabs";
 import {
   CustomerCommandPalette,
   useCustomerCommandPalette,
@@ -397,6 +398,9 @@ function CustomerUsersPage() {
           <div className="mx-auto max-w-7xl space-y-4">
             {/* The venue name beside the heading is deliberate -- see
                 CustomerPageScope. */}
+            {/* Guests › Guests: this page's own row is the Guests section,
+                and its siblings (Guest Groups, Vouchers, Reports) are tabs. */}
+            <SectionTabs featureId="users" />
             <CustomerPageScope featureId="users" locationName={activeLocation?.name} />
             {/* Previously 4 tiles (On this page/Online/Idle/Offline)
              * computed from data.users -- but that's only the current

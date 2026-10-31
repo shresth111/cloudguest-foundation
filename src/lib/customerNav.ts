@@ -43,11 +43,33 @@ export interface CustomerNavItem {
    * feature (route, palette, permission gate). Absent means "in the
    * sidebar". Only Staff Access uses it: it is offered from the avatar menu. */
   inSidebar?: false;
+  /** Other words people use for this screen. The command palette matches on
+   * them (English, beside the translated label), so typing "coupon" still
+   * lands on Vouchers now that Vouchers is a tab rather than a row. */
+  keywords?: readonly string[];
+  /** Starts a sub-group in its section's tab bar: a divider, then this
+   * label (`nav:customerTabGroup.<id>`), before this tab and every tab after
+   * it until the next `tabGroup`. Visual only -- it changes no URL, order
+   * or permission. */
+  tabGroup?: { id: string; label: string };
 }
 
 export interface CustomerNavGroup {
   id: string;
   label: string;
+  /** The sidebar row's icon, for a `tabs` section. Unused for `rows`. */
+  icon?: LucideIcon;
+  /**
+   * How the group reaches the sidebar.
+   *
+   * - `"rows"`: every item is its own sidebar row and its page has no tab
+   *   bar (Home: Dashboard, Alerts, Fix a Problem -- the "something is
+   *   wrong" path stays one click and zero tabs away).
+   * - `"tabs"` (the default): the group is ONE sidebar row, labelled with the
+   *   group's own name, that opens the first item the caller can see; the
+   *   items are the tabs of a tab bar on each of their pages.
+   */
+  presentation?: "rows" | "tabs";
   items: CustomerNavItem[];
 }
 
@@ -56,15 +78,27 @@ export interface CustomerNavGroup {
  * component, see src/components/customer/CustomerSidebar.tsx) so they can't
  * drift out of sync with each other again.
  *
- * Grouped by task, into the seven sections every customer page's sidebar
- * renders (Home / Guests / Login Page / Network / Security / Help / Logs --
- * Logs collapsed by default), plus one off-sidebar "Account" group holding
- * Staff Access, which the avatar menu offers instead. This is the canonical
- * grouping; `CUSTOMER_NAVS` below is just this flattened for call sites that
- * only need the plain list (id/icon/role lookups, the "is this a known
- * feature id" check, etc). Group ids are translation keys
- * (`nav:customerGroup.<id>`); item ids are routes, and neither the regroup
- * nor any rename before it changed an item id. */
+ * SECTIONS WITH TABS (docs/design/nav-consolidation.md)
+ * ---------------------------------------------------
+ * Ten sidebar rows, not twenty-nine. Home's three items stay rows of their
+ * own (`presentation: "rows"`); every other group is ONE row -- Guests,
+ * Marketing, Login Page, Network, Security, Logs, Help -- whose items are
+ * the tabs on each of its pages (`SectionTabs`). Plus one off-sidebar
+ * "Account" group holding Staff Access, which the avatar menu offers.
+ *
+ * This was tried once before (#219) and reverted (#220), because the long
+ * menu was what customers navigated by. What is different this time is that
+ * nothing moved out of reach: there is no second "destinations" module to
+ * drift from this one -- the groups below ARE the sections -- every item
+ * keeps its id and its URL (`customerFeatureHref`), every item is still its
+ * own command-palette entry by its own name (plus `keywords`), and each tab
+ * is filtered by exactly the role + permission rules its row was.
+ *
+ * `CUSTOMER_NAVS` below is just this flattened for call sites that only need
+ * the plain list (id/icon/role lookups, the "is this a known feature id"
+ * check, etc). Group ids are translation keys (`nav:customerGroup.<id>`);
+ * item ids are routes, and neither this regroup nor any rename before it
+ * changed an item id. */
 export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
   {
     // "Overview" until the task-based regroup; the label is "Home" now so it
@@ -72,11 +106,27 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     // `customerGroup.overview` and every test keyed on it still hold.
     id: "overview",
     label: "Home",
+    // Rows, not a section: these are the three screens an owner opens when
+    // something is wrong, and a tab bar in front of them would be one more
+    // thing between the owner and the answer.
+    presentation: "rows",
     items: [
-      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["owner", "agent"] },
+      {
+        id: "dashboard",
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        roles: ["owner", "agent"],
+        keywords: ["home", "overview", "summary"],
+      },
       // Alerts sits with Dashboard and Fix a Problem: the three rows an owner
       // opens when something is wrong are the first three rows of the rail.
-      { id: "alerts", label: "Alerts", icon: Bell, roles: ["owner", "agent"] },
+      {
+        id: "alerts",
+        label: "Alerts",
+        icon: Bell,
+        roles: ["owner", "agent"],
+        keywords: ["notifications", "warnings", "down", "outage"],
+      },
       // "Network Diagnostics" -> "Connection Tools" -> "Fix a Problem".
       // The first rename was display-only and the complaint it was meant
       // to fix outlived it; this one comes with the page actually being
@@ -99,24 +149,73 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // WiFi is down, and as the only row of its own "Operations" group it
       // sat below the fold on a laptop. Moved, not duplicated -- the group
       // it came from is gone.
-      { id: "debugging", label: "Fix a Problem", icon: Wifi, roles: ["owner", "agent"] },
+      {
+        id: "debugging",
+        label: "Fix a Problem",
+        icon: Wifi,
+        roles: ["owner", "agent"],
+        keywords: [
+          "troubleshoot",
+          "diagnostics",
+          "not working",
+          "no internet",
+          "guest can't connect",
+        ],
+      },
     ],
   },
   {
-    // Everything about the people on the WiFi: who they are, the codes and
-    // groups they sign in with, what the venue sends them, and the numbers.
+    // Everything about the people on the WiFi: who they are, the groups and
+    // codes they sign in with, and the numbers.
     id: "guests",
     label: "Guests",
+    icon: Users,
     items: [
-      { id: "users", label: "Guests", icon: Users, roles: ["owner", "agent"] },
-      { id: "vouchers", label: "Vouchers", icon: Ticket, roles: ["owner", "agent"] },
-      { id: "teams", label: "Guest Groups", icon: UsersRound, roles: ["owner"] },
+      {
+        id: "users",
+        label: "Guests",
+        icon: Users,
+        roles: ["owner", "agent"],
+        keywords: ["visitors", "users", "customers", "people", "sessions", "online"],
+      },
+      {
+        id: "teams",
+        label: "Guest Groups",
+        icon: UsersRound,
+        roles: ["owner"],
+        keywords: ["teams", "groups", "plans"],
+      },
+      {
+        id: "vouchers",
+        label: "Vouchers",
+        icon: Ticket,
+        roles: ["owner", "agent"],
+        keywords: ["codes", "access code", "coupon", "wifi code", "passes"],
+      },
+      {
+        id: "reports",
+        label: "Reports",
+        icon: FileText,
+        roles: ["owner", "agent"],
+        keywords: ["analytics", "statistics", "export", "usage", "numbers"],
+      },
+    ],
+  },
+  {
+    // Promoting something to the venue's guests: by message after the visit
+    // (Guest Messaging) or on the login page during it (Login Page Offers).
+    // Two separate products with their own consent and send lifecycle --
+    // they share a section, never a screen. Its own row, not a tab of
+    // Guests, because Guest Messaging is a paid add-on and a customer cannot
+    // ask for a feature they cannot see (spec D5).
+    id: "marketing",
+    label: "Marketing",
+    icon: Megaphone,
+    items: [
       // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5).
-      // It had a group of its own; it lives in Guests now because it is
-      // outbound WhatsApp/SMS/email TO guests who opted in. It is still not a
-      // row under Login Page -> Login Page Offers: those are captive-portal
-      // banners/surveys shown DURING login, a different product with its own
-      // consent and send lifecycle. The add-on lock badge (CustomerSidebar)
+      // Outbound WhatsApp/SMS/email TO guests who opted in. Not the same
+      // thing as Login Page Offers beside it (captive-portal banners shown
+      // DURING login). The add-on lock badge (CustomerSidebar, SectionTabs)
       // still marks it when the org has not bought it.
       //
       // Both roles on purpose. `cg_login_role` is a sign-in radio button in
@@ -126,23 +225,49 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // `/me/entitlements` (CustomerSidebar's lock badge) and, finally, from
       // the backend's own 402 on every marketing route.
       //
-      // `Send`, not `Megaphone`: Megaphone is Login Page Offers, and in the collapsed
-      // rail two rows with the same glyph are indistinguishable.
-      { id: "marketing", label: "Guest Messaging", icon: Send, roles: ["owner", "agent"] },
-      { id: "reports", label: "Reports", icon: FileText, roles: ["owner", "agent"] },
+      // `Send`, not `Megaphone`: Megaphone is Login Page Offers (and the
+      // Marketing row itself), and two palette entries or tabs with the same
+      // glyph are harder to tell apart.
+      {
+        id: "marketing",
+        label: "Guest Messaging",
+        icon: Send,
+        roles: ["owner", "agent"],
+        keywords: ["whatsapp", "sms", "email", "campaign", "broadcast", "promotion"],
+      },
+      // Moved here from Login Page (same id, same /guest-campaigns route).
+      {
+        id: "campaigns",
+        label: "Login Page Offers",
+        icon: Megaphone,
+        roles: ["owner"],
+        keywords: ["offers", "banner", "survey", "promotion", "ads", "campaigns"],
+      },
     ],
   },
   {
-    // What a guest sees before they are online: the page itself, the offers
-    // on it, and the hours it lets anyone in.
+    // What a guest sees before they are online: the page itself and the
+    // hours it lets anyone in. (Login Page Offers moved to Marketing.)
     id: "login-page",
     label: "Login Page",
+    icon: Palette,
     items: [
-      { id: "portal", label: "Portal", icon: Palette, roles: ["owner"] },
-      { id: "campaigns", label: "Login Page Offers", icon: Megaphone, roles: ["owner"] },
+      {
+        id: "portal",
+        label: "Portal",
+        icon: Palette,
+        roles: ["owner"],
+        keywords: ["captive portal", "splash page", "branding", "logo", "design", "login screen"],
+      },
       // Renamed from "Business Hours" (same id/route/data) -- see
       // customerFeatureCatalog.ts's own note.
-      { id: "business-hours", label: "Open Hours", icon: Sun, roles: ["owner"] },
+      {
+        id: "business-hours",
+        label: "Open Hours",
+        icon: Sun,
+        roles: ["owner"],
+        keywords: ["business hours", "schedule", "timings", "opening hours"],
+      },
       // "Background Image" used to sit in this neighbourhood. Removed: the
       // login-screen backdrop is now uploaded from Portal -> Design, next to
       // the logo and the headline it has to stay legible against, with the
@@ -154,22 +279,31 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
   {
     id: "network",
     label: "Network",
+    icon: Network,
     // Renamed the same three as customerFeatureCatalog.ts (same id/route/
     // data, see that file's own note).
     items: [
       // Devices leads the group: the hardware is the first thing to check
       // when the network misbehaves, and it was alone in "Devices & Team".
-      { id: "devices", label: "Devices", icon: Monitor, roles: ["owner", "agent"] },
+      {
+        id: "devices",
+        label: "Devices",
+        icon: Monitor,
+        roles: ["owner", "agent"],
+        keywords: ["router", "access point", "hardware", "mikrotik", "ap"],
+      },
       // "Website Blocking" used to sit in this group. It is now the
       // "Websites & IPs" tab of Security -> Blocking, next to blocked guests,
       // so everything a venue can block is in one place. Same screen, same
       // rules, same requests; `/website-blocking` redirects to that tab. See
       // lib/blocking.ts.
-      { id: "isp-details", label: "Internet Connection", icon: Globe, roles: ["owner"] },
-      { id: "dhcp", label: "IP Addresses", icon: Server, roles: ["owner"] },
-      { id: "vlans", label: "Network Zones", icon: Network, roles: ["owner"] },
-      { id: "port-forwarding", label: "Port Forwarding", icon: Share2, roles: ["owner"] },
-      { id: "voip", label: "Call Priority", icon: Signal, roles: ["owner"] },
+      {
+        id: "isp-details",
+        label: "Internet Connection",
+        icon: Globe,
+        roles: ["owner"],
+        keywords: ["isp", "broadband", "uplink", "wan", "failover", "speed"],
+      },
       // Traffic Lens (paid add-on; wyfy-specs/flow-visibility/PRODUCT.md C1):
       // what the venue's traffic is made of. Read-only, and owner-only like
       // Guest Connection Records -- it shows device addresses. Three layers,
@@ -179,12 +313,50 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // this list: a locked owner still sees the row and the lock screen.
       // Not in CONTROLLER_UNSUPPORTED_FEATURE_IDS: the page itself says
       // "not available at this venue", from the backend's own answer.
-      { id: "traffic-lens", label: "Traffic Lens", icon: Waypoints, roles: ["owner"] },
+      {
+        id: "traffic-lens",
+        label: "Traffic Lens",
+        icon: Waypoints,
+        roles: ["owner"],
+        keywords: ["traffic", "netflow", "bandwidth", "apps", "top sites"],
+      },
+      // The router-configuration screens, after a divider in the tab bar:
+      // set once by whoever installed the network and rarely opened again.
+      {
+        id: "dhcp",
+        label: "IP Addresses",
+        icon: Server,
+        roles: ["owner"],
+        keywords: ["dhcp", "ip pool", "leases", "static ip"],
+        tabGroup: { id: "advanced", label: "Advanced" },
+      },
+      {
+        id: "vlans",
+        label: "Network Zones",
+        icon: Network,
+        roles: ["owner"],
+        keywords: ["vlan", "segments", "separate network"],
+      },
+      {
+        id: "port-forwarding",
+        label: "Port Forwarding",
+        icon: Share2,
+        roles: ["owner"],
+        keywords: ["nat", "ports", "cctv", "remote access"],
+      },
+      {
+        id: "voip",
+        label: "Call Priority",
+        icon: Signal,
+        roles: ["owner"],
+        keywords: ["voip", "qos", "calls", "voice"],
+      },
     ],
   },
   {
     id: "security",
     label: "Security",
+    icon: ShieldCheck,
     // Three rows, and each opens a screen that does something. The posture
     // page is the only security surface whose numbers this platform can
     // actually produce (see SecurityOverviewView's own note), and Block
@@ -215,42 +387,76 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     // after the three above, not interleaved, so this group's first block
     // stays exactly as it was.
     items: [
-      { id: "security", label: "Security Score", icon: ShieldAlert, roles: ["owner"] },
-      { id: "blocking", label: "Block Websites", icon: Ban, roles: ["owner"] },
+      {
+        id: "security",
+        label: "Security Score",
+        icon: ShieldAlert,
+        roles: ["owner"],
+        keywords: ["security", "posture", "protection"],
+      },
+      {
+        id: "blocking",
+        label: "Block Websites",
+        icon: Ban,
+        roles: ["owner"],
+        keywords: ["website blocking", "web filter", "block site", "content filter", "block guest"],
+      },
       // Owner-only, like every other screen that writes the venue's router.
       // `BrickWall`: unused elsewhere, and it is what the word means. At a
       // controller-only venue the row is muted and the page shows the
       // controller notice ("firewall" is in CONTROLLER_UNSUPPORTED_FEATURE_IDS).
-      { id: "firewall", label: "Firewall", icon: BrickWall, roles: ["owner"] },
-      { id: "policies", label: "Access Rules", icon: ShieldCheck, roles: ["owner"] },
-      { id: "whitelist", label: "Guest Allow-list", icon: Shield, roles: ["owner"] },
-      { id: "mac-auth", label: "Trusted Devices", icon: Fingerprint, roles: ["owner"] },
+      {
+        id: "firewall",
+        label: "Firewall",
+        icon: BrickWall,
+        roles: ["owner"],
+        keywords: ["rules", "block port", "filter"],
+      },
+      // "Who may connect", after a divider in the tab bar.
+      {
+        id: "policies",
+        label: "Access Rules",
+        icon: ShieldCheck,
+        roles: ["owner"],
+        keywords: ["policies", "time limit", "speed limit", "data limit"],
+        tabGroup: { id: "who-can-connect", label: "Who can connect" },
+      },
+      {
+        id: "whitelist",
+        label: "Guest Allow-list",
+        icon: Shield,
+        roles: ["owner"],
+        keywords: ["whitelist", "allow list", "walled garden", "allowed sites"],
+      },
+      {
+        id: "mac-auth",
+        label: "Trusted Devices",
+        icon: Fingerprint,
+        roles: ["owner"],
+        keywords: ["mac", "mac address", "bypass", "staff devices", "printer"],
+      },
     ],
   },
   {
-    id: "help",
-    label: "Help",
-    items: [
-      { id: "tickets", label: "Support Tickets", icon: LifeBuoy, roles: ["owner", "agent"] },
-      // A static reference page, not a data-backed feature -- lives here
-      // (rather than getting its own top-level nav group) because "Help" is
-      // exactly where a customer already looks for it, right alongside
-      // Support Tickets. See how-it-works.tsx / HowItWorksPage.tsx.
-      { id: "how-it-works", label: "How It Works", icon: HelpCircle, roles: ["owner", "agent"] },
-    ],
-  },
-  {
-    // Records, not tools: rarely opened, so CustomerSidebar renders this
-    // group collapsed by default (see COLLAPSIBLE_GROUP_IDS there).
+    // Records, not tools: rarely opened. It used to render collapsed by
+    // default to save three rows; as one row with tabs there is nothing left
+    // to collapse, so that behaviour is retired.
     id: "logs",
     label: "Logs",
+    icon: ScrollText,
     items: [
       // The former separate "Audit Log" tab was merged into Admin Logs' own
       // "Account Activity" section -- one log destination, not two. Owner-only
       // -- see customer.$locationId.$feature.tsx's own AdminLogsView render
       // for the same restriction and why (a real, org-wide login + change
       // audit trail, independently enforced by the backend too).
-      { id: "admin-logs", label: "Staff Activity", icon: ScrollText, roles: ["owner"] },
+      {
+        id: "admin-logs",
+        label: "Staff Activity",
+        icon: ScrollText,
+        roles: ["owner"],
+        keywords: ["audit log", "admin logs", "changes", "who changed"],
+      },
       // Distinct nav item from "Staff Activity" above -- different data (real *guest*
       // WiFi usage records: session connections + login/access attempts),
       // different audience framing (a compliance-relevant record, not a
@@ -260,7 +466,13 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // reasoning as "Staff Activity" (security-sensitive guest data) -- see
       // NetworkActivityLog.tsx's own render-time guard for the matching
       // three-layer defense-in-depth.
-      { id: "network-activity", label: "Guest Connection Records", icon: Radar, roles: ["owner"] },
+      {
+        id: "network-activity",
+        label: "Guest Connection Records",
+        icon: Radar,
+        roles: ["owner"],
+        keywords: ["ipdr", "cert-in", "compliance", "connection logs", "session logs"],
+      },
       // NetLogs: this account's router + sign-in log lines (cloud-guest#420,
       // `GET /device-logs`). Both roles: the backend seeds
       // `network_logs.read` at LOCATION scope for the site-level staff roles
@@ -268,7 +480,38 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
       // customerNavPermissions.ts). Not the Master "Device Logs" viewer: that
       // one is GLOBAL-only and shows tunnel internals; this one never does.
       // `Logs`: unused elsewhere, so the collapsed rail stays unambiguous.
-      { id: "netlogs", label: "NetLogs", icon: Logs, roles: ["owner", "agent"] },
+      {
+        id: "netlogs",
+        label: "NetLogs",
+        icon: Logs,
+        roles: ["owner", "agent"],
+        keywords: ["router logs", "syslog", "device logs", "sign-in log"],
+      },
+    ],
+  },
+  {
+    id: "help",
+    label: "Help",
+    icon: LifeBuoy,
+    items: [
+      {
+        id: "tickets",
+        label: "Support Tickets",
+        icon: LifeBuoy,
+        roles: ["owner", "agent"],
+        keywords: ["support", "help", "contact", "complaint", "issue"],
+      },
+      // A static reference page, not a data-backed feature -- lives here
+      // (rather than getting its own top-level nav group) because "Help" is
+      // exactly where a customer already looks for it, right alongside
+      // Support Tickets. See how-it-works.tsx / HowItWorksPage.tsx.
+      {
+        id: "how-it-works",
+        label: "How It Works",
+        icon: HelpCircle,
+        roles: ["owner", "agent"],
+        keywords: ["guide", "documentation", "manual", "faq"],
+      },
     ],
   },
   {
@@ -281,7 +524,16 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     // customerSidebarGroupsForRole().
     id: "account",
     label: "Account",
-    items: [{ id: "agents", label: "Staff Access", icon: Bot, roles: ["owner"], inSidebar: false }],
+    items: [
+      {
+        id: "agents",
+        label: "Staff Access",
+        icon: Bot,
+        roles: ["owner"],
+        inSidebar: false,
+        keywords: ["staff", "team members", "roles", "permissions", "users", "employees"],
+      },
+    ],
   },
 ];
 
@@ -330,6 +582,36 @@ export function customerSidebarGroupsForRole(role: CustomerLoginRole): CustomerN
   return customerNavGroupsForRole(role)
     .map((g) => ({ ...g, items: g.items.filter((item) => item.inSidebar !== false) }))
     .filter((g) => g.items.length > 0);
+}
+
+/** One sidebar row: a single screen (Home's rows) or a section whose
+ * visible items are its tabs. */
+export type CustomerSidebarEntry =
+  | { kind: "item"; item: CustomerNavItem }
+  | { kind: "section"; group: CustomerNavGroup };
+
+/** Already-filtered groups (role, then permissions) -> sidebar rows.
+ * `rows` groups contribute each item; every other group contributes one
+ * section row, which callers point at `group.items[0]` -- the first tab the
+ * caller can see, since the filters already removed the rest. */
+export function customerSidebarEntries(groups: CustomerNavGroup[]): CustomerSidebarEntry[] {
+  return groups.flatMap((g): CustomerSidebarEntry[] =>
+    g.presentation === "rows"
+      ? g.items.map((item) => ({ kind: "item", item }))
+      : [{ kind: "section", group: g }],
+  );
+}
+
+/** The (unfiltered) group a feature id belongs to, or `undefined` for an id
+ * that is not a nav item. */
+export function customerNavGroupOf(featureId: string): CustomerNavGroup | undefined {
+  return CUSTOMER_NAV_GROUPS.find((g) => g.items.some((i) => i.id === featureId));
+}
+
+/** True when this feature's page carries a section tab bar. */
+export function featureHasSectionTabs(featureId: string): boolean {
+  const g = customerNavGroupOf(featureId);
+  return !!g && g.presentation !== "rows" && g.items.some((i) => i.inSidebar !== false);
 }
 
 /** The only 4 customer feature ids whose bare name is already owned by

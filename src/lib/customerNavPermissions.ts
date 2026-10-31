@@ -249,3 +249,67 @@ export function navItemsHiddenByPermissions(
   const granted = new Set(permissions);
   return groups.flatMap((g) => g.items.filter((item) => !navItemAllowed(item.id, granted)));
 }
+
+/** What a section page's tab bar shows, and whether to leave the page. */
+export interface SectionTabsModel {
+  /** The section (unfiltered), or `null` when this feature's page has no tab
+   * bar: not a nav item, a Home row, or an off-sidebar item. */
+  section: CustomerNavGroup | null;
+  /** The tabs to render, in order. Always includes `featureId` itself when
+   * the page is not redirecting -- a tab bar that omits the page you are on
+   * reads as "where am I?". */
+  tabs: CustomerNavItem[];
+  /** Where to send the browser (replace, not push) instead of rendering this
+   * screen, or `null` to render it. */
+  redirectTo: string | null;
+}
+
+/**
+ * The section tab bar's model for `featureId`, from the same two filters the
+ * sidebar applies (role, then real grants -- `roleGroups` is
+ * `customerSidebarGroupsForRole(role)`).
+ *
+ * A screen opened by URL that the sidebar would not offer:
+ *
+ *   - hidden by the caller's REAL grants (a present, non-empty set that
+ *     lacks every key for it), with another tab in the section still
+ *     visible: redirect to the first visible tab. The backend would refuse
+ *     the screen's requests anyway, and the first visible tab is a page that
+ *     works.
+ *   - hidden only by the login-role radio, or nothing else in the section is
+ *     visible: render it as before, with its own tab added to the bar. The
+ *     radio is a sign-in landing preference, not an authorization decision
+ *     (see the top of this file), and the backend still enforces every
+ *     request.
+ *
+ * `hrefOf` is injected so this stays a pure function of the nav data.
+ */
+export function resolveSectionTabs(
+  featureId: string,
+  allGroups: CustomerNavGroup[],
+  roleGroups: CustomerNavGroup[],
+  permissions: readonly string[] | null | undefined,
+  hrefOf: (id: string) => string,
+): SectionTabsModel {
+  const section = allGroups.find((g) => g.items.some((i) => i.id === featureId)) ?? null;
+  if (!section || section.presentation === "rows")
+    return { section: null, tabs: [], redirectTo: null };
+  const sectionItems = section.items.filter((i) => i.inSidebar !== false);
+  if (!sectionItems.some((i) => i.id === featureId)) {
+    return { section: null, tabs: [], redirectTo: null };
+  }
+  const visible =
+    filterNavGroupsByPermissions(roleGroups, permissions).find((g) => g.id === section.id)?.items ??
+    [];
+  if (visible.some((i) => i.id === featureId)) {
+    return { section, tabs: visible, redirectTo: null };
+  }
+  const deniedByGrants =
+    !!permissions && permissions.length > 0 && !navItemAllowed(featureId, new Set(permissions));
+  if (deniedByGrants && visible.length > 0) {
+    return { section, tabs: visible, redirectTo: hrefOf(visible[0].id) };
+  }
+  // Keep the canonical order: the current screen goes where it lives.
+  const keep = new Set([...visible.map((i) => i.id), featureId]);
+  return { section, tabs: sectionItems.filter((i) => keep.has(i.id)), redirectTo: null };
+}

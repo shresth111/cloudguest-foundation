@@ -324,20 +324,31 @@ const browser = await chromium.launch();
 const NETWORK_LABELS = ["Network Zones", "IP Addresses", "Port Forwarding", "Call Priority"];
 
 /** Open one feature page at a venue with `routers`, and report what a venue
- * owner would see: the page body, and the nav rows with their muted state. */
+ * owner would see: the page body, and the nav entries with their muted state.
+ *
+ * "Nav entries" are the sidebar rows AND the current section's tab links
+ * (`SectionTabs`, `[data-section-tabs]`): since the sidebar became ten rows
+ * (docs/design/nav-consolidation.md) the Network and Security screens are
+ * tabs, and the §11.5 muting rides on the tab. `kind` says which. */
 async function openFeature(feature, routers, search = {}) {
   served = { ...served, feature, routers, search };
   const page = await browser.newPage();
   await page.goto(origin);
   await page.waitForSelector("[data-sidebar='menu']", { timeout: 10_000 });
   await page.waitForTimeout(300);
-  const rows = await page.$$eval("[data-sidebar='menu-button']", (els) =>
+  // `kind` goes in as $$eval's argument: the callback runs in the page, so it
+  // cannot close over anything here.
+  const read = (els, kind) =>
     els.map((el) => ({
+      kind,
       label: el.innerText.trim(),
       muted: el.className.includes("opacity-60"),
       title: el.getAttribute("title"),
-    })),
-  );
+    }));
+  const rows = [
+    ...(await page.$$eval("[data-sidebar='menu-button']", read, "row")),
+    ...(await page.$$eval("[data-section-tabs] a", read, "tab")),
+  ];
   // Product copy uses typographic apostrophes (`&rsquo;`), which reach
   // `innerText` as U+2019. Normalised so an assertion is about the sentence
   // rather than the glyph the source spelled it with.
@@ -382,16 +393,16 @@ console.log("\ncontroller venue: the five Network screens");
 
   const network = r.rows.filter((row) => NETWORK_LABELS.includes(row.label));
   check(
-    "omada-nav-keeps-all-four-rows",
+    "omada-nav-keeps-all-four-network-tabs",
     network.length === 4,
     `found ${network.length}: ${network.map((n) => n.label).join(", ")}`,
   );
   check(
-    "omada-nav-mutes-all-four-rows",
+    "omada-nav-mutes-all-four-tabs",
     network.every((row) => row.muted),
   );
   check(
-    "omada-nav-rows-carry-the-reason",
+    "omada-nav-tabs-carry-the-reason",
     network.every((row) => /managed by a TP-Link Omada controller/.test(row.title ?? "")),
   );
   // Five: the four Network rows, and Security -> Firewall, which is a whole
@@ -399,10 +410,15 @@ console.log("\ncontroller venue: the five Network screens");
   // NOT muted -- its Guests tab works here.
   // (Six while Web filtering was its own row; it is a section of Block
   // Websites now, gated with that page's Websites tab.)
+  // Now: exactly those four TABS on this page, and no sidebar ROW -- the
+  // Network row still opens Devices, which works here, so greying it would
+  // hide a working screen. Firewall is a Security tab; its muting is asserted
+  // on its own page below ("omada-firewall-row-is-muted-with-the-reason").
   check(
     "omada-nav-mutes-nothing-else",
-    r.rows.filter((row) => row.muted).length === 5 &&
-      r.rows.some((row) => row.label === "Firewall" && row.muted) &&
+    r.rows.filter((row) => row.muted).length === 4 &&
+      r.rows.filter((row) => row.muted).every((row) => row.kind === "tab") &&
+      r.rows.some((row) => row.kind === "row" && row.label === "Network" && !row.muted) &&
       !r.rows.some((row) => row.label === "Web filtering"),
     `${r.rows
       .filter((row) => row.muted)
@@ -459,7 +475,8 @@ for (const feature of ["port-forwarding", "dhcp", "vlans", "voip"]) {
   const network = r.rows.filter((row) => NETWORK_LABELS.includes(row.label));
   check(
     `mikrotik-${feature}-nav-is-not-muted`,
-    network.length === 4 && network.every((row) => !row.muted && row.title === null),
+    network.length === 4 &&
+      network.every((row) => row.kind === "tab" && !row.muted && row.title === null),
   );
   await r.page.close();
 }
@@ -595,7 +612,24 @@ console.log("\nSecurity -> Firewall at a controller venue");
   const row = r.rows.find((x) => x.label === "Firewall");
   check(
     "omada-firewall-row-is-muted-with-the-reason",
-    row && row.muted && /managed by a TP-Link Omada controller/.test(row.title ?? ""),
+    row &&
+      row.kind === "tab" &&
+      row.muted &&
+      /managed by a TP-Link Omada controller/.test(row.title ?? ""),
+  );
+  // The Security row stays live (Security Score and Block Websites work at an
+  // Omada venue); only the Firewall tab is greyed.
+  check(
+    "omada-security-row-is-not-muted-for-one-tab",
+    r.rows.some((x) => x.kind === "row" && x.label === "Security" && !x.muted) &&
+      r.rows
+        .filter((x) => x.muted)
+        .map((x) => x.label)
+        .join(",") === "Firewall",
+    r.rows
+      .filter((x) => x.muted)
+      .map((x) => `${x.kind}:${x.label}`)
+      .join(","),
   );
   await r.page.close();
 }

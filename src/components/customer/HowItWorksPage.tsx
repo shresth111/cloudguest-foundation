@@ -164,10 +164,11 @@ export function HowItWorksView() {
        * collapsible for anyone focusing on one section. */}
       <Accordion type="multiple" defaultValue={navGroups.map((g) => g.id)} className="space-y-4">
         {navGroups.map((group) => {
-          // The icon customerNav.ts already gives this group's first item,
-          // rather than a second set chosen here. A group is never empty:
+          // The icon customerNav.ts already gives this section's sidebar row
+          // (else its first item), rather than a second set chosen here. A
+          // group is never empty:
           // filterNavGroupsByPermissions drops any group it empties.
-          const GroupIcon = group.items[0].icon;
+          const GroupIcon = group.icon ?? group.items[0].icon;
           return (
             <AccordionItem
               key={group.id}
