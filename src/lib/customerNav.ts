@@ -430,12 +430,12 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         roles: ["owner"],
         keywords: ["security", "posture", "protection"],
       },
+      // "Blocking", not "Block Websites": the page has two tabs, Websites
+      // AND Guests & devices (lib/blocking.ts), and an owner looking for a
+      // blocked guest did not think to open a screen named for websites.
+      // Same id, same /blocking URL.
       {
         id: "blocking",
-        // "Blocking", not "Block Websites": the page has two tabs, Websites
-        // AND Guests & devices (lib/blocking.ts), and an owner looking for a
-        // blocked guest did not think to open a screen named for websites.
-        // Same id, same /blocking URL.
         label: "Blocking",
         icon: Ban,
         roles: ["owner"],
