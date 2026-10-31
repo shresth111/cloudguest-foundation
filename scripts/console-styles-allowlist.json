@@ -1,12 +1,7 @@
 {
   "_comment": "Customer-rendered files not yet migrated to the console design system (docs/design/console-tokens.md, design-review \u00a78). This list only shrinks: scripts/check-console-styles.mjs fails on a clean file left here (stale) and on any legacy class in a file not here. Adding a file needs a reason in the commit message.",
   "files": [
-    "src/components/customer/ArubaInstantOnVenueCard.tsx",
-    "src/components/customer/BasicFeatureViews.tsx",
-    "src/components/customer/ControllerControlNotice.tsx",
-    "src/components/customer/ControllerDevicesCard.tsx",
     "src/components/customer/HowItWorksPage.tsx",
-    "src/components/customer/LocationLiveness.tsx",
     "src/components/customer/dashboard/dashboard.types.ts",
     "src/components/customer/dashboard/insights/LocationComparisonCard.tsx",
     "src/components/customer/dashboard/insights/LoginFunnelCard.tsx",

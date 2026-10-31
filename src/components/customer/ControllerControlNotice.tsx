@@ -58,10 +58,10 @@ export function ControllerControlNotice({
       data-testid={`controller-control-${verdict.control}`}
       data-availability={verdict.availability}
       className={cn(
-        "mt-2 flex items-start gap-2 rounded-md border px-3 py-2 text-xs leading-snug",
+        "mt-2 flex items-start gap-2 rounded-[var(--wy-radius)] border px-3 py-2 text-xs leading-snug",
         blocked
-          ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
-          : "border-border bg-muted/40 text-muted-foreground",
+          ? "border-[color-mix(in_srgb,var(--wy-warn)_32%,transparent)] bg-[var(--wy-warn-soft)] text-[var(--wy-text)] [&>svg]:text-[var(--wy-warn)]"
+          : "border-[var(--wy-border)] bg-[var(--wy-surface-2)] text-[var(--wy-text-muted)]",
         className,
       )}
     >
