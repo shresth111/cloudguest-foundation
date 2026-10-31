@@ -140,7 +140,7 @@ export function UplinkHealthRow({
           })}
         </p>
       )}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-[1fr_1fr_12rem]">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-[1fr_1fr_auto]">
         <PlanMeter
           dir="down"
           current={link.currentDownloadMbps}
@@ -155,7 +155,7 @@ export function UplinkHealthRow({
           color={color}
           compact
         />
-        <div className="col-span-2 flex items-center gap-3 text-xs sm:col-span-1 sm:justify-end">
+        <div className="col-span-2 flex items-center gap-3 whitespace-nowrap text-xs sm:col-span-1 sm:justify-end">
           <span className="flex items-center gap-1.5">
             <span className="text-[var(--wy-text-muted)]">{t("card.latency", "Latency")}</span>
             <span className="font-semibold tabular-nums text-[var(--wy-text)]">

@@ -6,7 +6,7 @@
  * name and health -- so a port label appears only when the link records one.
  * Below `sm` it stacks vertically.
  */
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Globe, Router as RouterIcon, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusDot, type ConsoleStatus } from "@/components/customer/console";
@@ -93,6 +93,22 @@ function Wire({
   );
 }
 
+function useMinWidth(px: number): boolean {
+  const query = `(min-width: ${px}px)`;
+  const [ok, setOk] = useState(() =>
+    typeof window === "undefined" || !window.matchMedia ? true : window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia(query);
+    const on = () => setOk(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return ok;
+}
+
 export function IspPathDiagram({
   router,
   links,
@@ -104,6 +120,9 @@ export function IspPathDiagram({
 }) {
   const { t } = useIspT();
   const word = useStatusWord();
+  // One layout in the DOM, not two with one display:none: provider icons
+  // carry SVG gradient ids, and a hidden duplicate breaks every other copy.
+  const wide = useMinWidth(640);
   const routerOnline = router.status === "online";
   const anyUp = links.some(
     (l) => l.isEnabled && (l.healthStatus === "healthy" || l.healthStatus === "degraded"),
@@ -165,99 +184,100 @@ export function IspPathDiagram({
   return (
     <figure aria-label={t("path.label", "How your venue reaches the internet")} className="m-0">
       {/* Desktop: left -> right */}
-      <div className="hidden items-center sm:flex">
-        <Node
-          icon={<Users />}
-          title={t("path.venue", "Your venue")}
-          sub={t("path.guests", "Guest WiFi")}
-          className="w-36 shrink-0"
-        />
-        <Wire active={routerOnline} />
-        <Node
-          icon={<RouterIcon />}
-          title={router.name}
-          sub={router.model ?? t("path.router", "Router")}
-          status={routerOnline ? "ok" : "crit"}
-          statusLabel={
-            routerOnline
-              ? t("path.routerOnline", "Router online")
-              : t("path.routerOffline", "Router offline")
-          }
-          className="w-44 shrink-0"
-        />
-        {/* Branches: one row per link, joined by a bus on each side. */}
-        <div className="relative flex min-w-0 flex-[3] flex-col gap-2">
-          <span
-            aria-hidden
-            className="absolute left-0 border-l-[1.5px] border-[var(--wy-border-strong)]"
-            style={{ top: inset, bottom: inset }}
+      {wide ? (
+        <div className="flex items-center">
+          <Node
+            icon={<Users />}
+            title={t("path.venue", "Your venue")}
+            sub={t("path.guests", "Guest WiFi")}
+            className="w-36 shrink-0"
           />
-          <span
-            aria-hidden
-            className="absolute right-0 border-l-[1.5px] border-[var(--wy-border-strong)]"
-            style={{ top: inset, bottom: inset }}
+          <Wire active={routerOnline} />
+          <Node
+            icon={<RouterIcon />}
+            title={router.name}
+            sub={router.model ?? t("path.router", "Router")}
+            status={routerOnline ? "ok" : "crit"}
+            statusLabel={
+              routerOnline
+                ? t("path.routerOnline", "Router online")
+                : t("path.routerOffline", "Router offline")
+            }
+            className="w-44 shrink-0"
           />
-          {links.map((l, i) => {
-            const carrying = multi ? l.isActiveUplink : true;
-            const down = l.healthStatus === "unhealthy";
-            return (
-              <div key={l.id} className="flex h-11 items-center">
-                <Wire active={carrying} down={down} label={l.interface} />
-                <div className="w-44 shrink-0">{ispNode(l, i)}</div>
-                <Wire active={carrying} down={down} />
+          {/* Branches: one row per link, joined by a bus on each side. */}
+          <div className="relative flex min-w-0 flex-[3] flex-col gap-2">
+            <span
+              aria-hidden
+              className="absolute left-0 border-l-[1.5px] border-[var(--wy-border-strong)]"
+              style={{ top: inset, bottom: inset }}
+            />
+            <span
+              aria-hidden
+              className="absolute right-0 border-l-[1.5px] border-[var(--wy-border-strong)]"
+              style={{ top: inset, bottom: inset }}
+            />
+            {links.map((l, i) => {
+              const carrying = multi ? l.isActiveUplink : true;
+              const down = l.healthStatus === "unhealthy";
+              return (
+                <div key={l.id} className="flex h-11 items-center">
+                  <Wire active={carrying} down={down} label={l.interface} />
+                  <div className="w-44 shrink-0">{ispNode(l, i)}</div>
+                  <Wire active={carrying} down={down} />
+                </div>
+              );
+            })}
+          </div>
+          <Node
+            icon={<Globe />}
+            title={t("path.internet", "Internet")}
+            sub={<span className={STATUS_TEXT[internetStatus]}>{internetWord}</span>}
+            status={internetStatus}
+            statusLabel={internetWord}
+            className="w-36 shrink-0"
+          />
+        </div>
+      ) : (
+        <div className="flex flex-col items-stretch">
+          <Node
+            icon={<Users />}
+            title={t("path.venue", "Your venue")}
+            sub={t("path.guests", "Guest WiFi")}
+          />
+          <Wire vertical active={routerOnline} />
+          <Node
+            icon={<RouterIcon />}
+            title={router.name}
+            sub={router.model ?? t("path.router", "Router")}
+            status={routerOnline ? "ok" : "crit"}
+            statusLabel={
+              routerOnline
+                ? t("path.routerOnline", "Router online")
+                : t("path.routerOffline", "Router offline")
+            }
+          />
+          <div className="flex flex-col gap-1.5 border-l-[1.5px] border-[var(--wy-border-strong)] py-2 pl-3 ml-4">
+            {links.map((l, i) => (
+              <div key={l.id} className="flex items-center gap-2">
+                {l.interface && (
+                  <span className="w-10 shrink-0 font-mono text-[10px] text-[var(--wy-text-faint)]">
+                    {l.interface}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">{ispNode(l, i)}</div>
               </div>
-            );
-          })}
+            ))}
+          </div>
+          <Node
+            icon={<Globe />}
+            title={t("path.internet", "Internet")}
+            sub={<span className={STATUS_TEXT[internetStatus]}>{internetWord}</span>}
+            status={internetStatus}
+            statusLabel={internetWord}
+          />
         </div>
-        <Node
-          icon={<Globe />}
-          title={t("path.internet", "Internet")}
-          sub={<span className={STATUS_TEXT[internetStatus]}>{internetWord}</span>}
-          status={internetStatus}
-          statusLabel={internetWord}
-          className="w-36 shrink-0"
-        />
-      </div>
-
-      {/* Mobile: top -> bottom */}
-      <div className="flex flex-col items-stretch sm:hidden">
-        <Node
-          icon={<Users />}
-          title={t("path.venue", "Your venue")}
-          sub={t("path.guests", "Guest WiFi")}
-        />
-        <Wire vertical active={routerOnline} />
-        <Node
-          icon={<RouterIcon />}
-          title={router.name}
-          sub={router.model ?? t("path.router", "Router")}
-          status={routerOnline ? "ok" : "crit"}
-          statusLabel={
-            routerOnline
-              ? t("path.routerOnline", "Router online")
-              : t("path.routerOffline", "Router offline")
-          }
-        />
-        <div className="flex flex-col gap-1.5 border-l-[1.5px] border-[var(--wy-border-strong)] py-2 pl-3 ml-4">
-          {links.map((l, i) => (
-            <div key={l.id} className="flex items-center gap-2">
-              {l.interface && (
-                <span className="w-10 shrink-0 font-mono text-[10px] text-[var(--wy-text-faint)]">
-                  {l.interface}
-                </span>
-              )}
-              <div className="min-w-0 flex-1">{ispNode(l, i)}</div>
-            </div>
-          ))}
-        </div>
-        <Node
-          icon={<Globe />}
-          title={t("path.internet", "Internet")}
-          sub={<span className={STATUS_TEXT[internetStatus]}>{internetWord}</span>}
-          status={internetStatus}
-          statusLabel={internetWord}
-        />
-      </div>
+      )}
     </figure>
   );
 }

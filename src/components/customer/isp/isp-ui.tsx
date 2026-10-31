@@ -152,16 +152,16 @@ export function RoleChips({ link, multi }: { link: IspLink; multi: boolean }) {
   const { t } = useIspT();
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="rounded bg-[var(--wy-surface-2)] px-1.5 text-[11px] font-medium leading-5 text-[var(--wy-text-muted)]">
+      <span className="whitespace-nowrap rounded bg-[var(--wy-surface-2)] px-1.5 text-[11px] font-medium leading-5 text-[var(--wy-text-muted)]">
         {link.role === "primary" ? t("role.primary", "Primary") : t("role.backup", "Backup")}
       </span>
       {multi &&
         (link.isActiveUplink ? (
-          <span className="rounded bg-[var(--wy-accent-soft)] px-1.5 text-[11px] font-semibold leading-5 text-[var(--wy-accent)]">
+          <span className="whitespace-nowrap rounded bg-[var(--wy-accent-soft)] px-1.5 text-[11px] font-semibold leading-5 text-[var(--wy-accent)]">
             {t("role.active", "In use")}
           </span>
         ) : (
-          <span className="rounded border border-dashed border-[var(--wy-border-strong)] px-1.5 text-[11px] font-medium leading-[18px] text-[var(--wy-text-faint)]">
+          <span className="whitespace-nowrap rounded border border-dashed border-[var(--wy-border-strong)] px-1.5 text-[11px] font-medium leading-[18px] text-[var(--wy-text-faint)]">
             {link.healthStatus === "unhealthy"
               ? t("role.idle", "Not in use")
               : t("role.standby", "Standby")}
