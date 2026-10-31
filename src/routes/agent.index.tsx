@@ -74,7 +74,7 @@ function AgentDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
+    <div className="wy-console flex min-h-screen bg-muted/30">
       {mobile && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
