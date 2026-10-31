@@ -31,7 +31,6 @@ import {
   Trash2,
   Wifi,
   XCircle,
-  Bell,
   Server,
   History,
   ScrollText,
@@ -107,11 +106,7 @@ import { cn } from "@/lib/utils";
 import { getCustomerLoginRole } from "@/lib/customerNav";
 import { normalizeMac } from "@/lib/device-presentation";
 import { FixAProblem } from "@/components/customer/FixAProblem";
-
-function timeAgo(d: string): string {
-  const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-  return m < 1 ? "Just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)}h ago`;
-}
+import type { PageScope } from "@/components/customer/console";
 
 /* ---------- shared building blocks ---------- */
 
@@ -251,219 +246,13 @@ function KpiRow({
   );
 }
 
-/* ---------- Alerts ---------- */
-interface AlertRow {
-  sev: string;
-  title: string;
-  src: string;
-  t: string;
-  status: string;
-}
-
-const DEMO_ALERTS: AlertRow[] = [
-  {
-    sev: "error",
-    title: "Bandwidth threshold exceeded",
-    src: "GW-02 · Marathahalli",
-    t: "4 min ago",
-    status: "open",
-  },
-  {
-    sev: "warning",
-    title: "Signal degradation detected",
-    src: "AP-14 · Lobby",
-    t: "22 min ago",
-    status: "open",
-  },
-  {
-    sev: "success",
-    title: "ISP failover completed",
-    src: "System",
-    t: "1 hour ago",
-    status: "resolved",
-  },
-  {
-    sev: "info",
-    title: "Firmware update available",
-    src: "Router fleet",
-    t: "3 hours ago",
-    status: "open",
-  },
-  {
-    sev: "warning",
-    title: "OTP delivery delayed",
-    src: "Telecom gateway",
-    t: "5 hours ago",
-    status: "open",
-  },
-];
-
-interface RawAlert {
-  severity: string;
-  message: string;
-  triggered_at: string;
-  status: string;
-  router_id: string | null;
-  router_name: string | null;
-}
-
-export function AlertsView() {
-  // Both start neutral (empty/loading) on server and client alike --
-  // seeding straight from isDemo() here (server: no window -> false,
-  // client's first hydration pass: real token -> true) made the KPI
-  // row's counts (and the empty-vs-populated list below it) disagree
-  // between the SSR'd HTML and the client's hydration render, which is a
-  // real "Hydration failed" (#418), not just a cosmetic flash. The demo
-  // seed (or the real fetch) is applied from the effect below instead,
-  // strictly post-mount.
-  const [alerts, setAlerts] = useState<AlertRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (isDemo()) {
-      setAlerts(DEMO_ALERTS);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const orgId = await resolveOrgId();
-        const { data } = await api.get<{ items: RawAlert[] }>("/alerts", {
-          params: { page_size: 50, organization_id: orgId },
-          headers: { "X-Organization-Id": orgId },
-        });
-        if (cancelled) return;
-        setAlerts(
-          (data?.items ?? []).map((a) => ({
-            sev:
-              a.severity === "critical"
-                ? "error"
-                : a.severity === "warning"
-                  ? "warning"
-                  : a.status === "resolved"
-                    ? "success"
-                    : "info",
-            // Backend fix: was showing the raw router_id UUID as visible text
-            // whenever a router-scoped alert had no other label to fall back
-            // to -- real router_name now comes straight from the API
-            // (monitoring/service.py's get_router_names_for_alerts), never a
-            // raw ID left for a customer to see.
-            title: a.message,
-            src: a.router_name ?? "System",
-            t: timeAgo(a.triggered_at),
-            status: a.status,
-          })),
-        );
-      } catch {
-        // Leave alerts empty -- the "no alerts" state is accurate.
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const icon = (s: string) =>
-    s === "error" ? (
-      <XCircle className="h-4 w-4 text-rose-500" />
-    ) : s === "warning" ? (
-      <AlertTriangle className="h-4 w-4 text-amber-500" />
-    ) : s === "success" ? (
-      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-    ) : (
-      <Activity className="h-4 w-4 text-sky-500" />
-    );
-  const leftBorder = (s: string) =>
-    s === "error"
-      ? "border-l-rose-500"
-      : s === "warning"
-        ? "border-l-amber-500"
-        : s === "success"
-          ? "border-l-emerald-500"
-          : "border-l-sky-500";
-  const statusBadge = (status: string) =>
-    status === "resolved"
-      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
-      : status === "acknowledged"
-        ? "border-sky-500/20 bg-sky-500/10 text-sky-600"
-        : "border-amber-500/20 bg-amber-500/10 text-amber-600";
-  const active = alerts.filter((a) => a.status === "open" || a.status === "acknowledged").length;
-  const warnings = alerts.filter((a) => a.sev === "warning").length;
-  const resolved = alerts.filter((a) => a.status === "resolved").length;
-  return (
-    <div className="space-y-6">
-      {/* "Mark all read" used to sit here with no onClick at all -- a fully
-       * dead button on a real customer's alerts page. Removed rather than
-       * wired to an unverified endpoint. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <FeatureHeader
-            title="Alerts"
-            description="Live operational alerts across routers, ISPs and the captive portal."
-            icon={Bell}
-          />
-        </div>
-        <AlertsIllustration />
-      </div>
-      <KpiRow
-        items={[
-          { label: "Open", value: String(active), tone: "danger", icon: AlertTriangle },
-          { label: "Warnings", value: String(warnings), tone: "warning", icon: AlertTriangle },
-          { label: "Resolved", value: String(resolved), tone: "success", icon: CheckCircle2 },
-          { label: "Total", value: String(alerts.length), tone: "primary", icon: Activity },
-        ]}
-      />
-      <Card className="border-0 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-sm">Recent alerts</CardTitle>
-        </CardHeader>
-        <CardContent className={cn("space-y-2", alerts.length > 0 && !loading ? "p-3" : "p-0")}>
-          {loading ? (
-            <div className="px-6 py-4">
-              <LoadingSkeleton rows={4} />
-            </div>
-          ) : alerts.length === 0 ? (
-            <EmptyState
-              icon={Bell}
-              title="All clear"
-              description="No issues right now. We'll flag anything across your routers, ISPs, or captive portal here the moment it happens."
-            />
-          ) : (
-            alerts.map((a, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "flex items-start gap-3 rounded-xl border-l-4 bg-muted/40 py-2.5 pl-3 pr-3",
-                  leftBorder(a.sev),
-                )}
-              >
-                <span className="mt-0.5 shrink-0">{icon(a.sev)}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{a.title}</p>
-                  <p className="text-xs text-muted-foreground">{a.src}</p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize",
-                      statusBadge(a.status),
-                    )}
-                  >
-                    {a.status}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{a.t}</span>
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+/* ---------- Alerts ----------
+ * Moved to components/features/AlertsView.tsx when it migrated onto the
+ * console primitives (design-review §8, batch 1), so the console-styles
+ * guard can hold it to the tokens while the rest of this module waits its
+ * turn. Re-exported here because the feature switch lazy-loads it by name
+ * from this module. */
+export { AlertsView } from "@/components/features/AlertsView";
 
 /* ---------- Open Hours (was "Business Hours") ----------
  * Renamed + visually redesigned only -- the old name/layout read too close
@@ -533,63 +322,6 @@ const BUSINESS_HOURS_TIMEZONES = [
   "America/Denver",
   "America/Los_Angeles",
 ];
-
-/** Header-accent illustrations for the 5 views below that had an icon-badge
- * but no illustration yet -- same filled-flat-shape language established
- * elsewhere this session (see BlockUsers.tsx/CampaignsPage.tsx etc.).
- * Purely decorative, aria-hidden. */
-function AlertsIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 52"
-      className="hidden h-12 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      <path
-        d="M42 10c-7 0-12 5.5-12 13v6l-4 6h32l-4-6v-6c0-7.5-5-13-12-13z"
-        fill="#2e2a5c"
-        stroke="#a78bfa"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M37 35a5 5 0 0 0 10 0"
-        stroke="#a78bfa"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        fill="none"
-      />
-      <motion.circle
-        cx="42"
-        cy="12"
-        r="3.4"
-        fill="#f0abfc"
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.25, 1], opacity: [0.75, 1, 0.75] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 1.4, repeat: Infinity, ease: "easeInOut" }
-        }
-      />
-      {[0, 1, 2].map((i) => (
-        <motion.path
-          key={i}
-          d={`M${42 - (16 + i * 6)} 12a${16 + i * 6} ${16 + i * 6} 0 0 1 ${32 + i * 12} 0`}
-          stroke="#22d3ee"
-          strokeOpacity={0.55 - i * 0.12}
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          fill="none"
-          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.15 * i, ease: "easeOut" }}
-        />
-      ))}
-    </svg>
-  );
-}
 
 /** Sun/moon motif (not a clock face) so the header art reads as "when
  * guests can get online", not a generic settings-clock -- and so it pairs
@@ -2226,8 +1958,14 @@ export function MacAuthView({ locationId }: { locationId?: string }) {
  * portForwardingService/usePortForwarding on the frontend) and already backs
  * PortForwardingManagement -- reused here, scoped to this location, the same
  * way DhcpView/VlansView are. */
-export function PortForwardingView({ locationId }: { locationId?: string }) {
-  return <PortForwardingManagement locationId={locationId} />;
+export function PortForwardingView({
+  locationId,
+  scope,
+}: {
+  locationId?: string;
+  scope?: PageScope;
+}) {
+  return <PortForwardingManagement locationId={locationId} scope={scope} />;
 }
 
 /* ---------- DHCP Pool ----------
@@ -2237,8 +1975,8 @@ export function PortForwardingView({ locationId }: { locationId?: string }) {
  * (app.domains.dhcp, the `dhcp_pools` table, dhcpService/useDhcp on the
  * frontend) and already backs DhcpManagement -- reused here, scoped to
  * this location, the same way IspDetailsView/MacAuthView are. */
-export function DhcpView({ locationId }: { locationId?: string }) {
-  return <DhcpManagement locationId={locationId} />;
+export function DhcpView({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
+  return <DhcpManagement locationId={locationId} scope={scope} />;
 }
 
 /* ---------- VLANs ----------
@@ -2248,8 +1986,8 @@ export function DhcpView({ locationId }: { locationId?: string }) {
  * (app.domains.vlan, the `vlans` table, vlanService/useVlan on the
  * frontend) and already backs VlanManagement -- reused here, scoped to
  * this location, the same way DhcpView/IspDetailsView/MacAuthView are. */
-export function VlansView({ locationId }: { locationId?: string }) {
-  return <VlanManagement locationId={locationId} />;
+export function VlansView({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
+  return <VlanManagement locationId={locationId} scope={scope} />;
 }
 
 /* ---------- VOIP Priority ----------
@@ -2265,8 +2003,8 @@ export function VlansView({ locationId }: { locationId?: string }) {
  * Routing, no frontend component existed yet to reuse, so QosManagement is
  * new (qos.service.ts/useQos.ts alongside it), scoped to this location the
  * same way DhcpView/VlansView are. */
-export function VoipView({ locationId }: { locationId?: string }) {
-  return <QosManagement locationId={locationId} />;
+export function VoipView({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
+  return <QosManagement locationId={locationId} scope={scope} />;
 }
 
 /* ---------- Website Blocking ----------

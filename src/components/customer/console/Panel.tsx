@@ -17,6 +17,11 @@ export interface PanelProps {
   children?: ReactNode;
 }
 
+/** The Panel's surface classes, for the rare block that is a panel but not a
+ * header + body (a status band, an error fallback). Prefer `<Panel>`. */
+export const PANEL_SURFACE =
+  "min-w-0 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] text-[var(--wy-text)] shadow-[var(--wy-shadow)]";
+
 /** The console card: hairline border, small radius, optional header with title/actions. */
 export function Panel({
   title,
@@ -30,19 +35,12 @@ export function Panel({
 }: PanelProps) {
   const hasHeader = title != null || actions != null;
   return (
-    <section
-      className={cn(
-        "min-w-0 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] text-[var(--wy-text)] shadow-[var(--wy-shadow)]",
-        className,
-      )}
-    >
+    <section className={cn(PANEL_SURFACE, className)}>
       {hasHeader && (
         <header className="flex min-h-11 items-center gap-3 border-b border-[var(--wy-border)] px-4 py-2">
           <div className="min-w-0 flex-1">
             {title != null && (
-              <Heading className="truncate text-[13px] font-semibold tracking-normal">
-                {title}
-              </Heading>
+              <Heading className="truncate text-sm font-semibold tracking-normal">{title}</Heading>
             )}
             {description != null && (
               <p className="truncate text-xs text-[var(--wy-text-muted)]">{description}</p>

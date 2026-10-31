@@ -1053,6 +1053,19 @@ jobs:
             "Portal accessibility invariants: all checks passed." \
             bun run test:a11y
 
+      # The customer console design system (docs/design/console-tokens.md).
+      # Customer-rendered files must use the --wy-* tokens and the console
+      # primitives, not premium-card / rounded-2xl / gradients / raw Tailwind
+      # palette status colours. Files not migrated yet are on
+      # scripts/console-styles-allowlist.json, which may only shrink: a
+      # clean file left on it fails as stale. Floor = 8 checks.
+      - name: console styles guard
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "console-styles" 8 \
+            "console styles: all checks passed" \
+            bun run check:console-styles
+
       # --- Fleet wizard Discovery pre-flight ----------------------------
       #
       # THE ONE THAT WAS WRITTEN, PASSING, AND GATED BY NOTHING. This

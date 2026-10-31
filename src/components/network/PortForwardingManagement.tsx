@@ -1,16 +1,5 @@
-import { useState } from "react";
-import {
-  Plus,
-  Search,
-  Trash2,
-  Pencil,
-  ArrowRightLeft,
-  ShieldCheck,
-  ShieldOff,
-  Share2,
-  UploadCloud,
-  Loader2,
-} from "lucide-react";
+import { useId, useState } from "react";
+import { Plus } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,22 +7,11 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -45,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ControllerRoutersNote, RouterPickerItems } from "@/components/network/RouterPickerItems";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,9 +33,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { StatCard, SectionHeader } from "@/components/ui-ext";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import {
+  DataTable,
+  FormField,
+  FormSection,
+  FormSwitchRow,
+  PageHeader,
+  Panel,
+  StatTile,
+  StatusDot,
+  TablePager,
+  Toolbar,
+  ToolbarSearch,
+  type DataTableColumn,
+} from "@/components/customer/console";
+import {
+  DIALOG_CONSOLE,
+  EnabledBadge,
+  NameCell,
+  PushStatusBadge,
+  RowActions,
+  SCREEN_ROOT,
+  type PageScope,
+} from "@/components/network/network-ui";
 import {
   usePortForwardingRules,
   useCreatePortForwardingRule,
@@ -95,12 +92,6 @@ const DEVICE_PUSH_LABEL: Record<PortForwardingDevicePushStatus, string> = {
   failed: "Couldn't apply",
 };
 
-const DEVICE_PUSH_STYLES: Record<PortForwardingDevicePushStatus, string> = {
-  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
-  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
-  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
-};
-
 /** Whether this rule actually exists on the router.
  *
  * Worth its own column rather than folding into "Status": `isEnabled` is
@@ -114,29 +105,24 @@ const DEVICE_PUSH_STYLES: Record<PortForwardingDevicePushStatus, string> = {
  * what to do, and summarising device errors is how the silence started.
  */
 function DevicePushBadge({ rule }: { rule: PortForwardingRule }) {
-  const badge = (
-    <Badge
-      variant="outline"
-      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[rule.devicePushStatus])}
-    >
-      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-      {DEVICE_PUSH_LABEL[rule.devicePushStatus]}
-    </Badge>
-  );
-  if (rule.devicePushStatus !== "failed" || !rule.devicePushError) return badge;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-default">{badge}</span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        Couldn&apos;t apply this rule to your router: {rule.devicePushError}
-      </TooltipContent>
-    </Tooltip>
+    <PushStatusBadge
+      status={rule.devicePushStatus}
+      label={DEVICE_PUSH_LABEL[rule.devicePushStatus]}
+      error={rule.devicePushError}
+      errorPrefix="Couldn't apply this rule to your router:"
+    />
   );
 }
 
-export function PortForwardingManagement({ locationId }: { locationId?: string } = {}) {
+export function PortForwardingManagement({
+  locationId,
+  scope,
+}: {
+  locationId?: string;
+  /** Title + venue from the customer shell, which then draws no header of its own. */
+  scope?: PageScope;
+} = {}) {
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -245,209 +231,142 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
   // that arrived, so it carries the same hint the other two do.
   const totalHint = locationId ? statHint : undefined;
 
+  const columns: DataTableColumn<PortForwardingRule>[] = [
+    {
+      id: "name",
+      header: "Rule",
+      mobile: "title",
+      cell: (r) => <NameCell name={r.name} sub={r.description} />,
+    },
+    { id: "router", header: "Router", cell: (r) => routerName(r.routerId) },
+    {
+      id: "protocol",
+      header: "Protocol",
+      className: "text-xs uppercase text-[var(--wy-text-muted)]",
+      cell: (r) => r.protocol,
+    },
+    {
+      id: "destination",
+      header: "Destination",
+      mono: true,
+      cell: (r) => `${r.destinationAddress ?? "any"}:${r.destinationPort}`,
+    },
+    {
+      id: "internal",
+      header: "Internal target",
+      mono: true,
+      cell: (r) => `${r.internalAddress}:${r.internalPort}`,
+    },
+    { id: "status", header: "Status", cell: (r) => <EnabledBadge enabled={r.isEnabled} /> },
+    { id: "push", header: "On router", cell: (r) => <DevicePushBadge rule={r} /> },
+  ];
+
   return (
-    <div className="space-y-6">
-      <SectionHeader
-        icon={Share2}
-        eyebrow="Network"
-        title="Port Forwarding"
+    <div className={SCREEN_ROOT}>
+      {/* Under the customer shell this is the page's only header: the shell
+       * hands over the tab name and venue (`scope`) and draws none itself. */}
+      <PageHeader
+        title={scope?.title ?? "Port Forwarding"}
+        venue={scope?.venue}
         description="Per-router NAT rules mapping a public destination port to an internal address/port. Apply a rule to send it to the router."
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> New Rule
+            <Plus aria-hidden className="mr-1.5 h-4 w-4" /> New Rule
           </Button>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Total Rules"
-          value={statTotal}
-          hint={totalHint}
-          icon={ArrowRightLeft}
-          tone="primary"
-        />
-        <StatCard
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile label="Total Rules" value={statTotal} hint={totalHint} loading={isLoading} />
+        <StatTile
           label="Enabled"
           value={statEnabled}
           hint={statHint}
-          icon={ShieldCheck}
-          tone="success"
+          loading={isLoading}
+          leading={<StatusDot status="ok" label="Enabled" size="sm" />}
         />
-        <StatCard
+        <StatTile
           label="Disabled"
           value={statDisabled}
           hint={statHint}
-          icon={ShieldOff}
-          tone="warning"
+          loading={isLoading}
+          leading={<StatusDot status="offline" label="Disabled" size="sm" />}
         />
       </div>
 
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base font-semibold">All Rules</CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={routerFilter}
-              onValueChange={(v) => {
-                setRouterFilter(v);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All routers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All routers</SelectItem>
-                {/* Contract §11.5: the two kinds of device are listed
-                    apart, and only the ones this platform configures are
-                    selectable. See RouterPickerItems. */}
-                <RouterPickerItems rows={routers.rows} />
-              </SelectContent>
-            </Select>
-            <div className="relative w-64 max-w-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, port, address, router…"
-                className="pl-8"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Rule</TableHead>
-                <TableHead>Router</TableHead>
-                <TableHead>Protocol</TableHead>
-                <TableHead>Destination</TableHead>
-                <TableHead>Internal target</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>On router</TableHead>
-                <TableHead className="w-[160px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && rows.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    No port forwarding rules match your filters.
-                  </TableCell>
-                </TableRow>
-              )}
-              {rows.map((r) => (
-                <TableRow key={r.id} className="group">
-                  <TableCell>
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{r.name}</div>
-                      {r.description && (
-                        <div className="truncate text-xs text-muted-foreground">
-                          {r.description}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{routerName(r.routerId)}</TableCell>
-                  <TableCell className="text-xs uppercase text-muted-foreground">
-                    {r.protocol}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {r.destinationAddress ?? "any"}:{r.destinationPort}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {r.internalAddress}:{r.internalPort}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={r.isEnabled ? "default" : "secondary"}>
-                      {r.isEnabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DevicePushBadge rule={r} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      {/* Always visible, unlike the hover-revealed edit/delete
-                          pair: this is the step that actually reaches the
-                          hardware, and a rule sitting at "Not yet applied" is
-                          the thing an operator most needs to notice -- it is
-                          the difference between a forwarded port that answers
-                          and one that does not.
+      <Panel flush title="All Rules">
+        <Toolbar divided>
+          <Select
+            value={routerFilter}
+            onValueChange={(v) => {
+              setRouterFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-48" aria-label="Router">
+              <SelectValue placeholder="All routers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All routers</SelectItem>
+              {/* Contract §11.5: the two kinds of device are listed
+                  apart, and only the ones this platform configures are
+                  selectable. See RouterPickerItems. */}
+              <RouterPickerItems rows={routers.rows} />
+            </SelectContent>
+          </Select>
+          <ToolbarSearch
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Search name, port, address, router…"
+          />
+        </Toolbar>
+        <DataTable
+          ariaLabel="All Rules"
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.id}
+          loading={isLoading}
+          loadingLabel="Loading…"
+          empty="No port forwarding rules match your filters."
+          maxHeight="70vh"
+          rowActions={(r) => (
+            /* Apply is always visible, unlike the revealed edit/delete
+               pair: this is the step that actually reaches the hardware,
+               and a rule sitting at "Not yet applied" is the thing an
+               operator most needs to notice -- it is the difference
+               between a forwarded port that answers and one that does not.
 
-                          `push.variables?.id === r.id` scopes the pending
-                          state to the row being pushed: a bare
-                          `push.isPending` off this one shared mutation object
-                          freezes every row's button during any one push. */}
-                      <Button
-                        size="sm"
-                        variant={r.devicePushStatus === "active" ? "ghost" : "outline"}
-                        disabled={push.isPending && push.variables?.id === r.id}
-                        onClick={() => handlePush(r)}
-                      >
-                        {push.isPending && push.variables?.id === r.id ? (
-                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <UploadCloud className="mr-1 h-3.5 w-3.5" />
-                        )}
-                        {r.devicePushStatus === "active" ? "Re-apply" : "Apply"}
-                      </Button>
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(r)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
-              <span>
-                Page {page} of {totalPages} · {total} rules
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!hasPrevious}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!hasNext}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+               `push.variables?.id === r.id` scopes the pending state to the
+               row being pushed: a bare `push.isPending` off this one shared
+               mutation object freezes every row's button during any one
+               push. */
+            <RowActions
+              name={r.name}
+              apply={{
+                label: r.devicePushStatus === "active" ? "Re-apply" : "Apply",
+                pending: push.isPending && push.variables?.id === r.id,
+                quiet: r.devicePushStatus === "active",
+                onClick: () => handlePush(r),
+              }}
+              onEdit={() => setEditing(r)}
+              onDelete={() => setConfirmDelete(r)}
+            />
           )}
-        </CardContent>
-      </Card>
+          footer={
+            totalPages > 1 ? (
+              <TablePager
+                summary={`Page ${page} of ${totalPages} · ${total} rules`}
+                previousLabel="Previous"
+                nextLabel="Next"
+                hasPrevious={hasPrevious}
+                hasNext={hasNext}
+                onPrevious={() => setPage((p) => p - 1)}
+                onNext={() => setPage((p) => p + 1)}
+              />
+            ) : undefined
+          }
+        />
+      </Panel>
 
       <RuleDialog
         open={creating || !!editing}
@@ -460,7 +379,7 @@ export function PortForwardingManagement({ locationId }: { locationId?: string }
       />
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className={DIALOG_CONSOLE}>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete rule "{confirmDelete?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -537,6 +456,7 @@ function RuleDialog({
     defaultValues: defaults,
     values: defaults,
   });
+  const id = useId();
 
   /** Resets the form on the way out, so the next open starts clean.
    *
@@ -591,9 +511,11 @@ function RuleDialog({
     }
   }
 
+  const errors = form.formState.errors;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={`${DIALOG_CONSOLE} max-w-lg`}>
         <DialogHeader>
           <DialogTitle>{rule ? "Edit rule" : "New rule"}</DialogTitle>
           <DialogDescription>
@@ -602,121 +524,146 @@ function RuleDialog({
               : "A port forwarding rule belongs to exactly one router."}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(submit)} className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Router</Label>
-            <Controller
-              control={form.control}
-              name="routerId"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={!!rule}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select router" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Contract §11.5. A controller is listed here but not
-                        selectable: the backend refuses this write by vendor,
-                        and meeting that refusal after the form is filled in
-                        is the defect this closes. */}
-                    <RouterPickerItems rows={routers} />
-                  </SelectContent>
-                </Select>
-              )}
+        <form onSubmit={form.handleSubmit(submit)}>
+          <FormSection
+            variant="plain"
+            footer={
+              <>
+                <Button type="button" variant="outline" onClick={close}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={create.isPending || update.isPending}>
+                  {rule ? "Save changes" : "Create rule"}
+                </Button>
+              </>
+            }
+          >
+            <FormField
+              wide
+              label="Router"
+              htmlFor={`${id}-router`}
+              error={errors.routerId?.message}
+            >
+              <Controller
+                control={form.control}
+                name="routerId"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange} disabled={!!rule}>
+                    <SelectTrigger id={`${id}-router`}>
+                      <SelectValue placeholder="Select router" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Contract §11.5. A controller is listed here but not
+                          selectable: the backend refuses this write by vendor,
+                          and meeting that refusal after the form is filled in
+                          is the defect this closes. */}
+                      <RouterPickerItems rows={routers} />
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {/* Names what was greyed out and why. Renders nothing at a venue
+                  with no controller. */}
+              <ControllerRoutersNote rows={routers} />
+            </FormField>
+            <FormField wide label="Name" htmlFor={`${id}-name`} error={errors.name?.message}>
+              <Input id={`${id}-name`} {...form.register("name")} placeholder="Web server" />
+            </FormField>
+            <FormField label="Protocol" htmlFor={`${id}-protocol`}>
+              <Controller
+                control={form.control}
+                name="protocol"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id={`${id}-protocol`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROTOCOLS.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p.toUpperCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
+            <FormField
+              label="Destination port"
+              htmlFor={`${id}-dport`}
+              error={errors.destinationPort?.message}
+            >
+              <Input
+                id={`${id}-dport`}
+                type="number"
+                min={1}
+                max={65535}
+                {...form.register("destinationPort")}
+              />
+            </FormField>
+            <FormField label="Source address (optional)" htmlFor={`${id}-src`}>
+              <Input
+                id={`${id}-src`}
+                {...form.register("sourceAddress")}
+                placeholder="0.0.0.0/0"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField label="Destination address (optional)" htmlFor={`${id}-dst`}>
+              <Input
+                id={`${id}-dst`}
+                {...form.register("destinationAddress")}
+                placeholder="WAN IP"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField
+              label="Internal address"
+              htmlFor={`${id}-iaddr`}
+              error={errors.internalAddress?.message}
+            >
+              <Input
+                id={`${id}-iaddr`}
+                {...form.register("internalAddress")}
+                placeholder="10.0.0.10"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField
+              label="Internal port"
+              htmlFor={`${id}-iport`}
+              error={errors.internalPort?.message}
+            >
+              <Input
+                id={`${id}-iport`}
+                type="number"
+                min={1}
+                max={65535}
+                {...form.register("internalPort")}
+              />
+            </FormField>
+            <FormField wide label="Description (optional)" htmlFor={`${id}-desc`}>
+              <Input
+                id={`${id}-desc`}
+                {...form.register("description")}
+                placeholder="Internal purpose of this rule"
+              />
+            </FormField>
+            <FormSwitchRow
+              wide
+              label="Enabled"
+              control={
+                <Controller
+                  control={form.control}
+                  name="isEnabled"
+                  render={({ field }) => (
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  )}
+                />
+              }
             />
-            {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.routerId.message}
-              </p>
-            )}
-            {/* Names what was greyed out and why. Renders nothing at a venue
-                with no controller. */}
-            <ControllerRoutersNote rows={routers} />
-          </div>
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Name</Label>
-            <Input {...form.register("name")} placeholder="Web server" />
-            {form.formState.errors.name && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.name.message}</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Protocol</Label>
-            <Controller
-              control={form.control}
-              name="protocol"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROTOCOLS.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p.toUpperCase()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Destination port</Label>
-            <Input type="number" min={1} max={65535} {...form.register("destinationPort")} />
-            {form.formState.errors.destinationPort && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.destinationPort.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Source address (optional)</Label>
-            <Input {...form.register("sourceAddress")} placeholder="0.0.0.0/0" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Destination address (optional)</Label>
-            <Input {...form.register("destinationAddress")} placeholder="WAN IP" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Internal address</Label>
-            <Input {...form.register("internalAddress")} placeholder="10.0.0.10" />
-            {form.formState.errors.internalAddress && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.internalAddress.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Internal port</Label>
-            <Input type="number" min={1} max={65535} {...form.register("internalPort")} />
-            {form.formState.errors.internalPort && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.internalPort.message}
-              </p>
-            )}
-          </div>
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Description (optional)</Label>
-            <Input {...form.register("description")} placeholder="Internal purpose of this rule" />
-          </div>
-          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border p-3">
-            <Label className="text-xs font-medium">Enabled</Label>
-            <Controller
-              control={form.control}
-              name="isEnabled"
-              render={({ field }) => (
-                <Switch checked={field.value} onCheckedChange={field.onChange} />
-              )}
-            />
-          </div>
-          <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="outline" onClick={close}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>
-              {rule ? "Save changes" : "Create rule"}
-            </Button>
-          </DialogFooter>
+          </FormSection>
         </form>
       </DialogContent>
     </Dialog>

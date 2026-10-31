@@ -17,7 +17,11 @@ import { resolveMarketingScope } from "@/lib/marketing-scope";
 import { resolveActiveOrganizationId } from "@/services/api";
 import { useCustomerStore } from "@/stores/customerStore";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
-import { CustomerPageScope } from "@/components/customer/CustomerPageScope";
+import {
+  CustomerPageScope,
+  OWN_PAGE_HEADER_FEATURES,
+  useCustomerPageScope,
+} from "@/components/customer/CustomerPageScope";
 import { SectionTabs } from "@/components/customer/console/SectionTabs";
 import {
   CustomerCommandPalette,
@@ -232,6 +236,19 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
     locationIsControllerManaged(activeLocation?.liveness) &&
     !featureAppliesToControllerVenue(feature, locationControllerVendor(activeLocation?.liveness));
   const controllerVendor = locationControllerVendor(activeLocation?.liveness);
+  // NetLogs names its scope in its own Location filter (which can read "All
+  // locations"), so the line does not repeat a venue the filter may have
+  // moved away from.
+  const scopeLocationName =
+    feature === "netlogs"
+      ? undefined
+      : feature === "marketing" &&
+          resolveMarketingScope(roles, resolveActiveOrganizationId(), activeLocationId).kind ===
+            "organization"
+        ? "All venues"
+        : activeLocation?.name;
+  const pageScope = useCustomerPageScope(feature, scopeLocationName);
+  const ownPageHeader = OWN_PAGE_HEADER_FEATURES.has(feature) && !controllerGated;
 
   const handleLogout = async () => {
     await logout();
@@ -290,21 +307,12 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
             {/* Section › tab bar (docs/design/nav-consolidation.md). Nothing
                 for Home's rows and off-sidebar screens. */}
             <SectionTabs featureId={feature} />
-            <CustomerPageScope
-              featureId={feature}
-              locationName={
-                // NetLogs names its scope in its own Location filter (which
-                // can read "All locations"), so the line does not repeat a
-                // venue the filter may have moved away from.
-                feature === "netlogs"
-                  ? undefined
-                  : feature === "marketing" &&
-                      resolveMarketingScope(roles, resolveActiveOrganizationId(), activeLocationId)
-                        .kind === "organization"
-                    ? "All venues"
-                    : activeLocation?.name
-              }
-            />
+            {/* A migrated screen draws its own PageHeader from `pageScope`
+                (OWN_PAGE_HEADER_FEATURES); the controller notice that
+                replaces a gated screen does not, so it keeps the line. */}
+            {!ownPageHeader && (
+              <CustomerPageScope featureId={feature} locationName={scopeLocationName} />
+            )}
             {/* Every branch below can be a lazily-loaded view, so the whole
                 group sits behind one boundary. Only one branch matches at a
                 time, and a single fallback keeps the page from flickering
@@ -360,7 +368,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "audit" && <AdminLogsView locationId={locationId} />}
               {feature === "tickets" && <TicketsPage locationId={locationId} />}
               {feature === "how-it-works" && <HowItWorksView />}
-              {feature === "alerts" && <AlertsView />}
+              {feature === "alerts" && <AlertsView scope={pageScope} />}
               {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
               {/* "background-image" no longer renders here -- the login-screen
                 backdrop is uploaded from Portal -> Design (PortalPage.tsx),
@@ -400,10 +408,12 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 />
               ) : (
                 <>
-                  {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
-                  {feature === "dhcp" && <DhcpView locationId={locationId} />}
-                  {feature === "vlans" && <VlansView locationId={locationId} />}
-                  {feature === "voip" && <VoipView locationId={locationId} />}
+                  {feature === "port-forwarding" && (
+                    <PortForwardingView locationId={locationId} scope={pageScope} />
+                  )}
+                  {feature === "dhcp" && <DhcpView locationId={locationId} scope={pageScope} />}
+                  {feature === "vlans" && <VlansView locationId={locationId} scope={pageScope} />}
+                  {feature === "voip" && <VoipView locationId={locationId} scope={pageScope} />}
                   {/* Security -> Firewall writes the venue's MikroTik, so it
                       sits behind the same gate as the Network screens. */}
                   {feature === "firewall" && <FirewallView locationId={locationId} />}
