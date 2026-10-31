@@ -231,7 +231,7 @@ function Funnel({ data }: { data: LoginFunnelData }) {
           </ol>
           {verifiedNotSignedIn > 0 && (
             <p
-              className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+              className="mt-2 rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-warn)_32%,transparent)] bg-[var(--wy-warn-soft)] px-3 py-2 text-[11px] text-[var(--wy-text)]"
               data-testid="funnel-gap"
             >
               {t(
@@ -243,7 +243,7 @@ function Funnel({ data }: { data: LoginFunnelData }) {
           )}
           {signedInNotOnline > 0 && (
             <p
-              className="mt-2 flex items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100"
+              className="mt-2 flex items-start gap-1.5 rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-crit)_28%,transparent)] bg-[var(--wy-crit-soft)] px-3 py-2 text-[11px] text-[var(--wy-text)] [&>svg]:text-[var(--wy-crit)]"
               data-testid="funnel-online-gap"
             >
               <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />

@@ -18,10 +18,10 @@ import {
 } from "./insights.types";
 
 const LIVENESS_DOT: Record<Liveness, string> = {
-  online: "bg-emerald-500",
-  partial: "bg-amber-500",
-  offline: "bg-rose-500",
-  none: "bg-muted-foreground/40",
+  online: "bg-[var(--wy-ok)]",
+  partial: "bg-[var(--wy-warn)]",
+  offline: "bg-[var(--wy-crit)]",
+  none: "bg-[var(--wy-offline)]",
 };
 
 /**
