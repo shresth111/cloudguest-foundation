@@ -243,17 +243,46 @@ interface RawDashboardSeries {
   os_breakdown: { name: string; count: number }[];
 }
 
+/** Demo only: how busy a venue is at hour `h` (0-23), ~0.08 overnight to
+ * ~1 at the evening peak. Shared by the demo chart and the demo "currently
+ * online" KPI so the two agree at any time of day. */
+const demoHourShape = (h: number) =>
+  0.08 +
+  0.55 * Math.exp(-((h - 13) ** 2) / 8) +
+  0.92 * Math.exp(-((h - 19.5) ** 2) / 6) +
+  0.25 * Math.exp(-((h - 9) ** 2) / 4);
+
 /** Demo host only (`isDemo()` is honoured nowhere else -- see #300). */
 function demoDashboardSeries(win: DashboardRangeWindow): DashboardSeries {
   const step = win.bucket === "hour" ? 3_600_000 : 86_400_000;
   const first = new Date(win.start);
   if (win.bucket === "hour") first.setMinutes(0, 0, 0);
+  // A venue's day, not a counter: quiet overnight, a morning ramp, a lunch
+  // peak and a bigger evening one (hourly), busier weekends (daily). The
+  // old `(i * 17) % 120` drew a sawtooth that no real venue produces.
+  // Jitter is a fixed function of the bucket, so a refetch draws the same
+  // line.
+  const jitter = (n: number) => (((Math.sin(n * 12.9898) * 43758.5453) % 1) + 1) % 1;
   const series: DashboardSeries["series"] = [];
-  for (let t = first.getTime(), i = 0; t < win.end.getTime(); t += step, i++) {
+  for (let t = first.getTime(); t < win.end.getTime(); t += step) {
+    const at = new Date(t);
+    const bucketKey = Math.floor(t / step);
+    const shape =
+      win.bucket === "hour"
+        ? demoHourShape(at.getHours())
+        : [0.95, 0.7, 0.72, 0.75, 0.8, 0.92, 1][at.getDay()];
+    const noise = 0.92 + 0.16 * jitter(bucketKey);
+    // `online` is the bucket's peak concurrency either way (~140 at the
+    // busiest); `arrivals` is new sessions in the bucket, so a day holds
+    // roughly a full day's worth of the hourly ones.
+    const arrivalsPeak = win.bucket === "hour" ? 46 : 780;
     series.push({
-      bucketStart: new Date(t).toISOString(),
-      arrivals: 10 + ((i * 13) % 40),
-      online: 20 + ((i * 17) % 120),
+      bucketStart: at.toISOString(),
+      online: Math.max(2, Math.round(138 * shape * noise)),
+      arrivals: Math.max(
+        1,
+        Math.round(arrivalsPeak * shape * (0.85 + 0.3 * jitter(bucketKey + 7))),
+      ),
     });
   }
   const sessions = series.reduce((s, b) => s + b.arrivals, 0);
@@ -1203,7 +1232,12 @@ export const customerService = {
           isp: loc.isp,
         },
         kpis: {
-          onlineUsers: loc.onlineUsers,
+          // Scaled to the hour so it matches the demo Guests Online chart
+          // (loc.onlineUsers is the venue's evening-peak figure).
+          onlineUsers: Math.max(
+            1,
+            Math.round(loc.onlineUsers * demoHourShape(new Date().getHours())),
+          ),
           routersOnline: loc.routersOnline,
           totalRouters: loc.routersTotal,
           todayGuests: 456,
