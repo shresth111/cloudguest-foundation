@@ -381,7 +381,12 @@ console.log("\nno two nav items share an icon");
     nav.indexOf("CUSTOMER_NAV_GROUPS"),
     nav.indexOf("Flattened view of CUSTOMER_NAV_GROUPS"),
   );
-  const icons = [...block.matchAll(/\{ id: "([^"]+)",[^}]*icon: (\w+),/g)].map((m) => [m[1], m[2]]);
+  // Items, not sections: an item is the `{ id, label, icon, roles }` shape
+  // (one line or several). A section's own icon (its sidebar row) is pinned
+  // separately by test-customer-nav-shell.mjs, against the other rows.
+  const icons = [
+    ...block.matchAll(/\{\s*id: "([^"]+)",\s*label: "[^"]*",\s*icon: (\w+),\s*roles:/g),
+  ].map((m) => [m[1], m[2]]);
   const byIcon = new Map();
   for (const [id, icon] of icons) byIcon.set(icon, [...(byIcon.get(icon) ?? []), id]);
   const dupes = [...byIcon.entries()].filter(([, ids]) => ids.length > 1);

@@ -86,6 +86,7 @@
   "customerGroup": {
     "overview": "Home",
     "guests": "Guests",
+    "marketing": "Marketing",
     "login-page": "Login Page",
     "network": "Network",
     "security": "Security",
@@ -126,7 +127,15 @@
     "how-it-works": "How It Works"
   },
   "customerItemBadge": {
-    "addon": "Add-on"
+    "addon": "Add-on",
+    "addonTitle": "{{label}} is an add-on that isn't enabled for your organisation"
+  },
+  "customerTabGroup": {
+    "advanced": "Advanced",
+    "who-can-connect": "Who can connect"
+  },
+  "sectionTabs": {
+    "label": "{{section}} pages"
   },
   "commandPalette": {
     "placeholder": "Search for anything — guests, offers, vouchers, staff…",

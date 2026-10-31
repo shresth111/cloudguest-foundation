@@ -1177,8 +1177,10 @@ const nav = read("src/lib/customerNav.ts");
 const sidebar = read("src/components/customer/CustomerSidebar.tsx");
 const featurePage = read("src/components/customer/CustomerFeaturePage.tsx");
 check(
-  "nav row: Network group, owner only",
-  /id: "traffic-lens", label: "Traffic Lens", icon: Waypoints, roles: \["owner"\]/.test(nav) &&
+  "nav tab: Network section, owner only",
+  /id: "traffic-lens",\s*label: "Traffic Lens",\s*icon: Waypoints,\s*roles: \["owner"\]/.test(
+    nav,
+  ) &&
     nav.indexOf('id: "traffic-lens"') > nav.indexOf('id: "network"') &&
     nav.indexOf('id: "traffic-lens"') < nav.indexOf('id: "security",\n    label'),
 );
@@ -1192,7 +1194,17 @@ check(
 check(
   "sidebar lock badge reads the entitlement",
   /useFeatureEntitled\(TRAFFIC_LENS_FEATURE_KEY\)/.test(sidebar) &&
-    /item\.id === "traffic-lens" && trafficLensEntitled === false/.test(sidebar),
+    /id === "traffic-lens" && trafficLensEntitled === false/.test(sidebar),
+);
+// Traffic Lens is a tab of Network now; the badge travels with the tab.
+check(
+  "section tab lock badge reads the same entitlement",
+  /useFeatureEntitled\(TRAFFIC_LENS_FEATURE_KEY\)/.test(
+    read("src/components/customer/console/SectionTabs.tsx"),
+  ) &&
+    /item\.id === "traffic-lens" && trafficLensEntitled === false/.test(
+      read("src/components/customer/console/SectionTabs.tsx"),
+    ),
 );
 check(
   "the shell renders the view for the selected venue",

@@ -86,6 +86,7 @@
   "customerGroup": {
     "overview": "होम",
     "guests": "मेहमान",
+    "marketing": "मार्केटिंग",
     "login-page": "लॉगिन पेज",
     "network": "नेटवर्क",
     "security": "सुरक्षा",
@@ -126,7 +127,15 @@
     "how-it-works": "यह कैसे काम करता है"
   },
   "customerItemBadge": {
-    "addon": "ऐड-ऑन"
+    "addon": "ऐड-ऑन",
+    "addonTitle": "{{label}} एक ऐड-ऑन है जो आपके संगठन के लिए चालू नहीं है"
+  },
+  "customerTabGroup": {
+    "advanced": "एडवांस्ड",
+    "who-can-connect": "कौन जुड़ सकता है"
+  },
+  "sectionTabs": {
+    "label": "{{section}} के पेज"
   },
   "commandPalette": {
     "placeholder": "कुछ भी खोजें — मेहमान, ऑफ़र, वाउचर, स्टाफ़…",

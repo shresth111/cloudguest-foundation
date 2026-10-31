@@ -963,8 +963,24 @@ console.log("\nlock state comes from the backend, not the login radio");
 
 const nav = read("src/lib/customerNav.ts");
 check(
-  "the Guest Messaging (marketing) row is offered to both login roles",
-  /id: "marketing", label: "Guest Messaging", icon: Send, roles: \["owner", "agent"\]/.test(nav),
+  "the Guest Messaging (marketing) tab is offered to both login roles",
+  /id: "marketing",\s*label: "Guest Messaging",\s*icon: Send,\s*roles: \["owner", "agent"\]/.test(
+    nav,
+  ),
+);
+// The first tab of its own Marketing section, so the sidebar row itself
+// opens it -- the add-on stays one click away, not a fifth tab of Guests.
+check(
+  "Guest Messaging is the first tab of the Marketing section",
+  /id: "marketing",\s*label: "Marketing",\s*icon: Megaphone,\s*items: \[[\s\S]*?id: "marketing",/.test(
+    nav.replace(/\/\/[^\n]*/g, ""),
+  ),
+);
+check(
+  "the Marketing tab carries the add-on badge too",
+  /useFeatureEntitled\(GUEST_MARKETING_FEATURE_KEY\)/.test(
+    read("src/components/customer/console/SectionTabs.tsx"),
+  ) && /marketingEntitled === false/.test(read("src/components/customer/console/SectionTabs.tsx")),
 );
 const perms = read("src/lib/customerNavPermissions.ts");
 check(

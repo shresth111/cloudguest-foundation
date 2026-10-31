@@ -739,11 +739,22 @@ check(
   /featureAppliesToControllerVenue\(\s*feature,\s*locationControllerVendor/.test(featurePage),
 );
 const sidebar = src("src/components/customer/CustomerSidebar.tsx");
-check(
-  "the sidebar passes the vendor to the gate",
-  (sidebar.match(/featureAppliesToControllerVenue\(item\.id, controllerVendor\)/g) ?? []).length ===
-    2,
-);
+// Every call to the gate, in the sidebar and in the section tab bar, passes
+// the vendor -- a call without it would keep Allow-list and Trusted Devices
+// live at a NAS-only venue. (One shared helper in the sidebar since it became
+// sections with tabs; one per tab in SectionTabs.)
+{
+  const tabs = src("src/components/customer/console/SectionTabs.tsx");
+  const calls = (code) => code.match(/featureAppliesToControllerVenue\([^)]*\)/g) ?? [];
+  const all = [...calls(sidebar), ...calls(tabs)];
+  check(
+    "the sidebar and the section tabs pass the vendor to the gate",
+    calls(sidebar).length >= 1 &&
+      calls(tabs).length >= 1 &&
+      all.every((c) => /, controllerVendor\)$/.test(c)),
+    all.join(" ; "),
+  );
+}
 
 // The Master-only modules may only be imported from Master surfaces.
 function walk(dir) {

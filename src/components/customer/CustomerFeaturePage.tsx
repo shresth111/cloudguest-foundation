@@ -17,6 +17,7 @@ import { resolveActiveOrganizationId } from "@/services/api";
 import { useCustomerStore } from "@/stores/customerStore";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerPageScope } from "@/components/customer/CustomerPageScope";
+import { SectionTabs } from "@/components/customer/console/SectionTabs";
 import {
   CustomerCommandPalette,
   useCustomerCommandPalette,
@@ -239,6 +240,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 scope line says so instead of naming the venue in the top bar.
                 Decided from the real role assignments, not the login radio --
                 see lib/marketing-scope.ts. */}
+            {/* Section › tab bar (docs/design/nav-consolidation.md). Nothing
+                for Home's rows and off-sidebar screens. */}
+            <SectionTabs featureId={feature} />
             <CustomerPageScope
               featureId={feature}
               locationName={
