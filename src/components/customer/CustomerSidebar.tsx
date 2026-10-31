@@ -116,7 +116,7 @@ export interface CustomerSidebarProps {
  * when current. Overrides the primitive's hover (which would otherwise use
  * the same accent tint as the active row and blur the two together). */
 const ROW_CLASS =
-  "h-8 gap-2.5 rounded-[var(--wy-radius)] px-2 text-[13px] text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text)] active:bg-[var(--wy-surface-2)] data-[active=true]:bg-[var(--wy-accent-soft)] data-[active=true]:font-semibold data-[active=true]:text-[var(--wy-accent)] focus-visible:ring-[var(--wy-accent)] [&>svg]:text-current";
+  "h-10 gap-3 rounded-[var(--wy-radius)] px-3 text-[15px] text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text)] active:bg-[var(--wy-surface-2)] data-[active=true]:bg-[var(--wy-accent-soft)] data-[active=true]:font-semibold data-[active=true]:text-[var(--wy-accent)] focus-visible:ring-[var(--wy-accent)] [&>svg]:text-current";
 
 /** Sections drawn below a divider at the foot of the menu: the records and
  * the help, which an owner opens after the fact rather than to run the venue.
@@ -279,12 +279,12 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
         <div className="flex items-center gap-2.5 px-2 group-data-[collapsible=icon]:px-0">
           <img src="/brand/mark-primary-blue.svg" alt="" className="h-8 w-8 shrink-0" />
           <div className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-[13px] font-semibold tracking-tight text-[var(--wy-text)]">
+            <span className="truncate text-[15px] font-semibold tracking-tight text-[var(--wy-text)]">
               Wyfy Guest
             </span>
             {/* The venue name lives in the top bar's LocationSwitcher, not
                 here as well. */}
-            <span className="truncate text-[11px] text-[var(--wy-text-faint)]">
+            <span className="truncate text-[12px] text-[var(--wy-text-faint)]">
               {t("consoleShell.brandSubtitle", "Customer Portal")}
             </span>
           </div>
@@ -353,11 +353,11 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
               }
             >
               {dataMasking.sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-[18px] w-[18px] animate-spin" />
               ) : dataMasking.masked ? (
-                <Shield className="h-4 w-4" />
+                <Shield className="h-[18px] w-[18px]" />
               ) : (
-                <Eye className="h-4 w-4" />
+                <Eye className="h-[18px] w-[18px]" />
               )}
               <span className="flex-1 truncate">
                 {t("consoleShell.guestPrivacy", "Guest Privacy")}
@@ -495,10 +495,10 @@ function SidebarEntries({
             {active && !collapsed && (
               <span
                 aria-hidden
-                className="absolute -left-2 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--wy-accent)]"
+                className="absolute -left-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--wy-accent)]"
               />
             )}
-            <Icon className="h-4 w-4 shrink-0" />
+            <Icon className="h-[18px] w-[18px] shrink-0" />
             <span className="flex-1 truncate">{label}</span>
             {locked && (
               <span
@@ -539,7 +539,7 @@ function SidebarEntries({
           )}
         >
           <SidebarGroupContent>
-            <SidebarMenu>{block.map(renderEntry)}</SidebarMenu>
+            <SidebarMenu className="gap-1">{block.map(renderEntry)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       ))}
