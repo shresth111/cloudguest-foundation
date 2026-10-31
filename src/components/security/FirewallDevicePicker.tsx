@@ -187,7 +187,7 @@ export function DeviceAddressNote({
             search={{ tab: "guests" }}
             className="font-medium underline underline-offset-2"
           >
-            {t("firewallPage.guestWhoLink", "Block Websites → Guests & devices")}
+            {t("firewallPage.guestWhoLink", "Blocking → Guests & devices")}
           </Link>{" "}
           {t("firewallPage.guestWhoTail", "— it blocks the device itself, not its address.")}
         </span>

@@ -22,6 +22,7 @@ bar with the section's other screens.
 
 Section order is sidebar order; tab order is tab-bar order. A `|` in the tab
 list is a visual divider in the tab bar (sub-group label in brackets).
+`Advanced ▾ ›` is a screen inside Network's one dropdown tab (see below).
 
 | Old row (old group) | New section › tab | URL (unchanged) | Feature id | Permission keys (any of) | Roles |
 |---|---|---|---|---|---|
@@ -32,19 +33,19 @@ list is a visual divider in the tab bar (sub-group label in brackets).
 | Guest Groups (Guests) | Guests › Guest Groups | `/teams` | `teams` | `guest_teams.read` | owner |
 | Vouchers (Guests) | Guests › Vouchers | `/guest-vouchers` | `vouchers` | `voucher.read` | owner, agent |
 | Reports (Guests) | Guests › Reports | `/reports` | `reports` | `reports.read`, `analytics.read` | owner, agent |
+| Login Page Offers (Login Page) | **Marketing** › Login Page Offers (first tab) | `/guest-campaigns` | `campaigns` | `campaigns.read` | owner |
 | Guest Messaging (Guests) | **Marketing** › Guest Messaging (add-on badge) | `/marketing` | `marketing` | `marketing.read` | owner, agent |
-| Login Page Offers (Login Page) | **Marketing** › Login Page Offers | `/guest-campaigns` | `campaigns` | `campaigns.read` | owner |
 | Portal (Login Page) | Login Page › Portal | `/guest-portal` | `portal` | `captive_portal.read` | owner |
 | Open Hours (Login Page) | Login Page › Open Hours | `/business-hours` | `business-hours` | `captive_portal.read` | owner |
 | Devices (Network) | Network › Devices | `/devices` | `devices` | `monitored_hardware.read` | owner, agent |
 | Internet Connection (Network) | Network › Internet Connection | `/isp-details` | `isp-details` | `isp.read` | owner |
 | Traffic Lens (Network) | Network › Traffic Lens (add-on badge) | `/traffic-lens` | `traffic-lens` | `venue_traffic.read` | owner |
-| IP Addresses (Network) | Network › \| [Advanced] IP Addresses | `/dhcp` | `dhcp` | `dhcp.read` | owner |
-| Network Zones (Network) | Network › [Advanced] Network Zones | `/vlans` | `vlans` | `vlan.read` | owner |
-| Port Forwarding (Network) | Network › [Advanced] Port Forwarding | `/port-forwarding` | `port-forwarding` | `firewall.read` | owner |
-| Call Priority (Network) | Network › [Advanced] Call Priority | `/voip` | `voip` | `qos.read` | owner |
+| IP Addresses (Network) | Network › Advanced ▾ › IP Addresses | `/dhcp` | `dhcp` | `dhcp.read` | owner |
+| Network Zones (Network) | Network › Advanced ▾ › Network Zones | `/vlans` | `vlans` | `vlan.read` | owner |
+| Port Forwarding (Network) | Network › Advanced ▾ › Port Forwarding | `/port-forwarding` | `port-forwarding` | `firewall.read` | owner |
+| Call Priority (Network) | Network › Advanced ▾ › Call Priority | `/voip` | `voip` | `qos.read` | owner |
 | Security Score (Security) | Security › Security Score | `/security` | `security` | `security.read` | owner |
-| Block Websites (Security) | Security › Block Websites | `/blocking` | `blocking` | `content_filtering.read`, `guest_access.read` | owner |
+| Block Websites (Security) | Security › **Blocking** (websites and guests) | `/blocking` | `blocking` | `content_filtering.read`, `guest_access.read` | owner |
 | Firewall (Security) | Security › Firewall | `/firewall` | `firewall` | `firewall.read` | owner |
 | Access Rules (Security) | Security › \| [Who can connect] Access Rules | `/policies` | `policies` | `policy.read` | owner |
 | Guest Allow-list (Security) | Security › [Who can connect] Guest Allow-list | `/whitelist` | `whitelist` | `guest_access.read` | owner |
@@ -75,8 +76,53 @@ lifecycle, as before), so nothing about either product is merged -- they
 just sit next to each other. Login Page keeps the two settings for the page
 itself (design and opening hours).
 
-Open question for the owner: if Offers should stay under Login Page, it is a
-one-line move in `customerNav.ts` (and Marketing would be a single-tab row).
+Owner decision (2026-10-31): Offers stays in Marketing **as its first tab**.
+It is free and already in use, so a non-subscriber's Marketing click lands on
+something they have rather than on the Guest Messaging upsell. Staff cannot
+see Offers (owner-only), so their Marketing row still opens Guest Messaging
+(first-visible-tab rule). Login Page › Portal links to it from its "Before
+sign-in" block ("Offers shown on this page →"), so it is findable from both
+sides.
+
+## Network's installer screens: one "Advanced ▾" tab
+
+Owner decision (2026-10-31). IP Addresses, Network Zones, Port Forwarding and
+Call Priority are set once by whoever installed the network. They used to be
+four tabs after an "Advanced" divider; they are now ONE dropdown tab:
+
+- The tab reads **Advanced ▾**; while one of the four is open it reads
+  **Advanced · IP Addresses** and is highlighted like any active tab.
+- It is a Radix `DropdownMenu` (`wy-console` on its portalled content), so
+  Enter / Space / Arrow-down open it, arrows move, Escape returns focus to the
+  trigger. Each entry is still a `<Link>` to the screen's own URL with
+  `aria-current="page"` on the open one -- URLs, palette entries, permissions
+  and controller-venue muting are unchanged per screen.
+- Data: `tabMenu: { id: "advanced" }` on each of the four items in
+  `customerNav.ts`; `sectionTabEntries()` folds adjacent items sharing a
+  `tabMenu` into one entry. Label key `nav:customerTabMenu.advanced`.
+- On a phone the Network bar is now four entries instead of seven.
+
+## Unblocking a guest (front desk)
+
+Owner decision (2026-10-31): front-desk staff may **unblock** (not block, not
+edit rules) a guest at their own venue.
+
+- **Guests** row action "Unblock", shown only when that guest has an active
+  block that applies at this venue (`lib/guest-unblock.ts`), and only to a
+  caller holding `guest_access.update`. An organization-wide ban is not
+  offered to a venue-scoped account -- the row says "Blocked at all venues"
+  and that the owner lifts it from Security › Blocking.
+- Security › Blocking stays owner-only; it was renamed from "Block Websites"
+  because its second tab is Guests & devices (same id, same `/blocking`).
+- Command palette: `unblock`, `blocked guest` (and Hindi अनब्लॉक / ब्लॉक हटाएं
+  / ब्लॉक मेहमान) are keywords on Guests and on Blocking, so staff land on
+  Guests and owners see both.
+- Backend: the seeded venue roles (Reception Staff, Guest Operator, Location
+  Manager) already hold `guest_access.update` at LOCATION scope. The
+  deactivate routes now check it at an explicit `scope=LOCATION`, and a venue
+  account cannot lift an organization-wide rule (cloud-guest
+  `staff-can-unblock-guest`). A venue account must send `X-Location-Id`;
+  `useGuestUnblock` does, decided from real role assignments.
 
 ## Rules this implements
 

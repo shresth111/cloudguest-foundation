@@ -968,11 +968,14 @@ check(
     nav,
   ),
 );
-// The first tab of its own Marketing section, so the sidebar row itself
-// opens it -- the add-on stays one click away, not a fifth tab of Guests.
+// The second tab of its own Marketing section, after Login Page Offers (owner
+// decision 2026-10-31: a non-subscriber's Marketing click lands on the free
+// feature they use, not an upsell). Offers is owner-only, so for staff this
+// is still the FIRST visible tab and the sidebar row opens it -- the add-on
+// stays one click away, not a fifth tab of Guests.
 check(
-  "Guest Messaging is the first tab of the Marketing section",
-  /id: "marketing",\s*label: "Marketing",\s*icon: Megaphone,\s*items: \[[\s\S]*?id: "marketing",/.test(
+  "Marketing's tabs are Login Page Offers, then Guest Messaging",
+  /id: "marketing",\s*label: "Marketing",\s*icon: Megaphone,\s*items: \[\s*\{\s*id: "campaigns",[^}]*roles: \["owner"\],[^}]*\},\s*\{\s*id: "marketing",\s*label: "Guest Messaging"/.test(
     nav.replace(/\/\/[^\n]*/g, ""),
   ),
 );

@@ -13,6 +13,7 @@ import {
   Smartphone,
   Wifi,
   Clock,
+  LockOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -86,6 +87,8 @@ import { useClientControls, useDeviceActions } from "@/hooks/useClientControls";
 import { NAS_ONLY_DATA_USAGE_UNREPORTED, isNasOnlyVendor } from "@/lib/router-vendors";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
 import { GuestDeviceControls, isSendableMac } from "@/components/customer/GuestDeviceControls";
+import { useGuestUnblock } from "@/hooks/useGuestUnblock";
+import { blocksForGuest, unblockRefusal } from "@/lib/guest-unblock";
 
 /**
  * Shared empty-state graphic for the Users table -- a magnifying glass over
@@ -172,6 +175,16 @@ function CustomerUsersPage() {
   // `_end_on_controller`), so calling both every time would be two controller
   // round-trips for one guest.
   const deviceActions = useDeviceActions();
+  // Row-level Unblock for a blocked guest (lib/guest-unblock.ts): the
+  // front desk's way to lift a block at its own venue. Offered only when
+  // this guest IS blocked here, and only to a caller holding
+  // guest_access.update; the backend checks both again.
+  const guestUnblock = useGuestUnblock();
+  const handleUnblock = (name: string, rules: { id: string; kind: "identifier" | "device" }[]) => {
+    Promise.all(rules.map((r) => guestUnblock.unblock.mutateAsync(r)))
+      .then(() => toast.success(t("unblocked", { name })))
+      .catch((err: AppError) => toast.error(err?.message || t("unblockFailed")));
+  };
   // useIsDemo(), not isDemo() directly -- see the identical fix in
   // customer.$locationId.$feature.tsx/dashboard.tsx: calling isDemo()
   // straight in render flips between the SSR pass (no window -> false)
@@ -699,6 +712,50 @@ function CustomerUsersPage() {
                             >
                               <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                             </Button>
+                            {(() => {
+                              if (!guestUnblock.offered) return null;
+                              const blocks = blocksForGuest(
+                                u,
+                                guestUnblock.rules,
+                                locationId || null,
+                              );
+                              if (blocks.length === 0) return null;
+                              const liftable = blocks.filter(
+                                (b) => !unblockRefusal(b, guestUnblock.venueScoped),
+                              );
+                              if (liftable.length < blocks.length) {
+                                // A ban on every venue: only an organization
+                                // account may lift it (the backend refuses a
+                                // venue account). Say so instead of offering
+                                // a button that would 403.
+                                return (
+                                  <span
+                                    data-testid="guest-blocked-everywhere"
+                                    title={t("blockedEverywhereTitle")}
+                                    className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-destructive"
+                                  >
+                                    {t("blockedEverywhere")}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 gap-1.5 px-2 text-xs"
+                                  data-testid="guest-unblock"
+                                  disabled={guestUnblock.unblock.isPending}
+                                  aria-label={t("unblockGuest", { name: u.name })}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUnblock(u.name, liftable);
+                                  }}
+                                >
+                                  <LockOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {t("unblock")}
+                                </Button>
+                              );
+                            })()}
                             {u.status !== "offline" && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>

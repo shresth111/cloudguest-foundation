@@ -349,6 +349,17 @@ async function openFeature(feature, routers, search = {}) {
     ...(await page.$$eval("[data-sidebar='menu-button']", read, "row")),
     ...(await page.$$eval("[data-section-tabs] a", read, "tab")),
   ];
+  // Network's four installer tabs sit in ONE "Advanced" dropdown tab now
+  // (docs/design/nav-consolidation.md). Its entries are still tab links to
+  // their own URLs, rendered only while the menu is open (Radix portals the
+  // content to <body>), so open it, read them as tabs, and close it again.
+  const menuTrigger = page.locator("[data-section-tabs] [data-tab-menu]");
+  if (await menuTrigger.count()) {
+    await menuTrigger.first().click();
+    await page.waitForSelector("[role='menu'] a", { timeout: 5_000 });
+    rows.push(...(await page.$$eval("[role='menu'] a", read, "tab")));
+    await page.keyboard.press("Escape");
+  }
   // Product copy uses typographic apostrophes (`&rsquo;`), which reach
   // `innerText` as U+2019. Normalised so an assertion is about the sentence
   // rather than the glyph the source spelled it with.
@@ -496,7 +507,7 @@ const CONTROLLER_COPY = /is configured on this venue's controller|Configured in 
 console.log("\nSecurity -> Blocking at a controller venue");
 {
   const r = await openFeature("blocking", [OMADA]);
-  const row = r.rows.find((x) => x.label === "Block Websites");
+  const row = r.rows.find((x) => x.label === "Blocking");
   check("omada-blocking-row-is-in-the-nav", !!row);
   check(
     "omada-blocking-row-is-not-muted",
