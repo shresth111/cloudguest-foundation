@@ -3,12 +3,9 @@
   "files": [
     "src/components/customer/HowItWorksPage.tsx",
     "src/components/features/AgentsPage.tsx",
-    "src/components/features/AssistantWidget.tsx",
     "src/components/features/BlockUsers.tsx",
     "src/components/features/CampaignsPage.tsx",
     "src/components/features/CreateGroup.tsx",
-    "src/components/features/FeatureComponents.tsx",
-    "src/components/features/HeaderControls.tsx",
     "src/components/features/LocationPolicies.tsx",
     "src/components/features/NetworkActivityLog.tsx",
     "src/components/features/NetworkIntegrationsPage.tsx",
