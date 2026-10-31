@@ -337,11 +337,13 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
               {feature === "portal" && <PortalPage locationId={locationId} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} scope={pageScope} />}
-              {feature === "policies" && <PoliciesHub locationId={locationId} />}
+              {feature === "policies" && <PoliciesHub locationId={locationId} scope={pageScope} />}
               {/* Allow-list and Trusted Devices are live everywhere except a
                   NAS-only venue (Aruba Instant On), where `controllerGated`
                   is true for them and the notice below renders instead. */}
-              {feature === "whitelist" && !controllerGated && <WhiteList locationId={locationId} />}
+              {feature === "whitelist" && !controllerGated && (
+                <WhiteList locationId={locationId} scope={pageScope} />
+              )}
               {feature === "devices" && (
                 // Fleet strip + inventory, then how the hardware has been
                 // performing, then the guest devices connected to it. Each
@@ -390,8 +392,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "admin-logs" && (
                 <AdminLogsView locationId={locationId} scope={pageScope} />
               )}
-              {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
-              {feature === "netlogs" && <NetLogsView locationId={locationId} />}
+              {feature === "network-activity" && (
+                <NetworkActivityLog masked={masked} scope={pageScope} />
+              )}
+              {feature === "netlogs" && <NetLogsView locationId={locationId} scope={pageScope} />}
               {feature === "mac-auth" && !controllerGated && (
                 <MacAuthView locationId={locationId} scope={pageScope} />
               )}
@@ -420,7 +424,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   {feature === "voip" && <VoipView locationId={locationId} scope={pageScope} />}
                   {/* Security -> Firewall writes the venue's MikroTik, so it
                       sits behind the same gate as the Network screens. */}
-                  {feature === "firewall" && <FirewallView locationId={locationId} />}
+                  {feature === "firewall" && (
+                    <FirewallView locationId={locationId} scope={pageScope} />
+                  )}
                   {/* No "website-blocking" or "web-filtering" branch: both
                       are the "Websites" tab of Security -> Block Websites
                       now, which applies this same controller gate to that
@@ -431,8 +437,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {/* `masked` matters here now: this page looks a guest up by
                   phone number, so it renders an identifier the account
                   holder's own masking preference applies to. */}
-              {feature === "security" && <SecurityOverviewView />}
-              {feature === "blocking" && <BlockingView locationId={locationId} syncWithUrl />}
+              {feature === "security" && <SecurityOverviewView scope={pageScope} />}
+              {feature === "blocking" && (
+                <BlockingView locationId={locationId} syncWithUrl scope={pageScope} />
+              )}
               {feature === "marketing" && <MarketingView locationId={locationId} syncWithUrl />}
               {/* Not behind the controller gate above: the view shows its own
                   "not available at this venue" from the backend's answer, and

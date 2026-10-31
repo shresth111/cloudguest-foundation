@@ -1,9 +1,20 @@
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
-import { ShieldAlert, ShieldCheck, Wifi, WifiOff, AlertTriangle, ArrowRight } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatCard, type StatTone } from "@/components/ui-ext";
+import type { ReactNode } from "react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
+import {
+  CONSOLE_STATUS_WORD,
+  PANEL_SURFACE,
+  PageHeader,
+  Panel,
+  StatTile,
+  StatusBadge,
+  StatusDot,
+  type ConsoleStatus,
+  type PageScope,
+} from "@/components/customer/console";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { useSecurityCapabilities, useSecurityOverview } from "@/hooks/useSecurity";
@@ -26,12 +37,11 @@ import type {
  * score is the same: a venue with no managed gateway gets "not measured yet",
  * not a perfect 100.
  *
- * ## No page title, on purpose
+ * ## One page header
  *
- * `CustomerHeader` already renders "<feature> · <venue>". A heading here would
- * be the same two facts a second time, which is the duplication this dashboard
- * has been pulled up on more than once, so the page opens on the status strip
- * instead.
+ * The shell hands this screen its title and venue (`scope`,
+ * OWN_PAGE_HEADER_FEATURES) and draws no scope line, so the console
+ * `PageHeader` here is the only header -- not a second copy of it.
  *
  * ## These figures follow the selected venue
  *
@@ -245,7 +255,7 @@ const PLAIN_LABEL: Record<string, [key: string, fallback: string]> = {
 function ManagedAtLink({ at }: { at: ManagedAt }) {
   const { t } = useTranslation("nav", { i18n });
   const cls =
-    "mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline";
+    "mt-2 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wy-accent)]";
   const body = (
     <>
       {t(at.labelKey, at.label)}
@@ -302,37 +312,14 @@ const AVAILABILITY_GROUPS: {
   },
 ];
 
-function scoreTone(score: SecurityScore): StatTone {
-  if (!score.available) return "default";
-  if (score.band === "excellent") return "success";
+/** The score band as a console status: the soft badge beside the number,
+ * so the band reads as a word and a colour, never colour alone. */
+function scoreStatus(score: SecurityScore): ConsoleStatus {
+  if (!score.available) return "offline";
+  if (score.band === "excellent") return "ok";
   if (score.band === "good") return "info";
-  if (score.band === "fair") return "warning";
-  return "danger";
-}
-
-function StatusChip({
-  ok,
-  label,
-  detail,
-  icon: Icon,
-}: {
-  ok: boolean;
-  label: string;
-  detail: string;
-  icon: typeof Wifi;
-}) {
-  return (
-    <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-card px-4 py-3">
-      <Icon
-        className={ok ? "mt-0.5 h-4 w-4 text-emerald-500" : "mt-0.5 h-4 w-4 text-amber-500"}
-        aria-hidden="true"
-      />
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{detail}</p>
-      </div>
-    </div>
-  );
+  if (score.band === "fair") return "warn";
+  return "crit";
 }
 
 /** Plain-language hint per counter, keyed by the backend's counter key.
@@ -350,25 +337,21 @@ const COUNTER_HINT_KEYS = new Set([
   "open_alerts",
 ]);
 
-function CounterCard({ counter }: { counter: SecurityCounter }) {
+function CounterTile({ counter }: { counter: SecurityCounter }) {
   const { t } = useTranslation("nav", { i18n });
   if (!counter.available) {
+    // An absence, not a zero: the tile shows a dash and the backend's reason.
     return (
-      <Card className="border-dashed">
-        <CardContent className="p-5">
-          <p className="text-2xl font-semibold text-muted-foreground" aria-hidden="true">
-            --
-          </p>
-          <p className="mt-1 text-sm font-medium text-foreground">{counter.label}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {counter.unavailableReason ?? "Not measured yet."}
-          </p>
-        </CardContent>
-      </Card>
+      <StatTile
+        label={counter.label}
+        value={null}
+        hint={counter.unavailableReason ?? "Not measured yet."}
+        className="border-dashed"
+      />
     );
   }
   return (
-    <StatCard
+    <StatTile
       label={counter.label}
       value={counter.count ?? 0}
       hint={
@@ -380,132 +363,167 @@ function CounterCard({ counter }: { counter: SecurityCounter }) {
   );
 }
 
-export function SecurityOverviewView() {
+export function SecurityOverviewView({ scope }: { scope?: PageScope } = {}) {
   const { t } = useTranslation("nav", { i18n });
   const overviewQuery = useSecurityOverview();
   const capabilitiesQuery = useSecurityCapabilities();
 
-  if (overviewQuery.isLoading) {
-    return <LoadingSkeleton rows={4} />;
-  }
+  const header = (
+    <PageHeader
+      title={scope?.title ?? "Security Score"}
+      venue={scope?.venue}
+      description={t(
+        "securityScore.pageDescription",
+        "How well this venue's protections are set up, and what you can switch on.",
+      )}
+    />
+  );
 
-  if (overviewQuery.isError || !overviewQuery.data) {
-    return (
+  let body: ReactNode;
+  if (overviewQuery.isLoading) {
+    body = <LoadingSkeleton rows={4} />;
+  } else if (overviewQuery.isError || !overviewQuery.data) {
+    body = (
       <EmptyState
         title="Could not load your security posture"
         description="This is usually temporary. Reload the page, and if it persists raise a support ticket."
       />
     );
-  }
-
-  const { score, counters, fleet, generatedAt } = overviewQuery.data;
-  const capabilities: SecurityFeature[] = capabilitiesQuery.data ?? [];
-
-  if (fleet.noManagedGateway) {
-    return (
+  } else if (overviewQuery.data.fleet.noManagedGateway) {
+    body = (
       <EmptyState
         title="No gateway is connected yet"
         description="Security features apply to gateways this platform manages. Once one is connected and reporting, this page fills in on its own."
       />
     );
+  } else {
+    body = (
+      <SecurityOverviewBody data={overviewQuery.data} capabilities={capabilitiesQuery.data ?? []} />
+    );
   }
 
+  return (
+    <div className="wy-console space-y-6">
+      {header}
+      {body}
+    </div>
+  );
+}
+
+function SecurityOverviewBody({
+  data,
+  capabilities,
+}: {
+  data: NonNullable<ReturnType<typeof useSecurityOverview>["data"]>;
+  capabilities: SecurityFeature[];
+}) {
+  const { t } = useTranslation("nav", { i18n });
+  const { score, counters, fleet, generatedAt } = data;
   const gatewayOk = fleet.routersStale === 0;
 
   return (
-    <div className="space-y-6">
+    <>
       {/* Status first: it is the context for every number below it. The
           platform's own management tunnel is deliberately not shown here --
           it is not a venue's control, and the backend no longer serves it to
           this page (cloud-guest#303). */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <StatusChip
-          ok={gatewayOk}
-          icon={gatewayOk ? Wifi : WifiOff}
+        <StatTile
           label={gatewayOk ? "Gateways reporting" : "Some gateways have gone quiet"}
-          detail={
+          leading={
+            <StatusDot
+              status={gatewayOk ? "ok" : "warn"}
+              label={gatewayOk ? CONSOLE_STATUS_WORD.ok : CONSOLE_STATUS_WORD.warn}
+            />
+          }
+          value={`${fleet.routersReporting}/${fleet.routersTotal}`}
+          hint={
             gatewayOk
               ? `All ${fleet.routersTotal} reporting`
               : `${fleet.routersReporting} of ${fleet.routersTotal} reporting`
           }
         />
-        <StatusChip
-          ok
-          icon={ShieldCheck}
+        <StatTile
           label="Last updated"
-          detail={new Date(generatedAt).toLocaleString()}
+          value={
+            <span className="text-base font-medium">{new Date(generatedAt).toLocaleString()}</span>
+          }
         />
       </div>
 
       {/* The score, with its own arithmetic shown rather than asserted. */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-            Security score
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {score.available && score.score !== null ? (
-            <>
-              <div className="flex flex-wrap items-baseline gap-3">
-                <span className="text-4xl font-semibold tabular-nums text-foreground">
+      <Panel title="Security score">
+        {score.available && score.score !== null ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex items-baseline gap-1">
+                <span className="text-3xl font-semibold tabular-nums text-[var(--wy-text)]">
                   {score.score}
                 </span>
-                <span className="text-sm text-muted-foreground">/ {score.maxScore}</span>
-                {score.band && (
-                  <span className="text-sm capitalize text-muted-foreground">
-                    {score.band} · {BAND_COPY[score.band]}
+                <span className="text-[13px] text-[var(--wy-text-faint)]">/ {score.maxScore}</span>
+              </span>
+              {score.band && (
+                <>
+                  <StatusBadge status={scoreStatus(score)} className="capitalize">
+                    {score.band}
+                  </StatusBadge>
+                  <span className="text-[13px] text-[var(--wy-text-muted)]">
+                    {BAND_COPY[score.band]}
                   </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                This measures how well this platform's own protections are set up and applied. It
-                does not measure attacks, and a clean score does not mean nothing was attempted.
-              </p>
-              <ul className="divide-y divide-border/60">
-                {score.factors.map((factor) => (
-                  <li
-                    key={factor.key}
-                    className="flex items-start justify-between gap-4 py-2.5 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground">{factor.label}</p>
-                      <p className="text-xs text-muted-foreground">{factor.detail}</p>
-                    </div>
-                    <span
-                      className={
-                        factor.penalty === 0
-                          ? "shrink-0 tabular-nums text-emerald-600 dark:text-emerald-400"
-                          : "shrink-0 tabular-nums text-amber-600 dark:text-amber-400"
-                      }
-                    >
-                      {factor.penalty === 0 ? "OK" : `-${factor.penalty}`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : (
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Not measured yet</p>
-                <p className="text-xs text-muted-foreground">
-                  {score.unavailableReason ??
-                    "There is not enough information to score this account yet."}
-                </p>
-              </div>
+                </>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <p className="text-xs text-[var(--wy-text-muted)]">
+              This measures how well this platform's own protections are set up and applied. It does
+              not measure attacks, and a clean score does not mean nothing was attempted.
+            </p>
+            <ul className="divide-y divide-[var(--wy-border)] border-t border-[var(--wy-border)]">
+              {score.factors.map((factor) => (
+                <li
+                  key={factor.key}
+                  className="flex items-start justify-between gap-4 py-2.5 text-[13px]"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-[var(--wy-text)]">{factor.label}</p>
+                    <p className="text-xs text-[var(--wy-text-muted)]">{factor.detail}</p>
+                  </div>
+                  {/* A word and a colour, not colour alone ("OK" in green
+                      used to be the only signal). */}
+                  {factor.penalty === 0 ? (
+                    <StatusBadge status="ok">{t("securityScore.factorOk", "OK")}</StatusBadge>
+                  ) : (
+                    <StatusBadge status="warn" className="tabular-nums">
+                      {t("securityScore.factorPenalty", "−{{points}} points", {
+                        points: factor.penalty,
+                      })}
+                    </StatusBadge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="flex items-start gap-3">
+            <AlertTriangle
+              className="mt-0.5 h-4 w-4 text-[var(--wy-text-faint)]"
+              aria-hidden="true"
+            />
+            <div>
+              <p className="text-[13px] font-medium text-[var(--wy-text)]">Not measured yet</p>
+              <p className="text-xs text-[var(--wy-text-muted)]">
+                {score.unavailableReason ??
+                  "There is not enough information to score this account yet."}
+              </p>
+            </div>
+          </div>
+        )}
+      </Panel>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Where you stand</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <h2 className="text-sm font-semibold text-[var(--wy-text)]">Where you stand</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {counters.map((counter) => (
-            <CounterCard key={counter.key} counter={counter} />
+            <CounterTile key={counter.key} counter={counter} />
           ))}
         </div>
       </section>
@@ -515,7 +533,7 @@ export function SecurityOverviewView() {
           the screen that does it. */}
       {capabilities.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-foreground">
+          <h2 className="text-sm font-semibold text-[var(--wy-text)]">
             {t("securityScore.capabilitiesTitle", "What you can protect")}
           </h2>
           {AVAILABILITY_GROUPS.map((group) => {
@@ -526,14 +544,11 @@ export function SecurityOverviewView() {
                 {items.map((feature) => {
                   const plain = PLAIN_LABEL[feature.key];
                   return (
-                    <li
-                      key={feature.key}
-                      className="rounded-lg border border-border/60 bg-card px-4 py-3"
-                    >
-                      <p className="text-sm font-medium text-foreground">
+                    <li key={feature.key} className={cn(PANEL_SURFACE, "px-4 py-3")}>
+                      <p className="text-[13px] font-medium text-[var(--wy-text)]">
                         {plain ? t(plain[0], plain[1]) : feature.label}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 text-xs text-[var(--wy-text-muted)]">
                         {PLAIN_COPY[feature.key]
                           ? t(`securityScore.copy.${feature.key}`, PLAIN_COPY[feature.key])
                           : feature.detail}
@@ -551,17 +566,19 @@ export function SecurityOverviewView() {
             );
             const heading = (
               <>
-                <span className="text-sm font-medium text-foreground">
+                <span className="text-[13px] font-medium text-[var(--wy-text)]">
                   {t(group.titleKey, group.title)}
                 </span>{" "}
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-[var(--wy-text-muted)]">
                   {t(group.noteKey, group.note)}
                 </span>
               </>
             );
             return group.folded ? (
               <details key={group.availability} className="space-y-2">
-                <summary className="cursor-pointer">{heading}</summary>
+                <summary className="cursor-pointer rounded-[var(--wy-radius)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wy-accent)]">
+                  {heading}
+                </summary>
                 <div className="pt-2">{list}</div>
               </details>
             ) : (
@@ -573,7 +590,7 @@ export function SecurityOverviewView() {
           })}
         </section>
       )}
-    </div>
+    </>
   );
 }
 

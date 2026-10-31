@@ -166,7 +166,7 @@ check(
 );
 check(
   "the customer shell mounts Blocking",
-  /feature === "blocking" && <BlockingView\b/.test(customerShell),
+  /feature === "blocking" && \(?\s*<BlockingView\b/.test(customerShell),
 );
 check(
   "the staff shell mounts the same Blocking page",

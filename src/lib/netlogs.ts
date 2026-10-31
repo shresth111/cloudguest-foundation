@@ -146,13 +146,13 @@ export function statusTone(status: string | null | undefined): StatusTone {
   return "neutral";
 }
 
-/** Tailwind classes for the status badge, per tone. */
-export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
-  positive:
-    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
-  negative:
-    "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300",
-  neutral: "border-border bg-muted text-muted-foreground",
+/** The console status each tone renders as (`StatusBadge`): a good outcome
+ * is ok (green), a refused one crit (red), everything else the neutral
+ * offline grey -- not a fault. */
+export const STATUS_TONE_CONSOLE: Record<StatusTone, "ok" | "crit" | "offline"> = {
+  positive: "ok",
+  negative: "crit",
+  neutral: "offline",
 };
 
 /** A line with no outcome reads as a dash, not as a guessed status. */

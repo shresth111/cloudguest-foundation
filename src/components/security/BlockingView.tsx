@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, Globe2, Loader2, Router as RouterIcon, UserX } from "lucide-react";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader, SubTabs, type PageScope } from "@/components/customer/console";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ContentFilterManagement } from "@/components/network/ContentFilterManagement";
@@ -101,9 +101,12 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
 export function BlockingView({
   locationId,
   syncWithUrl = false,
+  scope,
 }: {
   locationId?: string;
   syncWithUrl?: boolean;
+  /** Title + venue from the shell (OWN_PAGE_HEADER_FEATURES). */
+  scope?: PageScope;
 }) {
   const { t } = useTranslation("nav", { i18n });
   const navigate = useNavigate();
@@ -135,61 +138,77 @@ export function BlockingView({
     }
   };
 
-  return (
-    <div className="space-y-5">
-      <p className="max-w-3xl text-sm text-muted-foreground">
-        {t(
-          "blockWebsites.intro",
-          "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
-        )}{" "}
-        {t("blockingPage.onlyAllowedPrefix", "To let in only people you have listed, use")}{" "}
-        <Link
-          to="/whitelist"
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
-          {t("customerItem.whitelist", "Only Allowed")}
-        </Link>
-        .
-      </p>
+  const current = offered.find((o) => o.id === tab);
+  const gated =
+    !!current &&
+    controllerManaged &&
+    current.controllerGatedAs !== null &&
+    !featureAppliesToControllerVenue(current.controllerGatedAs);
 
-      <Tabs value={tab} onValueChange={selectTab}>
-        {offered.length > 1 && (
-          <TabsList className="h-auto flex-wrap">
-            {offered.map((o) => {
-              const Icon = TAB_ICON[o.id];
-              return (
-                <TabsTrigger key={o.id} value={o.id} className="gap-2 px-3 py-1.5">
+  return (
+    <div className="wy-console space-y-5">
+      <PageHeader
+        title={scope?.title ?? t("customerItem.blocking", "Blocking")}
+        venue={scope?.venue}
+        description={
+          <>
+            {t(
+              "blockWebsites.intro",
+              "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
+            )}{" "}
+            {t("blockingPage.onlyAllowedPrefix", "To let in only people you have listed, use")}{" "}
+            <Link
+              to="/whitelist"
+              className="rounded-sm font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wy-accent)]"
+            >
+              {t("customerItem.whitelist", "Only Allowed")}
+            </Link>
+            .
+          </>
+        }
+      />
+
+      {offered.length > 1 && (
+        <SubTabs
+          idPrefix="blocking"
+          ariaLabel={t("customerItem.blocking", "Blocking")}
+          value={tab}
+          onChange={selectTab}
+          options={offered.map((o) => {
+            const Icon = TAB_ICON[o.id];
+            return {
+              value: o.id,
+              label: (
+                <>
                   <Icon className="h-4 w-4" aria-hidden="true" />
                   {t(`blockingTab.${o.id}`, o.label)}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        )}
+                </>
+              ),
+            };
+          })}
+        />
+      )}
 
-        {offered.map((o) => {
-          const gated =
-            controllerManaged &&
-            o.controllerGatedAs !== null &&
-            !featureAppliesToControllerVenue(o.controllerGatedAs);
-          return (
-            <TabsContent key={o.id} value={o.id} className="mt-5">
-              {gated && o.controllerGatedAs ? (
-                <ControllerManagedFeatureNotice
-                  featureId={o.controllerGatedAs}
-                  featureLabel={t(`blockingTab.${o.id}`, o.label)}
-                  venueName={activeLocation?.name ?? null}
-                  vendor={controllerVendor}
-                />
-              ) : o.id === "websites" ? (
-                <WebsitesTab locationId={locationId} />
-              ) : (
-                <BlockUsers locationId={locationId} />
-              )}
-            </TabsContent>
-          );
-        })}
-      </Tabs>
+      {current && (
+        <div
+          id="blocking-panel"
+          role={offered.length > 1 ? "tabpanel" : undefined}
+          aria-labelledby={offered.length > 1 ? `blocking-tab-${current.id}` : undefined}
+        >
+          {gated && current.controllerGatedAs ? (
+            <ControllerManagedFeatureNotice
+              featureId={current.controllerGatedAs}
+              featureLabel={t(`blockingTab.${current.id}`, current.label)}
+              venueName={activeLocation?.name ?? null}
+              vendor={controllerVendor}
+            />
+          ) : current.id === "websites" ? (
+            <WebsitesTab locationId={locationId} />
+          ) : (
+            <BlockUsers locationId={locationId} />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -202,8 +221,8 @@ function currentHash(): string {
 function SectionHeading({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="space-y-0.5">
-      <h2 className="text-base font-semibold text-foreground">{title}</h2>
-      {hint && <p className="max-w-3xl text-sm text-muted-foreground">{hint}</p>}
+      <h2 className="text-base font-semibold text-[var(--wy-text)]">{title}</h2>
+      {hint && <p className="max-w-3xl text-[13px] text-[var(--wy-text-muted)]">{hint}</p>}
     </div>
   );
 }
@@ -256,12 +275,12 @@ function WebsitesTab({ locationId }: { locationId?: string }) {
 
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
         <section id={BLOCK_WEBSITES_SECTION_IDS.advanced} className="scroll-mt-20 space-y-3">
-          <CollapsibleTrigger className="flex w-full items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-left">
+          <CollapsibleTrigger className="flex w-full items-start justify-between gap-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]">
             <span className="space-y-0.5">
-              <span className="block text-sm font-semibold text-foreground">
+              <span className="block text-sm font-semibold text-[var(--wy-text)]">
                 {t("blockWebsites.advancedTitle", "Advanced: block an internet address")}
               </span>
-              <span className="block text-xs text-muted-foreground">
+              <span className="block text-xs text-[var(--wy-text-muted)]">
                 {t(
                   "blockWebsites.advancedHint",
                   "For blocking a number like 203.0.113.7 instead of a name, and for seeing every block on each router with its status.",
@@ -270,7 +289,7 @@ function WebsitesTab({ locationId }: { locationId?: string }) {
             </span>
             <ChevronDown
               className={cn(
-                "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                "mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-text-faint)] transition-transform motion-reduce:transition-none",
                 advancedOpen && "rotate-180",
               )}
               aria-hidden="true"
@@ -316,7 +335,7 @@ function PerRouter({
 
   if (routersQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-[13px] text-[var(--wy-text-muted)]">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         {t("blockWebsites.loadingRouters", "Loading this venue's routers…")}
       </div>
@@ -325,7 +344,7 @@ function PerRouter({
 
   if (routersQuery.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className="text-[13px] text-[var(--wy-crit)]">
         {requestErrorOf(routersQuery.error)?.message ??
           t("blockWebsites.routersError", "Couldn't load this venue's routers.")}
       </p>
@@ -358,8 +377,8 @@ function PerRouter({
         <div key={router.id} className="space-y-2">
           {/* The router's name only matters when there is a choice of them. */}
           {writable.length > 1 && (
-            <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <RouterIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <p className="flex items-center gap-2 text-[13px] font-medium text-[var(--wy-text)]">
+              <RouterIcon className="h-4 w-4 text-[var(--wy-text-faint)]" aria-hidden="true" />
               {router.name}
             </p>
           )}

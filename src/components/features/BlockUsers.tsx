@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
-import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle,
   HelpCircle,
@@ -31,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
+import { PANEL_SURFACE } from "@/components/customer/console";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
 import { resolveOrgId } from "@/services/customer.service";
@@ -128,7 +128,7 @@ function Tooltip({ text }: { text: string }) {
         onBlur={(e) => {
           if (!ref.current?.contains(e.relatedTarget)) close();
         }}
-        className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className="inline-flex items-center justify-center rounded text-[var(--wy-text-faint)] hover:text-[var(--wy-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
       >
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
@@ -140,13 +140,13 @@ function Tooltip({ text }: { text: string }) {
           onKeyDown={(e) => {
             if (e.key === "Escape") close();
           }}
-          className="absolute bottom-full left-1/2 z-20 mb-2 w-64 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white shadow-lg dark:bg-white dark:text-slate-800"
+          className="absolute bottom-full left-1/2 z-20 mb-2 w-64 -translate-x-1/2 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-3 py-2 text-xs text-[var(--wy-surface)] shadow-lg"
         >
           <p>{text}</p>
           <button
             onClick={close}
             aria-label="Close"
-            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-600 text-white"
+            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--wy-offline)] text-[var(--wy-surface)]"
           >
             <X className="h-3 w-3" />
           </button>
@@ -213,72 +213,6 @@ function deviceHoldSummary(blocks: ControllerBlock[]): {
   }
   if (released.length > 0) return { label: "Let back on", tone: "released" };
   return { label: "None held", tone: "none" };
-}
-
-/**
- * Small header-accent illustration: a phone with a "blocked" glyph and a
- * signal line cut off by a barrier, same filled-flat-shape character
- * language as the other illustrations shipped this session. The "no
- * entry" badge is recolored from decorative fuchsia to the rose that
- * GuestBadges.tsx and OperationsFeatures.tsx already use everywhere else
- * in this product for "blocklist"/"blocked" -- so the illustration reads
- * as *this specific state* (blocked) rather than a generic accent color,
- * and matches the same rose now used on the status pill below and the
- * Blocked Guests tab in PoliciesHub.tsx. Kept compact, inline with the
- * header row -- this page's real content is a dense number-entry form + a
- * real blocked-users table, so personality lives in a small corner
- * accent, not a full hero. Purely decorative -- aria-hidden.
- */
-function BlockedAccessIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 56"
-      className="hidden h-14 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      <rect
-        x="30"
-        y="6"
-        width="24"
-        height="40"
-        rx="5"
-        fill="#2e2a5c"
-        stroke="#a78bfa"
-        strokeWidth="1.5"
-      />
-      <rect x="34" y="12" width="16" height="24" rx="1.5" fill="#1e1b4b" />
-      <circle cx="42" cy="40" r="1.6" fill="#a78bfa" />
-      <motion.path
-        d="M22 26a20 20 0 0 1 8-8"
-        stroke="#22d3ee"
-        strokeOpacity="0.6"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeDasharray="1 5"
-        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      />
-      <motion.g
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
-        }
-      >
-        <circle cx="64" cy="20" r="12" fill="#1e1b4b" stroke="#fb7185" strokeWidth="2" />
-        <path
-          d="M58 14l12 12M70 14l-12 12"
-          stroke="#fb7185"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-        />
-      </motion.g>
-    </svg>
-  );
 }
 
 export default function BlockUsers({ locationId }: { locationId?: string } = {}) {
@@ -621,7 +555,10 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
       >
         <span className="inline-flex items-center gap-1">
-          {label} <Icon className={`h-3 w-3 ${active ? "text-indigo-500" : "text-slate-300"}`} />
+          {label}{" "}
+          <Icon
+            className={`h-3 w-3 ${active ? "text-[var(--wy-accent)]" : "text-[var(--wy-text-faint)]"}`}
+          />
         </span>
       </TableHead>
     );
@@ -936,12 +873,12 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   return (
     <div className="space-y-6">
       {toast && (
-        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-lg bg-slate-900 px-5 py-2.5 text-sm text-white shadow-lg dark:bg-white dark:text-slate-900">
+        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-5 py-2.5 text-sm text-[var(--wy-surface)] shadow-lg ">
           <span>{toast}</span>
           {undoPayload && (
             <button
               onClick={handleUndo}
-              className="font-medium text-indigo-400 underline hover:text-indigo-300 dark:text-indigo-600"
+              className="font-medium text-[var(--wy-accent)] underline hover:opacity-80"
             >
               Undo
             </button>
@@ -958,7 +895,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           }}
         >
           <div
-            className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800"
+            className="w-full max-w-md rounded-[var(--wy-radius)] bg-[var(--wy-surface)] p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -966,14 +903,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           >
             <h3
               id="block-modal-title"
-              className="text-lg font-semibold text-slate-800 dark:text-slate-100"
+              className="text-lg font-semibold text-[var(--wy-text)]"
               tabIndex={-1}
             >
               Block {parsed.valid.length} {identifierNoun(parsed.valid.length)}?
             </h3>
             <div className="mt-3 max-h-40 space-y-1 overflow-y-auto">
               {parsed.valid.map((n) => (
-                <p key={n} className="font-mono text-sm text-slate-600 dark:text-slate-300">
+                <p key={n} className="font-mono text-sm text-[var(--wy-text-muted)]">
                   {n}
                 </p>
               ))}
@@ -982,7 +919,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               own -- ending a live session means reaching the venue's
               router, which can fail. The toast afterwards says which of
               the two actually happened; this line no longer pre-empts it. */}
-            <p className="mt-3 text-sm text-slate-500">
+            <p className="mt-3 text-sm text-[var(--wy-text-muted)]">
               {mode === "device"
                 ? t(
                     "blockGuests.deviceConfirmBody",
@@ -998,7 +935,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               data-testid="block-confirm-scope"
               className={cn(
                 "mt-2 text-sm",
-                orgWide ? "font-medium text-amber-700 dark:text-amber-300" : "text-slate-500",
+                orgWide ? "font-medium text-[var(--wy-warn)]" : "text-[var(--wy-text-muted)]",
               )}
             >
               {blockScopeConfirmation(scope)}
@@ -1009,13 +946,13 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                   setShowModal(false);
                   triggerRef.current?.focus();
                 }}
-                className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-4 py-2 text-sm font-medium text-[var(--wy-text-muted)] transition-colors hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleBlock}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                className="rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-4 py-2 text-sm font-semibold text-[var(--wy-accent-fg)] transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] focus:ring-offset-2"
               >
                 Block {mode === "device" ? "devices" : mode === "email" ? "emails" : "numbers"}
               </button>
@@ -1024,14 +961,12 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <Ban className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">Blocked Guests</h1>
-            {/* THE HEADLINE SAYS THE TWO DIFFERENT THINGS A BLOCK DOES,
+      {/* Section heading, not a page title: the page's one h1 is
+          BlockingView's PageHeader. The gradient icon tile and the
+          illustration are gone (design review §2 issue 1). */}
+      <div>
+        <h2 className="text-base font-semibold text-[var(--wy-text)]">Blocked Guests</h2>
+        {/* THE HEADLINE SAYS THE TWO DIFFERENT THINGS A BLOCK DOES,
               because they carry different certainties and the old sentence
               ("Cut off a guest's access to your network immediately")
               promised the weaker one as if it were the stronger.
@@ -1046,15 +981,12 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               which of the two actually happened afterwards, from what the
               server returned; this line no longer contradicts it before
               the owner has even typed a number. */}
-            <p className="text-sm text-muted-foreground">
-              Stop a guest signing in again, and try to end any session they have now.
-            </p>
-          </div>
-        </div>
-        <BlockedAccessIllustration />
+        <p className="text-[13px] text-[var(--wy-text-muted)]">
+          Stop a guest signing in again, and try to end any session they have now.
+        </p>
       </div>
 
-      <Card className="border-0 shadow-sm">
+      <Card className={PANEL_SURFACE}>
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <CardTitle className="text-sm">Block User</CardTitle>
           {/* "APPLIES TO" NOW STATES THE SCOPE INSTEAD OF APPEARING TO SET
@@ -1079,7 +1011,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             <div>
               <label
                 htmlFor="bu-select"
-                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+                className="mb-1 block text-xs font-medium text-[var(--wy-text-muted)]"
               >
                 Applies to
               </label>
@@ -1090,7 +1022,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                   setBu(e.target.value);
                   setPage(0);
                 }}
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               >
                 {units.map((u) => (
                   <option key={u} value={u}>
@@ -1101,17 +1033,13 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             </div>
           ) : (
             <div className="text-right">
-              <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                Applies to
-              </p>
+              <p className="mb-1 text-xs font-medium text-[var(--wy-text-muted)]">Applies to</p>
               <p
                 data-testid="block-scope"
                 data-scope={orgWide ? "organization" : "location"}
                 className={cn(
                   "text-sm font-medium",
-                  orgWide
-                    ? "text-amber-700 dark:text-amber-300"
-                    : "text-slate-700 dark:text-slate-200",
+                  orgWide ? "text-[var(--wy-warn)]" : "text-[var(--wy-text)]",
                 )}
               >
                 {scopeLabel}
@@ -1130,7 +1058,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           <div
             role="tablist"
             aria-label="Block by"
-            className="mb-4 inline-flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-700"
+            className="mb-4 inline-flex items-center gap-0.5 rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] p-0.5"
           >
             <button
               type="button"
@@ -1138,10 +1066,10 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               aria-selected={mode === "mobile"}
               onClick={() => handleModeChange("mobile")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] px-3 py-1.5 text-xs font-medium transition-colors",
                 mode === "mobile"
-                  ? "bg-white text-slate-800 shadow-sm dark:bg-slate-600 dark:text-slate-100"
-                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                  ? "bg-[var(--wy-surface)] text-[var(--wy-text)] shadow-sm"
+                  : "text-[var(--wy-text-muted)] hover:text-[var(--wy-text)]",
               )}
             >
               <Smartphone className="h-3.5 w-3.5" /> Mobile number
@@ -1152,10 +1080,10 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               aria-selected={mode === "email"}
               onClick={() => handleModeChange("email")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                "inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] px-3 py-1.5 text-xs font-medium transition-colors",
                 mode === "email"
-                  ? "bg-white text-slate-800 shadow-sm dark:bg-slate-600 dark:text-slate-100"
-                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                  ? "bg-[var(--wy-surface)] text-[var(--wy-text)] shadow-sm"
+                  : "text-[var(--wy-text-muted)] hover:text-[var(--wy-text)]",
               )}
             >
               <Mail className="h-3.5 w-3.5" /> Email address
@@ -1170,10 +1098,10 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 aria-selected={mode === "device"}
                 onClick={() => handleModeChange("device")}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] px-3 py-1.5 text-xs font-medium transition-colors",
                   mode === "device"
-                    ? "bg-white text-slate-800 shadow-sm dark:bg-slate-600 dark:text-slate-100"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                    ? "bg-[var(--wy-surface)] text-[var(--wy-text)] shadow-sm"
+                    : "text-[var(--wy-text-muted)] hover:text-[var(--wy-text)]",
                 )}
               >
                 <Laptop className="h-3.5 w-3.5" /> {t("blockGuests.deviceTab", "Device")}
@@ -1185,14 +1113,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             <div className="mb-1 flex flex-wrap items-end justify-between gap-2">
               <label
                 htmlFor="block-ta"
-                className="block text-sm font-medium text-slate-600 dark:text-slate-300"
+                className="block text-sm font-medium text-[var(--wy-text-muted)]"
               >
                 {mode === "device"
                   ? t("blockGuests.deviceLabel", "Device addresses (MAC)")
                   : mode === "email"
                     ? "Email addresses"
                     : "Mobile numbers"}{" "}
-                <span className="text-indigo-500">*</span>
+                <span className="text-[var(--wy-accent)]">*</span>
               </label>
               {/* The country this screen never had. Access Rules has
                 offered one for as long as it has had a mobile field; this
@@ -1203,7 +1131,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 <div className="flex items-center gap-1.5">
                   <label
                     htmlFor="block-cc"
-                    className="text-xs font-medium text-slate-500 dark:text-slate-400"
+                    className="text-xs font-medium text-[var(--wy-text-muted)]"
                   >
                     Country
                   </label>
@@ -1211,7 +1139,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                     id="block-cc"
                     value={dialCode}
                     onChange={(e) => setDialCode(e.target.value)}
-                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                    className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                   >
                     {PHONE_COUNTRIES.map((c) => (
                       <option key={c.code} value={c.code}>
@@ -1234,7 +1162,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               }
               value={textarea}
               onChange={(e) => setTextarea(e.target.value)}
-              className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+              className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-3 py-2 text-sm placeholder:text-[var(--wy-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
             />
             {/* Persistent caption instead of a click-to-reveal tooltip -- same
               consistency fix just applied to Guest WiFi Limits: the format
@@ -1251,7 +1179,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               at the chips, which render the exact identifier that will be
               stored -- the one place this screen cannot be wrong about
               what it is about to write. */}
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            <p className="mt-1 text-xs text-[var(--wy-text-faint)]">
               {mode === "device"
                 ? t(
                     "blockGuests.deviceHint",
@@ -1262,30 +1190,27 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                   : `Paste one or more numbers separated by commas. Local numbers get ${dialCode}; put a + in front of a foreign number (+441632960961) to keep its own country code. Each entry below shows exactly what will be stored.`}
             </p>
             {mode === "device" && (
-              <p
-                data-testid="block-device-mac-note"
-                className="mt-1 text-xs text-amber-700 dark:text-amber-300"
-              >
+              <p data-testid="block-device-mac-note" className="mt-1 text-xs text-[var(--wy-warn)]">
                 {t("blockGuests.deviceMacNote", DEVICE_MAC_RANDOMISATION_NOTE)}
               </p>
             )}
           </div>
 
           <div aria-live="polite" className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-medium text-slate-600 dark:text-slate-300">
+            <span className="font-medium text-[var(--wy-text-muted)]">
               {parsed.valid.length} {identifierNoun(parsed.valid.length)} ready
             </span>
             {parsed.duplicates.length > 0 && (
-              <span className="text-slate-400">
+              <span className="text-[var(--wy-text-faint)]">
                 · {parsed.duplicates.length} duplicate
                 {parsed.duplicates.length === 1 ? "" : "s"} removed
               </span>
             )}
             {parsed.invalid.length > 0 && (
-              <span className="text-indigo-500">· {parsed.invalid.length} invalid</span>
+              <span className="text-[var(--wy-crit)]">· {parsed.invalid.length} invalid</span>
             )}
             {parsed.alreadyBlocked.length > 0 && (
-              <span className="text-slate-400">
+              <span className="text-[var(--wy-text-faint)]">
                 · {parsed.alreadyBlocked.length} already blocked
               </span>
             )}
@@ -1298,10 +1223,10 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                   key={i}
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                     c.status === "valid"
-                      ? "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                      ? "bg-[var(--wy-surface-2)] text-[var(--wy-text)]"
                       : c.status === "blocked"
-                        ? "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
-                        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400"
+                        ? "bg-[var(--wy-surface-2)] text-[var(--wy-text-faint)]"
+                        : "bg-[var(--wy-accent-soft)] text-[var(--wy-accent)]"
                   }`}
                   title={
                     c.status === "invalid"
@@ -1322,7 +1247,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                     <button
                       onClick={() => removeChip(c.raw)}
                       aria-label={`Remove ${c.canonical ?? c.raw}`}
-                      className="inline-flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-600"
+                      className="inline-flex items-center justify-center rounded-full hover:bg-[var(--wy-surface-2)]"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1332,14 +1257,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             </div>
           )}
 
-          <hr className="my-5 border-slate-100 dark:border-slate-600" />
+          <hr className="my-5 border-[var(--wy-border)]" />
           {/* Immediate-effect notice -- same contextual-line pattern just
             applied to Guest WiFi Limits' save warning, replacing a
             persistent amber block with a slim line right above the
             button it actually concerns. */}
           <div className="flex flex-col items-center gap-3">
-            <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <p className="flex items-center gap-1.5 text-xs text-[var(--wy-text-muted)]">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--wy-warn)]" />
               Takes effect immediately; we also try to end any session these guests have now.
               <Tooltip text="Blocking a number or email stops that guest signing in again until unblocked, and tries to end the session they are in right now. Ending a live session needs the venue's router, so the confirmation afterwards tells you whether it actually happened." />
             </p>
@@ -1355,7 +1280,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
               ref={triggerRef}
               disabled={textarea.trim() === ""}
               onClick={handlePrimaryClick}
-              className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-8 py-2.5 text-sm font-semibold text-[var(--wy-accent-fg)] transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] focus:ring-offset-2 disabled:opacity-60"
             >
               Block{" "}
               {parsed.valid.length > 0
@@ -1390,7 +1315,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         <div
           role="status"
           data-testid="block-device-result"
-          className="rounded-lg border border-border bg-muted/40 px-4 py-3"
+          className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-4 py-3"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
@@ -1419,7 +1344,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             <button
               onClick={() => setDeviceResult(null)}
               aria-label="Dismiss"
-              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1427,7 +1352,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         </div>
       )}
 
-      <Card className="border-0 shadow-sm">
+      <Card className={PANEL_SURFACE}>
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="text-sm">Blocked Users</CardTitle>
@@ -1443,7 +1368,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--wy-text-faint)]" />
               <input
                 type="text"
                 placeholder="Search…"
@@ -1452,10 +1377,10 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                   setSearch(e.target.value);
                   setPage(0);
                 }}
-                className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+                className="w-44 rounded-[var(--wy-radius)] border border-[var(--wy-border)] py-1.5 pl-8 pr-3 text-sm placeholder:text-[var(--wy-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               />
             </div>
-            <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
+            <div className="flex items-center gap-0.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-0.5">
               {PAGE_SIZE_OPTS.map((n) => (
                 <button
                   key={n}
@@ -1463,7 +1388,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                     setPageSize(n);
                     setPage(0);
                   }}
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-[var(--wy-text)] text-[var(--wy-surface)]" : "text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)]"}`}
                 >
                   {n}
                 </button>
@@ -1544,10 +1469,13 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                           value.includes("@") check) already establish. */}
                         <span className="inline-flex items-center gap-1.5">
                           {b.identifier.includes("@") ? (
-                            <Mail className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+                            <Mail
+                              className="h-3 w-3 shrink-0 text-[var(--wy-text-faint)]"
+                              aria-hidden="true"
+                            />
                           ) : (
                             <Smartphone
-                              className="h-3 w-3 shrink-0 text-slate-400"
+                              className="h-3 w-3 shrink-0 text-[var(--wy-text-faint)]"
                               aria-hidden="true"
                             />
                           )}
@@ -1570,14 +1498,16 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                           className={cn(
                             "inline-flex items-center gap-1.5 text-xs font-medium",
                             b.status === "Blocked"
-                              ? "text-rose-600 dark:text-rose-400"
+                              ? "text-[var(--wy-crit)]"
                               : "text-muted-foreground",
                           )}
                         >
                           <span
                             className={cn(
                               "h-1.5 w-1.5 rounded-full",
-                              b.status === "Blocked" ? "bg-rose-500" : "bg-slate-400",
+                              b.status === "Blocked"
+                                ? "bg-[var(--wy-crit)]"
+                                : "bg-[var(--wy-offline)]",
                             )}
                           />
                           {b.status}
@@ -1598,9 +1528,9 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                                 className={cn(
                                   "inline-flex items-center gap-1.5 whitespace-nowrap",
                                   hold.tone === "attention"
-                                    ? "text-amber-700 dark:text-amber-300"
+                                    ? "text-[var(--wy-warn)]"
                                     : hold.tone === "held"
-                                      ? "text-slate-700 dark:text-slate-200"
+                                      ? "text-[var(--wy-text)]"
                                       : "text-muted-foreground",
                                 )}
                                 title={
@@ -1632,7 +1562,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                               : `Block ${b.identifier}`
                           }
                           onClick={() => toggleStatus(b.id)}
-                          className="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700"
+                          className="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium text-[var(--wy-text-muted)] transition-colors hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                         >
                           {b.status === "Blocked" ? "Unblock" : "Block again"}
                         </button>
@@ -1641,7 +1571,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                             confirmingId === b.id ? "Confirm delete" : `Delete ${b.identifier}`
                           }
                           onClick={() => handleDelete(b.id)}
-                          className={`ml-1 inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirmingId === b.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:text-red-500 dark:hover:text-red-400"}`}
+                          className={`ml-1 inline-flex items-center justify-center rounded p-1 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] ${confirmingId === b.id ? "bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]" : "text-[var(--wy-text-faint)] hover:text-[var(--wy-crit)]"}`}
                         >
                           {confirmingId === b.id ? (
                             <span className="text-[11px] font-medium px-1">Confirm</span>
@@ -1667,14 +1597,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 <button
                   disabled={safePage === 0}
                   onClick={() => setPage(safePage - 1)}
-                  className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
                   disabled={safePage >= totalPages - 1}
                   onClick={() => setPage(safePage + 1)}
-                  className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

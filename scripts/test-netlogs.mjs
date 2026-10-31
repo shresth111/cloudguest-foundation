@@ -259,9 +259,9 @@ for (const s of ["disconnected", "released", null, undefined, "weird"])
 eq("status is case-insensitive", m.statusTone("ACCEPT"), "positive");
 check(
   "green is green and red is red",
-  /emerald/.test(m.STATUS_TONE_CLASS.positive) &&
-    /red/.test(m.STATUS_TONE_CLASS.negative) &&
-    !/emerald|red/.test(m.STATUS_TONE_CLASS.neutral),
+  m.STATUS_TONE_CONSOLE.positive === "ok" &&
+    m.STATUS_TONE_CONSOLE.negative === "crit" &&
+    m.STATUS_TONE_CONSOLE.neutral === "offline",
 );
 eq("no status is a dash, not a guess", m.statusLabel(null), "—");
 eq("status label", m.statusLabel("disconnected"), "Disconnected");
@@ -527,7 +527,9 @@ check(
 );
 check(
   "the feature page mounts the view",
-  /feature === "netlogs" && <NetLogsView locationId=\{locationId\} \/>/.test(featurePage),
+  /feature === "netlogs" && <NetLogsView locationId=\{locationId\} scope=\{pageScope\} \/>/.test(
+    featurePage,
+  ),
 );
 check(
   "the view reads its filters from the URL",

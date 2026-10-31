@@ -1,7 +1,7 @@
-import { Radar, ShieldAlert, Info } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
-import { Card, CardContent } from "@/components/ui/card";
+import { Callout, PageHeader, type PageScope } from "@/components/customer/console";
 import { EmptyState } from "@/components/common/EmptyState";
 import { getCustomerLoginRole } from "@/lib/customerNav";
 import { ReportPanel, NETWORK_ACTIVITY_REPORT_TYPES } from "@/components/features/UserReports";
@@ -35,7 +35,15 @@ import { ReportPanel, NETWORK_ACTIVITY_REPORT_TYPES } from "@/components/feature
  * bury a compliance-relevant record inside" the general Reports tool), not
  * a seventh tab there.
  */
-export default function NetworkActivityLog({ masked = true }: { masked?: boolean } = {}) {
+export default function NetworkActivityLog({
+  masked = true,
+  scope,
+}: {
+  masked?: boolean;
+  /** Title + venue from the shell (OWN_PAGE_HEADER_FEATURES). */
+  scope?: PageScope;
+} = {}) {
+  const { t } = useTranslation("nav", { i18n });
   // Owner-only, render-time check -- defense in depth alongside the
   // sidebar/route-nav guard (customerNav.ts's "network-activity" entry,
   // `roles: ["owner"]`) and the backend's own independent RBAC
@@ -45,77 +53,67 @@ export default function NetworkActivityLog({ masked = true }: { masked?: boolean
   // for the exact same reason: this is equally security-sensitive guest
   // data, and a UI guard alone is bypassable by a direct URL hit.
   const role = getCustomerLoginRole();
-  if (role !== "owner") {
+  const owner = role === "owner";
+
+  // One console header (the icon tile and the second, h2 title are gone).
+  // Copy is the spec's own recommended wording (§5): describes what this
+  // page actually does, no "compliance"/"IPDR" claim.
+  const header = (
+    <PageHeader
+      title={scope?.title ?? t("customerItem.network-activity", "Guest Connection Records")}
+      venue={scope?.venue}
+      description="Every guest's connection history: who connected, from which device, for how long, and how much data they used. Useful for troubleshooting connectivity issues and as a record of guest network activity."
+    />
+  );
+
+  if (!owner) {
     return (
-      <div className="space-y-6">
-        <PageHeader />
-        <Card className="border-0 shadow-sm">
-          <CardContent>
-            <EmptyState
-              icon={ShieldAlert}
-              title="Owner access only"
-              description="Guest Connection Records shows a security-sensitive record of guest connections and login attempts. Only the Organization Owner can view this page."
-            />
-          </CardContent>
-        </Card>
+      <div className="wy-console space-y-6">
+        {header}
+        <EmptyState
+          icon={ShieldAlert}
+          title="Owner access only"
+          description="Guest Connection Records shows a security-sensitive record of guest connections and login attempts. Only the Organization Owner can view this page."
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader />
-      <ReportPanel
-        reportTypes={NETWORK_ACTIVITY_REPORT_TYPES}
-        csvPrefix="network-activity"
-        masked={masked}
-      />
-    </div>
-  );
-}
-
-/** Same icon-badge + title + description shape as OperationsFeatures.tsx's
- * own (unexported) FeatureHeader -- inlined rather than importing across
- * that file's boundary for one small header. Copy is the spec's own
- * recommended wording (§5) verbatim: describes what this page actually
- * does, no "compliance"/"IPDR" claim. */
-function PageHeader() {
-  const { t } = useTranslation("nav", { i18n });
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
-            <Radar className="h-[18px] w-[18px] text-white" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              {t("customerItem.network-activity", "Guest Connection Records")}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Every guest's connection history: who connected, from which device, for how long, and
-              how much data they used. Useful for troubleshooting connectivity issues and as a
-              record of guest network activity.
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="wy-console space-y-6">
+      {header}
       {/* Honest retention note, not an implied guarantee -- see
        * docs/ipdr-logs-syslog-spec.md §6: nothing purges this data today,
        * but nothing guarantees a specific retention floor either. Surfacing
        * that here rather than silently implying "2-year retention" (the
        * DOT figure the spec's §2 discusses) without the backup/durability
-       * review that would actually back such a claim. */}
-      <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-muted-foreground">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-        <p>
-          This shows session-level connection and login records, not destination-level traffic (what
-          site a guest visited). Private IP is the guest&apos;s address on your WiFi; venue public
-          IP is your router&apos;s routable WAN address (shared NAT egress), shown only when the
-          router reports a real public address — not a LAN/CGNAT interface. The platform does not
-          currently guarantee a specific data-retention period for these records.
-        </p>
-      </div>
+       * review that would actually back such a claim. One line, the rest
+       * folded (design review: the amber disclaimer wall). */}
+      <Callout tone="info" role="note">
+        <details className="group">
+          <summary className="cursor-pointer list-none rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] [&::-webkit-details-marker]:hidden">
+            {t(
+              "networkActivity.noteSummary",
+              "Connection and sign-in records only, not the websites guests visited.",
+            )}{" "}
+            <span className="font-medium text-[var(--wy-accent)] underline-offset-2 group-open:hidden hover:underline">
+              {t("networkActivity.noteMore", "More")}
+            </span>
+          </summary>
+          <p className="mt-1.5 text-[var(--wy-text-muted)]">
+            This shows session-level connection and login records, not destination-level traffic
+            (what site a guest visited). Private IP is the guest&apos;s address on your WiFi; venue
+            public IP is your router&apos;s routable WAN address (shared NAT egress), shown only
+            when the router reports a real public address — not a LAN/CGNAT interface. The platform
+            does not currently guarantee a specific data-retention period for these records.
+          </p>
+        </details>
+      </Callout>
+      <ReportPanel
+        reportTypes={NETWORK_ACTIVITY_REPORT_TYPES}
+        csvPrefix="network-activity"
+        masked={masked}
+      />
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { Trans, useTranslation } from "react-i18next";
-import { motion, useReducedMotion } from "framer-motion";
 import {
   Smartphone,
   Laptop,
@@ -18,6 +17,14 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  PANEL_SURFACE,
+  PageHeader,
+  StatTile,
+  StatusDot,
+  SubTabs,
+  type PageScope,
+} from "@/components/customer/console";
 import i18n from "@/lib/i18n";
 import { CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -187,127 +194,12 @@ const SEED: Entry[] = [
   },
 ];
 
-/**
- * Header-accent illustration: a trusted phone drifting clear through a
- * gate/turnstile -- the visual for "bypass the captive portal". Was a full
- * dark-hero band (viewBox 220x120, its own gradient background) -- the
- * only header in the whole Guest Access sub-section built that way, so
- * flipping between this tab and its sibling "Blocked Guests" tab (a plain
- * white card with a small corner icon, same treatment PoliciesHub.tsx's
- * own header uses) was a jarring style change for no functional reason.
- * Shrunk to the same compact corner-icon convention (viewBox 84x56, h-14)
- * used by BlockedAccessIllustration/PolicyShieldIllustration, and the
- * checkmark recolored from decorative violet to the emerald GuestBadges.tsx
- * already uses for "whitelist" and this same file's own "Active" status
- * pill -- so the illustration, the tab accent, and the status pill all
- * agree on one color for "allowed" instead of three different ones.
- * Purely decorative -- aria-hidden. The gate's pulse and the phone's
- * entrance both respect useReducedMotion.
- */
-function TrustedAccessIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 56"
-      className="hidden h-14 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      {/* turnstile / gate */}
-      <rect
-        x="52"
-        y="8"
-        width="6"
-        height="40"
-        rx="2.5"
-        fill="#241f4d"
-        stroke="#a78bfa"
-        strokeOpacity="0.4"
-        strokeWidth="1.3"
-      />
-      <rect
-        x="74"
-        y="8"
-        width="6"
-        height="40"
-        rx="2.5"
-        fill="#241f4d"
-        stroke="#a78bfa"
-        strokeOpacity="0.4"
-        strokeWidth="1.3"
-      />
-      <motion.rect
-        x="52"
-        y="14"
-        width="28"
-        height="4"
-        rx="2"
-        fill="#22d3ee"
-        animate={shouldReduceMotion ? { opacity: 0.5 } : { opacity: [0.3, 0.7, 0.3] }}
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
-        }
-      />
-
-      {/* trusted phone, drifting through the gate */}
-      <motion.g
-        initial={shouldReduceMotion ? false : { x: -6, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-      >
-        <rect
-          x="8"
-          y="16"
-          width="22"
-          height="30"
-          rx="4.5"
-          fill="#2e2a5c"
-          stroke="#a78bfa"
-          strokeWidth="1.4"
-        />
-        <rect x="11.5" y="20.5" width="15" height="19" rx="1.5" fill="#1e1b4b" />
-        <circle cx="19" cy="30" r="6" fill="#10b981" fillOpacity="0.2" />
-        <motion.path
-          d="M16.2 30l2 2 3.8-4"
-          stroke="#10b981"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-          initial={shouldReduceMotion ? false : { pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.5, delay: 0.3, ease: "easeOut" }}
-        />
-      </motion.g>
-
-      {/* "clear" arcs trailing through the gate */}
-      {[0, 1].map((i) => (
-        <motion.path
-          key={i}
-          d={`M${36 + i * 7} 30a2.5 2.5 0 0 1 0-3`}
-          stroke="#f0abfc"
-          strokeOpacity="0.7"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          initial={shouldReduceMotion ? false : { opacity: 0 }}
-          animate={{ opacity: [0, 1, 0] }}
-          transition={
-            shouldReduceMotion
-              ? { duration: 0 }
-              : { duration: 1.6, repeat: Infinity, delay: i * 0.3, ease: "easeInOut" }
-          }
-        />
-      ))}
-    </svg>
-  );
-}
-
 const PAGE_SIZE = 5;
 // Only the table's own search box (below) still uses this hand-rolled
 // className -- the form fields above now use the platform Input/Select/
 // Label primitives (see the "Who's Allowed"/"Access Window" sections).
 const inputCls =
-  "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
+  "block w-full rounded-[var(--wy-radius)] border border-input bg-[var(--wy-surface)] px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 function toEntry(r: AnyAccessRule): Entry {
   return {
@@ -327,7 +219,14 @@ function toEntry(r: AnyAccessRule): Entry {
   };
 }
 
-export default function WhiteList({ locationId }: { locationId?: string } = {}) {
+export default function WhiteList({
+  locationId,
+  scope,
+}: {
+  locationId?: string;
+  /** Title + venue from the shell (OWN_PAGE_HEADER_FEATURES). */
+  scope?: PageScope;
+} = {}) {
   const { t } = useTranslation("whitelist", { i18n });
   const demo = useIsDemo();
   // UNITS is demo-only seed data (fake hotel names) -- a real customer only
@@ -874,7 +773,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
   // permanent list empty.
   const isActive = (end: string) => isRuleActive(end, Date.now());
   const Err = ({ k }: { k: keyof FormData }) =>
-    errs[k] ? <p className="mt-1 text-xs text-destructive">{errs[k]}</p> : null;
+    errs[k] ? <p className="mt-1 text-xs text-[var(--wy-crit)]">{errs[k]}</p> : null;
 
   // Purely-derived counts (no new fetch) scoped to the tab currently being
   // viewed -- same read-only KPI-strip pattern used this session on
@@ -886,55 +785,59 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
 
   return (
     <div className="space-y-6">
-      {/* header -- matches the compact icon-badge + title + corner
-       * illustration convention this same page's Blocked Guests tab and
-       * PoliciesHub.tsx's own header already use, instead of the one-off
-       * dark hero band this used to be. */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <ShieldCheck className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">
-              {t("nav:customerItem.whitelist", "Guest Allow-list")}
-            </h1>
-            {/* Was "Allow specific numbers or devices to bypass the captive
-             * portal." -- a promise this list has never kept, and the source
-             * of the "Always Allowed not working" report. Under the portal's
-             * default-allow a WHITELIST rule changes no decision at all
-             * (backend guest_access AccessDecisionResolver); it only decides
-             * anything once the switch below is on, and even then a listed
-             * guest signs in normally rather than skipping the page. The
-             * description now says what the list is actually consulted for. */}
-            <p className="text-sm text-muted-foreground">
-              {t(
-                "header.description",
-                "The numbers and devices allowed to get online once this property is closed to everyone else.",
-              )}
-            </p>
-          </div>
-        </div>
-        <TrustedAccessIllustration />
+      {/* One console header (title, venue, what the list is for). The icon
+          tile and the corner illustration are gone (design review §2). */}
+
+      <PageHeader
+        title={scope?.title ?? t("nav:customerItem.whitelist", "Guest Allow-list")}
+        venue={scope?.venue}
+        description={t(
+          "header.description",
+          "The numbers and devices allowed to get online once this property is closed to everyone else.",
+        )}
+      />
+
+      {/* KPI strip, derived from `entries` (no fetch). Sits under the
+          header, above the switch and the form (design review: the tiles
+          used to come after the form). */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <StatTile
+          label={t("status.active", "Active")}
+          leading={<StatusDot status="ok" label={t("status.active", "Active")} />}
+          value={activeCount}
+        />
+        <StatTile
+          label={t("status.expired", "Expired")}
+          leading={<StatusDot status="offline" label={t("status.expired", "Expired")} />}
+          value={expiredCount}
+        />
+        <StatTile
+          label={
+            tab === "number"
+              ? t("kpi.totalNumbers", "Total numbers")
+              : t("kpi.totalDevices", "Total devices")
+          }
+          value={tabEntries.length}
+        />
       </div>
 
       {/* Whitelist-only mode -- the switch that closes this property's WiFi
        * to everyone not on the list below. Placed above the list because
        * it changes what the entire list *means*: with it off the list is a
        * convenience, with it on the list is the door. */}
-      <div className="rounded-2xl border-0 bg-card p-5 shadow-sm">
+      <div className={cn(PANEL_SURFACE, "p-5")}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <div
               className={cn(
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                wlEnabled ? "bg-amber-500/15" : "bg-muted",
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--wy-radius)]",
+                wlEnabled ? "bg-[var(--wy-warn-soft)]" : "bg-muted",
               )}
             >
               <ShieldAlert
                 className={cn(
                   "h-4.5 w-4.5",
-                  wlEnabled ? "text-amber-600" : "text-muted-foreground",
+                  wlEnabled ? "text-[var(--wy-warn)]" : "text-muted-foreground",
                 )}
               />
             </div>
@@ -1068,16 +971,12 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
               return (
                 <div
                   key={blocker.kind}
-                  className="flex gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3"
+                  className="flex gap-2.5 rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-warn)_30%,transparent)] bg-[var(--wy-warn-soft)] p-3"
                 >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-warn)]" />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                      {title}
-                    </p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-amber-900/80 dark:text-amber-200/80">
-                      {detail}
-                    </p>
+                    <p className="text-sm font-medium text-[var(--wy-warn)]">{title}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-[var(--wy-warn)]">{detail}</p>
                   </div>
                 </div>
               );
@@ -1090,7 +989,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
          * looking perfectly correct on screen. */}
         {wlEnabled && (
           <div
-            className="mt-3 rounded-xl border bg-muted/40 p-3"
+            className="mt-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-3"
             data-testid="whitelist-only-denials"
           >
             <p className="text-sm font-medium">
@@ -1120,7 +1019,7 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         )}
 
         {wlError && (
-          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <p className="mt-3 rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-crit)_30%,transparent)] bg-[var(--wy-crit-soft)] p-3 text-sm text-[var(--wy-crit)]">
             {wlError}
           </p>
         )}
@@ -1238,488 +1137,441 @@ export default function WhiteList({ locationId }: { locationId?: string } = {}) 
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* KPI strip -- was missing entirely; a plain form-then-table page
-       * with no at-a-glance summary read closer to a generic admin
-       * allowlist screen. Purely derived from `entries`, same read-only
-       * pattern as the KpiRow this session added to OpenHoursView/
-       * DebuggingView/ManageTeamsPage. */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
-            <ShieldCheck className="h-5 w-5 text-emerald-500" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">
-              {t("status.active", "Active")}
-            </p>
-            <p className="truncate text-lg font-bold">{activeCount}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">
-              {t("status.expired", "Expired")}
-            </p>
-            <p className="truncate text-lg font-bold">{expiredCount}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border-0 bg-card p-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            {tab === "number" ? (
-              <Smartphone className="h-5 w-5 text-white" />
-            ) : (
-              <Laptop className="h-5 w-5 text-white" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">
-              {tab === "number"
-                ? t("kpi.totalNumbers", "Total numbers")
-                : t("kpi.totalDevices", "Total devices")}
-            </p>
-            <p className="truncate text-lg font-bold">{tabEntries.length}</p>
-          </div>
-        </div>
-      </div>
-
       {/* toast */}
       {toast && (
-        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-foreground px-5 py-2.5 text-sm font-medium text-background shadow-lg">
+        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-[var(--wy-radius)] bg-foreground px-5 py-2.5 text-sm font-medium text-background shadow-lg">
           {toast}
         </div>
       )}
 
       {/* tab switcher */}
-      <div className="inline-flex rounded-xl border bg-muted/50 p-1 max-sm:flex">
-        <button
-          onClick={() => {
-            setTab("number");
-            setErrs({});
-            setPage(0);
-          }}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center",
-            tab === "number"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Smartphone className="h-4 w-4" /> {t("tabs.number", "Allow a Number")}
-        </button>
-        <button
-          onClick={() => {
-            setTab("device");
-            setErrs({});
-            setPage(0);
-          }}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors max-sm:flex-1 max-sm:justify-center",
-            tab === "device"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Laptop className="h-4 w-4" /> {t("tabs.device", "Allow a Device")}
-        </button>
-      </div>
+      <SubTabs
+        idPrefix="allow-list"
+        ariaLabel={t("nav:customerItem.whitelist", "Guest Allow-list")}
+        value={tab}
+        onChange={(next) => {
+          setTab(next);
+          setErrs({});
+          setPage(0);
+        }}
+        options={[
+          {
+            value: "number",
+            label: (
+              <>
+                <Smartphone className="h-4 w-4" aria-hidden="true" />
+                {t("tabs.number", "Allow a Number")}
+              </>
+            ),
+          },
+          {
+            value: "device",
+            label: (
+              <>
+                <Laptop className="h-4 w-4" aria-hidden="true" />
+                {t("tabs.device", "Allow a Device")}
+              </>
+            ),
+          },
+        ]}
+      />
 
-      {/* form card */}
-      <form
-        ref={formRef}
-        onSubmit={handleSubmit}
-        className="rounded-xl border-0 bg-card text-card-foreground shadow-sm"
+      <div
+        id="allow-list-panel"
+        role="tabpanel"
+        aria-labelledby={`allow-list-tab-${tab}`}
+        className="space-y-6"
       >
-        <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            {tab === "number" ? (
-              <Smartphone className="h-3.5 w-3.5 text-white" />
-            ) : (
-              <Laptop className="h-3.5 w-3.5 text-white" />
-            )}
-          </span>
-          <CardTitle className="text-sm">
-            {tab === "number"
-              ? t("form.titleNumber", "Allow a number")
-              : t("form.titleDevice", "Allow a device")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Who's Allowed -- identity fields grouped together (was a flat
+        {/* form card */}
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] shadow-[var(--wy-shadow)] text-[var(--wy-text)]"
+        >
+          <CardHeader className="flex flex-row items-center gap-2.5 space-y-0">
+            <CardTitle className="text-sm">
+              {tab === "number"
+                ? t("form.titleNumber", "Allow a number")
+                : t("form.titleDevice", "Allow a device")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Who's Allowed -- identity fields grouped together (was a flat
               6-field grid with no separation from the access-window dates
               below it). */}
-          <div className="rounded-xl border bg-muted/30 p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <User className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">
-                {t("form.whoTitle", "Who's Allowed")}
-              </h3>
-            </div>
-            <p className="mb-4 text-xs text-muted-foreground">
-              {/* Was "The number/device that skips the portal" -- the same
-               * false bypass promise as the empty state below. A listed guest
-               * still signs in; the list only decides who may. */}
-              {tab === "number"
-                ? t("form.whoNumber", "The guest's mobile number, and who it belongs to.")
-                : t("form.whoDevice", "The device's address, and who it belongs to.")}
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Mobile / MAC */}
-              {tab === "number" ? (
-                <div className="space-y-1.5">
-                  <Label>
-                    {t("form.mobile", "Mobile Number")} <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Select value={f.mobileCC} onValueChange={(v) => setField("mobileCC", v)}>
-                      <SelectTrigger className="w-28 shrink-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COUNTRIES.map((c) => (
-                          <SelectItem key={c.code} value={c.code}>
-                            {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={10}
-                      placeholder={t("form.mobilePlaceholder", "10-digit mobile number")}
-                      value={f.mobile}
-                      onChange={(e) =>
-                        setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))
-                      }
-                    />
+            <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4">
+              <div className="mb-1 flex items-center gap-2">
+                <User className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  {t("form.whoTitle", "Who's Allowed")}
+                </h3>
+              </div>
+              <p className="mb-4 text-xs text-muted-foreground">
+                {/* Was "The number/device that skips the portal" -- the same
+                 * false bypass promise as the empty state below. A listed guest
+                 * still signs in; the list only decides who may. */}
+                {tab === "number"
+                  ? t("form.whoNumber", "The guest's mobile number, and who it belongs to.")
+                  : t("form.whoDevice", "The device's address, and who it belongs to.")}
+              </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Mobile / MAC */}
+                {tab === "number" ? (
+                  <div className="space-y-1.5">
+                    <Label>
+                      {t("form.mobile", "Mobile Number")}{" "}
+                      <span className="text-[var(--wy-crit)]">*</span>
+                    </Label>
+                    <div className="flex gap-2">
+                      <Select value={f.mobileCC} onValueChange={(v) => setField("mobileCC", v)}>
+                        <SelectTrigger className="w-28 shrink-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COUNTRIES.map((c) => (
+                            <SelectItem key={c.code} value={c.code}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={10}
+                        placeholder={t("form.mobilePlaceholder", "10-digit mobile number")}
+                        value={f.mobile}
+                        onChange={(e) =>
+                          setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))
+                        }
+                      />
+                    </div>
+                    <Err k="mobile" />
                   </div>
-                  <Err k="mobile" />
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {/* "Guest Allow-list" in the header, "Device address" on the
+                ) : (
+                  <div className="space-y-1.5">
+                    {/* "Guest Allow-list" in the header, "Device address" on the
                     control -- the rename stopped at the title. The MAC
                     itself still belongs in the hint, because that is the
                     exact phrase the owner reads off the device's WiFi
                     settings. */}
+                    <Label>
+                      {t("form.deviceAddress", "Device address")}{" "}
+                      <span className="text-[var(--wy-crit)]">*</span>
+                    </Label>
+                    <Input
+                      type="text"
+                      placeholder="AA:BB:CC:DD:EE:FF"
+                      value={f.mac}
+                      onChange={(e) =>
+                        setField(
+                          "mac",
+                          e.target.value
+                            .toUpperCase()
+                            .replace(/[^0-9A-F]/g, "")
+                            .replace(/(.{2})(?!$)/g, "$1:")
+                            .slice(0, 17),
+                        )
+                      }
+                      className="font-mono"
+                    />
+                    <Err k="mac" />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
                   <Label>
-                    {t("form.deviceAddress", "Device address")}{" "}
-                    <span className="text-destructive">*</span>
+                    {t("form.location", "Location")}{" "}
+                    <span className="text-[var(--wy-crit)]">*</span>
+                  </Label>
+                  <Select value={f.businessUnit} onValueChange={(v) => setField("businessUnit", v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units.map((u) => (
+                        <SelectItem key={u} value={u}>
+                          {u}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>
+                    {tab === "number"
+                      ? t("form.name", "Name")
+                      : t("form.deviceLabel", "Device label")}{" "}
+                    <span className="text-[var(--wy-crit)]">*</span>
                   </Label>
                   <Input
                     type="text"
-                    placeholder="AA:BB:CC:DD:EE:FF"
-                    value={f.mac}
-                    onChange={(e) =>
-                      setField(
-                        "mac",
-                        e.target.value
-                          .toUpperCase()
-                          .replace(/[^0-9A-F]/g, "")
-                          .replace(/(.{2})(?!$)/g, "$1:")
-                          .slice(0, 17),
-                      )
+                    placeholder={
+                      tab === "number"
+                        ? t("form.namePlaceholder", "Guest name")
+                        : t("form.deviceLabelPlaceholder", "e.g. Office Printer")
                     }
-                    className="font-mono"
+                    value={f.name}
+                    onChange={(e) => setField("name", e.target.value)}
                   />
-                  <Err k="mac" />
+                  <Err k="name" />
                 </div>
-              )}
 
-              <div className="space-y-1.5">
-                <Label>
-                  {t("form.location", "Location")} <span className="text-destructive">*</span>
-                </Label>
-                <Select value={f.businessUnit} onValueChange={(v) => setField("businessUnit", v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {u}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>
-                  {tab === "number"
-                    ? t("form.name", "Name")
-                    : t("form.deviceLabel", "Device label")}{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  type="text"
-                  placeholder={
-                    tab === "number"
-                      ? t("form.namePlaceholder", "Guest name")
-                      : t("form.deviceLabelPlaceholder", "e.g. Office Printer")
-                  }
-                  value={f.name}
-                  onChange={(e) => setField("name", e.target.value)}
-                />
-                <Err k="name" />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>
-                  {t("form.email", "Email")} <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  type="email"
-                  placeholder="name@company.com"
-                  value={f.email}
-                  onChange={(e) => setField("email", e.target.value)}
-                />
-                <Err k="email" />
+                <div className="space-y-1.5">
+                  <Label>
+                    {t("form.email", "Email")} <span className="text-[var(--wy-crit)]">*</span>
+                  </Label>
+                  <Input
+                    type="email"
+                    placeholder="name@company.com"
+                    value={f.email}
+                    onChange={(e) => setField("email", e.target.value)}
+                  />
+                  <Err k="email" />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Access Window -- the two date fields are a distinct concept
+            {/* Access Window -- the two date fields are a distinct concept
               (when the bypass is active) from who it applies to above, so
               they get their own labeled section instead of blending into
               the same flat grid. */}
-          <div className="rounded-xl border bg-muted/30 p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">
-                {t("form.windowTitle", "Access Window")}
-              </h3>
-            </div>
-            <p className="mb-4 text-xs text-muted-foreground">
-              {/* Was "When this guest stops needing to sign in" -- same false
-               * bypass promise. The window is how long the entry counts. */}
-              {t("form.windowHelp", "How long this entry stays on the list.")}
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Read-only, deliberately. An access rule has no start field
+            <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4">
+              <div className="mb-1 flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  {t("form.windowTitle", "Access Window")}
+                </h3>
+              </div>
+              <p className="mb-4 text-xs text-muted-foreground">
+                {/* Was "When this guest stops needing to sign in" -- same false
+                 * bypass promise. The window is how long the entry counts. */}
+                {t("form.windowHelp", "How long this entry stays on the list.")}
+              </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Read-only, deliberately. An access rule has no start field
                 on the backend at all -- only `expires_at` -- so a start
                 date typed here was never sent, and reloading the page
                 replaced it with the row's creation time. Rather than leave
                 a required-looking control that quietly discards what you
                 type, say what actually happens. */}
-              <div className="space-y-1.5">
-                <Label className="text-muted-foreground">{t("form.starts", "Starts")}</Label>
-                <Input value={t("form.startsValue", "As soon as you save")} disabled readOnly />
-                <p className="text-xs text-muted-foreground">
-                  {t("form.startsHelp", "Scheduling a later start isn’t supported yet.")}
-                </p>
-              </div>
+                <div className="space-y-1.5">
+                  <Label className="text-muted-foreground">{t("form.starts", "Starts")}</Label>
+                  <Input value={t("form.startsValue", "As soon as you save")} disabled readOnly />
+                  <p className="text-xs text-muted-foreground">
+                    {t("form.startsHelp", "Scheduling a later start isn’t supported yet.")}
+                  </p>
+                </div>
 
-              <div className="space-y-1.5">
-                <Label>
-                  {t("form.endDate", "End Date")} <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  type="datetime-local"
-                  value={f.endDate}
-                  onChange={(e) => setField("endDate", e.target.value)}
-                />
-                <Err k="endDate" />
+                <div className="space-y-1.5">
+                  <Label>
+                    {t("form.endDate", "End Date")} <span className="text-[var(--wy-crit)]">*</span>
+                  </Label>
+                  <Input
+                    type="datetime-local"
+                    value={f.endDate}
+                    onChange={(e) => setField("endDate", e.target.value)}
+                  />
+                  <Err k="endDate" />
+                </div>
               </div>
             </div>
-          </div>
 
-          <hr className="my-6 border-border" />
-          <div className="flex justify-center gap-2">
-            {editingId && (
-              <Button type="button" variant="outline" size="lg" onClick={cancelEdit}>
-                {t("actions.cancel", "Cancel")}
+            <hr className="my-6 border-border" />
+            <div className="flex justify-center gap-2">
+              {editingId && (
+                <Button type="button" variant="outline" size="lg" onClick={cancelEdit}>
+                  {t("actions.cancel", "Cancel")}
+                </Button>
+              )}
+              <Button type="submit" size="lg" className="px-8">
+                {editingId
+                  ? t("actions.saveChanges", "Save Changes")
+                  : tab === "number"
+                    ? t("actions.allowNumber", "Allow Number")
+                    : t("actions.allowDevice", "Allow Device")}
               </Button>
-            )}
-            <Button type="submit" size="lg" className="px-8">
-              {editingId
-                ? t("actions.saveChanges", "Save Changes")
-                : tab === "number"
-                  ? t("actions.allowNumber", "Allow Number")
-                  : t("actions.allowDevice", "Allow Device")}
-            </Button>
-          </div>
-        </CardContent>
-      </form>
+            </div>
+          </CardContent>
+        </form>
 
-      {/* table card */}
-      <div className="rounded-xl border-0 bg-card text-card-foreground shadow-sm">
-        <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-              <ShieldCheck className="h-3.5 w-3.5 text-white" />
-            </span>
-            <div>
-              <CardTitle className="text-sm">
-                {tab === "number"
-                  ? t("list.titleGuests", "Allow-listed guests")
-                  : t("list.titleDevices", "Allow-listed devices")}
-              </CardTitle>
-              {/* Not "for this location": listAccessRules takes an org id
+        {/* table card */}
+        <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] shadow-[var(--wy-shadow)] text-[var(--wy-text)]">
+          <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+            <div className="flex items-center gap-2.5">
+              <div>
+                <CardTitle className="text-sm">
+                  {tab === "number"
+                    ? t("list.titleGuests", "Allow-listed guests")
+                    : t("list.titleDevices", "Allow-listed devices")}
+                </CardTitle>
+                {/* Not "for this location": listAccessRules takes an org id
                 and no location filter, so this table is every allow rule
                 in the account. Saying "this location" made a rule saved
                 against another site look like it applied here. */}
-              <p className="text-xs text-muted-foreground">
-                {t("list.subtitle", "Everything currently allowed across your account.")}
-              </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("list.subtitle", "Everything currently allowed across your account.")}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder={t("list.search", "Search…")}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
-              className={cn(inputCls, "w-48 py-1.5 pl-8")}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className={paged.length > 0 ? "px-4 pb-4 pt-0" : "p-0"}>
-          {paged.length === 0 ? (
-            <EmptyState
-              icon={ShieldCheck}
-              title={t("list.emptyTitle", "Nothing allowed yet")}
-              // Was "...let a trusted number or device skip the portal." --
-              // false (a listed guest still signs in; the list only matters
-              // once the switch above is on) and it described Trusted
-              // Devices, the separate screen for equipment that connects
-              // without signing in.
-              description={t(
-                "list.emptyBody",
-                "Add a guest's mobile number or device above. When the switch above is on, only guests on this list can sign in. For a printer or till that should connect without signing in, use Trusted Devices.",
-              )}
-              action={{
-                label: t("list.emptyAction", "Allow a number or device"),
-                onClick: () => formRef.current?.querySelector<HTMLInputElement>("input")?.focus(),
-              }}
-            />
-          ) : (
-            // Card grid instead of a data table -- a table-with-search-and-
-            // pagination is the single most generic-looking "admin allowlist"
-            // pattern there is (and reads closest to the competitor's own
-            // screen for this exact feature). Same per-entry data as before,
-            // just presented as a compact card (identity + masked MAC in the
-            // header row, a status pill, location + the access window, edit/
-            // delete actions) -- matches the card-list treatment this session
-            // already gave ManageTeamsPage's "Your Teams".
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {paged.map((e) => (
-                <div key={e.id} className="rounded-xl border-0 bg-muted/40 p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        {tab === "number" ? (
-                          <Smartphone className="h-4 w-4" />
-                        ) : (
-                          <Laptop className="h-4 w-4" />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder={t("list.search", "Search…")}
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(0);
+                }}
+                className={cn(inputCls, "w-48 py-1.5 pl-8")}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className={paged.length > 0 ? "px-4 pb-4 pt-0" : "p-0"}>
+            {paged.length === 0 ? (
+              <EmptyState
+                icon={ShieldCheck}
+                title={t("list.emptyTitle", "Nothing allowed yet")}
+                // Was "...let a trusted number or device skip the portal." --
+                // false (a listed guest still signs in; the list only matters
+                // once the switch above is on) and it described Trusted
+                // Devices, the separate screen for equipment that connects
+                // without signing in.
+                description={t(
+                  "list.emptyBody",
+                  "Add a guest's mobile number or device above. When the switch above is on, only guests on this list can sign in. For a printer or till that should connect without signing in, use Trusted Devices.",
+                )}
+                action={{
+                  label: t("list.emptyAction", "Allow a number or device"),
+                  onClick: () => formRef.current?.querySelector<HTMLInputElement>("input")?.focus(),
+                }}
+              />
+            ) : (
+              // Card grid instead of a data table -- a table-with-search-and-
+              // pagination is the single most generic-looking "admin allowlist"
+              // pattern there is (and reads closest to the competitor's own
+              // screen for this exact feature). Same per-entry data as before,
+              // just presented as a compact card (identity + masked MAC in the
+              // header row, a status pill, location + the access window, edit/
+              // delete actions) -- matches the card-list treatment this session
+              // already gave ManageTeamsPage's "Your Teams".
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {paged.map((e) => (
+                  <div
+                    key={e.id}
+                    className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          {tab === "number" ? (
+                            <Smartphone className="h-4 w-4" />
+                          ) : (
+                            <Laptop className="h-4 w-4" />
+                          )}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-foreground">{e.name}</p>
+                          <p className="truncate font-mono text-xs text-muted-foreground">
+                            {e.tab === "device" ? maskMac(e.identifier) : e.identifier}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                          isActive(e.endDate)
+                            ? "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]"
+                            : "bg-muted text-muted-foreground",
                         )}
+                      >
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            isActive(e.endDate) ? "bg-[var(--wy-ok)]" : "bg-[var(--wy-offline)]",
+                          )}
+                        />
+                        {isActive(e.endDate)
+                          ? t("status.active", "Active")
+                          : t("status.expired", "Expired")}
                       </span>
+                    </div>
+                    <div className="mt-3 flex items-end justify-between gap-3 text-xs">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground">{e.name}</p>
-                        <p className="truncate font-mono text-xs text-muted-foreground">
-                          {e.tab === "device" ? maskMac(e.identifier) : e.identifier}
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                          {t("form.location", "Location")}
+                        </p>
+                        <p className="truncate text-foreground">{e.businessUnit || "—"}</p>
+                      </div>
+                      <div className="min-w-0 text-right">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                          {t("list.window", "Access window")}
+                        </p>
+                        <p className="truncate text-foreground">
+                          {fmtDT(e.startDate, noEnd)} → {fmtDT(e.endDate, noEnd)}
                         </p>
                       </div>
                     </div>
-                    <span
-                      className={cn(
-                        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                        isActive(e.endDate)
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 rounded-full",
-                          isActive(e.endDate) ? "bg-emerald-500" : "bg-slate-400",
-                        )}
-                      />
-                      {isActive(e.endDate)
-                        ? t("status.active", "Active")
-                        : t("status.expired", "Expired")}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex items-end justify-between gap-3 text-xs">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                        {t("form.location", "Location")}
-                      </p>
-                      <p className="truncate text-foreground">{e.businessUnit || "—"}</p>
-                    </div>
-                    <div className="min-w-0 text-right">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
-                        {t("list.window", "Access window")}
-                      </p>
-                      <p className="truncate text-foreground">
-                        {fmtDT(e.startDate, noEnd)} → {fmtDT(e.endDate, noEnd)}
-                      </p>
+                    <div className="mt-3 flex justify-end gap-1 border-t border-[var(--wy-border)] pt-2">
+                      <button
+                        type="button"
+                        aria-label={t("actions.editNamed", "Edit {{name}}", { name: e.name })}
+                        onClick={() => startEdit(e)}
+                        className="inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        aria-label={t("actions.deleteNamed", "Delete {{name}}", { name: e.name })}
+                        onClick={() => handleDelete(e.id)}
+                        className="inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 text-muted-foreground hover:bg-[var(--wy-crit-soft)] hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
-                  <div className="mt-3 flex justify-end gap-1 border-t border-border/60 pt-2">
-                    <button
-                      type="button"
-                      aria-label={t("actions.editNamed", "Edit {{name}}", { name: e.name })}
-                      onClick={() => startEdit(e)}
-                      className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      aria-label={t("actions.deleteNamed", "Delete {{name}}", { name: e.name })}
-                      onClick={() => handleDelete(e.id)}
-                      className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {filtered.length > 0 && (
-            <div
-              className={cn(
-                "flex items-center justify-between text-xs text-muted-foreground",
-                paged.length > 0 ? "mt-4 border-t pt-3" : "border-t p-3",
-              )}
-            >
-              <span>
-                {t("list.showing", "Showing {{from}}–{{to}} of {{total}}", {
-                  from: safePage * PAGE_SIZE + 1,
-                  to: Math.min((safePage + 1) * PAGE_SIZE, filtered.length),
-                  total: filtered.length,
-                })}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  aria-label={t("list.previous", "Previous page")}
-                  disabled={safePage === 0}
-                  onClick={() => setPage(safePage - 1)}
-                  className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  aria-label={t("list.next", "Next page")}
-                  disabled={safePage >= totalPages - 1}
-                  onClick={() => setPage(safePage + 1)}
-                  className="inline-flex items-center justify-center rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+                ))}
               </div>
-            </div>
-          )}
-        </CardContent>
+            )}
+
+            {filtered.length > 0 && (
+              <div
+                className={cn(
+                  "flex items-center justify-between text-xs text-muted-foreground",
+                  paged.length > 0 ? "mt-4 border-t pt-3" : "border-t p-3",
+                )}
+              >
+                <span>
+                  {t("list.showing", "Showing {{from}}–{{to}} of {{total}}", {
+                    from: safePage * PAGE_SIZE + 1,
+                    to: Math.min((safePage + 1) * PAGE_SIZE, filtered.length),
+                    total: filtered.length,
+                  })}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    aria-label={t("list.previous", "Previous page")}
+                    disabled={safePage === 0}
+                    onClick={() => setPage(safePage - 1)}
+                    className="inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 hover:bg-accent disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    aria-label={t("list.next", "Next page")}
+                    disabled={safePage >= totalPages - 1}
+                    onClick={() => setPage(safePage + 1)}
+                    className="inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 hover:bg-accent disabled:opacity-40"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </div>
       </div>
     </div>
   );

@@ -514,7 +514,10 @@
       "firewall_rules": "Rules deciding what can reach what",
       "rogue_dhcp_unguarded": "Network ports with no protection against a second router",
       "open_alerts": "Problems still waiting to be fixed"
-    }
+    },
+    "pageDescription": "How well this venue's protections are set up, and what you can switch on.",
+    "factorOk": "OK",
+    "factorPenalty": "−{{points}} points"
   },
   "blockGuests": {
     "deviceTab": "Device",
@@ -599,5 +602,13 @@
       "label": "Language",
       "notSaved": "Language changed on this device. We couldn't save it to your account just now — we'll use it here anyway."
     }
+  },
+  "netlogs": {
+    "filters": "Filters",
+    "filtersCount": "Filters ({{count}})"
+  },
+  "networkActivity": {
+    "noteSummary": "Connection and sign-in records only, not the websites guests visited.",
+    "noteMore": "More"
   }
 }
