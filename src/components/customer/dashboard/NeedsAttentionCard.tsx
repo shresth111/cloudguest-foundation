@@ -16,12 +16,16 @@ import { cn } from "@/lib/utils";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { Panel } from "@/components/customer/console";
 import { PanelTitle } from "./overview/console-ui";
+import { lastContactLabel } from "@/lib/location-liveness";
+import { actionLabel, joinList, rowCopy } from "./needsAttentionCopy";
 import {
   useNeedsAttention,
   type AttentionItem,
   type AttentionSeverity,
   type AttentionSource,
+  type NeedsAttentionResult,
 } from "./useNeedsAttention";
+import type { WanSummaryState } from "./dashboard.types";
 
 // Console look: the page's shared panel chrome, status tokens for severity.
 const TINT: Record<AttentionSeverity, string> = {
@@ -43,148 +47,6 @@ const ICON: Record<AttentionSeverity, typeof XCircle> = {
   info: Info,
 };
 
-function formatDate(iso: string | undefined, lang: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat(lang, { day: "numeric", month: "short", year: "numeric" }).format(
-    d,
-  );
-}
-
-function joinList(parts: string[], lang: string): string {
-  try {
-    return new Intl.ListFormat(lang, { style: "long", type: "conjunction" }).format(parts);
-  } catch {
-    return parts.join(", ");
-  }
-}
-
-/** Title + detail for one row, in the reader's language. */
-function rowCopy(
-  item: AttentionItem,
-  t: TFunction,
-  lang: string,
-): { title: string; detail?: string } {
-  const { count, total, days } = item.params;
-  const date = formatDate(item.params.date, lang);
-  switch (item.kind) {
-    case "venueOffline":
-      return {
-        title: t("rows.venueOffline.title", "Your WiFi network is offline"),
-        detail: t(
-          "rows.venueOffline.detail",
-          "None of the routers here are checking in, so guests may not be able to get online.",
-        ),
-      };
-    case "routersPartlyOffline":
-      return {
-        title: t("rows.routersPartlyOffline.title", {
-          count,
-          total,
-          defaultValue_one: "{{count}} of {{total}} routers isn't checking in",
-          defaultValue_other: "{{count}} of {{total}} routers aren't checking in",
-        }),
-        detail: t(
-          "rows.routersPartlyOffline.detail",
-          "Guests near them may not be able to get online.",
-        ),
-      };
-    case "noRouter":
-      return {
-        title: t("rows.noRouter.title", "No router added yet"),
-        detail: t(
-          "rows.noRouter.detail",
-          "Guest WiFi starts working here once a router has been set up.",
-        ),
-      };
-    case "criticalAlerts":
-      return {
-        title: t("rows.criticalAlerts.title", {
-          count,
-          defaultValue_one: "{{count}} critical alert is open",
-          defaultValue_other: "{{count}} critical alerts are open",
-        }),
-      };
-    case "warningAlerts":
-      return {
-        title: t("rows.warningAlerts.title", {
-          count,
-          defaultValue_one: "{{count}} warning is open",
-          defaultValue_other: "{{count}} warnings are open",
-        }),
-      };
-    case "devicesDown":
-      return {
-        title: t("rows.devicesDown.title", {
-          count,
-          defaultValue_one: "{{count}} device is down",
-          defaultValue_other: "{{count}} devices are down",
-        }),
-        detail: t(
-          "rows.devicesDown.detail",
-          "Access points, printers or other hardware you monitor aren't responding.",
-        ),
-      };
-    case "failedLogins":
-      return {
-        title: t("rows.failedLogins.title", {
-          count,
-          defaultValue_one: "{{count}} failed staff sign-in today",
-          defaultValue_other: "{{count}} failed staff sign-ins today",
-        }),
-        detail: t("rows.failedLogins.detail", "Check that these were your own staff."),
-      };
-    case "planExpired":
-      return {
-        title: t("rows.planExpired.title", "Your plan has expired"),
-        detail: date
-          ? t("rows.planExpired.detail", { date, defaultValue: "It ended on {{date}}." })
-          : undefined,
-      };
-    case "planPastDue":
-      return {
-        title: t("rows.planPastDue.title", "Your plan payment is overdue"),
-        detail: t(
-          "rows.planPastDue.detail",
-          "The latest payment for your plan hasn't been received.",
-        ),
-      };
-    case "planExpiring":
-      return {
-        title:
-          days === 0
-            ? t("rows.planExpiring.today", "Your plan ends today")
-            : t("rows.planExpiring.title", {
-                count: days,
-                defaultValue_one: "Your plan ends in {{count}} day",
-                defaultValue_other: "Your plan ends in {{count}} days",
-              }),
-        detail: date
-          ? t("rows.planExpiring.detail", {
-              date,
-              defaultValue: "Ends on {{date}} and won't renew by itself.",
-            })
-          : undefined,
-      };
-  }
-}
-
-function actionLabel(id: string, t: TFunction): string {
-  switch (id) {
-    case "debugging":
-      return t("action.debugging", "Fix a problem");
-    case "alerts":
-      return t("action.alerts", "View alerts");
-    case "devices":
-      return t("action.devices", "View devices");
-    case "admin-logs":
-      return t("action.admin-logs", "View staff activity");
-    default:
-      return id;
-  }
-}
-
 function sourceLabel(s: AttentionSource, t: TFunction): string {
   switch (s) {
     case "routers":
@@ -193,6 +55,8 @@ function sourceLabel(s: AttentionSource, t: TFunction): string {
       return t("source.alerts", "alerts");
     case "devices":
       return t("source.devices", "devices");
+    case "isp":
+      return t("source.isp", "internet lines");
     case "staffLogins":
       return t("source.staffLogins", "staff sign-ins");
     case "plan":
@@ -217,16 +81,61 @@ function Note({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   );
 }
 
+/** Which routers are silent, and what to do -- folded into the routers row
+ * (it used to be a separate "Partly live" panel that restated the outage). */
+function RouterDetail({ item, t }: { item: AttentionItem; t: TFunction }) {
+  const routers = item.routers ?? [];
+  if (routers.length === 0) return null;
+  const now = new Date();
+  return (
+    <details className="group mt-1">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded text-[11px] font-medium text-[var(--wy-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] [&::-webkit-details-marker]:hidden">
+        <span className="group-open:hidden">
+          {t("routerDetail.show", { count: routers.length, defaultValue: "Which routers?" })}
+        </span>
+        <span className="hidden group-open:inline">{t("routerDetail.hide", "Hide")}</span>
+      </summary>
+      <ul className="mt-1.5 space-y-1.5" data-testid="needs-attention-router-detail">
+        {routers.map((r) => (
+          <li key={r.key} className="text-[11px] leading-relaxed">
+            <span className="font-medium text-[var(--wy-text)]">{r.label}</span>
+            <span className="text-[var(--wy-text-muted)]">
+              {" · "}
+              {r.shortLabel} · {lastContactLabel(r, now)}
+            </span>
+            {r.nextStep && <p className="text-[var(--wy-text-muted)]">{r.nextStep}</p>}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /**
  * "What do I need to do right now at this venue?" -- a severity-ordered list
  * of real problems, each with the one page that fixes it. See
  * `useNeedsAttention` for where every row comes from. Never says "All good"
  * unless every source it could ask actually answered.
+ *
+ * The dashboard computes the list once (it also feeds the top bar's pill and
+ * bell) and renders `NeedsAttentionCardView` with it; this wrapper asks for
+ * it itself, for any caller that has not.
  */
-export function NeedsAttentionCard({ locationId }: { locationId: string }) {
+export function NeedsAttentionCard({
+  locationId,
+  wan,
+}: {
+  locationId: string;
+  wan?: WanSummaryState;
+}) {
+  const state = useNeedsAttention(locationId, { wan });
+  return <NeedsAttentionCardView state={state} />;
+}
+
+export function NeedsAttentionCardView({ state }: { state: NeedsAttentionResult }) {
   const { t, i18n: inst } = useTranslation("needsAttention", { i18n });
   const lang = inst.language || "en";
-  const { items, unchecked, pending, checked, loading } = useNeedsAttention(locationId);
+  const { items, unchecked, pending, checked, loading } = state;
   const list = (sources: AttentionSource[]) =>
     joinList(
       sources.map((s) => sourceLabel(s, t)),
@@ -307,6 +216,7 @@ export function NeedsAttentionCard({ locationId }: { locationId: string }) {
                               {copy.detail}
                             </p>
                           )}
+                          <RouterDetail item={item} t={t} />
                         </div>
                         {item.actionId && (
                           <Link

@@ -525,7 +525,37 @@
       "issues_one": "{{count}} समस्या",
       "issues_other": "{{count}} समस्याएँ",
       "checkedAgo": "लाइव · {{ago}} जाँचा गया",
-      "snapshot": "पिछली ज्ञात स्थिति, जब यह वेन्यू खोला गया था। डैशबोर्ड इसे लाइव जाँचता है।"
+      "snapshot": "पिछली ज्ञात स्थिति, जब यह वेन्यू खोला गया था। डैशबोर्ड इसे लाइव जाँचता है।",
+      "routersCheckingIn": "राउटर संपर्क में हैं",
+      "checking": "जाँच रहे हैं…",
+      "notAllChecked": "सब कुछ जाँच नहीं पाए",
+      "needAttention_one": "{{count}} बात पर ध्यान दें",
+      "needAttention_other": "{{count}} बातों पर ध्यान दें",
+      "routersHeading": "राउटर · {{total}} में से {{online}} संपर्क में",
+      "routersOnlyNote": "सिर्फ़ आपके राउटर जाँचे गए। अलर्ट, डिवाइस और इंटरनेट लाइनें भी जाँचने के लिए डैशबोर्ड खोलें।",
+      "bellHeading": "इस वेन्यू पर ध्यान देने वाली बातें",
+      "short": {
+        "routerOffline": "राउटर ऑफ़लाइन",
+        "routersOffline": "राउटर ऑफ़लाइन",
+        "someRoutersOffline_one": "{{count}} राउटर ऑफ़लाइन",
+        "someRoutersOffline_other": "{{count}} राउटर ऑफ़लाइन",
+        "noRouter": "अभी कोई राउटर नहीं",
+        "criticalAlerts_one": "{{count}} गंभीर अलर्ट",
+        "criticalAlerts_other": "{{count}} गंभीर अलर्ट",
+        "warningAlerts_one": "{{count}} चेतावनी",
+        "warningAlerts_other": "{{count}} चेतावनियाँ",
+        "devicesDown_one": "{{count}} डिवाइस बंद",
+        "devicesDown_other": "{{count}} डिवाइस बंद",
+        "devicesUnstable_one": "{{count}} डिवाइस अस्थिर",
+        "devicesUnstable_other": "{{count}} डिवाइस अस्थिर",
+        "ispDown": "इंटरनेट लाइन बंद",
+        "ispDegraded": "इंटरनेट लाइन धीमी",
+        "failedLogins_one": "{{count}} असफल साइन-इन",
+        "failedLogins_other": "{{count}} असफल साइन-इन",
+        "planExpired": "प्लान खत्म",
+        "planPastDue": "भुगतान बाकी",
+        "planExpiring": "प्लान जल्द खत्म"
+      }
     },
     "switcher": {
       "label": "वेन्यू बदलें",
@@ -553,6 +583,10 @@
       "navigate": "चुनने के लिए",
       "open": "खोलने के लिए",
       "close": "बंद करने के लिए"
+    },
+    "language": {
+      "label": "भाषा",
+      "notSaved": "इस डिवाइस पर भाषा बदल दी गई। अभी इसे आपके खाते में सेव नहीं कर पाए — यहाँ यही भाषा इस्तेमाल होगी।"
     }
   }
 }

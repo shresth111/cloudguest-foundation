@@ -374,8 +374,9 @@ function CustomerUsersPage() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* No `title`: the breadcrumb already names this page (Guests), and
+            a second label beside it read "Guests › Guests Connected guests". */}
         <CustomerHeader
-          title={<p className="truncate text-sm font-semibold">{t("title")}</p>}
           locationId={locationId}
           planExpiryIso={planExpiryIso}
           onOpenSearch={() => setPaletteOpen(true)}

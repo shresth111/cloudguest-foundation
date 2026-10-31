@@ -551,21 +551,60 @@ check(
   "core-systems-icons-are-not-unconditionally-green",
   !/className="h-3\.5 w-3\.5 text-emerald-500"/.test(dash),
 );
-// System and Routers carry the verdict's status dot (`verdict` comes from
-// `livenessTone(liveness.state)`), never a fixed colour.
-check(
-  "core-systems-icons-follow-the-verdict",
-  dash.includes('VERDICT[isLoading ? "neutral" : tone]') &&
-    dash.includes("const tone = livenessTone(liveness.state)") &&
-    (dash.match(/d\.health\.(systemHealth|routersOnline),\s*verdict\.status/g) ?? []).length === 2,
-);
-check("dashboard-explains-why-it-is-not-live", dash.includes("<LocationLivenessExplainer"));
-// The ISP pill is not an ISP signal (see getDashboard()); it must not wear
-// a status icon that implies it is one.
-check(
-  "the-isp-pill-does-not-claim-a-status-it-never-measured",
-  /t\("status\.isp", "ISP"\), d\.health\.isp, null\]/.test(dash),
-);
+// The Dashboard's own status strip (System % / Routers n/m / ISP name, each
+// with a dot) is gone: it was a second, router-only verdict beside the
+// pill (PM review 2026-10-31). Its requirement moved with it -- the router
+// dots now live in the pill's popover, and each must be that router's own
+// liveness status, never a fixed colour; the pill itself must follow the
+// shared issue list, not a sentence of its own.
+{
+  const pill = readFileSync(resolve(ROOT, "src/components/customer/ConsoleHealth.tsx"), "utf8");
+  check(
+    "core-systems-icons-follow-the-verdict",
+    !dash.includes('data-testid="status-bar"') &&
+      !/d\.health\.(systemHealth|routersOnline)/.test(dash) &&
+      dash.includes("const tone = livenessTone(liveness.state)") &&
+      /const rs = routerStatus\(r\);[\s\S]{0,200}<StatusDot status=\{rs\}/.test(pill) &&
+      /const verdict = venueVerdict\(issues\);\s*const status = verdict\.status;/.test(pill),
+  );
+}
+// Why the venue is not live, and what to do: stated ONCE, in the
+// Needs-attention routers row (which routers, their last contact and the
+// liveness module's next step), not in a separate explainer panel that
+// repeated it (design review 2026-10-31, issue 4).
+{
+  const model = readFileSync(
+    resolve(ROOT, "src/components/customer/dashboard/needsAttentionModel.ts"),
+    "utf8",
+  );
+  const card = readFileSync(
+    resolve(ROOT, "src/components/customer/dashboard/NeedsAttentionCard.tsx"),
+    "utf8",
+  );
+  check(
+    "dashboard-explains-why-it-is-not-live",
+    (model.match(/routers: silent,/g) ?? []).length === 2 &&
+      /<RouterDetail item=\{item\} t=\{t\} \/>/.test(card) &&
+      /\{r\.nextStep && <p/.test(card) &&
+      dash.includes("<NeedsAttentionCardView state={attention} />") &&
+      !dash.includes("<LocationLivenessExplainer"),
+  );
+}
+// The ISP chip was not an ISP signal (see getDashboard(): `d.health.isp` is
+// only the active link's NAME). It is gone, and the ISP signal that replaced
+// it is the measured one: each line's `healthStatus` from its health checks.
+{
+  const model = readFileSync(
+    resolve(ROOT, "src/components/customer/dashboard/needsAttentionModel.ts"),
+    "utf8",
+  );
+  check(
+    "the-isp-pill-does-not-claim-a-status-it-never-measured",
+    !/d\.health\.isp/.test(dash) &&
+      /l\.healthStatus === "unhealthy"/.test(model) &&
+      /l\.healthStatus === "degraded"/.test(model),
+  );
+}
 
 // This used to assert that CustomerFeaturePage rendered the explainer too,
 // because it carried its own second copy of the dashboard (`DashboardView`).

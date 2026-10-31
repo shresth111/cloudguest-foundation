@@ -15,6 +15,14 @@
  *  - plan      `useMyBillingDashboard` -> `GET /billing/dashboard/me`
  *              (`current_period_end`, `auto_renew`, status). Demo:
  *              `DEMO_PLAN_RENEWAL_ISO`, as the header uses.
+ *  - isp       the dashboard's own `useWanSummary` read (`GET /isp/links`
+ *              + health checks), handed in by the caller -- never fetched
+ *              here, so asking costs no request. Absent = skipped.
+ *
+ * This list is THE venue's issue list: the dashboard computes it once and
+ * publishes it (`@/components/customer/venueIssues`), and the top bar's
+ * health pill and notification bell read that same list, so the three can
+ * never disagree about how many things are wrong.
  *
  * Every source ends in exactly one of three places: an item, `unchecked`
  * ("we asked and could not tell"), or `skipped` (this user may not read it,
@@ -29,231 +37,23 @@ import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { CUSTOMER_NAVS, getCustomerLoginRole } from "@/lib/customerNav";
 import { navItemAllowed } from "@/lib/customerNavPermissions";
-import { locationIsNasOnly, type LocationLiveness } from "@/lib/location-liveness";
-import { hardwareLivenessIsMeasured, isRouterUnreadable } from "@/lib/device-liveness";
 import type { CustomerDashboardData } from "@/services/customer.service";
 import type { MonitoredDeviceRow } from "@/services/deviceHardware.service";
-import type { MyBillingSummary } from "@/types/billing";
+import type { WanSummaryState } from "./dashboard.types";
 import {
   useVenueMonitoredHardware,
   useVenueOpenAlerts,
   type OpenAlertRow,
 } from "./needsAttentionSources";
+import {
+  buildNeedsAttention,
+  type IspLineInput,
+  type NeedsAttentionInput,
+  type NeedsAttentionState,
+  type SourceAnswer,
+} from "./needsAttentionModel";
 
-export type AttentionSeverity = "error" | "warning" | "info";
-
-export type AttentionSource = "routers" | "alerts" | "devices" | "staffLogins" | "plan";
-
-export type AttentionKind =
-  | "venueOffline"
-  | "routersPartlyOffline"
-  | "noRouter"
-  | "criticalAlerts"
-  | "warningAlerts"
-  | "devicesDown"
-  | "failedLogins"
-  | "planExpired"
-  | "planPastDue"
-  | "planExpiring";
-
-export interface AttentionItem {
-  kind: AttentionKind;
-  severity: AttentionSeverity;
-  /** Interpolation values for the row's copy. */
-  params: { count?: number; total?: number; days?: number; date?: string };
-  /** Customer nav id the action opens, or `null` when there is no page to
-   * send them to, or this user cannot open it. */
-  actionId: string | null;
-}
-
-export interface NeedsAttentionState {
-  items: AttentionItem[];
-  /** Sources that were asked and could not answer. */
-  unchecked: AttentionSource[];
-  /** Sources still loading. */
-  pending: AttentionSource[];
-  /** Sources that answered (with or without a problem). */
-  checked: AttentionSource[];
-}
-
-/** Each source's answer, as handed to `buildNeedsAttention`. */
-export type SourceAnswer<T> =
-  | { state: "loading" }
-  | { state: "error" }
-  | { state: "skip" }
-  | { state: "ready"; value: T };
-
-export interface NeedsAttentionInput {
-  liveness: SourceAnswer<LocationLiveness>;
-  failedLogins: SourceAnswer<number>;
-  alerts: SourceAnswer<{ critical: number; warning: number }>;
-  devices: SourceAnswer<MonitoredDeviceRow[]>;
-  plan: SourceAnswer<Pick<MyBillingSummary, "status" | "renewalDate" | "autoRenewal">>;
-  /** Whether this user can open a customer nav page (role + permission,
-   * the same two filters the sidebar applies). */
-  canOpen: (navId: string) => boolean;
-  now?: Date;
-}
-
-const SEVERITY_RANK: Record<AttentionSeverity, number> = { error: 0, warning: 1, info: 2 };
-
-/** Inside this many days a plan that will not renew by itself is flagged --
- * the same window the header's renewal pill uses (`RENEWAL_VISIBLE_DAYS`). */
-export const PLAN_WARN_DAYS = 7;
-
-function daysUntil(iso: string | null | undefined, now: Date): number | null {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return null;
-  return Math.ceil((t - now.getTime()) / 86_400_000);
-}
-
-/** Pure: turns the five answers into rows + bookkeeping. Exported for tests. */
-export function buildNeedsAttention(input: NeedsAttentionInput): NeedsAttentionState {
-  const now = input.now ?? new Date();
-  const items: AttentionItem[] = [];
-  const unchecked: AttentionSource[] = [];
-  const pending: AttentionSource[] = [];
-  const checked: AttentionSource[] = [];
-  const action = (id: string) => (input.canOpen(id) ? id : null);
-
-  function settle<T>(source: AttentionSource, answer: SourceAnswer<T>, read: (v: T) => void) {
-    if (answer.state === "loading") pending.push(source);
-    else if (answer.state === "error") unchecked.push(source);
-    else if (answer.state === "ready") read(answer.value);
-  }
-
-  settle("routers", input.liveness, (lv) => {
-    switch (lv.state) {
-      case "not-live":
-        checked.push("routers");
-        items.push({
-          kind: "venueOffline",
-          severity: "error",
-          params: { total: lv.routersTotal ?? undefined },
-          actionId: action("debugging"),
-        });
-        return;
-      case "partly-live": {
-        checked.push("routers");
-        const total = lv.routersTotal ?? 0;
-        const online = lv.routersOnline ?? 0;
-        items.push({
-          kind: "routersPartlyOffline",
-          severity: "warning",
-          params: { count: total - online, total },
-          actionId: action("debugging"),
-        });
-        return;
-      }
-      case "no-router":
-        checked.push("routers");
-        // Routers are added by Wyfy during setup, not from a customer page,
-        // so there is no button to offer -- just the fact.
-        items.push({ kind: "noRouter", severity: "info", params: {}, actionId: null });
-        return;
-      case "live":
-        checked.push("routers");
-        return;
-      case "unknown":
-        // A NAS-only venue's access points are never measured here, by
-        // design -- that is not a failed check, it is no check at all.
-        if (!locationIsNasOnly(lv)) unchecked.push("routers");
-        return;
-    }
-  });
-
-  settle("staffLogins", input.failedLogins, (n) => {
-    checked.push("staffLogins");
-    if (n > 0) {
-      items.push({
-        kind: "failedLogins",
-        severity: "warning",
-        params: { count: n },
-        actionId: action("admin-logs"),
-      });
-    }
-  });
-
-  settle("alerts", input.alerts, ({ critical, warning }) => {
-    checked.push("alerts");
-    if (critical > 0) {
-      items.push({
-        kind: "criticalAlerts",
-        severity: "error",
-        params: { count: critical },
-        actionId: action("alerts"),
-      });
-    }
-    if (warning > 0) {
-      items.push({
-        kind: "warningAlerts",
-        severity: "warning",
-        params: { count: warning },
-        actionId: action("alerts"),
-      });
-    }
-  });
-
-  settle("devices", input.devices, (devices) => {
-    checked.push("devices");
-    // Same rule as DeviceStatusCard's "down" count: a measured device that
-    // is down, and not merely unobservable because its router cannot be read.
-    const down = devices.filter(
-      (d) =>
-        d.status === "down" &&
-        hardwareLivenessIsMeasured(d) &&
-        !isRouterUnreadable(d.observationIssue),
-    ).length;
-    if (down > 0) {
-      items.push({
-        kind: "devicesDown",
-        severity: "warning",
-        params: { count: down },
-        actionId: action("devices"),
-      });
-    }
-  });
-
-  settle("plan", input.plan, (plan) => {
-    checked.push("plan");
-    // No customer-facing renewal flow exists (the header's renewal pill is
-    // display-only), so plan rows carry no button.
-    if (plan.status === "past_due") {
-      items.push({ kind: "planPastDue", severity: "error", params: {}, actionId: null });
-      return;
-    }
-    const days = daysUntil(plan.renewalDate, now);
-    if (days === null) return;
-    if (days < 0) {
-      items.push({
-        kind: "planExpired",
-        severity: "error",
-        params: { date: plan.renewalDate },
-        actionId: null,
-      });
-      return;
-    }
-    // A plan that renews itself is not something to act on.
-    const willRenew = plan.autoRenewal && plan.status !== "canceled";
-    if (days <= PLAN_WARN_DAYS && !willRenew) {
-      items.push({
-        kind: "planExpiring",
-        severity: "warning",
-        params: { days, date: plan.renewalDate },
-        actionId: null,
-      });
-    }
-  });
-
-  // Stable sort: within a severity, sources keep the order above.
-  const ranked = items
-    .map((item, i) => ({ item, i }))
-    .sort((a, b) => SEVERITY_RANK[a.item.severity] - SEVERITY_RANK[b.item.severity] || a.i - b.i)
-    .map(({ item }) => item);
-
-  return { items: ranked, unchecked, pending, checked };
-}
+export * from "./needsAttentionModel";
 
 /** HTTP status off the `AppError` the api client rejects with. */
 function errorStatus(err: unknown): number | null {
@@ -290,7 +90,22 @@ function isOwnerRole(roles: { roleSlug: string; roleName?: string; scopeType: st
   );
 }
 
-export function useNeedsAttention(locationId: string): NeedsAttentionState & { loading: boolean } {
+/** The WAN summary the dashboard already holds, as a source answer. `empty`
+ * means no line on file (or a failed read -- `useWanSummary` does not tell
+ * the two apart), so it is a skip, never a claim that the lines are fine. */
+export function ispAnswerFromWan(wan: WanSummaryState | undefined): SourceAnswer<IspLineInput[]> {
+  if (!wan) return { state: "skip" };
+  if (wan.status === "loading") return { state: "loading" };
+  if (wan.status === "empty") return { state: "skip" };
+  return { state: "ready", value: wan.links };
+}
+
+export type NeedsAttentionResult = NeedsAttentionState & { loading: boolean };
+
+export function useNeedsAttention(
+  locationId: string,
+  opts: { wan?: WanSummaryState } = {},
+): NeedsAttentionResult {
   const demo = useIsDemo();
   const { roles } = useAuth();
   const activeLocation = useCustomerStore((s) => s.activeLocation);
@@ -368,6 +183,7 @@ export function useNeedsAttention(locationId: string): NeedsAttentionState & { l
     alerts,
     devices: answerOf<MonitoredDeviceRow[]>(devicesQ, { enabled: devicesAllowed }),
     plan,
+    isp: ispAnswerFromWan(opts.wan),
     canOpen,
   });
   const total = state.checked.length + state.unchecked.length + state.pending.length;

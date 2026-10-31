@@ -1,5 +1,6 @@
 import { Suspense, useState } from "react";
 import { lazyView } from "@/lib/lazy-view";
+import i18n from "@/lib/i18n";
 import { useNavigate } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,21 +29,67 @@ import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
-import { AgentsPage } from "@/components/features/AgentsPage";
-import { CampaignsPage } from "@/components/features/CampaignsPage";
-import { VouchersPage } from "@/components/features/VouchersPage";
-import { PortalPage } from "@/components/features/PortalPage";
-import PoliciesHub from "@/components/features/PoliciesHub";
-import { AdvancedPage } from "@/components/features/FeatureComponents";
-import ManageTeamsPage from "@/components/features/ManageTeamsPage";
-import WhiteList from "@/components/features/WhiteList";
-import UserReports from "@/components/features/UserReports";
-import NetworkActivityLog from "@/components/features/NetworkActivityLog";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
-import TicketsPage from "@/components/features/TicketsPage";
-import { HowItWorksView } from "@/components/customer/HowItWorksPage";
+// Every page view is fetched lazily, so the shell above (sidebar, top bar,
+// tab bar) only waits for its own code. These used to be static imports:
+// the route could not render until all of them -- UserReports alone is ~2,900
+// lines -- had downloaded, and `__root.tsx` holds its full-screen boot loader
+// until the route renders, so a cold open of /blocking or /security showed a
+// shell-less spinner for seconds (PM review 2026-10-31). Now the shell paints
+// and the content area shows `ContentSkeleton` while the one view it needs
+// arrives.
+const AgentsPage = lazyView(() => import("@/components/features/AgentsPage"), "AgentsPage");
+const CampaignsPage = lazyView(
+  () => import("@/components/features/CampaignsPage"),
+  "CampaignsPage",
+);
+const VouchersPage = lazyView(() => import("@/components/features/VouchersPage"), "VouchersPage");
+const PortalPage = lazyView(() => import("@/components/features/PortalPage"), "PortalPage");
+const PoliciesHub = lazyView(() => import("@/components/features/PoliciesHub"), "default");
+const AdvancedPage = lazyView(
+  () => import("@/components/features/FeatureComponents"),
+  "AdvancedPage",
+);
+const ManageTeamsPage = lazyView(() => import("@/components/features/ManageTeamsPage"), "default");
+const WhiteList = lazyView(() => import("@/components/features/WhiteList"), "default");
+const UserReports = lazyView(() => import("@/components/features/UserReports"), "default");
+const NetworkActivityLog = lazyView(
+  () => import("@/components/features/NetworkActivityLog"),
+  "default",
+);
+const TicketsPage = lazyView(() => import("@/components/features/TicketsPage"), "default");
+const HowItWorksView = lazyView(
+  () => import("@/components/customer/HowItWorksPage"),
+  "HowItWorksView",
+);
+
+/** The content area's loading state: the page's own shape (a header line,
+ * a row of tiles, a panel), never a full-screen spinner -- the shell around
+ * it is already on screen. */
+function ContentSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-busy="true">
+      <span className="sr-only">
+        {i18n.t("loading", { ns: "common", defaultValue: "Loading…" })}
+      </span>
+      <div className="h-5 w-48 animate-pulse rounded bg-[var(--wy-surface-2)]" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-hidden>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-20 animate-pulse rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)]"
+          />
+        ))}
+      </div>
+      <div
+        aria-hidden
+        className="h-72 animate-pulse rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)]"
+      />
+    </div>
+  );
+}
 const NetworkHardwareView = lazyView(
   () => import("@/components/customer/BasicFeatureViews"),
   "NetworkHardwareView",
@@ -264,13 +311,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 between them. It has to wrap the *whole* group: an earlier
                 version started halfway down and left the views above it
                 uncovered, which would have thrown on first render. */}
-            <Suspense
-              fallback={
-                <div className="flex min-h-[240px] items-center justify-center">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                </div>
-              }
-            >
+            <Suspense fallback={<ContentSkeleton />}>
               {/* No `dashboard`/`users` branch here on purpose. Both were
                   dead: `/` renders CustomerDashboardPage (routes/index.tsx)
                   and `/users` is its own route (routes/users.tsx), and no
