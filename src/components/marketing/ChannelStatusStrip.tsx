@@ -30,22 +30,23 @@ export function ChannelStatusStrip({ channels }: { channels: ChannelStatus[] }) 
               key={c.channel}
               title={c.reason ?? undefined}
               className={cn(
-                "flex min-w-0 max-w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-xs",
-                c.configured
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
-                  : "border-border bg-muted/40 text-muted-foreground",
+                "flex h-8 min-w-0 max-w-full items-center gap-2 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-2.5 text-xs shadow-[var(--wy-shadow)]",
+                c.configured ? "text-[var(--wy-ok)]" : "text-[var(--wy-text-muted)]",
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="font-medium text-foreground">{label(c.channel)}</span>
+              <Icon className="h-4 w-4 shrink-0 text-[var(--wy-text-faint)]" aria-hidden />
+              <span className="font-medium text-[var(--wy-text)]">{label(c.channel)}</span>
               {c.configured ? (
                 <span className="inline-flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-[var(--wy-ok)]" aria-hidden />
                   Live
                 </span>
               ) : (
                 <span className="inline-flex min-w-0 items-center gap-1">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden />
+                  <AlertTriangle
+                    className="h-3.5 w-3.5 shrink-0 text-[var(--wy-warn)]"
+                    aria-hidden
+                  />
                   <span className="truncate">
                     {t("notConfigured", "Not set up")}
                     {c.reason ? <span className="hidden sm:inline"> · {c.reason}</span> : null}
@@ -57,7 +58,7 @@ export function ChannelStatusStrip({ channels }: { channels: ChannelStatus[] }) 
         })}
       </div>
       {noneLive && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[var(--wy-text-muted)]">
           No channel can send yet. Wyfy support sets up each channel (sender registration and
           approvals) before it goes live; you can prepare templates and draft campaigns meanwhile.
         </p>

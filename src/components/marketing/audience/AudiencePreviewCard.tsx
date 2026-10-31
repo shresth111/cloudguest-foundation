@@ -44,7 +44,7 @@ export function AudiencePreviewCard({
   const cap = status.limits.max_recipients_per_campaign;
 
   return (
-    <Card className="premium-card">
+    <Card className="rounded-[var(--wy-radius)] shadow-[var(--wy-shadow)]">
       <CardContent className="space-y-3 p-4">
         <div className="flex items-center justify-between gap-2">
           <p className="flex items-center gap-2 text-sm font-semibold">
@@ -56,7 +56,7 @@ export function AudiencePreviewCard({
         {invalid ? (
           <p className="text-sm text-muted-foreground">Fix the filter to see the count.</p>
         ) : preview.isError ? (
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-[var(--wy-crit)]">
             {marketingErrorMessage(preview.error, "Couldn't count this audience.")}
           </p>
         ) : !data ? (
@@ -77,7 +77,7 @@ export function AudiencePreviewCard({
               </p>
             </div>
             {data.capped && (
-              <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+              <p className="rounded-md bg-[var(--wy-warn-soft)] p-2 text-xs text-[var(--wy-text)]">
                 More than the {cap.toLocaleString()}-per-campaign limit. Only the{" "}
                 {cap.toLocaleString()} most recently seen would be sent to. Narrow the filter or
                 split it into two campaigns.

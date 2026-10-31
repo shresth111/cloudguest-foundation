@@ -334,7 +334,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   shell ever needs to render a dashboard again it should
                   render the live component, not a fork of it. */}
               {feature === "reports" && <UserReports masked={masked} scope={pageScope} />}
-              {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
+              {feature === "campaigns" && (
+                <CampaignsPage locationId={locationId} scope={pageScope} />
+              )}
               {feature === "portal" && <PortalPage locationId={locationId} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} scope={pageScope} />}
               {feature === "policies" && <PoliciesHub locationId={locationId} />}
@@ -433,7 +435,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   holder's own masking preference applies to. */}
               {feature === "security" && <SecurityOverviewView />}
               {feature === "blocking" && <BlockingView locationId={locationId} syncWithUrl />}
-              {feature === "marketing" && <MarketingView locationId={locationId} syncWithUrl />}
+              {feature === "marketing" && (
+                <MarketingView locationId={locationId} syncWithUrl scope={pageScope} />
+              )}
               {/* Not behind the controller gate above: the view shows its own
                   "not available at this venue" from the backend's answer, and
                   the lock screen has to show at any venue. */}

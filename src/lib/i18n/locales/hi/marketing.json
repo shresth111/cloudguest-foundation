@@ -48,5 +48,9 @@
   },
   "notConfigured": "सेट नहीं है",
   "reachable": "संपर्क हो सकता है",
-  "optedIn": "हाँ कहा"
+  "optedIn": "हाँ कहा",
+  "campaignList": {
+    "loading": "कैंपेन लोड हो रहे हैं…",
+    "open": "{{name}} खोलें"
+  }
 }

@@ -40,7 +40,7 @@ export function RecipientDetail({ r }: { r: CampaignRecipient }) {
   if (r.status === "failed" && (r.error_message || r.error_code)) {
     return (
       <p
-        className="mt-0.5 max-w-xs break-words text-[11px] text-red-600"
+        className="mt-0.5 max-w-xs break-words text-[11px] text-[var(--wy-crit)]"
         title={r.error_message ?? undefined}
       >
         {r.error_message ?? r.error_code}
@@ -76,7 +76,7 @@ export function RecipientsTable({ campaignId, live }: { campaignId: string; live
           <SelectTrigger className="w-44" aria-label="Filter by status">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="wy-console">
             <SelectItem value="all">All statuses</SelectItem>
             {RECIPIENT_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>

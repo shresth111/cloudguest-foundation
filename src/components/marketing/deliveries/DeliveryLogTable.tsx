@@ -65,7 +65,7 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
   const rows = list.data?.items ?? [];
 
   return (
-    <Card className="premium-card">
+    <Card className="rounded-[var(--wy-radius)] shadow-[var(--wy-shadow)]">
       <CardContent className="space-y-3 p-4">
         {orgScoped && (
           <div className="space-y-1">
@@ -93,7 +93,7 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="wy-console">
                 <SelectItem value="all">All channels</SelectItem>
                 {MARKETING_CHANNELS.map((c) => (
                   <SelectItem key={c} value={c}>
@@ -115,7 +115,7 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="wy-console">
                 <SelectItem value="all">All statuses</SelectItem>
                 {RECIPIENT_STATUSES.map((s) => (
                   <SelectItem key={s} value={s}>
@@ -154,7 +154,7 @@ export function DeliveryLogTable({ onOpenCampaign }: { onOpenCampaign: (id: stri
             />
           </div>
         </div>
-        {badRange && <p className="text-xs text-red-600">“From” is after “to”.</p>}
+        {badRange && <p className="text-xs text-[var(--wy-crit)]">“From” is after “to”.</p>}
 
         {list.isLoading ? (
           <LoadingSkeleton rows={6} />

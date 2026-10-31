@@ -21,10 +21,10 @@ function ByoUpsell() {
   const { existing, request } = useSupportRequest(BYO_REQUEST_SUBJECT);
   const pending = existing.data ?? null;
   return (
-    <Card className="premium-card">
+    <Card className="rounded-[var(--wy-radius)] shadow-[var(--wy-shadow)]">
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-2.5">
-          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" aria-hidden />
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-accent)]" aria-hidden />
           <div>
             <p className="font-semibold">Use your own SMS, WhatsApp or email account</p>
             <p className="text-sm text-muted-foreground">
@@ -35,7 +35,7 @@ function ByoUpsell() {
         </div>
         {pending ? (
           <p className="flex shrink-0 items-center gap-1.5 text-sm font-medium">
-            <Clock className="h-4 w-4 text-amber-600" aria-hidden /> Request pending
+            <Clock className="h-4 w-4 text-[var(--wy-warn)]" aria-hidden /> Request pending
           </p>
         ) : request.isSuccess ? (
           <p className="shrink-0 text-sm font-medium">Request sent</p>

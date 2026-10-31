@@ -35,13 +35,13 @@ import { VerifyProviderDialog } from "./VerifyProviderDialog";
 function StatusTag({ status }: { status: ProviderView["status"] }) {
   const map = {
     verified: {
-      cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
+      cls: "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]",
       icon: CheckCircle2,
       text: "Verified",
     },
     unverified: { cls: "bg-muted text-muted-foreground", icon: CircleDashed, text: "Not verified" },
     failed: {
-      cls: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
+      cls: "bg-[var(--wy-crit-soft)] text-[var(--wy-crit)]",
       icon: AlertTriangle,
       text: "Failed",
     },
@@ -164,7 +164,10 @@ export function ProviderCard({
     : [];
 
   return (
-    <Card className="premium-card" data-testid={`provider-card-${channel}`}>
+    <Card
+      className="rounded-[var(--wy-radius)] shadow-[var(--wy-shadow)]"
+      data-testid={`provider-card-${channel}`}
+    >
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-2.5">
@@ -181,7 +184,7 @@ export function ProviderCard({
         </div>
 
         {own?.last_error && own.status !== "verified" && (
-          <p className="rounded-md bg-red-50 p-2 text-xs text-red-800 dark:bg-red-500/10 dark:text-red-300">
+          <p className="rounded-md bg-[var(--wy-crit-soft)] p-2 text-xs text-[var(--wy-crit)]">
             {own.last_error}
           </p>
         )}

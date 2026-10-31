@@ -19,12 +19,13 @@ export function CreditsChip({ onOpen }: { onOpen: () => void }) {
       data-testid="credits-chip"
       data-tone={tone}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold tabular-nums transition-colors",
-        tone === "ok" && "border-border bg-card text-foreground hover:bg-muted",
+        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] motion-reduce:transition-none",
+        tone === "ok" &&
+          "border-[var(--wy-border)] bg-[var(--wy-surface)] text-[var(--wy-text)] hover:bg-[var(--wy-surface-2)]",
         tone === "low" &&
-          "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200",
+          "border-[color-mix(in_srgb,var(--wy-warn)_32%,transparent)] bg-[var(--wy-warn-soft)] text-[var(--wy-text)]",
         tone === "empty" &&
-          "border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300",
+          "border-[color-mix(in_srgb,var(--wy-crit)_28%,transparent)] bg-[var(--wy-crit-soft)] text-[var(--wy-crit)]",
       )}
       title={
         q.data.reserved_minor > 0

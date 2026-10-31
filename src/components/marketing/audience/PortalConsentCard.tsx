@@ -75,12 +75,12 @@ export function PortalConsentCard({
   };
 
   return (
-    <Card className="premium-card">
+    <Card className="rounded-[var(--wy-radius)] shadow-[var(--wy-shadow)]">
       <CardContent className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
-              <ShieldCheck className="h-4 w-4 text-white" aria-hidden />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--wy-radius)] bg-[var(--wy-accent-soft)]">
+              <ShieldCheck className="h-4 w-4 text-[var(--wy-accent)]" aria-hidden />
             </div>
             <div className="min-w-0">
               <p className="font-semibold">Opt-in on your WiFi page</p>

@@ -69,7 +69,9 @@ export function VenuePicker({
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Loading venues…</p>
       ) : isError ? (
-        <p className="text-xs text-red-600">Couldn't load your venues. “All venues” still works.</p>
+        <p className="text-xs text-[var(--wy-crit)]">
+          Couldn't load your venues. “All venues” still works.
+        </p>
       ) : (
         <div className="grid gap-1 sm:grid-cols-2">
           {venues.map((v) => (
@@ -118,7 +120,7 @@ export function VenueFilterSelect({
       <SelectTrigger className={className} aria-label="Venue" data-testid="venue-filter">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="wy-console">
         <SelectItem value="all">All venues</SelectItem>
         {venues.map((v) => (
           <SelectItem key={v.id} value={v.id}>

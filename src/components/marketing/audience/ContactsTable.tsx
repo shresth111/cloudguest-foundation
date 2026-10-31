@@ -128,7 +128,7 @@ export function ContactsTable() {
   const rows = list.data?.items ?? [];
 
   return (
-    <Card className="premium-card">
+    <Card className="rounded-[var(--wy-radius)] shadow-[var(--wy-shadow)]">
       <CardContent className="space-y-3 p-4">
         <div>
           <p className="font-semibold">Contacts</p>
@@ -154,7 +154,7 @@ export function ContactsTable() {
             <SelectTrigger className="w-36" aria-label="Channel">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="wy-console">
               {MARKETING_CHANNELS.map((c) => (
                 <SelectItem key={c} value={c}>
                   {label(c)}
@@ -172,7 +172,7 @@ export function ContactsTable() {
             <SelectTrigger className="w-48" aria-label="Consent">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="wy-console">
               {(Object.keys(CONSENT_LABEL) as ConsentStatus[]).map((s) => (
                 <SelectItem key={s} value={s}>
                   {CONSENT_LABEL[s]}
@@ -291,7 +291,7 @@ export function ContactsTable() {
         open={!!optOutFor}
         onOpenChange={(o) => !o && !optOut.isPending && setOptOutFor(null)}
       >
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+        <DialogContent className="wy-console w-[calc(100vw-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>Record an opt-out</DialogTitle>
             <DialogDescription>

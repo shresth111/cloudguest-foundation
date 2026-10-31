@@ -29,6 +29,8 @@ export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
   "mac-auth",
   // batch 3b
   "traffic-lens",
+  "marketing",
+  "campaigns",
 ]);
 
 /** The title + venue a screen's own PageHeader shows: the same nav label

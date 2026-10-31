@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner";
 import i18n from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Callout, PANEL_SURFACE } from "@/components/customer/console";
 import { useSupportRequest } from "@/hooks/useMarketing";
 import { requestErrorMessage } from "@/services/api";
 
@@ -61,17 +61,17 @@ export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
   ];
 
   return (
-    <Card className="premium-card overflow-hidden">
-      <CardContent className="grid gap-6 p-6 sm:p-8 md:grid-cols-[1fr_auto] md:items-start">
-        <div className="space-y-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-800 dark:bg-violet-500/15 dark:text-violet-300">
+    <section className={PANEL_SURFACE} aria-labelledby="marketing-locked-title">
+      <div className="grid gap-6 p-5 sm:p-6 md:grid-cols-[1fr_auto] md:items-start">
+        <div className="space-y-3">
+          <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-2.5 text-[11px] font-medium text-[var(--wy-text-muted)]">
             <Lock className="h-3 w-3" aria-hidden />
             {t("locked.badge", "Add-on")}
           </span>
-          <h2 className="text-xl font-semibold tracking-tight">
+          <h2 id="marketing-locked-title" className="text-base font-semibold text-[var(--wy-text)]">
             {t("locked.title", "Guest Messaging is an add-on")}
           </h2>
-          <p className="max-w-xl text-sm text-muted-foreground">
+          <p className="max-w-xl text-[13px] text-[var(--wy-text-muted)]">
             {t(
               "locked.body",
               "Reach guests who opted in on your WiFi login page with WhatsApp, SMS and email offers. It is not part of your current plan.",
@@ -79,13 +79,19 @@ export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
           </p>
           <ul className="space-y-2">
             {points.map((p) => (
-              <li key={p.text} className="flex items-start gap-2.5 text-sm">
-                <p.icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+              <li
+                key={p.text}
+                className="flex items-start gap-2.5 text-[13px] text-[var(--wy-text)]"
+              >
+                <p.icon
+                  className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-text-faint)]"
+                  aria-hidden
+                />
                 <span>{p.text}</span>
               </li>
             ))}
           </ul>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[var(--wy-text-faint)]">
             {t(
               "locked.request",
               "Ask your Wyfy Guest account manager to turn it on for your organisation.",
@@ -95,9 +101,9 @@ export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
 
         <div className="flex flex-col gap-2 md:w-60">
           {pending ? (
-            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+            <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-3 text-[13px]">
               <p className="flex items-center gap-1.5 font-medium">
-                <Clock className="h-4 w-4 text-amber-600" aria-hidden />
+                <Clock className="h-4 w-4 text-[var(--wy-warn)]" aria-hidden />
                 Request pending
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -106,15 +112,15 @@ export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
               </p>
               <Link
                 to="/tickets"
-                className="mt-2 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
+                className="mt-2 inline-block rounded-sm text-xs font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
               >
                 View in Support Tickets
               </Link>
             </div>
           ) : request.isSuccess ? (
-            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+            <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-3 text-[13px]">
               <p className="flex items-center gap-1.5 font-medium">
-                <Check className="h-4 w-4 text-emerald-600" aria-hidden />
+                <Check className="h-4 w-4 text-[var(--wy-ok)]" aria-hidden />
                 Request sent
               </p>
             </div>
@@ -132,8 +138,8 @@ export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
             </p>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -144,20 +150,23 @@ export function MarketingLockedUpsell({ locationId }: { locationId?: string }) {
 export function MarketingLicenceLapsed() {
   const { t } = useTranslation("marketing", { i18n });
   return (
-    <div
+    <Callout
       role="alert"
-      className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 sm:flex-row sm:items-center sm:justify-between"
+      tone="warn"
+      icon={Lock}
+      action={
+        <Link
+          to="/tickets"
+          className="rounded-sm font-medium text-[var(--wy-text)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+        >
+          Contact support
+        </Link>
+      }
     >
-      <span className="flex items-start gap-2">
-        <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-        {t(
-          "locked.lapsed",
-          "Your Wyfy Guest licence is not active, so Guest Messaging is unavailable until it is renewed.",
-        )}
-      </span>
-      <Link to="/tickets" className="shrink-0 font-medium underline-offset-4 hover:underline">
-        Contact support
-      </Link>
-    </div>
+      {t(
+        "locked.lapsed",
+        "Your Wyfy Guest licence is not active, so Guest Messaging is unavailable until it is renewed.",
+      )}
+    </Callout>
   );
 }
