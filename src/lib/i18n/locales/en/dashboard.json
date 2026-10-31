@@ -115,7 +115,7 @@
     "openDevices": "Devices →",
     "checking": "Checking…",
     "status": {
-      "ok": "Up",
+      "ok": "Online",
       "warn": "Degraded",
       "crit": "Down",
       "info": "Info",

@@ -364,7 +364,7 @@ if (gridStart !== -1) {
   check(
     "the day label can shrink and truncate",
     /className="flex min-w-0 items-center gap-2"/.test(dayGrid) &&
-      /className="truncate text-sm font-medium"/.test(dayGrid),
+      /className="truncate text-\[13px\] font-medium"/.test(dayGrid),
     "the label row can still refuse to shrink",
   );
 

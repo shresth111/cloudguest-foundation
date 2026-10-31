@@ -26,7 +26,18 @@ export interface DataTableColumn<T> {
   className?: string;
   /** Mobile card role: `title` heads the card, `hidden` is left out; default is a label/value row. */
   mobile?: "title" | "hidden";
+  /** Table layout only: hide the column below this breakpoint, so a wide
+   * table sheds its least-needed columns instead of scrolling sideways.
+   * The mobile card list ignores it (use `mobile` there). */
+  visibleFrom?: "md" | "lg" | "xl" | "2xl";
 }
+
+const VISIBLE_FROM = {
+  md: "hidden md:table-cell",
+  lg: "hidden lg:table-cell",
+  xl: "hidden xl:table-cell",
+  "2xl": "hidden 2xl:table-cell",
+} as const;
 
 export interface DataTableProps<T> {
   /** Column definitions, in display order. */
@@ -133,6 +144,7 @@ export function DataTable<T>({
                   className={cn(
                     "sticky top-0 z-[1] h-9 whitespace-nowrap border-b border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-3 text-[11px] font-medium uppercase tracking-wider text-[var(--wy-text-faint)]",
                     c.align === "right" ? "text-right" : "text-left",
+                    c.visibleFrom && VISIBLE_FROM[c.visibleFrom],
                   )}
                 >
                   {c.header}
@@ -178,6 +190,7 @@ export function DataTable<T>({
                         density === "compact" ? "py-1.5" : "py-2.5",
                         c.mono && MONO_CELL,
                         c.align === "right" && "text-right",
+                        c.visibleFrom && VISIBLE_FROM[c.visibleFrom],
                         c.className,
                       )}
                     >

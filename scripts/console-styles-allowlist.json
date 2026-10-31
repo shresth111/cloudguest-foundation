@@ -5,7 +5,6 @@
     "src/components/customer/BasicFeatureViews.tsx",
     "src/components/customer/ControllerControlNotice.tsx",
     "src/components/customer/ControllerDevicesCard.tsx",
-    "src/components/customer/FixAProblem.tsx",
     "src/components/customer/HowItWorksPage.tsx",
     "src/components/customer/LocationLiveness.tsx",
     "src/components/customer/dashboard/dashboard.types.ts",
@@ -19,18 +18,14 @@
     "src/components/features/FeatureComponents.tsx",
     "src/components/features/HeaderControls.tsx",
     "src/components/features/LocationPolicies.tsx",
-    "src/components/features/ManageTeamsPage.tsx",
     "src/components/features/MissingModules.tsx",
     "src/components/features/NetworkActivityLog.tsx",
     "src/components/features/NetworkCrudTable.tsx",
     "src/components/features/NetworkIntegrationsPage.tsx",
-    "src/components/features/OperationsFeatures.tsx",
     "src/components/features/OtpDeliveryReport.tsx",
     "src/components/features/PoliciesHub.tsx",
     "src/components/features/PortalPage.tsx",
     "src/components/features/TicketsPage.tsx",
-    "src/components/features/UserReports.tsx",
-    "src/components/features/VouchersPage.tsx",
     "src/components/features/WhiteList.tsx",
     "src/components/marketing/ChannelStatusStrip.tsx",
     "src/components/marketing/MarketingLockedUpsell.tsx",
@@ -75,7 +70,6 @@
     "src/components/traffic-lens/TrafficLensLayout.tsx",
     "src/components/traffic-lens/TrafficLensOverview.tsx",
     "src/components/traffic-lens/TrafficLensParts.tsx",
-    "src/components/traffic-lens/TrafficLensView.tsx",
-    "src/routes/users.tsx"
+    "src/components/traffic-lens/TrafficLensView.tsx"
   ]
 }

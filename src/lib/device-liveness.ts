@@ -297,7 +297,7 @@ export function describeLiveness(
 
   const state =
     device.status === "up"
-      ? "Up"
+      ? "Online"
       : device.status === "down"
         ? "Down"
         : issue === "router_not_synced_yet"

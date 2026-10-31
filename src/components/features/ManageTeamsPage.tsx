@@ -1,22 +1,10 @@
 import { useEffect, useState } from "react";
 import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
-import { motion, useReducedMotion } from "framer-motion";
-import {
-  Plus,
-  Users,
-  UserPlus,
-  UserCog,
-  Upload,
-  UploadCloud,
-  Download,
-  FileSpreadsheet,
-} from "lucide-react";
+import { Plus, Users, UserCog, Upload, UploadCloud, Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +13,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { EmptyState } from "@/components/common/EmptyState";
+import {
+  Callout,
+  EmptyState,
+  FormField,
+  FormSection,
+  PageHeader,
+  Panel,
+  SubTabs,
+  type PageScope,
+} from "@/components/customer/console";
 import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { guestService } from "@/services/guest.service";
@@ -105,8 +102,8 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 const inputCls =
-  "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
-const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
+  "block h-10 w-full rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-[13px] text-[var(--wy-text)] placeholder:text-[var(--wy-text-faint)] outline-none transition-colors focus-visible:border-[var(--wy-accent)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--wy-accent)_35%,transparent)] sm:h-9";
+const labelCls = "mb-1 block text-xs font-medium text-[var(--wy-text-faint)]";
 
 // "Download Template" used to just toast.success("Template downloaded")
 // with no actual file -- a pure UI stub. Build and trigger a real CSV
@@ -142,10 +139,10 @@ function CsvDropzone({
   return (
     <label
       className={cn(
-        "flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors",
+        "flex flex-col items-center justify-center gap-2 rounded-[var(--wy-radius)] border-2 border-dashed border-[var(--wy-border-strong)] p-6 text-center transition-colors",
         disabled
           ? "cursor-not-allowed opacity-60"
-          : "cursor-pointer hover:border-primary/50 hover:bg-accent/40",
+          : "cursor-pointer hover:border-[var(--wy-accent)] hover:bg-[var(--wy-surface-2)]",
       )}
     >
       <input
@@ -155,7 +152,7 @@ function CsvDropzone({
         disabled={disabled}
         onChange={(e) => onFile(e.target.files?.[0] ?? null)}
       />
-      <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
+      <FileSpreadsheet aria-hidden className="h-7 w-7 text-[var(--wy-text-faint)]" />
       {file ? (
         <p className="text-sm font-medium text-foreground">{file.name}</p>
       ) : (
@@ -201,11 +198,8 @@ function CsvDropzone({
 function BulkImportUnavailable() {
   const { t } = useTranslation("guestGroups", { i18n });
   return (
-    <div className="rounded-xl border border-dashed bg-muted/40 p-4 text-center">
-      <p className="text-sm font-medium text-foreground">
-        {t("bulk.comingTitle", "Bulk import is coming")}
-      </p>
-      <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+    <Callout tone="info" title={t("bulk.comingTitle", "Bulk import is coming")}>
+      <p className="text-xs">
         {/* One sentence with the button name inside it, not three strings
             glued together: Hindi puts the button name in a different place
             in the sentence, so the translator needs the whole thing. */}
@@ -214,21 +208,21 @@ function BulkImportUnavailable() {
           t={t}
           i18nKey="bulk.comingBody"
           defaults="We haven't shipped spreadsheet import yet, so we've switched this off rather than take a file and quietly drop it. Add groups with <b>Create Group</b> above, or send us your sheet on a support ticket and we'll load it for you."
-          components={{ b: <span className="font-medium text-foreground" /> }}
+          components={{ b: <span className="font-semibold" /> }}
         />
       </p>
-    </div>
+    </Callout>
   );
 }
 
 function QuickNotes({ items }: { items: string[] }) {
   const { t } = useTranslation("guestGroups", { i18n });
   return (
-    <div className="rounded-xl bg-muted/40 p-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4">
+      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--wy-text-faint)]">
         {t("notes.title", "Quick Notes")}
       </p>
-      <ol className="space-y-1 text-xs text-muted-foreground">
+      <ol className="space-y-1.5 text-xs leading-relaxed text-[var(--wy-text-muted)]">
         {items.map((n, i) => (
           <li key={i}>
             {i + 1}. {n}
@@ -239,71 +233,10 @@ function QuickNotes({ items }: { items: string[] }) {
   );
 }
 
-/**
- * Small header-accent illustration: three separate user clusters (teams),
- * each a pair of nodes, connected loosely into one grouping -- what this
- * page actually does (grouping guests into teams with shared quotas).
- * Same filled-flat-shape character language as the other illustrations
- * shipped this session. Purely decorative -- aria-hidden.
- */
-function TeamClustersIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  const clusters = [
-    { cx: 14, cy: 14, color: "#22d3ee" },
-    { cx: 44, cy: 8, color: "#f0abfc" },
-    { cx: 72, cy: 20, color: "#a78bfa" },
-  ];
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 88 44"
-      className="hidden h-12 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      <motion.path
-        d="M18 16Q32 26 42 12Q54 -2 70 18"
-        stroke="#4f46e5"
-        strokeOpacity="0.4"
-        strokeWidth="1.3"
-        strokeDasharray="1 4"
-        strokeLinecap="round"
-        fill="none"
-        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 0.7, ease: "easeOut" }}
-      />
-      {clusters.map((c, i) => (
-        <motion.g
-          key={i}
-          initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 * i, ease: "easeOut" }}
-        >
-          <circle
-            cx={c.cx - 4}
-            cy={c.cy + 2}
-            r="6"
-            fill="#2e2a5c"
-            stroke={c.color}
-            strokeWidth="1.4"
-          />
-          <circle
-            cx={c.cx + 5}
-            cy={c.cy - 2}
-            r="6"
-            fill="#2e2a5c"
-            stroke={c.color}
-            strokeWidth="1.4"
-          />
-          <circle cx={c.cx - 4} cy={c.cy} r="1.7" fill={c.color} />
-          <circle cx={c.cx + 5} cy={c.cy - 4} r="1.7" fill={c.color} />
-        </motion.g>
-      ))}
-    </svg>
-  );
-}
-
-export default function ManageTeamsPage({ locationId }: { locationId?: string } = {}) {
+export default function ManageTeamsPage({
+  locationId,
+  scope,
+}: { locationId?: string; scope?: PageScope } = {}) {
   // `tr`, not `t`: this page already uses `t` for a Team everywhere
   // (`openManage(t)`, `revokeTeam(t)`, every `teams.map((t) => ...)`).
   const { t: tr } = useTranslation("guestGroups", { i18n });
@@ -597,210 +530,199 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
   const [mapCsv, setMapCsv] = useState<File | null>(null);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <Users className="h-3.5 w-3.5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">{tr("title", "Guest Groups")}</h1>
-            <p className="text-sm text-muted-foreground">
-              {tr(
-                "subtitle",
-                "Put guests into groups that share one data allowance, and manage them together.",
-              )}
-            </p>
-          </div>
-        </div>
-        <TeamClustersIllustration />
-      </div>
+    <div className="wy-console space-y-5">
+      {/* Under the customer shell this is the page's only header (the shell
+          passes the tab name and venue); the agent view mounts it bare. */}
+      <PageHeader
+        title={scope?.title ?? tr("title", "Guest Groups")}
+        venue={scope?.venue}
+        description={tr(
+          "subtitle",
+          "Put guests into groups that share one data allowance, and manage them together.",
+        )}
+      />
 
-      <div className="overflow-x-auto rounded-xl border bg-muted/40 p-1">
-        <div className="flex min-w-[560px] gap-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                tab === t.id
-                  ? "bg-card text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <t.icon className="h-4 w-4" />
-              {tr(t.labelKey, t.fallback)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <SubTabs
+        ariaLabel={tr("tabs.label", "Guest group tools")}
+        idPrefix="guest-groups"
+        value={tab}
+        onChange={setTab}
+        options={TABS.map((t) => ({ value: t.id, label: tr(t.labelKey, t.fallback) }))}
+      />
 
-      {tab === "setup" && (
-        <div className="space-y-6">
-          {/* Was one Card with an <hr> splitting the form from the list --
-              split into two sections (own-icon header on the form, a
-              count badge on the list) so it reads like OpenHoursView's
-              schedule-card + guest-experience-card composition instead of
-              a single generic form-then-table block. */}
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-6 md:p-8">
-              <div className="mb-5 flex items-start gap-3">
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-                  <UserPlus className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight">
-                    {tr("form.title", "Create a Group")}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {tr(
-                      "form.subtitle",
-                      "Create a shared group or desk account with its own member limit.",
-                    )}
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-4 rounded-xl bg-muted/40 p-5 md:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <label className={labelCls}>
-                    {tr("form.location", "Location")} <span className="text-destructive">*</span>
-                  </label>
-                  <select
-                    value={bu}
-                    onChange={(e) => {
-                      setBu(e.target.value);
-                      setErrs((p) => ({ ...p, bu: "" }));
-                    }}
-                    className={inputCls}
-                  >
-                    <option value="">{tr("form.chooseLocation", "Choose location")}</option>
-                    {units.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                  {errs.bu && <p className="mt-1 text-xs text-destructive">{errs.bu}</p>}
-                </div>
-                <div>
-                  <label className={labelCls}>
-                    {tr("form.groupName", "Group Name")} <span className="text-destructive">*</span>
-                  </label>
-                  <input
-                    value={teamName}
-                    onChange={(e) => {
-                      setTeamName(e.target.value);
-                      setErrs((p) => ({ ...p, teamName: "" }));
-                    }}
-                    placeholder={tr("form.groupNamePlaceholder", "Enter a group name")}
-                    className={inputCls}
-                  />
-                  {errs.teamName && (
-                    <p className="mt-1 text-xs text-destructive">{errs.teamName}</p>
-                  )}
-                </div>
-                <div>
-                  <label className={labelCls}>
-                    {tr("form.sharedUsers", "Number of Guests")}{" "}
-                    <span className="text-destructive">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={sharedUsers}
-                    onChange={(e) => {
-                      setSharedUsers(e.target.value);
-                      setErrs((p) => ({ ...p, sharedUsers: "" }));
-                    }}
-                    placeholder={tr(
-                      "form.sharedUsersPlaceholder",
-                      "How many guests can join, or 0 for unlimited",
-                    )}
-                    className={inputCls}
-                  />
-                  {errs.sharedUsers && (
-                    <p className="mt-1 text-xs text-destructive">{errs.sharedUsers}</p>
-                  )}
-                </div>
-                <div>
-                  <label className={labelCls}>
-                    {tr("form.sharedQuota", "Shared Data Limit (MB)")}
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={sharedQuotaMb}
-                    onChange={(e) => setSharedQuotaMb(e.target.value)}
-                    placeholder={tr(
-                      "form.sharedQuotaPlaceholder",
-                      "Leave blank or 0 for unlimited",
-                    )}
-                    className={inputCls}
-                  />
-                </div>
-              </div>
-              <div className="mt-5 flex justify-center">
+      <div
+        role="tabpanel"
+        id="guest-groups-panel"
+        aria-labelledby={`guest-groups-tab-${tab}`}
+        className="space-y-5"
+      >
+        {tab === "setup" && (
+          <div className="space-y-5">
+            {/* The create form, then the list of groups it makes. */}
+            <FormSection
+              title={tr("form.title", "Create a Group")}
+              description={tr(
+                "form.subtitle",
+                "Create a shared group or desk account with its own member limit.",
+              )}
+              footer={
                 <Button onClick={createTeam}>
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-2 h-4 w-4" aria-hidden />
                   {tr("form.create", "Create Group")}
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+              }
+            >
+              <FormField
+                label={
+                  <>
+                    {tr("form.location", "Location")}{" "}
+                    <span className="text-[var(--wy-crit)]">*</span>
+                  </>
+                }
+                htmlFor="group-location"
+                error={errs.bu || undefined}
+              >
+                <select
+                  id="group-location"
+                  value={bu}
+                  onChange={(e) => {
+                    setBu(e.target.value);
+                    setErrs((p) => ({ ...p, bu: "" }));
+                  }}
+                  className={inputCls}
+                >
+                  <option value="">{tr("form.chooseLocation", "Choose location")}</option>
+                  {units.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField
+                label={
+                  <>
+                    {tr("form.groupName", "Group Name")}{" "}
+                    <span className="text-[var(--wy-crit)]">*</span>
+                  </>
+                }
+                htmlFor="group-name"
+                error={errs.teamName || undefined}
+              >
+                <input
+                  id="group-name"
+                  value={teamName}
+                  onChange={(e) => {
+                    setTeamName(e.target.value);
+                    setErrs((p) => ({ ...p, teamName: "" }));
+                  }}
+                  placeholder={tr("form.groupNamePlaceholder", "Enter a group name")}
+                  className={inputCls}
+                />
+              </FormField>
+              <FormField
+                label={
+                  <>
+                    {tr("form.sharedUsers", "Number of Guests")}{" "}
+                    <span className="text-[var(--wy-crit)]">*</span>
+                  </>
+                }
+                htmlFor="group-shared-users"
+                error={errs.sharedUsers || undefined}
+              >
+                <input
+                  id="group-shared-users"
+                  type="number"
+                  min={0}
+                  value={sharedUsers}
+                  onChange={(e) => {
+                    setSharedUsers(e.target.value);
+                    setErrs((p) => ({ ...p, sharedUsers: "" }));
+                  }}
+                  placeholder={tr(
+                    "form.sharedUsersPlaceholder",
+                    "How many guests can join, or 0 for unlimited",
+                  )}
+                  className={inputCls}
+                />
+              </FormField>
+              <FormField
+                label={tr("form.sharedQuota", "Shared Data Limit (MB)")}
+                htmlFor="group-shared-quota"
+              >
+                <input
+                  id="group-shared-quota"
+                  type="number"
+                  min={0}
+                  value={sharedQuotaMb}
+                  onChange={(e) => setSharedQuotaMb(e.target.value)}
+                  placeholder={tr("form.sharedQuotaPlaceholder", "Leave blank or 0 for unlimited")}
+                  className={inputCls}
+                />
+              </FormField>
+            </FormSection>
 
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground">
-                {tr("list.title", "Your Groups")}
-              </h3>
-              {teams.filter((t) => t.status !== "revoked").length > 0 && (
-                <Badge variant="outline">
-                  {tr("list.total", "{{count}} total", {
-                    count: teams.filter((t) => t.status !== "revoked").length,
-                  })}
-                </Badge>
-              )}
-            </div>
-            {teams.filter((t) => t.status !== "revoked").length === 0 ? (
-              <EmptyState
-                icon={Users}
-                title={tr("list.emptyTitle", "No groups yet")}
-                description={tr("list.emptyBody", "Create one above to get started.")}
-              />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {teams
-                  .filter((t) => t.status !== "revoked")
-                  .map((t) => (
-                    <Card key={t.id} className="border-0 bg-muted/40 shadow-sm">
-                      <CardContent className="p-4">
-                        <div className="mb-1 flex items-center justify-between">
-                          <p className="text-sm font-semibold">{t.name}</p>
-                          <Badge variant="outline">
+            <Panel
+              title={tr("list.title", "Your Groups")}
+              actions={
+                teams.filter((t) => t.status !== "revoked").length > 0 ? (
+                  <span className="text-xs tabular-nums text-[var(--wy-text-muted)]">
+                    {tr("list.total", "{{count}} total", {
+                      count: teams.filter((t) => t.status !== "revoked").length,
+                    })}
+                  </span>
+                ) : undefined
+              }
+            >
+              {teams.filter((t) => t.status !== "revoked").length === 0 ? (
+                <EmptyState
+                  compact
+                  icon={Users}
+                  title={tr("list.emptyTitle", "No groups yet")}
+                  description={tr("list.emptyBody", "Create one above to get started.")}
+                />
+              ) : (
+                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {teams
+                    .filter((t) => t.status !== "revoked")
+                    .map((t) => (
+                      <li
+                        key={t.id}
+                        className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-3"
+                      >
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                          <p className="truncate text-[13px] font-semibold">{t.name}</p>
+                          <span className="shrink-0 text-xs tabular-nums text-[var(--wy-text-muted)]">
                             {tr("list.members", "{{count}} members", { count: t.members })}
-                          </Badge>
+                          </span>
                         </div>
-                        <p className="mb-2 text-xs text-muted-foreground">{t.businessUnit}</p>
+                        <p className="mb-2 text-xs text-[var(--wy-text-muted)]">{t.businessUnit}</p>
                         {/* quotaPercent is null when this team has no shared data
-                        cap configured (see the fetch effect / createTeam
-                        above) -- an unset cap has no "% used" to report, so
-                        this shows an honest "No quota set" instead of a bar
-                        that would otherwise read as "0% used". */}
+                      cap configured (see the fetch effect / createTeam
+                      above) -- an unset cap has no "% used" to report, so
+                      this shows an honest "No quota set" instead of a bar
+                      that would otherwise read as "0% used". */}
                         {t.quotaPercent === null ? (
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex items-center justify-between text-xs text-[var(--wy-text-muted)]">
                             <span>{tr("list.dataQuota", "Data limit")}</span>
                             <span>{tr("list.noQuota", "No limit set")}</span>
                           </div>
                         ) : (
                           <>
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <div className="flex items-center justify-between text-xs text-[var(--wy-text-muted)]">
                               <span>{tr("list.quotaUsed", "Data used")}</span>
-                              <span>{t.quotaPercent}%</span>
+                              <span className="tabular-nums">{t.quotaPercent}%</span>
                             </div>
-                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div
+                              role="progressbar"
+                              aria-label={tr("list.quotaUsed", "Data used")}
+                              aria-valuenow={t.quotaPercent}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--wy-border)]"
+                            >
                               <div
-                                className="h-full rounded-full bg-primary"
+                                className="h-full rounded-full bg-[var(--wy-accent)]"
                                 style={{ width: `${t.quotaPercent}%` }}
                               />
                             </div>
@@ -810,7 +732,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 flex-1 text-xs"
+                            className="h-9 flex-1 text-xs sm:h-8"
                             onClick={() => openManage(t)}
                           >
                             {tr("list.manage", "Manage")}
@@ -818,103 +740,110 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 text-xs text-destructive"
+                            className="h-9 text-xs text-[var(--wy-crit)] sm:h-8"
                             onClick={() => revokeTeam(t)}
                           >
                             {tr("list.revoke", "Revoke")}
                           </Button>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-              </div>
-            )}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </Panel>
           </div>
-        </div>
-      )}
+        )}
 
-      {tab === "update" && (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-6 md:p-8">
-            <h2 className="text-lg font-semibold tracking-tight">
-              {tr("find.title", "Find a Guest")}
-            </h2>
-            <p className="mb-5 text-sm text-muted-foreground">
-              {tr("find.subtitle", "Look up a guest by their mobile number.")}
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* A required-looking "Location *" select used to sit here
+        {tab === "update" && (
+          <Panel
+            title={tr("find.title", "Find a Guest")}
+            description={tr("find.subtitle", "Look up a guest by their mobile number.")}
+          >
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* A required-looking "Location *" select used to sit here
                   and feed nothing: the guest search is already scoped to
                   this page's active location, so choosing one changed no
                   result. Removed rather than left as a control that looks
                   load-bearing and is not. */}
-              <div>
-                <label className={labelCls}>
-                  {tr("find.mobile", "Mobile No.")} <span className="text-destructive">*</span>
-                </label>
-                <input
-                  value={udMobile}
-                  onChange={(e) => setUdMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  placeholder={tr("find.mobilePlaceholder", "Mobile Number")}
-                  className={inputCls}
-                />
+                <FormField
+                  label={
+                    <>
+                      {tr("find.mobile", "Mobile No.")}{" "}
+                      <span className="text-[var(--wy-crit)]">*</span>
+                    </>
+                  }
+                  htmlFor="find-guest-mobile"
+                >
+                  <input
+                    id="find-guest-mobile"
+                    inputMode="numeric"
+                    value={udMobile}
+                    onChange={(e) => setUdMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder={tr("find.mobilePlaceholder", "Mobile Number")}
+                    className={inputCls}
+                  />
+                </FormField>
               </div>
-            </div>
-            <div className="mt-5 flex justify-center">
-              <Button onClick={findUser} disabled={udLoading || !udMobile}>
-                {udLoading ? tr("find.searching", "Searching…") : tr("find.find", "Find Guest")}
-              </Button>
-            </div>
-            {udResult !== null && (
-              <div className="mt-5">
-                {udResult.length === 0 ? (
-                  <p className="text-center text-sm text-muted-foreground">
-                    {tr("find.noMatch", "No guest matched that number.")}
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {udResult.map((g) => (
-                      <div key={g.id} className="rounded-xl bg-muted/40 px-4 py-3">
-                        <p className="text-sm font-medium text-foreground">
-                          {g.displayName || g.identifier || tr("find.guest", "Guest")}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {g.identifier}
-                          {g.locationName ? ` · ${g.locationName}` : ""}
-                          {g.isBlocked ? ` · ${tr("find.blocked", "blocked")}` : ""}
-                        </p>
-                      </div>
-                    ))}
-                    <p className="pt-1 text-center text-xs text-muted-foreground">
-                      {tr(
-                        "find.lookupOnly",
-                        "Editing guest details isn't available yet — this is a lookup only.",
-                      )}
+              <div className="flex justify-end">
+                <Button onClick={findUser} disabled={udLoading || !udMobile}>
+                  {udLoading ? tr("find.searching", "Searching…") : tr("find.find", "Find Guest")}
+                </Button>
+              </div>
+              {udResult !== null && (
+                <div aria-live="polite">
+                  {udResult.length === 0 ? (
+                    <p className="text-center text-[13px] text-[var(--wy-text-muted)]">
+                      {tr("find.noMatch", "No guest matched that number.")}
                     </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                  ) : (
+                    <div className="space-y-2">
+                      {udResult.map((g) => (
+                        <div
+                          key={g.id}
+                          className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-3 py-2.5"
+                        >
+                          <p className="text-[13px] font-medium">
+                            {g.displayName || g.identifier || tr("find.guest", "Guest")}
+                          </p>
+                          <p className="text-xs text-[var(--wy-text-muted)]">
+                            {g.identifier}
+                            {g.locationName ? ` · ${g.locationName}` : ""}
+                            {g.isBlocked ? ` · ${tr("find.blocked", "blocked")}` : ""}
+                          </p>
+                        </div>
+                      ))}
+                      <p className="pt-1 text-xs text-[var(--wy-text-muted)]">
+                        {tr(
+                          "find.lookupOnly",
+                          "Editing guest details isn't available yet — this is a lookup only.",
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </Panel>
+        )}
 
-      {tab === "bulk-teams" && (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-6 md:p-8">
-            <h2 className="text-lg font-semibold tracking-tight">
-              {tr("bulkGroups.title", "Add Many Groups at Once")}
-            </h2>
-            <p className="mb-5 text-sm text-muted-foreground">
-              {tr("bulkGroups.subtitle", "Upload a CSV file to create many groups at once.")}
-            </p>
-            <div className="grid gap-6 md:grid-cols-2">
+        {tab === "bulk-teams" && (
+          <Panel
+            title={tr("bulkGroups.title", "Add Many Groups at Once")}
+            description={tr(
+              "bulkGroups.subtitle",
+              "Upload a CSV file to create many groups at once.",
+            )}
+          >
+            <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-4">
                 <div>
-                  <label className={labelCls}>
-                    {tr("form.location", "Location")} <span className="text-destructive">*</span>
+                  <label htmlFor="bulk-groups-location" className={labelCls}>
+                    {tr("form.location", "Location")}{" "}
+                    <span className="text-[var(--wy-crit)]">*</span>
                   </label>
                   <select
+                    id="bulk-groups-location"
                     value={teamsBu}
                     onChange={(e) => setTeamsBu(e.target.value)}
                     className={inputCls}
@@ -943,9 +872,10 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                             ["Sales Team", units[0] ?? "Location", "0"],
                           )
                         }
-                        className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-sm font-medium text-[var(--wy-accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
                       >
-                        <Download className="h-3 w-3" />
+                        <Download className="h-3 w-3" aria-hidden />
                         {tr("notes.downloadTemplate", "Download Template")}
                       </button>
                     </span>
@@ -959,26 +889,26 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                 ]}
               />
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </Panel>
+        )}
 
-      {tab === "bulk-map" && (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-6 md:p-8">
-            <h2 className="text-lg font-semibold tracking-tight">
-              {tr("bulkMap.title", "Add Guests to Groups")}
-            </h2>
-            <p className="mb-5 text-sm text-muted-foreground">
-              {tr("bulkMap.subtitle", "Upload a CSV file to add many guests to groups at once.")}
-            </p>
-            <div className="grid gap-6 md:grid-cols-2">
+        {tab === "bulk-map" && (
+          <Panel
+            title={tr("bulkMap.title", "Add Guests to Groups")}
+            description={tr(
+              "bulkMap.subtitle",
+              "Upload a CSV file to add many guests to groups at once.",
+            )}
+          >
+            <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-4">
                 <div>
-                  <label className={labelCls}>
-                    {tr("form.location", "Location")} <span className="text-destructive">*</span>
+                  <label htmlFor="bulk-map-location" className={labelCls}>
+                    {tr("form.location", "Location")}{" "}
+                    <span className="text-[var(--wy-crit)]">*</span>
                   </label>
                   <select
+                    id="bulk-map-location"
                     value={mapBu}
                     onChange={(e) => setMapBu(e.target.value)}
                     className={inputCls}
@@ -1007,9 +937,10 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                             ["9998887766", "Sales Team", units[0] ?? "Location"],
                           )
                         }
-                        className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-sm font-medium text-[var(--wy-accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
                       >
-                        <Download className="h-3 w-3" />
+                        <Download className="h-3 w-3" aria-hidden />
                         {tr("notes.downloadTemplate", "Download Template")}
                       </button>
                     </span>
@@ -1018,12 +949,12 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                 ]}
               />
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </Panel>
+        )}
+      </div>
 
       <Dialog open={!!manageTeam} onOpenChange={(open) => !open && setManageTeam(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="wy-console sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{tr("dialog.title", "Group details")}</DialogTitle>
             <DialogDescription>
@@ -1041,11 +972,11 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
           <div className="space-y-4">
             <div>
               <label className={labelCls}>{tr("dialog.groupName", "Group Name")}</label>
-              <p className="text-sm font-medium text-foreground">{manageTeam?.name}</p>
+              <p className="text-[13px] font-medium">{manageTeam?.name}</p>
             </div>
             <div>
               <label className={labelCls}>{tr("dialog.members", "Members")}</label>
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-[13px] font-medium tabular-nums">
                 {demo
                   ? (manageTeam?.members ?? 0)
                   : membersState === "loaded"
@@ -1057,7 +988,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
             </div>
             <div>
               <label className={labelCls}>{tr("dialog.sharedUsed", "Shared data used")}</label>
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-[13px] font-medium">
                 {manageTeam?.quotaPercent == null
                   ? tr("list.noQuota", "No limit set")
                   : tr("dialog.percentOfLimit", "{{percent}}% of the shared limit", {
@@ -1067,7 +998,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
             </div>
             <div>
               <label className={labelCls}>{tr("dialog.status", "Status")}</label>
-              <p className="text-sm font-medium capitalize text-foreground">
+              <p className="text-[13px] font-medium capitalize">
                 {manageTeam ? tr(`status.${manageTeam.status}`, manageTeam.status) : null}
               </p>
             </div>
@@ -1075,12 +1006,12 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
               <div>
                 <label className={labelCls}>{tr("dialog.manageMembers", "Manage members")}</label>
                 {membersState === "loading" && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-[13px] text-[var(--wy-text-muted)]">
                     {tr("dialog.loadingMembers", "Loading members…")}
                   </p>
                 )}
                 {membersState === "error" && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-[13px] text-[var(--wy-text-muted)]">
                     {tr(
                       "dialog.membersError",
                       "Couldn't load this group's members. Close and reopen to try again.",
@@ -1088,24 +1019,24 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                   </p>
                 )}
                 {membersState === "loaded" && members.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-[13px] text-[var(--wy-text-muted)]">
                     {tr("dialog.noMembers", "No one has joined this group yet.")}
                   </p>
                 )}
                 {membersState === "loaded" && members.length > 0 && (
-                  <ul className="divide-y rounded-xl border">
+                  <ul className="divide-y divide-[var(--wy-border)] rounded-[var(--wy-radius)] border border-[var(--wy-border)]">
                     {members.map((m) => (
                       <li
                         key={m.membershipId}
                         className="flex items-center justify-between gap-3 px-3 py-2"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">
+                          <p className="truncate text-[13px] font-medium">
                             {m.displayName ||
                               m.identifier ||
                               tr("dialog.unknownMember", "Unknown member")}
                           </p>
-                          <p className="truncate text-xs text-muted-foreground">
+                          <p className="truncate text-xs text-[var(--wy-text-muted)]">
                             {m.displayName && m.identifier ? `${m.identifier} · ` : ""}
                             {tr("dialog.joined", "Joined {{date}}", {
                               date: new Date(m.joinedAt).toLocaleDateString(),
@@ -1126,7 +1057,7 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                     ))}
                   </ul>
                 )}
-                <p className="mt-1.5 text-xs text-muted-foreground">
+                <p className="mt-1.5 text-xs text-[var(--wy-text-muted)]">
                   {/* "team code" stays: it is what the guest login page calls
                       the code (portal-i18n.ts teamCodeLabel), and the front
                       desk has to use the guest's word for it. */}
@@ -1137,14 +1068,14 @@ export default function ManageTeamsPage({ locationId }: { locationId?: string } 
                 </p>
               </div>
             )}
-            <div className="rounded-xl border border-dashed bg-muted/40 p-3">
-              <p className="text-xs text-muted-foreground">
+            <Callout tone="info">
+              <p className="text-xs">
                 {tr(
                   "dialog.readOnlyNote",
                   "Renaming a group or changing its size isn't something we can save yet, so we've made this read-only rather than accept a change and lose it. Raise a support ticket and we'll make the change for you.",
                 )}
               </p>
-            </div>
+            </Callout>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setManageTeam(null)}>

@@ -51,5 +51,11 @@
     "notePlaceholder": "e.g. Front desk tablet",
     "cancel": "Cancel",
     "add": "Add"
+  },
+  "toggleAria": "Trusted access for {{mac}}",
+  "removeAria": "Remove {{mac}}",
+  "state": {
+    "on": "On",
+    "off": "Off"
   }
 }

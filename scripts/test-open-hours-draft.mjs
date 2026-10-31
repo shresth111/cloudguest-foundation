@@ -189,7 +189,9 @@ check("and is not padded out to seven days", Object.keys(keptSchedule.schedule).
 console.log("\ncomponent wiring");
 const src = readFileSync(join(ROOT, "src/components/features/OperationsFeatures.tsx"), "utf8");
 const start = src.indexOf("export function OpenHoursView");
-const end = src.indexOf("/* ---------- Top Up Data", start);
+// The view runs to the next section marker (the dead Top Up Data view that
+// used to follow it was deleted in the design-system migration, batch 2).
+const end = src.indexOf("/* ---------- ISP Details", start);
 const view = src.slice(start, end);
 check("OpenHoursView found", start > 0 && end > start);
 check("guest preview panel is gone", !/Guest preview/i.test(view));

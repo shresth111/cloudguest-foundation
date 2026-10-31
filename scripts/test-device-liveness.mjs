@@ -121,7 +121,7 @@ const realRouter = describeLiveness(
   },
   NOW,
 );
-eq("state is the status word alone", realRouter.state, "Up");
+eq("state is the status word alone", realRouter.state, "Online");
 eq("the duration shown is the real uptime", realRouter.detail, "up 7h 28m");
 eq("and it is identified as an uptime", realRouter.detailKind, "uptime");
 check(
@@ -148,7 +148,7 @@ const ap = describeLiveness(
   },
   NOW,
 );
-eq("state is still Up", ap.state, "Up");
+eq("state is still Online", ap.state, "Online");
 eq("the duration is a connected-since age", ap.detail, "connected 3h 0m");
 eq("and identified as such", ap.detailKind, "connected");
 check(
@@ -173,7 +173,7 @@ const apNoConnect = describeLiveness(
   },
   NOW,
 );
-eq("state is still Up", apNoConnect.state, "Up");
+eq("state is still Online", apNoConnect.state, "Online");
 eq("the duration is named as a last-seen age", apNoConnect.detail, "last seen 4m ago");
 eq("and identified as such", apNoConnect.detailKind, "lastSeen");
 check(
@@ -368,7 +368,7 @@ const upIgnoresIssue = describeLiveness(
   { ...blank, status: "up", lastSeenAt: ago(MIN), observationIssue: "router_auth_failed" },
   NOW,
 );
-eq("an UP device is never relabelled by an issue", upIgnoresIssue.state, "Up");
+eq("an UP device is never relabelled by an issue", upIgnoresIssue.state, "Online");
 eq("and stays green", upIgnoresIssue.tone, "up");
 
 eq(

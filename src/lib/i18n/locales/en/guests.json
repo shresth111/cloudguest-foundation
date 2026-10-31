@@ -84,5 +84,13 @@
   "exportNothing": "Nothing to export for these filters.",
   "exportFailed": "Could not build the export. Nothing was changed.",
   "exportSuccess_one": "Exported {{count}} guest",
-  "exportSuccess_other": "Exported {{count}} guests"
+  "exportSuccess_other": "Exported {{count}} guests",
+  "pageDescription": "Every visit to this venue's Wi-Fi: who connected, on which device, and whether they are still online.",
+  "statusFilter": "Show guests",
+  "tableLabel": "Guest visits",
+  "loading": "Loading guests…",
+  "pageOf": "Page {{page}} of {{pages}}",
+  "pagePrevious": "Previous",
+  "pageNext": "Next",
+  "closeDetails": "Close details"
 }

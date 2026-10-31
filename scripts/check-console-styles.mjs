@@ -67,6 +67,14 @@ const MIGRATED = [
   "src/components/network/PortForwardingManagement.tsx",
   "src/components/network/QosManagement.tsx",
   "src/components/features/AlertsView.tsx",
+  // batch 2 (2026-10-31): Guests, Vouchers, Guest Groups, Reports, Fix a
+  // Problem, and OperationsFeatures' Open Hours / Staff Activity / Trusted Devices
+  "src/routes/users.tsx",
+  "src/components/features/VouchersPage.tsx",
+  "src/components/features/ManageTeamsPage.tsx",
+  "src/components/features/UserReports.tsx",
+  "src/components/customer/FixAProblem.tsx",
+  "src/components/features/OperationsFeatures.tsx",
 ];
 
 const PALETTE =
