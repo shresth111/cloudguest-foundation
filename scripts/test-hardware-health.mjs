@@ -24,11 +24,25 @@
  * Run: node scripts/test-hardware-health.mjs
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
+// The Devices page's hardware list moved out of BasicFeatureViews.tsx into
+// src/components/customer/devices/ (fleet model, inventory, drawer) in the
+// console revamp; the view file still owns the add form and the venue
+// gating. Read them together so each rule is checked where the code lives.
+function readHardwareView() {
+  const dir = join(ROOT, "src/components/customer/devices");
+  return [
+    readFileSync(join(ROOT, "src/components/customer/BasicFeatureViews.tsx"), "utf8"),
+    ...readdirSync(dir)
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !/demo-fixtures/.test(f))
+      .map((f) => readFileSync(join(dir, f), "utf8")),
+  ].join("\n");
+}
+
 let failures = 0;
 function check(name, ok, extra = "") {
   if (ok) console.log(`  ok   ${name}`);
@@ -263,7 +277,7 @@ console.log("\n24h strip");
 
 console.log("\nwiring");
 {
-  const view = readFileSync(join(ROOT, "src/components/customer/BasicFeatureViews.tsx"), "utf8");
+  const view = readHardwareView();
   check("Devices table renders HardwareHealthDetails", /<HardwareHealthDetails/.test(view));
   check(
     "add dialog warns about a duplicate MAC",

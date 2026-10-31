@@ -40,9 +40,15 @@ import {
 } from "./ui";
 
 function TypeIcon({ row, className }: { row: InventoryRow; className?: string }) {
-  const meta = DEVICE_TYPE_META[(row.hardware?.type ?? "Router") as DeviceType] ?? DEVICE_TYPE_META.Other;
+  const meta =
+    DEVICE_TYPE_META[(row.hardware?.type ?? "Router") as DeviceType] ?? DEVICE_TYPE_META.Other;
   const Icon = meta.icon;
-  return <Icon aria-hidden className={cn("h-3.5 w-3.5 shrink-0 text-[var(--wy-text-faint)]", className)} />;
+  return (
+    <Icon
+      aria-hidden
+      className={cn("h-3.5 w-3.5 shrink-0 text-[var(--wy-text-faint)]", className)}
+    />
+  );
 }
 
 export function HardwareInventory({
@@ -65,7 +71,10 @@ export function HardwareInventory({
   const [view, setView] = useState<"list" | "floor">("list");
 
   const floors = useMemo(
-    () => sortFloors(new Set(rows.filter((r) => r.source === "hardware" && r.floor).map((r) => r.floor))),
+    () =>
+      sortFloors(
+        new Set(rows.filter((r) => r.source === "hardware" && r.floor).map((r) => r.floor)),
+      ),
     [rows],
   );
   const hasUnplacedHardware = rows.some((r) => r.source === "hardware" && !r.floor);
@@ -142,7 +151,9 @@ export function HardwareInventory({
                 {kindLabel(k)}
               </Chip>
             ))}
-          {kindsPresent.length > 1 && <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-[var(--wy-border)]" />}
+          {kindsPresent.length > 1 && (
+            <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-[var(--wy-border)]" />
+          )}
           {bucketsPresent.map((b) => (
             <Chip
               key={b}
@@ -153,7 +164,9 @@ export function HardwareInventory({
               {bucketLabel(b)}
             </Chip>
           ))}
-          {floors.length > 0 && <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-[var(--wy-border)]" />}
+          {floors.length > 0 && (
+            <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-[var(--wy-border)]" />
+          )}
           {floors.map((f) => (
             <Chip
               key={f}
@@ -209,16 +222,55 @@ export function HardwareInventory({
           {/* md+: dense table */}
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full border-collapse text-[13px]">
-              <caption className="sr-only">{t("inventory.caption", "Network hardware at this venue")}</caption>
+              <caption className="sr-only">
+                {t("inventory.caption", "Network hardware at this venue")}
+              </caption>
               <thead className="bg-[var(--wy-surface-2)]">
                 <tr className="border-b border-[var(--wy-border)]">
-                  <SortHeader label={t("col.status", "Status")} sortKey="status" sort={sort} onSort={onSort} className="pl-4" />
-                  <SortHeader label={t("col.name", "Name")} sortKey="name" sort={sort} onSort={onSort} />
-                  <SortHeader label={t("col.type", "Type")} sortKey="type" sort={sort} onSort={onSort} />
-                  <SortHeader label={t("col.floor", "Floor")} sortKey="floor" sort={sort} onSort={onSort} />
-                  <SortHeader label={t("col.mac", "MAC")} sortKey="mac" sort={sort} onSort={onSort} />
-                  <SortHeader label={t("col.lastSeen", "Last seen")} sortKey="lastSeen" sort={sort} onSort={onSort} />
-                  <SortHeader label={t("col.uptime", "Uptime")} sortKey="uptime" sort={sort} onSort={onSort} align="right" />
+                  <SortHeader
+                    label={t("col.status", "Status")}
+                    sortKey="status"
+                    sort={sort}
+                    onSort={onSort}
+                    className="pl-4"
+                  />
+                  <SortHeader
+                    label={t("col.name", "Name")}
+                    sortKey="name"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label={t("col.type", "Type")}
+                    sortKey="type"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label={t("col.floor", "Floor")}
+                    sortKey="floor"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label={t("col.mac", "MAC")}
+                    sortKey="mac"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label={t("col.lastSeen", "Last seen")}
+                    sortKey="lastSeen"
+                    sort={sort}
+                    onSort={onSort}
+                  />
+                  <SortHeader
+                    label={t("col.uptime", "Uptime")}
+                    sortKey="uptime"
+                    sort={sort}
+                    onSort={onSort}
+                    align="right"
+                  />
                   <th scope="col" className="w-8 pr-3">
                     <span className="sr-only">{t("col.open", "Details")}</span>
                   </th>
@@ -254,10 +306,15 @@ export function HardwareInventory({
                         <td className="max-w-[18rem] py-2 pl-4 pr-3 align-top">
                           <div className="flex items-center gap-1.5">
                             <BucketDot bucket={r.bucket} label={bucketLabel(r.bucket)} />
-                            <span className={cn("font-medium", BUCKET_TEXT[r.bucket])}>{r.statusWord}</span>
+                            <span className={cn("font-medium", BUCKET_TEXT[r.bucket])}>
+                              {r.statusWord}
+                            </span>
                           </div>
                           {r.detail && (
-                            <p className="mt-0.5 truncate pl-3.5 text-[11px] text-[var(--wy-text-faint)]" title={[r.detail, r.explanation].filter(Boolean).join(" — ")}>
+                            <p
+                              className="mt-0.5 truncate pl-3.5 text-[11px] text-[var(--wy-text-faint)]"
+                              title={[r.detail, r.explanation].filter(Boolean).join(" — ")}
+                            >
                               {r.detail}
                             </p>
                           )}
@@ -276,14 +333,20 @@ export function HardwareInventory({
                             <span className="truncate">{r.name}</span>
                           </button>
                           {r.model && (
-                            <p className="truncate pl-5.5 text-[11px] text-[var(--wy-text-faint)]">{r.model}</p>
+                            <p className="truncate pl-5.5 text-[11px] text-[var(--wy-text-faint)]">
+                              {r.model}
+                            </p>
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2 align-top text-[var(--wy-text-muted)]">{r.typeLabel}</td>
+                        <td className="whitespace-nowrap px-3 py-2 align-top text-[var(--wy-text-muted)]">
+                          {r.typeLabel}
+                        </td>
                         <td className="whitespace-nowrap px-3 py-2 align-top text-[var(--wy-text-muted)]">
                           {r.floor || <span className="text-[var(--wy-text-faint)]">—</span>}
                         </td>
-                        <td className={`whitespace-nowrap px-3 py-2 align-top text-xs text-[var(--wy-text-muted)] ${MONO}`}>
+                        <td
+                          className={`whitespace-nowrap px-3 py-2 align-top text-xs text-[var(--wy-text-muted)] ${MONO}`}
+                        >
                           {r.mac ?? <span className="text-[var(--wy-text-faint)]">—</span>}
                         </td>
                         <td
@@ -293,10 +356,17 @@ export function HardwareInventory({
                           {relTime(r.lastSeenAt, now)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right align-top text-xs tabular-nums text-[var(--wy-text-muted)]">
-                          {r.uptimeSeconds != null ? formatDuration(r.uptimeSeconds) : <span className="text-[var(--wy-text-faint)]">—</span>}
+                          {r.uptimeSeconds != null ? (
+                            formatDuration(r.uptimeSeconds)
+                          ) : (
+                            <span className="text-[var(--wy-text-faint)]">—</span>
+                          )}
                         </td>
                         <td className="pr-3 align-middle">
-                          <ChevronRight aria-hidden className="h-4 w-4 text-[var(--wy-text-faint)] opacity-0 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
+                          <ChevronRight
+                            aria-hidden
+                            className="h-4 w-4 text-[var(--wy-text-faint)] opacity-0 transition-opacity group-hover:opacity-100 motion-reduce:transition-none"
+                          />
                         </td>
                       </tr>
                     ))}
@@ -324,22 +394,35 @@ export function HardwareInventory({
                       aria-haspopup="dialog"
                       className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--wy-accent)]"
                     >
-                      <BucketDot bucket={r.bucket} label={bucketLabel(r.bucket)} className="mt-1.5" />
+                      <BucketDot
+                        bucket={r.bucket}
+                        label={bucketLabel(r.bucket)}
+                        className="mt-1.5"
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
                           <TypeIcon row={r} />
-                          <span className="truncate text-[13px] font-medium text-[var(--wy-text)]">{r.name}</span>
+                          <span className="truncate text-[13px] font-medium text-[var(--wy-text)]">
+                            {r.name}
+                          </span>
                         </span>
                         <span className="mt-0.5 block truncate text-xs">
-                          <span className={cn("font-medium", BUCKET_TEXT[r.bucket])}>{r.statusWord}</span>
-                          {r.detail && <span className="text-[var(--wy-text-faint)]"> · {r.detail}</span>}
+                          <span className={cn("font-medium", BUCKET_TEXT[r.bucket])}>
+                            {r.statusWord}
+                          </span>
+                          {r.detail && (
+                            <span className="text-[var(--wy-text-faint)]"> · {r.detail}</span>
+                          )}
                         </span>
                         <span className="mt-0.5 block truncate text-[11px] text-[var(--wy-text-faint)]">
                           {[r.typeLabel, r.floor].filter(Boolean).join(" · ")}
                           {r.mac && <span className={MONO}> · {r.mac}</span>}
                         </span>
                       </span>
-                      <ChevronRight aria-hidden className="mt-1 h-4 w-4 shrink-0 text-[var(--wy-text-faint)]" />
+                      <ChevronRight
+                        aria-hidden
+                        className="mt-1 h-4 w-4 shrink-0 text-[var(--wy-text-faint)]"
+                      />
                     </button>
                   </li>
                 ))}

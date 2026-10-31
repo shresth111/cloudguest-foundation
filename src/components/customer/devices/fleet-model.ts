@@ -206,10 +206,7 @@ export interface InventoryFilter {
 
 export const NO_FILTER: InventoryFilter = { kind: "all", bucket: "all", floor: "all", query: "" };
 
-export function filterInventory(
-  rows: readonly InventoryRow[],
-  f: InventoryFilter,
-): InventoryRow[] {
+export function filterInventory(rows: readonly InventoryRow[], f: InventoryFilter): InventoryRow[] {
   const q = f.query.trim().toLowerCase();
   // MACs are compared without separators so "aabb" finds "AA:BB:...".
   const qHex = q.replace(/[^0-9a-f]/g, "");
@@ -224,7 +221,13 @@ export function filterInventory(
       )
     )
       return true;
-    return qHex.length >= 2 && (r.mac ?? "").toLowerCase().replace(/[^0-9a-f]/g, "").includes(qHex);
+    return (
+      qHex.length >= 2 &&
+      (r.mac ?? "")
+        .toLowerCase()
+        .replace(/[^0-9a-f]/g, "")
+        .includes(qHex)
+    );
   });
 }
 

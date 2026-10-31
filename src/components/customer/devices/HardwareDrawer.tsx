@@ -17,7 +17,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { formatDuration } from "@/lib/device-liveness";
-import { formatBps, formatWhen, type DeviceHealth, type DeviceHealthEvent } from "@/lib/hardware-health";
+import {
+  formatBps,
+  formatWhen,
+  type DeviceHealth,
+  type DeviceHealthEvent,
+} from "@/lib/hardware-health";
 import { HardwareHealthDetails } from "@/components/customer/HardwareHealthDetails";
 import type { InventoryRow } from "./fleet-model";
 import { BUCKET_TEXT, BucketDot, MONO, relTime, useBucketLabel, useDevicesT } from "./ui";
@@ -41,7 +46,9 @@ function Facts({ rows }: { rows: { k: string; v: ReactNode; mono?: boolean }[] }
       {shown.map((r) => (
         <div key={r.k} className="contents">
           <dt className="text-[var(--wy-text-muted)]">{r.k}</dt>
-          <dd className={cn("min-w-0 break-words text-[var(--wy-text)]", r.mono && `${MONO} text-xs`)}>
+          <dd
+            className={cn("min-w-0 break-words text-[var(--wy-text)]", r.mono && `${MONO} text-xs`)}
+          >
             {r.v}
           </dd>
         </div>
@@ -53,11 +60,20 @@ function Facts({ rows }: { rows: { k: string; v: ReactNode; mono?: boolean }[] }
 /** One event of the last 24 h in words. */
 function eventWords(e: DeviceHealthEvent): string {
   const word = (s: string | null) =>
-    s === "up" ? "Up" : s === "down" ? "Down" : s === "degraded" ? "Unstable" : s ? s : "Not checked";
+    s === "up"
+      ? "Up"
+      : s === "down"
+        ? "Down"
+        : s === "degraded"
+          ? "Unstable"
+          : s
+            ? s
+            : "Not checked";
   if (e.kind === "state") return `${word(e.fromState)} → ${word(e.toState)}`;
   if (e.kind === "link_down")
     return e.count && e.count > 1 ? `Port link dropped ${e.count}×` : "Port link dropped";
-  if (e.kind === "ip_changed") return e.detail ? `IP address changed (${e.detail})` : "IP address changed";
+  if (e.kind === "ip_changed")
+    return e.detail ? `IP address changed (${e.detail})` : "IP address changed";
   return e.kind.replace(/_/g, " ");
 }
 
@@ -232,42 +248,55 @@ export function HardwareDrawer({
               </Section>
             )}
 
-            {hw && row.bucket !== "unmeasured" && (health || (hw.duplicateLocations?.length ?? 0) > 0 || hw.registeredElsewhere) && (
-              <Section title={t("drawer.last24", "Last 24 hours")}>
-                <HardwareHealthDetails
-                  health={health}
-                  duplicateLocations={hw.duplicateLocations}
-                  registeredElsewhere={hw.registeredElsewhere}
-                  now={now}
-                  showFacts={false}
-                  wide
-                />
-                {events.length > 0 && (
-                  <ol className="mt-2 space-y-1" aria-label={t("drawer.changes", "Recent changes")}>
-                    {events.slice(0, 12).map((e, i) => (
-                      <li key={`${e.at}-${i}`} className="flex gap-3 text-xs">
-                        <span className={`${MONO} w-28 shrink-0 text-[var(--wy-text-faint)]`}>
-                          {formatWhen(e.at, now)}
-                        </span>
-                        <span className="min-w-0 text-[var(--wy-text-muted)]">{eventWords(e)}</span>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-                {health && events.length === 0 && (
-                  <p className="text-xs text-[var(--wy-text-faint)]">
-                    {t("drawer.noChanges", "No state changes in the last 24 hours.")}
-                  </p>
-                )}
-              </Section>
-            )}
+            {hw &&
+              row.bucket !== "unmeasured" &&
+              (health || (hw.duplicateLocations?.length ?? 0) > 0 || hw.registeredElsewhere) && (
+                <Section title={t("drawer.last24", "Last 24 hours")}>
+                  <HardwareHealthDetails
+                    health={health}
+                    duplicateLocations={hw.duplicateLocations}
+                    registeredElsewhere={hw.registeredElsewhere}
+                    now={now}
+                    showFacts={false}
+                    wide
+                  />
+                  {events.length > 0 && (
+                    <ol
+                      className="mt-2 space-y-1"
+                      aria-label={t("drawer.changes", "Recent changes")}
+                    >
+                      {events.slice(0, 12).map((e, i) => (
+                        <li key={`${e.at}-${i}`} className="flex gap-3 text-xs">
+                          <span className={`${MONO} w-28 shrink-0 text-[var(--wy-text-faint)]`}>
+                            {formatWhen(e.at, now)}
+                          </span>
+                          <span className="min-w-0 text-[var(--wy-text-muted)]">
+                            {eventWords(e)}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {health && events.length === 0 && (
+                    <p className="text-xs text-[var(--wy-text-faint)]">
+                      {t("drawer.noChanges", "No state changes in the last 24 hours.")}
+                    </p>
+                  )}
+                </Section>
+              )}
 
             <Section title={t("drawer.identity", "Device")}>
               <Facts
                 rows={[
                   { k: t("drawer.type", "Type"), v: row.typeLabel },
                   { k: t("drawer.model", "Model"), v: row.model },
-                  { k: t("drawer.floor", "Floor"), v: row.source === "hardware" ? row.floor || t("drawer.noFloor", "Not recorded") : null },
+                  {
+                    k: t("drawer.floor", "Floor"),
+                    v:
+                      row.source === "hardware"
+                        ? row.floor || t("drawer.noFloor", "Not recorded")
+                        : null,
+                  },
                   { k: t("drawer.mac", "MAC address"), v: row.mac, mono: true },
                   {
                     k: t("drawer.uptime", "Uptime"),
@@ -280,7 +309,9 @@ export function HardwareDrawer({
                           ? t("drawer.lastContactEnrol", "Set up")
                           : t("drawer.lastContact", "Last contact")
                         : t("drawer.lastSeen", "Last seen"),
-                    v: row.lastSeenAt ? `${formatWhen(row.lastSeenAt, now)} (${relTime(row.lastSeenAt, now)})` : null,
+                    v: row.lastSeenAt
+                      ? `${formatWhen(row.lastSeenAt, now)} (${relTime(row.lastSeenAt, now)})`
+                      : null,
                   },
                 ]}
               />

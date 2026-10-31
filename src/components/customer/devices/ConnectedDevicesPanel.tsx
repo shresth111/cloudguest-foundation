@@ -8,7 +8,9 @@
  * as before.
  *
  * DATA MASKING. When `masked` is on, the MAC is shown through `maskMac`, as
- * before -- and every other use of it goes through the SAME masked string:
+ * before (today a deliberate passthrough -- see `@/lib/masking`: owners need
+ * the real MAC for support). Every other use of it goes through the SAME
+ * displayed string, so turning masking back on can leak nothing:
  * search matches the masked text, MAC sort orders the masked text, React
  * keys are row positions. A search box that matched the raw MAC would let
  * anyone confirm a guest's address one character at a time; a sort on the
@@ -132,7 +134,9 @@ export function ConnectedDevicesPanel({
       title={<PanelTitle icon={<Wifi />}>{t("connected.title", "Connected Devices")}</PanelTitle>}
       description={
         rows.length
-          ? t("connected.meta", "{{count}} guest devices seen on this network", { count: rows.length })
+          ? t("connected.meta", "{{count}} guest devices seen on this network", {
+              count: rows.length,
+            })
           : undefined
       }
       actions={
@@ -157,7 +161,10 @@ export function ConnectedDevicesPanel({
       {isLoading ? (
         <div className="space-y-2 p-4" aria-busy="true">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-7 animate-pulse rounded bg-[var(--wy-surface-2)] motion-reduce:animate-none" />
+            <div
+              key={i}
+              className="h-7 animate-pulse rounded bg-[var(--wy-surface-2)] motion-reduce:animate-none"
+            />
           ))}
         </div>
       ) : rows.length === 0 ? (
@@ -171,8 +178,14 @@ export function ConnectedDevicesPanel({
           }
           description={
             isError
-              ? t("connected.errorBody", "This is a problem reading the list, not a sign that nobody is connected.")
-              : t("connected.emptyBody", "Devices that connect to this location's network will show up here.")
+              ? t(
+                  "connected.errorBody",
+                  "This is a problem reading the list, not a sign that nobody is connected.",
+                )
+              : t(
+                  "connected.emptyBody",
+                  "Devices that connect to this location's network will show up here.",
+                )
           }
         />
       ) : (
@@ -184,11 +197,33 @@ export function ConnectedDevicesPanel({
             </caption>
             <thead className="bg-[var(--wy-surface-2)]">
               <tr className="border-b border-[var(--wy-border)]">
-                <SortHeader label={t("col.mac", "MAC")} sortKey="mac" sort={sort} onSort={onSort} className="pl-4" />
+                <SortHeader
+                  label={t("col.mac", "MAC")}
+                  sortKey="mac"
+                  sort={sort}
+                  onSort={onSort}
+                  className="pl-4"
+                />
                 <SortHeader label={t("col.ip", "IP")} sortKey="ip" sort={sort} onSort={onSort} />
-                <SortHeader label={t("col.device", "Device")} sortKey="device" sort={sort} onSort={onSort} />
-                <SortHeader label={t("col.firstSeen", "First seen")} sortKey="firstSeen" sort={sort} onSort={onSort} className="hidden sm:table-cell" />
-                <SortHeader label={t("col.lastSeen", "Last seen")} sortKey="lastSeen" sort={sort} onSort={onSort} />
+                <SortHeader
+                  label={t("col.device", "Device")}
+                  sortKey="device"
+                  sort={sort}
+                  onSort={onSort}
+                />
+                <SortHeader
+                  label={t("col.firstSeen", "First seen")}
+                  sortKey="firstSeen"
+                  sort={sort}
+                  onSort={onSort}
+                  className="hidden sm:table-cell"
+                />
+                <SortHeader
+                  label={t("col.lastSeen", "Last seen")}
+                  sortKey="lastSeen"
+                  sort={sort}
+                  onSort={onSort}
+                />
               </tr>
             </thead>
             <tbody>
@@ -199,15 +234,26 @@ export function ConnectedDevicesPanel({
                   className="border-b border-[var(--wy-border)] last:border-b-0 hover:bg-[var(--wy-surface-2)]"
                 >
                   <td className={`whitespace-nowrap py-2 pl-4 pr-3 text-xs ${MONO}`}>{d.mac}</td>
-                  <td className={`whitespace-nowrap px-3 py-2 text-xs text-[var(--wy-text-muted)] ${MONO}`}>{d.ip}</td>
+                  <td
+                    className={`whitespace-nowrap px-3 py-2 text-xs text-[var(--wy-text-muted)] ${MONO}`}
+                  >
+                    {d.ip}
+                  </td>
                   <td className="max-w-[14rem] truncate px-3 py-2">{d.device}</td>
-                  <td className="hidden whitespace-nowrap px-3 py-2 text-xs text-[var(--wy-text-muted)] sm:table-cell">{d.firstSeen}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-xs text-[var(--wy-text-muted)]">{d.lastSeen}</td>
+                  <td className="hidden whitespace-nowrap px-3 py-2 text-xs text-[var(--wy-text-muted)] sm:table-cell">
+                    {d.firstSeen}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-xs text-[var(--wy-text-muted)]">
+                    {d.lastSeen}
+                  </td>
                 </tr>
               ))}
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-[13px] text-[var(--wy-text-muted)]">
+                  <td
+                    colSpan={5}
+                    className="px-4 py-8 text-center text-[13px] text-[var(--wy-text-muted)]"
+                  >
                     {t("connected.noMatch", "No device matches “{{q}}”.", { q: query })}
                   </td>
                 </tr>

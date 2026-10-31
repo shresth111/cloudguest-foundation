@@ -64,7 +64,10 @@ function hash(s: string): number {
  * whose port has no link. `status` is set to agree with it, so every
  * consumer (counts, Needs Attention, topology) tells the same story.
  */
-export function withDemoHealth(rows: readonly MonitoredDeviceRow[], now: number = Date.now()): MonitoredDeviceRow[] {
+export function withDemoHealth(
+  rows: readonly MonitoredDeviceRow[],
+  now: number = Date.now(),
+): MonitoredDeviceRow[] {
   return rows.map((d, idx) => {
     if (d.health) return d;
     const h = hash(d.mac);
@@ -74,18 +77,55 @@ export function withDemoHealth(rows: readonly MonitoredDeviceRow[], now: number 
     const events: DeviceHealthEvent[] =
       kind === "down"
         ? [
-            { at: at(310), kind: "link_down", fromState: null, toState: null, reason: null, count: 1, detail: null },
-            { at: at(308), kind: "state", fromState: "up", toState: "down", reason: "port_link_down", count: null, detail: null },
+            {
+              at: at(310),
+              kind: "link_down",
+              fromState: null,
+              toState: null,
+              reason: null,
+              count: 1,
+              detail: null,
+            },
+            {
+              at: at(308),
+              kind: "state",
+              fromState: "up",
+              toState: "down",
+              reason: "port_link_down",
+              count: null,
+              detail: null,
+            },
           ]
         : kind === "flapping"
           ? [
-              { at: at(900), kind: "link_down", fromState: null, toState: null, reason: null, count: 3, detail: null },
-              { at: at(420), kind: "state", fromState: "up", toState: "degraded", reason: "link_flapping", count: null, detail: null },
+              {
+                at: at(96),
+                kind: "link_down",
+                fromState: null,
+                toState: null,
+                reason: null,
+                count: 3,
+                detail: null,
+              },
+              {
+                at: at(420),
+                kind: "state",
+                fromState: "up",
+                toState: "degraded",
+                reason: "link_flapping",
+                count: null,
+                detail: null,
+              },
             ]
           : [];
     const health: DeviceHealth = {
       state: kind === "down" ? "down" : kind === "flapping" ? "degraded" : "up",
-      reason: kind === "down" ? "port_link_down" : kind === "flapping" ? "link_flapping" : "liveness_probe",
+      reason:
+        kind === "down"
+          ? "port_link_down"
+          : kind === "flapping"
+            ? "link_flapping"
+            : "liveness_probe",
       since: kind === "down" ? at(308) : kind === "flapping" ? at(420) : at(60 * (20 + (h % 50))),
       checkedAt: at(1),
       consecutiveFailures: kind === "down" ? 2 + (h % 3) : 0,

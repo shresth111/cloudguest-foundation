@@ -588,9 +588,10 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
           routersUnread={routersUnread}
           onFilter={(kind, bucket) => {
             setFilter({ ...NO_FILTER, query: filter.query, kind, bucket });
+            const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
             document
               .getElementById("hw-inventory")
-              ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              ?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
           }}
         />
       </section>
@@ -618,7 +619,10 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
         {loading && rows.length === 0 ? (
           <div className="space-y-2 p-4" aria-busy="true">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-9 animate-pulse rounded bg-[var(--wy-surface-2)] motion-reduce:animate-none" />
+              <div
+                key={i}
+                className="h-9 animate-pulse rounded bg-[var(--wy-surface-2)] motion-reduce:animate-none"
+              />
             ))}
           </div>
         ) : rows.length === 0 ? (
@@ -648,10 +652,8 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
         )}
       </Panel>
 
-      {/* Status, the check behind it, port + link facts, the 24 h strip
-          (HardwareHealthDetails), duplicate-MAC notices, Remove. A row
-          nothing measures shows the explanation (live.explanation, carried
-          as `row.explanation`) and no reading -- see hardwareLivenessIsMeasured. */}
+      {/* Status, the check behind it, port + link facts, the 24 h strip,
+          duplicate-MAC notices, Remove. See devices/HardwareDrawer. */}
       <HardwareDrawer
         row={openRow}
         onOpenChange={(o) => !o && setOpenKey(null)}
@@ -718,7 +720,11 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                   Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.
                 </p>
                 {macError && (
-                  <p id="hw-mac-error" role="alert" className="text-xs font-medium text-[var(--wy-crit)]">
+                  <p
+                    id="hw-mac-error"
+                    role="alert"
+                    className="text-xs font-medium text-[var(--wy-crit)]"
+                  >
                     {macError}
                   </p>
                 )}
@@ -780,8 +786,8 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                 what actually happened, in a toast, once it is added. */}
             {!controllerManaged && (
               <p className="rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] px-3 py-2 text-[11px] leading-relaxed text-[var(--wy-text-muted)]">
-                When you add it, the device's current IP address is made static on your router, so it
-                keeps the same address.
+                When you add it, the device's current IP address is made static on your router, so
+                it keeps the same address.
               </p>
             )}
 

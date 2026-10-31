@@ -20,7 +20,15 @@
  * explains why some readings carry interface detail and others do not),
  * not because it is a setting anyone here can change.
  */
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   Area,
   AreaChart,
@@ -32,7 +40,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Activity, ArrowDownRight, ArrowUpRight, Cpu, Gauge, Router as RouterIcon } from "lucide-react";
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  Cpu,
+  Gauge,
+  Router as RouterIcon,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -216,11 +231,10 @@ function PortTrafficChart({
             {...axisProps()}
           />
           <YAxis
-            width={44}
+            width={36}
             domain={[0, "auto"]}
             axisLine={false}
-            tickFormatter={(v: number) => (v >= 10 ? v.toFixed(0) : v.toFixed(1))}
-            unit=" M"
+            tickFormatter={(v: number) => (v >= 10 || v === 0 ? v.toFixed(0) : v.toFixed(1))}
             {...axisProps()}
           />
           <Tooltip
@@ -332,7 +346,9 @@ function PortSelector({
               {/* A port with no `up` reading is neither up nor down. */}
               <StatusDot
                 status={s.up === true ? "ok" : s.up === false ? "crit" : "unknown"}
-                label={s.up === true ? "Link up" : s.up === false ? "Link down" : "Link not reported"}
+                label={
+                  s.up === true ? "Link up" : s.up === false ? "Link down" : "Link not reported"
+                }
               />
               <span className="font-[family-name:var(--wy-font-mono)]">{s.ifName}</span>
             </span>
@@ -371,7 +387,10 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
 
   // Validated, not trusted: a wrong-shaped body renders as "no devices", not
   // a crash.
-  const deviceList = useMemo(() => (Array.isArray(devices.data) ? devices.data : []), [devices.data]);
+  const deviceList = useMemo(
+    () => (Array.isArray(devices.data) ? devices.data : []),
+    [devices.data],
+  );
   const activeId = selectedId ?? deviceList[0]?.id;
   const activeDevice = deviceList.find((d) => d.id === activeId);
 
@@ -445,9 +464,11 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
     const chartable = series.filter((s) =>
       s.points.some((p) => p.downMbps != null || p.upMbps != null),
     );
-    const vol = (s: InterfaceSeries) => s.totalInOctets + s.totalOutOctets;
+    // Busiest by peak incoming rate -- the same measure as the "Busiest
+    // port" callout, so the chart opens on the port the callout names.
+    const peak = (s: InterfaceSeries) => s.peakDownMbps ?? -1;
     return [
-      ...chartable.filter(portIsActive).sort((a, b) => vol(b) - vol(a)),
+      ...chartable.filter(portIsActive).sort((a, b) => peak(b) - peak(a)),
       ...chartable.filter((s) => !portIsActive(s)),
     ];
   }, [series]);
@@ -479,9 +500,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
     return best;
   }, [series]);
 
-  const title = (
-    <PanelTitle icon={<Activity />}>Device health &amp; interface traffic</PanelTitle>
-  );
+  const title = <PanelTitle icon={<Activity />}>Device health &amp; interface traffic</PanelTitle>;
 
   /* ── No location context (the /agent preview passes none) ── */
   if (!locationId) {
@@ -503,74 +522,83 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
             {span ? ` Showing the last ${span} of readings.` : ""}
           </>
         }
-        actions={
-          deviceList.length > 0 ? (
-            <Select
-              value={activeId}
-              onValueChange={(v) => {
-                setSelectedId(v);
-                setPortKey(null);
-              }}
-            >
-              <SelectTrigger className="h-8 w-[min(220px,46vw)] text-[13px]" aria-label="Choose a device">
-                <SelectValue placeholder="Choose a device" />
-              </SelectTrigger>
-              <SelectContent className="wy-console">
-                {deviceList.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    <span className="flex items-center gap-2">
-                      {/* No health dot on a controller. The dot is a
-                          verdict on a health check nothing runs here, and
-                          its neutral "unknown" colour reads as "we looked and
-                          could not tell" rather than "nothing looks". */}
-                      {!isControllerManaged(d.vendor) && (
-                        <StatusDot status={healthStatus(d.healthStatus)} />
-                      )}
-                      {d.name}
-                      {isControllerManaged(d.vendor) && (
-                        <span className="text-[var(--wy-text-faint)]">
-                          (
-                          {isNasOnlyVendor(d.vendor)
-                            ? `${routerVendorLabel(d.vendor)} access points`
-                            : `${routerVendorLabel(d.vendor)} controller`}
-                          )
-                        </span>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : undefined
-        }
         bodyClassName="space-y-5"
       >
-        {activeDevice && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--wy-text-muted)]">
-            <span className="flex items-center gap-1.5">
-              <RouterIcon aria-hidden className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
-              {/* Vendor label first for a controller, and never the `model`
+        {/* Device picker + what the readings are from. In the body, not the
+            panel header, so the title and picker both fit at 390px. */}
+        {(deviceList.length > 0 || activeDevice) && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {activeDevice ? (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--wy-text-muted)]">
+                <span className="flex items-center gap-1.5">
+                  <RouterIcon aria-hidden className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
+                  {/* Vendor label first for a controller, and never the `model`
                   column: on a synthesised controller row that column carries
                   whatever was typed at onboarding, which in production was a
                   MikroTik model string sitting under a TP-Link Omada badge. */}
-              {activeIsController
-                ? `${routerVendorLabel(activeDevice.vendor)} ${isNasOnlyVendor(activeDevice.vendor) ? "access points" : "controller"}`
-                : activeDevice.model || activeDevice.vendor || "Network device"}
-            </span>
-            {/* No provenance badge either. `metricsSourceLabel(null)` renders
+                  {activeIsController
+                    ? `${routerVendorLabel(activeDevice.vendor)} ${isNasOnlyVendor(activeDevice.vendor) ? "access points" : "controller"}`
+                    : activeDevice.model || activeDevice.vendor || "Network device"}
+                </span>
+                {/* No provenance badge either. `metricsSourceLabel(null)` renders
                 "Not recorded", which is a statement about a reading; there is
                 no reading here to have a source. */}
-            {!activeIsController && latest && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>Last reading {whenLabel(latest.recordedAt)}</span>
-                <span aria-hidden="true">·</span>
-                {/* Provenance, not configuration: it explains why some
+                {!activeIsController && latest && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>Last reading {whenLabel(latest.recordedAt)}</span>
+                    <span aria-hidden="true">·</span>
+                    {/* Provenance, not configuration: it explains why some
                     readings carry per-port detail and others do not. */}
-                <span className="rounded-full border border-[var(--wy-border)] px-2 py-0.5 text-[11px]">
-                  via {metricsSourceLabel(latest.metricsSource)}
-                </span>
-              </>
+                    <span className="rounded-full border border-[var(--wy-border)] px-2 py-0.5 text-[11px]">
+                      via {metricsSourceLabel(latest.metricsSource)}
+                    </span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <span />
+            )}
+            {deviceList.length > 0 && (
+              <Select
+                value={activeId}
+                onValueChange={(v) => {
+                  setSelectedId(v);
+                  setPortKey(null);
+                }}
+              >
+                <SelectTrigger
+                  className="h-8 w-full sm:w-[240px] text-[13px]"
+                  aria-label="Choose a device"
+                >
+                  <SelectValue placeholder="Choose a device" />
+                </SelectTrigger>
+                <SelectContent className="wy-console">
+                  {deviceList.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      <span className="flex items-center gap-2">
+                        {/* No health dot on a controller. The dot is a
+                            verdict on a health check nothing runs here, and
+                            its neutral "unknown" colour reads as "we looked and
+                            could not tell" rather than "nothing looks". */}
+                        {!isControllerManaged(d.vendor) && (
+                          <StatusDot status={healthStatus(d.healthStatus)} />
+                        )}
+                        {d.name}
+                        {isControllerManaged(d.vendor) && (
+                          <span className="text-[var(--wy-text-faint)]">
+                            (
+                            {isNasOnlyVendor(d.vendor)
+                              ? `${routerVendorLabel(d.vendor)} access points`
+                              : `${routerVendorLabel(d.vendor)} controller`}
+                            )
+                          </span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </div>
         )}
@@ -615,7 +643,8 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                     <span className="font-medium font-[family-name:var(--wy-font-mono)]">
                       {busiest.name}
                     </span>{" "}
-                    peaked at <span className="font-semibold tabular-nums">{formatMbps(busiest.mbps)}</span>{" "}
+                    peaked at{" "}
+                    <span className="font-semibold tabular-nums">{formatMbps(busiest.mbps)}</span>{" "}
                     incoming around <span className="font-medium">{whenLabel(busiest.at)}</span>.
                   </Tile>
                 )}
@@ -643,7 +672,10 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                       label="In"
                       value={
                         <span className="inline-flex items-center gap-0.5">
-                          <ArrowDownRight aria-hidden className="h-3 w-3 text-[var(--wy-text-faint)]" />
+                          <ArrowDownRight
+                            aria-hidden
+                            className="h-3 w-3 text-[var(--wy-text-faint)]"
+                          />
                           {formatOctets(selectedPort.totalInOctets)}
                         </span>
                       }
@@ -655,7 +687,10 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                       label="Out"
                       value={
                         <span className="inline-flex items-center gap-0.5">
-                          <ArrowUpRight aria-hidden className="h-3 w-3 text-[var(--wy-text-faint)]" />
+                          <ArrowUpRight
+                            aria-hidden
+                            className="h-3 w-3 text-[var(--wy-text-faint)]"
+                          />
                           {formatOctets(selectedPort.totalOutOctets)}
                         </span>
                       }
@@ -692,13 +727,13 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                   />
                   {quietCount > 0 && (
                     <p className="text-[11px] text-[var(--wy-text-faint)]">
-                      {quietCount} other port{quietCount === 1 ? "" : "s"} carried no traffic in this
-                      window; they are listed last.
+                      {quietCount} other port{quietCount === 1 ? "" : "s"} carried no traffic in
+                      this window; they are listed last.
                     </p>
                   )}
                   <PortTrafficChart series={selectedPort} showIn={showIn} showOut={showOut} />
                   <p className="text-[11px] text-[var(--wy-text-faint)]">
-                    Mbps. Gaps mean no rate could be measured (a missed reading or the device
+                    In Mbps. Gaps mean no rate could be measured (a missed reading or the device
                     restarting), not zero traffic.
                   </p>
                 </>
@@ -706,23 +741,35 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
             </section>
 
             {/* ── Device health over time ── */}
-            <section className="space-y-2 border-t border-[var(--wy-border)] pt-4" aria-labelledby="device-load">
+            <section
+              className="space-y-2 border-t border-[var(--wy-border)] pt-4"
+              aria-labelledby="device-load"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 id="device-load" className="flex items-center gap-2 text-xs font-semibold">
-                  <Gauge aria-hidden className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" /> Device load
+                  <Gauge aria-hidden className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" /> Device
+                  load
                 </h3>
                 <div className="flex items-center gap-1" role="group" aria-label="Series">
                   <LegendToggle
                     color={SERIES_1}
                     label="Processor"
-                    value={latest?.cpuUsagePercent != null ? `${latest.cpuUsagePercent.toFixed(0)}%` : undefined}
+                    value={
+                      latest?.cpuUsagePercent != null
+                        ? `${latest.cpuUsagePercent.toFixed(0)}%`
+                        : undefined
+                    }
                     on={showCpu}
                     onToggle={() => setShowCpu((v) => !v || !showMem)}
                   />
                   <LegendToggle
                     color={SERIES_2}
                     label="Memory"
-                    value={latest?.memoryUsagePercent != null ? `${latest.memoryUsagePercent.toFixed(0)}%` : undefined}
+                    value={
+                      latest?.memoryUsagePercent != null
+                        ? `${latest.memoryUsagePercent.toFixed(0)}%`
+                        : undefined
+                    }
                     on={showMem}
                     onToggle={() => setShowMem((v) => !v || !showCpu)}
                   />
@@ -745,7 +792,13 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                       axisLine={{ stroke: "var(--wy-border)" }}
                       {...axisProps()}
                     />
-                    <YAxis width={44} domain={[0, 100]} unit="%" axisLine={false} {...axisProps()} />
+                    <YAxis
+                      width={44}
+                      domain={[0, 100]}
+                      unit="%"
+                      axisLine={false}
+                      {...axisProps()}
+                    />
                     <Tooltip
                       contentStyle={CONSOLE_TOOLTIP_STYLE}
                       cursor={{ stroke: "var(--wy-border-strong)", strokeDasharray: "3 3" }}

@@ -105,8 +105,11 @@ export function DeviceStatusCardView({
     (d) => d.status === "unknown" && hardwareLivenessIsMeasured(d) && !unreadable(d),
   ).length;
   // "All up" only when every one of them IS up -- never "none is down", which
-  // once read "all up" for a single never-observed access point.
-  const upCount = devices.filter((d) => d.status === "up").length;
+  // once read "all up" for a single never-observed access point. Counted off
+  // the same buckets as the strip above it, so a device the strip calls
+  // Degraded (answering, but its link keeps dropping) is never "up" here.
+  const upCount = counts.ok;
+  const degradedCount = Math.max(0, counts.warn - unreachableCount);
 
   return (
     <Panel
@@ -127,7 +130,9 @@ export function DeviceStatusCardView({
                 <HardDrive aria-hidden className="h-4 w-4 text-[var(--wy-text-faint)]" />
               </div>
               <div>
-                <p className="text-[13px] font-semibold">{t("card.emptyTitle", "No hardware set up yet")}</p>
+                <p className="text-[13px] font-semibold">
+                  {t("card.emptyTitle", "No hardware set up yet")}
+                </p>
                 {/* This card tracks the hardware you add yourself (APs,
                  * printers...). Your router is monitored automatically and
                  * is counted above -- said explicitly, because a bare "no
@@ -173,7 +178,9 @@ export function DeviceStatusCardView({
                     >
                       {counts[b]}
                     </span>
-                    <span className="truncate text-[11px] text-[var(--wy-text-muted)]">{bucketLabel(b)}</span>
+                    <span className="truncate text-[11px] text-[var(--wy-text-muted)]">
+                      {bucketLabel(b)}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -181,7 +188,10 @@ export function DeviceStatusCardView({
 
             {/* The devices that most need a look, faults first, each with
              * its reason. Same words as the Devices table (describeLiveness). */}
-            <ul className="flex-1 divide-y divide-[var(--wy-border)]" aria-label={t("card.listLabel", "Devices, problems first")}>
+            <ul
+              className="flex-1 divide-y divide-[var(--wy-border)]"
+              aria-label={t("card.listLabel", "Devices, problems first")}
+            >
               {listed.map((r) => {
                 const Icon = DEVICE_TYPE_META[r.hardware!.type]?.icon ?? HardDrive;
                 return (
@@ -191,13 +201,22 @@ export function DeviceStatusCardView({
                       onClick={() => (r.bucket === "ok" ? onManage() : openFiltered(r.bucket))}
                       className="group flex w-full items-start gap-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
                     >
-                      <BucketDot bucket={r.bucket} label={bucketLabel(r.bucket)} className="mt-1.5" />
+                      <BucketDot
+                        bucket={r.bucket}
+                        label={bucketLabel(r.bucket)}
+                        className="mt-1.5"
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
-                          <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-[var(--wy-text-faint)]" />
+                          <Icon
+                            aria-hidden
+                            className="h-3.5 w-3.5 shrink-0 text-[var(--wy-text-faint)]"
+                          />
                           <span className="truncate text-[13px] font-medium">{r.name}</span>
                           {r.floor && (
-                            <span className="shrink-0 text-[11px] text-[var(--wy-text-faint)]">· {r.floor}</span>
+                            <span className="shrink-0 text-[11px] text-[var(--wy-text-faint)]">
+                              · {r.floor}
+                            </span>
                           )}
                         </span>
                         {(r.detail || r.explanation) && (
@@ -266,6 +285,8 @@ export function DeviceStatusCardView({
                 <span className="font-medium text-[var(--wy-warn)]">
                   Can't reach router · {unreachableCount} unconfirmed
                 </span>
+              ) : degradedCount > 0 ? (
+                <span className="font-medium text-[var(--wy-warn)]">{degradedCount} degraded</span>
               ) : unknownCount > 0 ? (
                 // Never conflated with "up": a device just registered (or whose
                 // router hasn't synced yet) hasn't been confirmed reachable.

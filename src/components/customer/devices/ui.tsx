@@ -7,7 +7,10 @@ import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { StatusDot, type OverviewStatus } from "@/components/customer/dashboard/overview/console-ui";
+import {
+  StatusDot,
+  type OverviewStatus,
+} from "@/components/customer/dashboard/overview/console-ui";
 import type { FleetBucket, FleetKind } from "./fleet-model";
 
 /** `t` bound to the `devices` namespace. */
