@@ -43,11 +43,24 @@
  * Run: node scripts/test-device-liveness.mjs
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
+// The Devices page's hardware list moved out of BasicFeatureViews.tsx into
+// src/components/customer/devices/ (fleet model, inventory, drawer) in the
+// console revamp; the view file still owns the add form and the venue
+// gating. Read them together so each rule is checked where the code lives.
+function readHardwareView() {
+  const dir = join(ROOT, "src/components/customer/devices");
+  return [
+    readFileSync(join(ROOT, "src/components/customer/BasicFeatureViews.tsx"), "utf8"),
+    ...readdirSync(dir)
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !/demo-fixtures/.test(f))
+      .map((f) => readFileSync(join(dir, f), "utf8")),
+  ].join("\n");
+}
 
 let failures = 0;
 function check(name, ok, extra = "") {
@@ -390,8 +403,13 @@ const card = readFileSync(
 );
 check(
   '"all up" is gated on every device being up, not on none being down',
-  // `(\{" "\}\s*)?`: prettier wraps the span once it is nested deep enough.
-  /typeUp === typeDevices\.length \? \(\s*<span[^>]*>\s*(\{" "\}\s*)?· all up/.test(card),
+  // The card is now one verdict line for the whole fleet, not one per type
+  // (console revamp); the rule is the same: "All devices up" renders only
+  // under `upCount === devices.length`.
+  /upCount === devices\.length \? \(\s*<span[^>]*>\s*All devices up/.test(card) &&
+    // upCount is the strip's "ok" bucket (describeLiveness tone "up"), which
+    // is stricter than status === "up": a degraded device is not counted.
+    /const upCount = counts\.ok;/.test(card),
 );
 check("the card separates an unreadable router out", /isRouterUnreadable/.test(card));
 check(
@@ -419,7 +437,10 @@ for (const rel of CALL_SITES) {
 }
 
 for (const rel of CALL_SITES.slice(0, 2)) {
-  const src = readFileSync(join(ROOT, rel), "utf8");
+  const src =
+    rel === "src/components/customer/BasicFeatureViews.tsx"
+      ? readHardwareView()
+      : readFileSync(join(ROOT, rel), "utf8");
   check(`${rel} renders the liveness cell through describeLiveness`, /describeLiveness/.test(src));
 }
 

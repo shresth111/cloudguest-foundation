@@ -20,7 +20,15 @@
  * explains why some readings carry interface detail and others do not),
  * not because it is a setting anyone here can change.
  */
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   Area,
   AreaChart,
@@ -36,15 +44,10 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
-  ChevronDown,
   Cpu,
   Gauge,
   Router as RouterIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TOOLTIP_STYLE } from "@/components/analytics/chart-theme";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -53,6 +56,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Panel } from "@/components/customer/console";
+import {
+  CONSOLE_TOOLTIP_STYLE,
+  PanelTitle,
+  StatusDot,
+} from "@/components/customer/dashboard/overview/console-ui";
 import { useDeviceHealthHistory, useLocationDevices } from "@/hooks/useDeviceHealth";
 import {
   formatMbps,
@@ -71,6 +80,7 @@ import {
   routerVendorLabel,
   isNasOnlyVendor,
 } from "@/lib/router-vendors";
+import { SHOW_ROUTER_TRAFFIC_EVENT } from "@/components/customer/devices/fleet-model";
 
 /** Short clock label for an axis tick. */
 function timeLabel(iso: string): string {
@@ -91,28 +101,25 @@ function whenLabel(iso: string | null): string {
   });
 }
 
-// The chart tooltip is read from the shared theme, not spelled locally: the
-// local copy set only a border and font size, so recharts fell back to its
-// own light default box -- a white tooltip with dark text on a dark chart.
-// Every other chart in this app already uses this constant; this one now
-// does too. See `@/components/analytics/chart-theme`.
+// The chart tooltip is the console's shared one (CONSOLE_TOOLTIP_STYLE), the
+// same box the Overview charts use, so light/dark and the border match.
 
 function EmptyNote({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full min-h-40 items-center justify-center px-6 py-8 text-center">
-      <p className="max-w-md text-xs text-muted-foreground">{children}</p>
+      <p className="max-w-md text-xs leading-relaxed text-[var(--wy-text-muted)]">{children}</p>
     </div>
   );
 }
 
 /**
  * Health dot for the device picker. `null` health is rendered as its own
- * muted state -- never as healthy.
+ * neutral state -- never as healthy.
  */
-function healthTone(status: string | null): string {
-  if (status === "healthy") return "bg-emerald-500";
-  if (status === "unhealthy") return "bg-rose-500";
-  return "bg-muted-foreground/40";
+function healthStatus(status: string | null): "ok" | "crit" | "unknown" {
+  if (status === "healthy") return "ok";
+  if (status === "unhealthy") return "crit";
+  return "unknown";
 }
 
 /**
@@ -123,107 +130,247 @@ function healthTone(status: string | null): string {
  */
 const X_TICK_GAP = 48;
 
-/** True when a port earns a full chart: it is up, or it carried traffic. */
+/** True when a port earns attention: it is up, or it carried traffic. */
 function portIsActive(s: InterfaceSeries): boolean {
   return s.up === true || s.totalInOctets + s.totalOutOctets > 0;
 }
 
-/** One port's throughput chart. Same series, same honesty rules as before. */
-function PortTrafficPanel({ series: s }: { series: InterfaceSeries }) {
-  return (
-    <div className="min-w-0 rounded-lg border bg-card p-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{s.ifName}</span>
-          {s.up != null && (
-            <Badge
-              variant="outline"
-              className={cn(
-                "font-normal",
-                s.up
-                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                  : "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400",
-              )}
-            >
-              {s.up ? "Up" : "Down"}
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <ArrowDownRight className="h-3.5 w-3.5 text-teal-500" />
-            {formatOctets(s.totalInOctets)} in
-          </span>
-          <span className="flex items-center gap-1">
-            <ArrowUpRight className="h-3.5 w-3.5 text-violet-500" />
-            {formatOctets(s.totalOutOctets)} out
-          </span>
-        </div>
-      </div>
+const SERIES_1 = "var(--wy-series-1)";
+const SERIES_2 = "var(--wy-series-2)";
 
-      <div className="h-36">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={s.points.map((p) => ({
-              label: timeLabel(p.at),
-              down: p.downMbps,
-              up: p.upMbps,
-            }))}
-            margin={{ top: 4, right: 8, left: -8, bottom: 0 }}
-          >
-            <defs>
-              <linearGradient id={`iface-down-${s.ifIndex}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id={`iface-up-${s.ifIndex}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" vertical={false} />
-            <XAxis
-              dataKey="label"
-              tick={{ fontSize: 10 }}
-              interval="preserveStartEnd"
-              minTickGap={X_TICK_GAP}
-              tickLine={false}
-            />
-            <YAxis tick={{ fontSize: 10 }} width={38} domain={[0, "auto"]} tickLine={false} />
-            <Tooltip
-              contentStyle={TOOLTIP_STYLE}
-              formatter={(value: unknown, name: unknown) => [
-                typeof value === "number" ? formatMbps(value) : "No reading",
-                name === "down" ? "In" : "Out",
-              ]}
-            />
-            {/* connectNulls={false} is load-bearing: a null point means the
-                rate could not be measured (counter reset, missing reading,
-                or too long a gap). Bridging it would draw a line through
-                data that does not exist. */}
+/** A legend entry that is also the series' on/off switch. */
+function LegendToggle({
+  color,
+  label,
+  value,
+  on,
+  onToggle,
+}: {
+  color: string;
+  label: string;
+  value?: ReactNode;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onToggle}
+      className={cn(
+        "inline-flex h-6 items-center gap-1.5 rounded-[var(--wy-radius)] px-1.5 text-[11px] transition-opacity duration-150 hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] motion-reduce:transition-none",
+        !on && "opacity-45",
+      )}
+    >
+      <span
+        aria-hidden
+        className="h-2 w-2 rounded-full"
+        style={{ background: on ? color : "transparent", boxShadow: `inset 0 0 0 1.5px ${color}` }}
+      />
+      <span className="text-[var(--wy-text-muted)]">{label}</span>
+      {value != null && <span className="tabular-nums text-[var(--wy-text)]">{value}</span>}
+    </button>
+  );
+}
+
+function axisProps() {
+  return {
+    tick: { fontSize: 10, fill: "var(--wy-text-faint)" },
+    tickLine: false,
+  } as const;
+}
+
+/** One port's throughput: In/Out areas, a dashed crosshair and tooltip. */
+function PortTrafficChart({
+  series: s,
+  showIn,
+  showOut,
+}: {
+  series: InterfaceSeries;
+  showIn: boolean;
+  showOut: boolean;
+}) {
+  const gid = `p${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const data = useMemo(
+    () =>
+      s.points.map((p, i) => ({
+        i,
+        label: timeLabel(p.at),
+        down: p.downMbps,
+        up: p.upMbps,
+      })),
+    [s.points],
+  );
+  return (
+    <div
+      className="h-52 sm:h-56"
+      data-wy="port-chart"
+      role="img"
+      aria-label={`Traffic on ${s.ifName}: peak in ${formatMbps(s.peakDownMbps)}, peak out ${formatMbps(s.peakUpMbps)}; ${formatOctets(s.totalInOctets)} in, ${formatOctets(s.totalOutOctets)} out in this window.`}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}>
+          <defs>
+            <linearGradient id={`${gid}-in`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={SERIES_1} stopOpacity={0.22} />
+              <stop offset="100%" stopColor={SERIES_1} stopOpacity={0.01} />
+            </linearGradient>
+            <linearGradient id={`${gid}-out`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={SERIES_2} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={SERIES_2} stopOpacity={0.01} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid vertical={false} stroke="var(--wy-border)" />
+          <XAxis
+            dataKey="i"
+            type="category"
+            tickFormatter={(i: number) => data[i]?.label ?? ""}
+            interval="preserveStartEnd"
+            minTickGap={X_TICK_GAP}
+            axisLine={{ stroke: "var(--wy-border)" }}
+            {...axisProps()}
+          />
+          <YAxis
+            width={36}
+            domain={[0, "auto"]}
+            axisLine={false}
+            tickFormatter={(v: number) => (v >= 10 || v === 0 ? v.toFixed(0) : v.toFixed(1))}
+            {...axisProps()}
+          />
+          <Tooltip
+            contentStyle={CONSOLE_TOOLTIP_STYLE}
+            cursor={{ stroke: "var(--wy-border-strong)", strokeDasharray: "3 3" }}
+            labelFormatter={(i: number) => data[i]?.label ?? ""}
+            formatter={(value: unknown, name: unknown) => [
+              typeof value === "number" ? formatMbps(value) : "No reading",
+              name === "down" ? "In" : "Out",
+            ]}
+          />
+          {/* connectNulls={false} is load-bearing: a null point means the
+              rate could not be measured (counter reset, missing reading,
+              or too long a gap). Bridging it would draw a line through
+              data that does not exist. */}
+          {showIn && (
             <Area
               type="monotone"
               dataKey="down"
               name="down"
-              stroke="#14b8a6"
-              fill={`url(#iface-down-${s.ifIndex})`}
+              stroke={SERIES_1}
+              fill={`url(#${gid}-in)`}
               strokeWidth={2}
               connectNulls={false}
+              activeDot={{ r: 3.5, strokeWidth: 2, stroke: "var(--wy-surface)" }}
               isAnimationActive={false}
             />
+          )}
+          {showOut && (
             <Area
               type="monotone"
               dataKey="up"
               name="up"
-              stroke="#8b5cf6"
-              fill={`url(#iface-up-${s.ifIndex})`}
+              stroke={SERIES_2}
+              fill={`url(#${gid}-out)`}
               strokeWidth={2}
               connectNulls={false}
+              activeDot={{ r: 3.5, strokeWidth: 2, stroke: "var(--wy-surface)" }}
               isAnimationActive={false}
             />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+          )}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/**
+ * The port selector: one chip per port, busiest-looking first, each with
+ * its link state and totals. A radiogroup (arrow keys move the choice). No
+ * port is hidden: idle and down ports sit at the end, dimmed, still
+ * selectable -- this replaces the old "Show all ports" disclosure.
+ */
+function PortSelector({
+  ports,
+  value,
+  onChange,
+}: {
+  ports: InterfaceSeries[];
+  value: string;
+  onChange: (key: string) => void;
+}) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const keyOf = (s: InterfaceSeries) => `${s.ifIndex}-${s.ifName}`;
+  const onKey = (e: KeyboardEvent) => {
+    const i = ports.findIndex((p) => keyOf(p) === value);
+    const step =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (!step || i < 0) return;
+    e.preventDefault();
+    const next = (i + step + ports.length) % ports.length;
+    onChange(keyOf(ports[next]));
+    refs.current[next]?.focus();
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Port"
+      onKeyDown={onKey}
+      className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:thin]"
+    >
+      {ports.map((s, idx) => {
+        const selected = keyOf(s) === value;
+        const active = portIsActive(s);
+        return (
+          <button
+            key={keyOf(s)}
+            ref={(el) => {
+              refs.current[idx] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(keyOf(s))}
+            className={cn(
+              "flex min-w-[7.5rem] shrink-0 flex-col items-start gap-0.5 rounded-[var(--wy-radius)] border px-2.5 py-1.5 text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] motion-reduce:transition-none",
+              selected
+                ? "border-[var(--wy-accent)] bg-[var(--wy-accent-soft)]"
+                : "border-[var(--wy-border)] bg-[var(--wy-surface)] hover:border-[var(--wy-border-strong)]",
+              !active && !selected && "opacity-70",
+            )}
+          >
+            <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--wy-text)]">
+              {/* A port with no `up` reading is neither up nor down. */}
+              <StatusDot
+                status={s.up === true ? "ok" : s.up === false ? "crit" : "unknown"}
+                label={
+                  s.up === true ? "Link up" : s.up === false ? "Link down" : "Link not reported"
+                }
+              />
+              <span className="font-[family-name:var(--wy-font-mono)]">{s.ifName}</span>
+            </span>
+            <span className="text-[10px] tabular-nums text-[var(--wy-text-faint)]">
+              {active
+                ? `${formatOctets(s.totalInOctets)} in · ${formatOctets(s.totalOutOctets)} out`
+                : s.up === false
+                  ? "Down · no traffic"
+                  : "No traffic"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Tile({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-3 py-2">
+      <p className="text-[11px] font-medium text-[var(--wy-text-muted)]">{label}</p>
+      <div className="mt-0.5 text-[13px] text-[var(--wy-text)]">{children}</div>
     </div>
   );
 }
@@ -231,11 +378,35 @@ function PortTrafficPanel({ series: s }: { series: InterfaceSeries }) {
 export function DeviceHealthTrafficView({ locationId }: { locationId?: string }) {
   const devices = useLocationDevices(locationId);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
-  const [showAllPorts, setShowAllPorts] = useState(false);
+  const [portKey, setPortKey] = useState<string | null>(null);
+  const [showIn, setShowIn] = useState(true);
+  const [showOut, setShowOut] = useState(true);
+  const [showCpu, setShowCpu] = useState(true);
+  const [showMem, setShowMem] = useState(true);
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  const deviceList = useMemo(() => devices.data ?? [], [devices.data]);
+  // Validated, not trusted: a wrong-shaped body renders as "no devices", not
+  // a crash.
+  const deviceList = useMemo(
+    () => (Array.isArray(devices.data) ? devices.data : []),
+    [devices.data],
+  );
   const activeId = selectedId ?? deviceList[0]?.id;
   const activeDevice = deviceList.find((d) => d.id === activeId);
+
+  // The inventory drawer's "Traffic and load" on a router row lands here.
+  useEffect(() => {
+    const onShow = (e: Event) => {
+      const id = (e as CustomEvent<{ routerId?: string }>).detail?.routerId;
+      if (!id) return;
+      setSelectedId(id);
+      setPortKey(null);
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      rootRef.current?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+    };
+    window.addEventListener(SHOW_ROUTER_TRAFFIC_EVENT, onShow);
+    return () => window.removeEventListener(SHOW_ROUTER_TRAFFIC_EVENT, onShow);
+  }, []);
 
   /**
    * Contract §11.5. This whole card is CPU, memory and per-interface octet
@@ -254,7 +425,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
   const activeIsController = isControllerManaged(activeDevice?.vendor);
   const history = useDeviceHealthHistory(activeIsController ? undefined : activeId);
   const readings: DeviceHealthReading[] = useMemo(
-    () => history.data?.readings ?? [],
+    () => (Array.isArray(history.data?.readings) ? history.data.readings : []),
     [history.data],
   );
 
@@ -287,23 +458,30 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
   );
   const hasRateData = series.some((s) => s.points.some((p) => p.downMbps != null));
 
-  // Same set of ports the old per-port list charted (any measurable point),
-  // split by whether they are worth a chart of their own.
-  const { activePorts, quietPorts } = useMemo(() => {
+  // Every port with any measurable point, ports that are up or carried
+  // traffic first (busiest first), then the idle and down ones.
+  const ports = useMemo(() => {
     const chartable = series.filter((s) =>
       s.points.some((p) => p.downMbps != null || p.upMbps != null),
     );
-    return {
-      activePorts: chartable.filter(portIsActive),
-      quietPorts: chartable.filter((s) => !portIsActive(s)),
-    };
+    // Busiest by peak incoming rate -- the same measure as the "Busiest
+    // port" callout, so the chart opens on the port the callout names.
+    const peak = (s: InterfaceSeries) => s.peakDownMbps ?? -1;
+    return [
+      ...chartable.filter(portIsActive).sort((a, b) => peak(b) - peak(a)),
+      ...chartable.filter((s) => !portIsActive(s)),
+    ];
   }, [series]);
+  const quietCount = ports.filter((s) => !portIsActive(s)).length;
+  const selectedPort =
+    ports.find((s) => `${s.ifIndex}-${s.ifName}` === portKey) ?? ports[0] ?? null;
   const portsReportingLink = series.filter((s) => s.up != null).length;
   const portsUp = series.filter((s) => s.up === true).length;
 
   const healthChart = useMemo(
     () =>
-      readings.map((r) => ({
+      readings.map((r, i) => ({
+        i,
         label: timeLabel(r.recordedAt),
         cpu: r.cpuUsagePercent,
         memory: r.memoryUsagePercent,
@@ -322,60 +500,93 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
     return best;
   }, [series]);
 
+  const title = <PanelTitle icon={<Activity />}>Device health &amp; interface traffic</PanelTitle>;
+
   /* ── No location context (the /agent preview passes none) ── */
   if (!locationId) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Activity className="h-4 w-4" /> Device health &amp; interface traffic
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <EmptyNote>Pick a venue to see how its network devices have been performing.</EmptyNote>
-        </CardContent>
-      </Card>
+      <Panel title={title}>
+        <EmptyNote>Pick a venue to see how its network devices have been performing.</EmptyNote>
+      </Panel>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-4 w-4" /> Device health &amp; interface traffic
-            </CardTitle>
-            <CardDescription>
-              How much traffic each network port has carried, and how your hardware has been holding
-              up.
-              {span ? ` Showing the last ${span} of readings.` : ""}
-            </CardDescription>
-          </div>
-
-          {deviceList.length > 0 && (
-            <div className="flex w-full items-center gap-2 sm:w-auto">
-              <Select value={activeId} onValueChange={setSelectedId}>
-                <SelectTrigger className="w-full sm:w-[220px]" aria-label="Choose a device">
+    <div ref={rootRef} className="scroll-mt-20" data-wy="traffic-panel">
+      <Panel
+        title={title}
+        description={
+          <>
+            How much traffic each network port has carried, and how your hardware has been holding
+            up.
+            {span ? ` Showing the last ${span} of readings.` : ""}
+          </>
+        }
+        bodyClassName="space-y-5"
+      >
+        {/* Device picker + what the readings are from. In the body, not the
+            panel header, so the title and picker both fit at 390px. */}
+        {(deviceList.length > 0 || activeDevice) && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {activeDevice ? (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--wy-text-muted)]">
+                <span className="flex items-center gap-1.5">
+                  <RouterIcon aria-hidden className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
+                  {/* Vendor label first for a controller, and never the `model`
+                  column: on a synthesised controller row that column carries
+                  whatever was typed at onboarding, which in production was a
+                  MikroTik model string sitting under a TP-Link Omada badge. */}
+                  {activeIsController
+                    ? `${routerVendorLabel(activeDevice.vendor)} ${isNasOnlyVendor(activeDevice.vendor) ? "access points" : "controller"}`
+                    : activeDevice.model || activeDevice.vendor || "Network device"}
+                </span>
+                {/* No provenance badge either. `metricsSourceLabel(null)` renders
+                "Not recorded", which is a statement about a reading; there is
+                no reading here to have a source. */}
+                {!activeIsController && latest && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>Last reading {whenLabel(latest.recordedAt)}</span>
+                    <span aria-hidden="true">·</span>
+                    {/* Provenance, not configuration: it explains why some
+                    readings carry per-port detail and others do not. */}
+                    <span className="rounded-full border border-[var(--wy-border)] px-2 py-0.5 text-[11px]">
+                      via {metricsSourceLabel(latest.metricsSource)}
+                    </span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <span />
+            )}
+            {deviceList.length > 0 && (
+              <Select
+                value={activeId}
+                onValueChange={(v) => {
+                  setSelectedId(v);
+                  setPortKey(null);
+                }}
+              >
+                <SelectTrigger
+                  className="h-8 w-full sm:w-[240px] text-[13px]"
+                  aria-label="Choose a device"
+                >
                   <SelectValue placeholder="Choose a device" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="wy-console">
                   {deviceList.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
                       <span className="flex items-center gap-2">
                         {/* No health dot on a controller. The dot is a
                             verdict on a health check nothing runs here, and
-                            its muted "unknown" colour reads as "we looked and
+                            its neutral "unknown" colour reads as "we looked and
                             could not tell" rather than "nothing looks". */}
                         {!isControllerManaged(d.vendor) && (
-                          <span
-                            aria-hidden="true"
-                            className={`h-2 w-2 shrink-0 rounded-full ${healthTone(d.healthStatus)}`}
-                          />
+                          <StatusDot status={healthStatus(d.healthStatus)} />
                         )}
                         {d.name}
                         {isControllerManaged(d.vendor) && (
-                          <span className="text-muted-foreground">
+                          <span className="text-[var(--wy-text-faint)]">
                             (
                             {isNasOnlyVendor(d.vendor)
                               ? `${routerVendorLabel(d.vendor)} access points`
@@ -388,45 +599,13 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          )}
-        </div>
-
-        {activeDevice && (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <RouterIcon className="h-3.5 w-3.5" />
-              {/* Vendor label first for a controller, and never the `model`
-                  column: on a synthesised controller row that column carries
-                  whatever was typed at onboarding, which in production was a
-                  MikroTik model string sitting under a TP-Link Omada badge. */}
-              {activeIsController
-                ? `${routerVendorLabel(activeDevice.vendor)} ${isNasOnlyVendor(activeDevice.vendor) ? "access points" : "controller"}`
-                : activeDevice.model || activeDevice.vendor || "Network device"}
-            </span>
-            {/* No provenance badge either. `metricsSourceLabel(null)` renders
-                "Not recorded", which is a statement about a reading; there is
-                no reading here to have a source. */}
-            {!activeIsController && latest && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>Last reading {whenLabel(latest.recordedAt)}</span>
-                <span aria-hidden="true">·</span>
-                {/* Provenance, not configuration: it explains why some
-                    readings carry per-port detail and others do not. */}
-                <Badge variant="outline" className="font-normal">
-                  via {metricsSourceLabel(latest.metricsSource)}
-                </Badge>
-              </>
             )}
           </div>
         )}
-      </CardHeader>
 
-      <CardContent className="space-y-6">
         {/* ── Loading / no devices / read failed ── */}
         {devices.isLoading ? (
-          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-48 w-full bg-[var(--wy-surface-2)]" />
         ) : devices.isError ? (
           <EmptyNote>
             We could not read this venue&apos;s devices just now, so we can&apos;t say how they are
@@ -443,7 +622,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
           // something about a measurement, and there is none to speak of.
           <EmptyNote>{controllerDeviceMetricsReason(activeDevice?.vendor)}</EmptyNote>
         ) : history.isLoading ? (
-          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-48 w-full bg-[var(--wy-surface-2)]" />
         ) : history.isError ? (
           <EmptyNote>
             We could not read this device&apos;s history just now. Nothing is necessarily wrong with
@@ -456,54 +635,68 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
           </EmptyNote>
         ) : (
           <>
-            {/* ── Peak callout: the "when did my uplink saturate" answer ── */}
+            {/* ── The "when did my uplink saturate" answer ── */}
             {(busiest || portsReportingLink > 0) && (
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 {busiest && (
-                  <div className="rounded-lg border bg-muted/40 px-4 py-3">
-                    <p className="text-xs text-muted-foreground">Busiest port</p>
-                    <p className="mt-0.5 text-sm">
-                      <span className="font-medium">{busiest.name}</span> peaked at{" "}
-                      <span className="font-medium">{formatMbps(busiest.mbps)}</span> incoming
-                      around <span className="font-medium">{whenLabel(busiest.at)}</span>.
-                    </p>
-                  </div>
+                  <Tile label="Busiest port">
+                    <span className="font-medium font-[family-name:var(--wy-font-mono)]">
+                      {busiest.name}
+                    </span>{" "}
+                    peaked at{" "}
+                    <span className="font-semibold tabular-nums">{formatMbps(busiest.mbps)}</span>{" "}
+                    incoming around <span className="font-medium">{whenLabel(busiest.at)}</span>.
+                  </Tile>
                 )}
                 {/* Counted only over ports that reported a link state; a port
                     with no `up` reading is neither up nor down. */}
                 {portsReportingLink > 0 && (
-                  <div className="rounded-lg border bg-muted/40 px-4 py-3">
-                    <p className="text-xs text-muted-foreground">Ports up</p>
-                    <p className="mt-0.5 text-sm">
-                      <span className="font-medium tabular-nums">{portsUp}</span>
-                      <span className="text-muted-foreground"> of {portsReportingLink}</span>
-                    </p>
-                  </div>
+                  <Tile label="Ports up">
+                    <span className="font-semibold tabular-nums">{portsUp}</span>
+                    <span className="text-[var(--wy-text-muted)]"> of {portsReportingLink}</span>
+                  </Tile>
                 )}
               </div>
             )}
 
-            {/* ── Per-interface traffic ──
-                Active ports get a chart each; idle and down ports collapse
-                into one row of chips. Before, every port printed its own
-                full chart -- on a 12-port router that was a dozen
-                near-identical flat "Down · 0 B" panels to scroll past to
-                find the two ports carrying traffic. Nothing is hidden: the
-                chips still carry each port's status and totals, and
-                "Show all ports" brings their charts back. */}
-            <section className="space-y-4">
+            {/* ── Per-interface traffic: pick a port, read its chart ── */}
+            <section className="space-y-3" aria-labelledby="traffic-by-port">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-medium">Traffic by port</h3>
-                {hasRateData && (
-                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-teal-500" />
-                      In
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-violet-500" />
-                      Out
-                    </span>
+                <h3 id="traffic-by-port" className="text-xs font-semibold">
+                  Traffic by port
+                </h3>
+                {hasRateData && selectedPort && (
+                  <div className="flex items-center gap-1" role="group" aria-label="Series">
+                    <LegendToggle
+                      color={SERIES_1}
+                      label="In"
+                      value={
+                        <span className="inline-flex items-center gap-0.5">
+                          <ArrowDownRight
+                            aria-hidden
+                            className="h-3 w-3 text-[var(--wy-text-faint)]"
+                          />
+                          {formatOctets(selectedPort.totalInOctets)}
+                        </span>
+                      }
+                      on={showIn}
+                      onToggle={() => setShowIn((v) => !v || !showOut)}
+                    />
+                    <LegendToggle
+                      color={SERIES_2}
+                      label="Out"
+                      value={
+                        <span className="inline-flex items-center gap-0.5">
+                          <ArrowUpRight
+                            aria-hidden
+                            className="h-3 w-3 text-[var(--wy-text-faint)]"
+                          />
+                          {formatOctets(selectedPort.totalOutOctets)}
+                        </span>
+                      }
+                      on={showOut}
+                      onToggle={() => setShowOut((v) => !v || !showIn)}
+                    />
                   </div>
                 )}
               </div>
@@ -521,138 +714,138 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                     its overall health below. Ask support if you need port-level traffic here.
                   </EmptyNote>
                 )
+              ) : ports.length === 0 || !selectedPort ? (
+                <p className="text-xs text-[var(--wy-text-muted)]">
+                  No port reported as up or carried traffic in this window.
+                </p>
               ) : (
                 <>
-                  {activePorts.length > 0 ? (
-                    <div className="grid gap-3 lg:grid-cols-2">
-                      {activePorts.map((s) => (
-                        <PortTrafficPanel key={`${s.ifIndex}-${s.ifName}`} series={s} />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No port reported as up or carried traffic in this window.
+                  <PortSelector
+                    ports={ports}
+                    value={`${selectedPort.ifIndex}-${selectedPort.ifName}`}
+                    onChange={setPortKey}
+                  />
+                  {quietCount > 0 && (
+                    <p className="text-[11px] text-[var(--wy-text-faint)]">
+                      {quietCount} other port{quietCount === 1 ? "" : "s"} carried no traffic in
+                      this window; they are listed last.
                     </p>
                   )}
-
-                  {quietPorts.length > 0 && (
-                    <div className="space-y-3 rounded-lg border border-dashed p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-xs text-muted-foreground">
-                          {quietPorts.length} other port{quietPorts.length === 1 ? "" : "s"} carried
-                          no traffic in this window
-                        </p>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 gap-1 px-2 text-xs"
-                          aria-expanded={showAllPorts}
-                          aria-controls="quiet-port-charts"
-                          onClick={() => setShowAllPorts((v) => !v)}
-                        >
-                          <ChevronDown
-                            className={cn(
-                              "h-3.5 w-3.5 transition-transform",
-                              showAllPorts && "rotate-180",
-                            )}
-                          />
-                          {showAllPorts ? "Hide their charts" : "Show all ports"}
-                        </Button>
-                      </div>
-                      <ul className="flex flex-wrap gap-1.5" aria-label="Other ports">
-                        {quietPorts.map((s) => (
-                          <li
-                            key={`${s.ifIndex}-${s.ifName}`}
-                            className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 text-[11px]"
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={cn(
-                                "h-1.5 w-1.5 rounded-full",
-                                s.up === false ? "bg-rose-500" : "bg-muted-foreground/40",
-                              )}
-                            />
-                            <span className="font-medium">{s.ifName}</span>
-                            {s.up != null && (
-                              <span className="text-muted-foreground">{s.up ? "Up" : "Down"}</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                      {/* Always in the DOM so `aria-controls` points at
-                          something; the charts mount only when asked for. */}
-                      <div
-                        id="quiet-port-charts"
-                        className={cn("grid gap-3 lg:grid-cols-2", !showAllPorts && "hidden")}
-                      >
-                        {showAllPorts &&
-                          quietPorts.map((s) => (
-                            <PortTrafficPanel key={`${s.ifIndex}-${s.ifName}`} series={s} />
-                          ))}
-                      </div>
-                    </div>
-                  )}
+                  <PortTrafficChart series={selectedPort} showIn={showIn} showOut={showOut} />
+                  <p className="text-[11px] text-[var(--wy-text-faint)]">
+                    In Mbps. Gaps mean no rate could be measured (a missed reading or the device
+                    restarting), not zero traffic.
+                  </p>
                 </>
               )}
             </section>
 
             {/* ── Device health over time ── */}
-            <section className="space-y-2">
-              <h3 className="flex items-center gap-2 text-sm font-medium">
-                <Gauge className="h-4 w-4" /> Device load
-              </h3>
-              <div className="h-40">
+            <section
+              className="space-y-2 border-t border-[var(--wy-border)] pt-4"
+              aria-labelledby="device-load"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 id="device-load" className="flex items-center gap-2 text-xs font-semibold">
+                  <Gauge aria-hidden className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" /> Device
+                  load
+                </h3>
+                <div className="flex items-center gap-1" role="group" aria-label="Series">
+                  <LegendToggle
+                    color={SERIES_1}
+                    label="Processor"
+                    value={
+                      latest?.cpuUsagePercent != null
+                        ? `${latest.cpuUsagePercent.toFixed(0)}%`
+                        : undefined
+                    }
+                    on={showCpu}
+                    onToggle={() => setShowCpu((v) => !v || !showMem)}
+                  />
+                  <LegendToggle
+                    color={SERIES_2}
+                    label="Memory"
+                    value={
+                      latest?.memoryUsagePercent != null
+                        ? `${latest.memoryUsagePercent.toFixed(0)}%`
+                        : undefined
+                    }
+                    on={showMem}
+                    onToggle={() => setShowMem((v) => !v || !showCpu)}
+                  />
+                </div>
+              </div>
+              <div
+                className="h-40"
+                role="img"
+                aria-label={`Processor and memory use over the last ${span ?? "readings"}.`}
+              >
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={healthChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                  <LineChart data={healthChart} margin={{ top: 4, right: 8, left: -6, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke="var(--wy-border)" />
                     <XAxis
-                      dataKey="label"
-                      tick={{ fontSize: 10 }}
+                      dataKey="i"
+                      type="category"
+                      tickFormatter={(i: number) => healthChart[i]?.label ?? ""}
                       interval="preserveStartEnd"
                       minTickGap={X_TICK_GAP}
-                      tickLine={false}
+                      axisLine={{ stroke: "var(--wy-border)" }}
+                      {...axisProps()}
                     />
-                    <YAxis tick={{ fontSize: 10 }} width={34} domain={[0, 100]} unit="%" />
+                    <YAxis
+                      width={44}
+                      domain={[0, 100]}
+                      unit="%"
+                      axisLine={false}
+                      {...axisProps()}
+                    />
                     <Tooltip
-                      contentStyle={TOOLTIP_STYLE}
+                      contentStyle={CONSOLE_TOOLTIP_STYLE}
+                      cursor={{ stroke: "var(--wy-border-strong)", strokeDasharray: "3 3" }}
+                      labelFormatter={(i: number) => healthChart[i]?.label ?? ""}
                       formatter={(value: unknown, name: unknown) => [
                         typeof value === "number" ? `${value.toFixed(0)}%` : "No reading",
                         name === "cpu" ? "Processor" : "Memory",
                       ]}
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="cpu"
-                      name="cpu"
-                      stroke="#6C4EFF"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls={false}
-                      isAnimationActive={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="memory"
-                      name="memory"
-                      stroke="#22d3ee"
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls={false}
-                      isAnimationActive={false}
-                    />
+                    {showCpu && (
+                      <Line
+                        type="monotone"
+                        dataKey="cpu"
+                        name="cpu"
+                        stroke={SERIES_1}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 3.5, strokeWidth: 2, stroke: "var(--wy-surface)" }}
+                        connectNulls={false}
+                        isAnimationActive={false}
+                      />
+                    )}
+                    {showMem && (
+                      <Line
+                        type="monotone"
+                        dataKey="memory"
+                        name="memory"
+                        stroke={SERIES_2}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 3.5, strokeWidth: 2, stroke: "var(--wy-surface)" }}
+                        connectNulls={false}
+                        isAnimationActive={false}
+                      />
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Cpu className="h-3 w-3" />
+              <p className="flex items-center gap-1.5 text-[11px] text-[var(--wy-text-faint)]">
+                <Cpu aria-hidden className="h-3 w-3" />
                 Gaps mean no reading was taken, not zero usage.
               </p>
             </section>
           </>
         )}
-      </CardContent>
-    </Card>
+      </Panel>
+    </div>
   );
 }
 

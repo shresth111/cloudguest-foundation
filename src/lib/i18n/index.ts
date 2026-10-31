@@ -15,6 +15,7 @@ import enAccessRules from "./locales/en/accessRules.json";
 import enDashboard from "./locales/en/dashboard.json";
 import enNeedsAttention from "./locales/en/needsAttention.json";
 import enInsights from "./locales/en/insights.json";
+import enDevices from "./locales/en/devices.json";
 import hiCommon from "./locales/hi/common.json";
 import hiNav from "./locales/hi/nav.json";
 import hiGuests from "./locales/hi/guests.json";
@@ -30,6 +31,7 @@ import hiAccessRules from "./locales/hi/accessRules.json";
 import hiDashboard from "./locales/hi/dashboard.json";
 import hiNeedsAttention from "./locales/hi/needsAttention.json";
 import hiInsights from "./locales/hi/insights.json";
+import hiDevices from "./locales/hi/devices.json";
 
 const LANG_CACHE_KEY = "cg.dashboard.lang";
 
@@ -90,6 +92,7 @@ i18n.use(initReactI18next).init({
       dashboard: enDashboard,
       needsAttention: enNeedsAttention,
       insights: enInsights,
+      devices: enDevices,
     },
     hi: {
       common: hiCommon,
@@ -107,6 +110,7 @@ i18n.use(initReactI18next).init({
       dashboard: hiDashboard,
       needsAttention: hiNeedsAttention,
       insights: hiInsights,
+      devices: hiDevices,
     },
   },
   lng: readCachedLang(),
@@ -127,6 +131,7 @@ i18n.use(initReactI18next).init({
     "dashboard",
     "needsAttention",
     "insights",
+    "devices",
   ],
   defaultNS: "common",
   interpolation: { escapeValue: false },

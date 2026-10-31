@@ -1,38 +1,56 @@
-import { HardDrive } from "lucide-react";
+import { useMemo } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { ChevronRight, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { DEVICE_TYPES } from "@/stores/deviceStore";
-import {
-  describeLiveness,
-  formatAge,
-  hardwareLivenessIsMeasured,
-  isRouterUnreadable,
-} from "@/lib/device-liveness";
+import { formatAge, hardwareLivenessIsMeasured, isRouterUnreadable } from "@/lib/device-liveness";
+import { customerFeatureHref } from "@/lib/customerNav";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import type { MonitoredDeviceRow } from "@/services/deviceHardware.service";
 import { Panel } from "@/components/customer/console";
 import { PanelLink, PanelTitle } from "./overview/console-ui";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
 import { BackgroundBoxes } from "@/components/aceternity/background-boxes";
+import {
+  BUCKET_ORDER,
+  BUCKET_TO_PARAM,
+  countBuckets,
+  hardwareRow,
+  topAttention,
+  type FleetBucket,
+} from "@/components/customer/devices/fleet-model";
+import {
+  BUCKET_TEXT,
+  BucketDot,
+  useBucketLabel,
+  useDevicesT,
+} from "@/components/customer/devices/ui";
 
 /**
- * Per-device-type hardware summary for this location's monitored network
- * hardware (Access Points, Printers, Routers, Cameras, Other) -- the same
- * `useDeviceStore` records and `d.locationId === locationId` filter the
- * Devices page's own `NetworkHardwareView` (BasicFeatureViews.tsx) already
- * uses, and the exact same `DEVICE_TYPE_META` icon/color map, imported from
- * there rather than re-declared here, so a "Router" reads as the same
- * indigo-violet `Router` icon everywhere in the app, not a second
- * lookalike-but-different palette. Up/down counts are real, derived from
- * each device's own `deriveStatus`-computed `status`, not decorative.
- * Sibling to WanStatusCard immediately above it in the layout -- same card
- * shell, header badge, and "Manage ->" pattern, just pointed at the
- * Devices feature page instead of Internet Connection.
+ * The Overview's "Network Hardware" card: a compact summary of the Devices
+ * page. A status strip (each count opens Devices pre-filtered to that status
+ * via `?status=`), the few devices that most need attention -- faults first,
+ * each with its reason in plain words -- and a one-line verdict.
+ *
+ * Data: exactly the `useMonitoredHardware` rows the dashboard already holds
+ * (it reads them once for the topology map and this card). Status words and
+ * buckets come from `describeLiveness` via `@/components/customer/devices/
+ * fleet-model`, the same mapping the Devices page uses, so the two screens
+ * cannot disagree.
  */
-/** How many individual devices the card lists before it hands off to the
- * Devices page with "+N more". Enough for a typical venue's APs to all show
- * by name; past it the card would outgrow its Internet Connection sibling. */
-const MAX_LISTED_DEVICES = 6;
+
+/** How many devices the card names before handing off to the Devices page. */
+const MAX_LISTED_DEVICES = 5;
+
+/** Always shown, even at 0 (a 0 is an answer); the other two only when
+ * something is in them. */
+const ALWAYS: Record<FleetBucket, boolean> = {
+  ok: true,
+  warn: true,
+  crit: true,
+  unknown: true,
+  unmeasured: false,
+};
 
 export function DeviceStatusCard({
   locationId,
@@ -55,6 +73,20 @@ export function DeviceStatusCardView({
   devices: MonitoredDeviceRow[];
   onManage: () => void;
 }) {
+  const t = useDevicesT();
+  const bucketLabel = useBucketLabel();
+  const navigate = useNavigate();
+  const openFiltered = (b: FleetBucket) =>
+    navigate({
+      to: customerFeatureHref("devices"),
+      // The Devices page reads `?status=` once on mount (bucketFromSearch).
+      search: { status: BUCKET_TO_PARAM[b] } as never,
+    });
+
+  const rows = useMemo(() => devices.map((d) => hardwareRow(d)), [devices]);
+  const counts = countBuckets(rows);
+  const listed = topAttention(rows, MAX_LISTED_DEVICES);
+
   // A device behind a router this platform cannot read is counted apart
   // from both "down" and "not yet observed": its status is a fact about the
   // router, and folding it into either bucket tells the owner something
@@ -72,211 +104,161 @@ export function DeviceStatusCardView({
   const unknownCount = devices.filter(
     (d) => d.status === "unknown" && hardwareLivenessIsMeasured(d) && !unreadable(d),
   ).length;
+  // "All up" only when every one of them IS up -- never "none is down", which
+  // once read "all up" for a single never-observed access point. Counted off
+  // the same buckets as the strip above it, so a device the strip calls
+  // Degraded (answering, but its link keeps dropping) is never "up" here.
+  const upCount = counts.ok;
+  const degradedCount = Math.max(0, counts.warn - unreachableCount);
 
   return (
     <Panel
       className="flex h-full flex-col"
       bodyClassName="flex flex-1 flex-col"
-      title={<PanelTitle icon={<HardDrive />}>Network Hardware</PanelTitle>}
-      actions={<PanelLink onClick={onManage}>Manage →</PanelLink>}
+      title={<PanelTitle icon={<HardDrive />}>{t("card.title", "Network Hardware")}</PanelTitle>}
+      actions={<PanelLink onClick={onManage}>{t("card.viewAll", "View all →")}</PanelLink>}
     >
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col" data-wy="device-card">
         {devices.length === 0 ? (
-          <div className="relative flex flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+          <div className="relative flex flex-1 flex-col items-center justify-center gap-3 overflow-hidden rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] px-4 py-6 text-center">
             {/* The one Aceternity moment this surface gets (design v3 Part
-             * 4): a low-frequency, first-run "connect your first
-             * router"-adjacent empty state, and nowhere else on this page.
-             * See background-boxes.tsx's own comment for why it's a small
-             * static re-author, not the registry component verbatim. */}
+             * 4): a low-frequency, first-run empty state. See
+             * background-boxes.tsx's own comment. */}
             <BackgroundBoxes />
-            {/* Everything a user actually reads/clicks stays in its own
-             * `relative` stacking layer, painted after (so: above) the
-             * absolutely-positioned decorative grid regardless of DOM
-             * order inside it -- otherwise the plain-flow Button below
-             * would paint *under* an `absolute` sibling per normal CSS
-             * stacking rules. */}
             <div className="relative flex flex-col items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted">
-                <HardDrive className="h-5 w-5 text-muted-foreground" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)]">
+                <HardDrive aria-hidden className="h-4 w-4 text-[var(--wy-text-faint)]" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground">No hardware set up yet</p>
-                {/* Sitting right below the "routers online" KPI at the top of
-                 * this same dashboard, an unqualified "no hardware" read as
-                 * contradicting it (bug report from a product review: "wait,
-                 * don't I have a router?"). This card only tracks *other*
-                 * hardware you add yourself (APs, printers, etc.) -- your
-                 * router is already monitored automatically and isn't meant
-                 * to show up here, so that needs to be said explicitly. */}
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Add a device by MAC address to start monitoring it. Your router is already tracked
-                  separately above.
+                <p className="text-[13px] font-semibold">
+                  {t("card.emptyTitle", "No hardware set up yet")}
+                </p>
+                {/* This card tracks the hardware you add yourself (APs,
+                 * printers...). Your router is monitored automatically and
+                 * is counted above -- said explicitly, because a bare "no
+                 * hardware" under a "routers online" KPI read as a
+                 * contradiction in a product review. */}
+                <p className="mt-1 text-xs text-[var(--wy-text-muted)]">
+                  {t(
+                    "card.emptyBody",
+                    "Add a device by MAC address to start monitoring it. Your router is already tracked separately above.",
+                  )}
                 </p>
               </div>
               <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>
-                Set up hardware
+                {t("card.setUp", "Set up hardware")}
               </Button>
             </div>
           </div>
         ) : (
-          // Stretched to its taller Internet Connection sibling's height, so
-          // the totals row is pinned to the bottom edge rather than floating
-          // just under the first type row.
           <div className="flex flex-1 flex-col gap-3">
-            <div className="flex-1 space-y-2">
-              {(() => {
-                // One budget across all types, spent in DEVICE_TYPES order,
-                // so the cap is on the card and not per type.
-                let budget = MAX_LISTED_DEVICES;
-                return DEVICE_TYPES.map((type) => {
-                  const typeDevices = devices.filter((d) => d.type === type);
-                  if (typeDevices.length === 0) return null;
-                  const listed = typeDevices.slice(0, Math.max(0, budget));
-                  budget -= listed.length;
-                  const meta = DEVICE_TYPE_META[type];
-                  const Icon = meta.icon;
-                  const typeDown = typeDevices.filter(
-                    (d) => d.status === "down" && !unreadable(d),
-                  ).length;
-                  const typeUp = typeDevices.filter((d) => d.status === "up").length;
-                  const typeUnreachable = typeDevices.filter(unreadable).length;
-                  const typeUnmeasured = typeDevices.filter(
-                    (d) => !hardwareLivenessIsMeasured(d),
-                  ).length;
-                  return (
-                    <div key={type} className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex min-w-0 items-center gap-2 text-sm">
-                          <span
-                            title={type}
-                            className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br text-white",
-                              meta.gradient,
-                            )}
-                          >
-                            <Icon className="h-3.5 w-3.5" />
-                          </span>
-                          <span className="truncate font-medium text-foreground">
-                            {type}
-                            {typeDevices.length !== 1 ? "s" : ""}
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                          <span className="font-semibold text-foreground">
-                            {typeDevices.length}
-                          </span>
-                          {/* "all up" only when every one of them IS up. It used
-                           * to be printed whenever none was down, so a single
-                           * never-observed access point read "1 · all up". */}
-                          {typeDown > 0 ? (
-                            <span className="text-rose-600 dark:text-rose-400">
-                              {" "}
-                              · {typeDown} down
+            {/* Status strip. Each count opens Devices filtered to it. */}
+            <ul
+              className="grid grid-cols-2 gap-1.5 sm:grid-cols-4"
+              aria-label={t("card.stripLabel", "Hardware by status")}
+            >
+              {BUCKET_ORDER.filter((b) => ALWAYS[b] || counts[b] > 0).map((b) => (
+                <li key={b}>
+                  <button
+                    type="button"
+                    disabled={counts[b] === 0}
+                    onClick={() => openFiltered(b)}
+                    aria-label={t("card.stripItem", "{{count}} {{status}} — show on Devices", {
+                      count: counts[b],
+                      status: bucketLabel(b),
+                    })}
+                    className="flex w-full items-center gap-2 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-2.5 py-1.5 text-left transition-colors duration-150 enabled:hover:border-[var(--wy-border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] disabled:cursor-default motion-reduce:transition-none"
+                  >
+                    <BucketDot bucket={b} label={bucketLabel(b)} />
+                    <span
+                      className={cn(
+                        "text-base font-semibold tabular-nums",
+                        counts[b] > 0 ? BUCKET_TEXT[b] : "text-[var(--wy-text-faint)]",
+                      )}
+                    >
+                      {counts[b]}
+                    </span>
+                    <span className="truncate text-[11px] text-[var(--wy-text-muted)]">
+                      {bucketLabel(b)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {/* The devices that most need a look, faults first, each with
+             * its reason. Same words as the Devices table (describeLiveness). */}
+            <ul
+              className="flex-1 divide-y divide-[var(--wy-border)]"
+              aria-label={t("card.listLabel", "Devices, problems first")}
+            >
+              {listed.map((r) => {
+                const Icon = DEVICE_TYPE_META[r.hardware!.type]?.icon ?? HardDrive;
+                return (
+                  <li key={r.key}>
+                    <button
+                      type="button"
+                      onClick={() => (r.bucket === "ok" ? onManage() : openFiltered(r.bucket))}
+                      className="group flex w-full items-start gap-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                    >
+                      <BucketDot
+                        bucket={r.bucket}
+                        label={bucketLabel(r.bucket)}
+                        className="mt-1.5"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <Icon
+                            aria-hidden
+                            className="h-3.5 w-3.5 shrink-0 text-[var(--wy-text-faint)]"
+                          />
+                          <span className="truncate text-[13px] font-medium">{r.name}</span>
+                          {r.floor && (
+                            <span className="shrink-0 text-[11px] text-[var(--wy-text-faint)]">
+                              · {r.floor}
                             </span>
-                          ) : typeUnreachable > 0 ? (
-                            <span className="text-amber-700 dark:text-amber-400">
-                              {" "}
-                              · {typeUnreachable} unconfirmed
-                            </span>
-                          ) : typeUp === typeDevices.length ? (
-                            <span className="text-emerald-600 dark:text-emerald-400">
-                              {" "}
-                              · all up
-                            </span>
-                          ) : typeUnmeasured > 0 ? (
-                            // A controller-managed venue: nothing here probes
-                            // these, so "not yet seen" would promise a "yet"
-                            // that never comes -- same wording as the footer.
-                            <span> · {typeUnmeasured} not measured here</span>
-                          ) : (
-                            <span> · {typeDevices.length - typeUp} not yet seen</span>
                           )}
                         </span>
-                      </div>
-                      {/* Each device by name, not only the type's count: "5
-                       * Access Points" does not tell an owner WHICH one is the
-                       * problem. Same words and tone as the Devices table,
-                       * because both come from describeLiveness. */}
-                      {listed.length > 0 && (
-                        <ul className="ml-3 space-y-1 border-l border-border/60 pl-5">
-                          {listed.map((d) => {
-                            const live = describeLiveness(d);
-                            const measured = hardwareLivenessIsMeasured(d);
-                            return (
-                              <li
-                                key={d.id}
-                                className="flex items-center justify-between gap-2 text-xs"
-                              >
-                                <span className="flex min-w-0 items-center gap-1.5">
-                                  {/* No dot for an unmeasured row: a dot is a
-                                   * reading, and there is none. */}
-                                  <span
-                                    className={cn(
-                                      "h-1.5 w-1.5 shrink-0 rounded-full",
-                                      !measured
-                                        ? "bg-transparent"
-                                        : live.tone === "up"
-                                          ? "bg-emerald-500"
-                                          : live.tone === "down"
-                                            ? "bg-rose-500"
-                                            : live.tone === "warning"
-                                              ? "bg-amber-500"
-                                              : "bg-muted-foreground/50",
-                                    )}
-                                  />
-                                  <span className="truncate text-foreground">{d.name}</span>
-                                  {d.floor && (
-                                    <span className="shrink-0 text-muted-foreground">
-                                      · {d.floor}
-                                    </span>
-                                  )}
-                                </span>
-                                <span
-                                  title={
-                                    [live.detail, live.explanation].filter(Boolean).join(" — ") ||
-                                    undefined
-                                  }
-                                  className={cn(
-                                    "shrink-0",
-                                    !measured
-                                      ? "text-muted-foreground"
-                                      : live.tone === "up"
-                                        ? "text-emerald-600 dark:text-emerald-400"
-                                        : live.tone === "down"
-                                          ? "text-rose-600 dark:text-rose-400"
-                                          : live.tone === "warning"
-                                            ? "text-amber-700 dark:text-amber-400"
-                                            : "text-muted-foreground",
-                                  )}
-                                >
-                                  {live.state}
-                                </span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                });
-              })()}
-              {devices.length > MAX_LISTED_DEVICES && (
-                <button
-                  type="button"
-                  onClick={onManage}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  +{devices.length - MAX_LISTED_DEVICES} more on the Devices page
-                </button>
-              )}
-            </div>
-            <div className="flex items-center justify-between border-t border-border/60 pt-2.5 text-xs">
-              <span className="text-muted-foreground">
-                {devices.length} device{devices.length !== 1 ? "s" : ""} total
+                        {(r.detail || r.explanation) && (
+                          <span
+                            className="mt-0.5 block truncate text-[11px] text-[var(--wy-text-faint)]"
+                            title={[r.detail, r.explanation].filter(Boolean).join(" — ")}
+                          >
+                            {r.detail ?? r.explanation}
+                          </span>
+                        )}
+                      </span>
+                      <span className={cn("shrink-0 text-xs font-medium", BUCKET_TEXT[r.bucket])}>
+                        {r.statusWord}
+                      </span>
+                      <ChevronRight
+                        aria-hidden
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--wy-text-faint)] opacity-0 transition-opacity group-hover:opacity-100 motion-reduce:transition-none"
+                      />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-[var(--wy-border)] pt-2.5 text-xs">
+              <span className="text-[var(--wy-text-muted)]">
+                {devices.length > MAX_LISTED_DEVICES ? (
+                  <button
+                    type="button"
+                    onClick={onManage}
+                    className="rounded font-medium text-[var(--wy-accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                  >
+                    {t("card.more", "+{{count}} more on Devices", {
+                      count: devices.length - MAX_LISTED_DEVICES,
+                    })}
+                  </button>
+                ) : (
+                  t("card.total", "{{count}} devices total", { count: devices.length })
+                )}
               </span>
               {downCount > 0 ? (
-                <span className="inline-flex items-center gap-1 font-medium text-rose-600 dark:text-rose-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                <span className="inline-flex items-center gap-1 font-medium text-[var(--wy-crit)]">
                   {/* For a device that is DOWN, time since we last heard from
                    * it IS how long it has been down, so this duration is
                    * honestly named -- unlike the same arithmetic beside the
@@ -284,11 +266,7 @@ export function DeviceStatusCardView({
                    * to prevent. */}
                   {downCount} down
                   {(() => {
-                    // `ConnectedDevice.last_seen_at` is nullable, so a device
-                    // can be DOWN with no timestamp at all -- in which case
-                    // this filter empties and indexing [0] threw, taking the
-                    // whole card down. "N down" on its own is still true; a
-                    // crash is not a better answer than a missing clause.
+                    // `last_seen_at` is nullable: "N down" alone is still true.
                     const oldest = devices
                       .filter(
                         (d): d is typeof d & { lastSeenAt: string } =>
@@ -304,32 +282,27 @@ export function DeviceStatusCardView({
               ) : unreachableCount > 0 ? (
                 // The router could not be read, so these devices are not
                 // known to be missing or down -- say what actually failed.
-                <span className="inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span className="font-medium text-[var(--wy-warn)]">
                   Can't reach router · {unreachableCount} unconfirmed
                 </span>
+              ) : degradedCount > 0 ? (
+                <span className="font-medium text-[var(--wy-warn)]">{degradedCount} degraded</span>
               ) : unknownCount > 0 ? (
-                // Never conflated with "up" -- a device just registered (or
-                // whose router hasn't synced yet) hasn't actually been
-                // confirmed reachable, see useMonitoredHardware's own
-                // honesty note on "unknown" status.
-                <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                // Never conflated with "up": a device just registered (or whose
+                // router hasn't synced yet) hasn't been confirmed reachable.
+                <span className="font-medium text-[var(--wy-text-muted)]">
                   {unknownCount} not yet observed
                 </span>
               ) : unmeasuredCount > 0 ? (
                 <span
                   title="This venue's network is run by a controller, so nothing here pings these devices. Your controller reports its own access points on the Devices page."
-                  className="inline-flex items-center gap-1 font-medium text-muted-foreground"
+                  className="font-medium text-[var(--wy-text-muted)]"
                 >
                   {unmeasuredCount} not measured here
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  All devices up
-                </span>
-              )}
+              ) : upCount === devices.length ? (
+                <span className="font-medium text-[var(--wy-ok)]">All devices up</span>
+              ) : null}
             </div>
           </div>
         )}
