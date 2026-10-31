@@ -11,7 +11,9 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { deviceHealthService } from "@/services/deviceHealth.service";
-import { resolveOrgId } from "@/services/customer.service";
+import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { useCustomerStore } from "@/stores/customerStore";
+import { demoRouterDevices } from "@/components/customer/devices/demo-fixtures";
 import { routerService } from "@/services/router.service";
 
 export const deviceHealthKeys = {
@@ -25,6 +27,16 @@ export function useLocationDevices(locationId?: string) {
   return useQuery({
     queryKey: deviceHealthKeys.devices(locationId),
     queryFn: async () => {
+      // Demo host: no backend to resolve an organization against, so the
+      // venue's routers come from the liveness summary the demo already
+      // shows everywhere else. Real sessions never reach this branch.
+      if (isDemo()) {
+        const loc = useCustomerStore.getState().activeLocation;
+        return demoRouterDevices(
+          locationId!,
+          loc?.id === locationId ? loc?.liveness?.routers : [],
+        );
+      }
       const organizationId = await resolveOrgId();
       return routerService.listForLocation(locationId!, organizationId);
     },
@@ -45,6 +57,9 @@ export function useDeviceHealthHistory(routerId?: string) {
   return useQuery({
     queryKey: deviceHealthKeys.history(routerId),
     queryFn: async () => {
+      // Demo host: the service serves its own fixture and never uses the
+      // org id, and resolving one needs a backend the demo does not have.
+      if (isDemo()) return deviceHealthService.history(routerId!, "");
       const organizationId = await resolveOrgId();
       return deviceHealthService.history(routerId!, organizationId);
     },

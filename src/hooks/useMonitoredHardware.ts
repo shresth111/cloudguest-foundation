@@ -13,11 +13,12 @@
  * `deviceHardware.service.ts`'s own `MonitoredDeviceRow`, so no reshaping
  * is needed between the two branches below.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { deviceHardwareService, type MonitoredDeviceRow } from "@/services/deviceHardware.service";
 import { isDemo } from "@/services/customer.service";
 import { useDeviceStore, type DeviceType } from "@/stores/deviceStore";
+import { withDemoHealth } from "@/components/customer/devices/demo-fixtures";
 
 /**
  * `locationId` has three meanings here, and they are not interchangeable:
@@ -78,11 +79,23 @@ export function useMonitoredHardware(locationId?: string) {
   // client-side the same way every demo call site already did before this
   // hook existed, so an omitted `locationId` still means "every location"
   // for both branches alike.
-  const devices: MonitoredDeviceRow[] = demo
-    ? locationId
-      ? demoStore.devices.filter((d) => d.locationId === locationId)
-      : demoStore.devices
-    : realDevices;
+  //
+  // Demo rows also get a fixture `health` (port, link, 24 h events) so the
+  // Devices drawer has something true-to-shape to show -- `withDemoHealth`
+  // is reached ONLY on this `demo` branch; a real row's health is the
+  // backend's or nothing.
+  const demoRows = useMemo(
+    () =>
+      demo
+        ? withDemoHealth(
+            locationId
+              ? demoStore.devices.filter((d) => d.locationId === locationId)
+              : demoStore.devices,
+          )
+        : [],
+    [demo, demoStore.devices, locationId],
+  );
+  const devices: MonitoredDeviceRow[] = demo ? demoRows : realDevices;
 
   const addDevice = useCallback(
     async (locId: string, name: string, mac: string, type: DeviceType, floor: string) => {

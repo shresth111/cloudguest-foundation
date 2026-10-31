@@ -46,6 +46,14 @@ const NetworkHardwareView = lazyView(
   () => import("@/components/customer/BasicFeatureViews"),
   "NetworkHardwareView",
 );
+const ConnectedDevicesPanel = lazyView(
+  () => import("@/components/customer/devices/ConnectedDevicesPanel"),
+  "ConnectedDevicesPanel",
+);
+import {
+  SectionBoundary,
+  SectionFailed,
+} from "@/components/customer/dashboard/overview/console-ui";
 import { DeviceHealthTrafficView } from "@/components/customer/DeviceHealthTrafficView";
 import { maskMac, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
@@ -282,12 +290,19 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   is true for them and the notice below renders instead. */}
               {feature === "whitelist" && !controllerGated && <WhiteList locationId={locationId} />}
               {feature === "devices" && (
-                <div className="space-y-4">
-                  <NetworkHardwareView locationId={locationId} />
-                  {/* The venue's own network hardware and how it has been
-                    performing, above the guest devices connected to it. */}
-                  <DeviceHealthTrafficView locationId={locationId} />
-                  <DevicesView locationId={locationId} masked={masked} />
+                // Fleet strip + inventory, then how the hardware has been
+                // performing, then the guest devices connected to it. Each
+                // section fails on its own (SectionBoundary), never the page.
+                <div className="space-y-6">
+                  <SectionBoundary name="devices-hardware" fallback={devicesSectionFailed}>
+                    <NetworkHardwareView locationId={locationId} />
+                  </SectionBoundary>
+                  <SectionBoundary name="devices-traffic" fallback={devicesSectionFailed}>
+                    <DeviceHealthTrafficView locationId={locationId} />
+                  </SectionBoundary>
+                  <SectionBoundary name="devices-connected" fallback={devicesSectionFailed}>
+                    <ConnectedDevicesPanel locationId={locationId} masked={masked} />
+                  </SectionBoundary>
                 </div>
               )}
               {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
@@ -550,140 +565,12 @@ function DashboardWatchIllustration() {
 }
 
 // ── Devices ───────────────────────────────────────────────
-const DEMO_DEVICES = [
-  { m: "00:1A:2B:3C:4D:5E", i: "10.0.1.42", d: "iPhone 15", fs: "Today", ls: "Just now" },
-  { m: "AA:BB:CC:DD:EE:FF", i: "10.0.1.87", d: "MacBook Pro", fs: "Yesterday", ls: "2 min ago" },
-  { m: "11:22:33:44:55:66", i: "10.0.2.15", d: "Galaxy S24", fs: "Today", ls: "5 min ago" },
-  { m: "AB:CD:EF:01:23:45", i: "10.0.2.34", d: "iPad Air", fs: "2 days ago", ls: "1 hour ago" },
-];
-
-function ConnectedDevicesIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  const nodes = [
-    { x: 12, y: 10, color: "#22d3ee" },
-    { x: 12, y: 34, color: "#f0abfc" },
-    { x: 68, y: 8, color: "#8B5CF6" },
-    { x: 70, y: 36, color: "#22d3ee" },
-  ];
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 46"
-      className="hidden h-11 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      {nodes.map((n, i) => (
-        <motion.line
-          key={i}
-          x1="42"
-          y1="23"
-          x2={n.x}
-          y2={n.y}
-          stroke={n.color}
-          strokeOpacity="0.5"
-          strokeWidth="1.4"
-          strokeDasharray="1 4"
-          strokeLinecap="round"
-          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 * i, ease: "easeOut" }}
-        />
-      ))}
-      {nodes.map((n, i) => (
-        <g key={i} transform={`translate(${n.x}, ${n.y})`}>
-          <rect
-            x="-6"
-            y="-5"
-            width="12"
-            height="10"
-            rx="2.5"
-            fill="#2e2a5c"
-            stroke={n.color}
-            strokeWidth="1.3"
-          />
-          <circle cx="0" cy="0" r="1.4" fill={n.color} />
-        </g>
-      ))}
-      <motion.circle
-        cx="42"
-        cy="23"
-        r="9"
-        fill="#1e1b4b"
-        stroke="#6C4EFF"
-        strokeWidth="2"
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.3, repeat: Infinity, ease: "easeInOut" }
-        }
-      />
-      <path d="M38 23h8M42 19v8" stroke="#8B5CF6" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DevicesView({ locationId, masked }: { locationId: string; masked: boolean }) {
-  const { data, isLoading } = useCustomerFeatureData("devices", locationId);
-  const demo = useIsDemo();
-  const devices = data?.devices?.length
-    ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen }))
-    : demo
-      ? DEMO_DEVICES
-      : [];
-  return (
-    <Card className="premium-card premium-card-hover">
-      <CardHeader className="flex flex-row items-center justify-between gap-2.5 space-y-0">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
-            <Wifi className="h-3.5 w-3.5 text-white" />
-          </div>
-          <CardTitle className="text-sm">Connected Devices</CardTitle>
-        </div>
-        <ConnectedDevicesIllustration />
-      </CardHeader>
-      <CardContent className="p-0">
-        {isLoading ? (
-          <div className="p-4">
-            <LoadingSkeleton rows={4} />
-          </div>
-        ) : devices.length === 0 ? (
-          <EmptyState
-            icon={Wifi}
-            title="No connected devices yet"
-            description="Devices that connect to this location's network will show up here."
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">MAC</TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">IP</TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  Device
-                </TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  First Seen
-                </TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  Last Seen
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {devices.map((d) => (
-                <TableRow key={d.m} className="border-b">
-                  <TableCell className="font-mono text-xs">{masked ? maskMac(d.m) : d.m}</TableCell>
-                  <TableCell className="font-mono text-xs">{d.i}</TableCell>
-                  <TableCell>{d.d}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+// The Devices page's sections live in `@/components/customer/devices/`
+// (and NetworkHardwareView / DeviceHealthTrafficView). This is only the
+// fallback a section shows if it fails to render.
+const devicesSectionFailed = (
+  <SectionFailed
+    title="This section couldn't be shown"
+    body="The rest of the page is unaffected. Reload to try again."
+  />
+);
