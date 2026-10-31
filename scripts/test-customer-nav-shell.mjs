@@ -1163,6 +1163,10 @@ console.log(
         "AdminLogsView",
       ],
       "mac-auth": ["MacAuthView", "src/components/features/OperationsFeatures.tsx", "MacAuthView"],
+      // batch 3c
+      tickets: ["TicketsPage", "src/components/features/TicketsPage.tsx"],
+      "how-it-works": ["HowItWorksView", "src/components/customer/HowItWorksPage.tsx"],
+      agents: ["AgentsPage", "src/components/features/AgentsPage.tsx"],
     };
     // One screen's source: the whole file, or just `export function <fn>`
     // up to the next top-level export.

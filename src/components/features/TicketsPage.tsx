@@ -1,23 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
-  LifeBuoy,
   Plus,
   MessageSquare,
   CheckCircle2,
-  X,
   Loader2,
   Send,
   ShieldCheck,
   User,
   ChevronDown,
   ChevronUp,
-  Quote,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/common/EmptyState";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
+import {
+  EmptyState,
+  FormField,
+  FormSection,
+  PageHeader,
+  Panel,
+  StatTile,
+  StatusBadge,
+  type ConsoleStatus,
+  type PageScope,
+} from "@/components/customer/console";
 import { cn } from "@/lib/utils";
 import { useIsDemo, useCustomerLocations } from "@/hooks/useCustomerDashboard";
 import { ticketService, resolveOrgId } from "@/services/ticket.service";
@@ -85,173 +100,45 @@ const SEED: DemoTicket[] = [
   },
 ];
 
-const inputCls =
-  "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
-const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
+/** A native <select> dressed as the console's Input (same height, border,
+ * focus ring), so the dialog's fields read as one form. */
+const SELECT_CLS =
+  "flex h-9 w-full rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-sm text-[var(--wy-text)] shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] max-sm:h-10";
 
-const STATUS_STYLE: Record<string, string> = {
-  open: "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
-  "in-progress": "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
-  in_progress: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
-  resolved: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
-  closed: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+/** Ticket state -> console status. Open is waiting on support (warn), in
+ * progress is being worked (info), resolved/closed are done (ok). Was
+ * rose / amber / emerald palette pills. */
+const STATUS_TONE: Record<string, ConsoleStatus> = {
+  open: "warn",
+  "in-progress": "info",
+  in_progress: "info",
+  resolved: "ok",
+  closed: "ok",
 };
 
-/** Operator-voice lines, not fabricated testimonials -- same rotating-quote
- * pattern as the Dashboard hero (DASHBOARD_QUOTES in
- * customer.$locationId.dashboard.tsx), written fresh for support/response
- * time instead of reusing the WiFi-uptime set verbatim. */
-const SUPPORT_QUOTES = [
-  "A fast reply is worth more than a perfect one.",
-  "Every ticket is a guest who almost had a bad day.",
-  "The fastest support ticket is the one you never had to raise.",
-  "Track it, don't just close it.",
-  "Small issues, answered quickly, build the most trust.",
-];
-
-/**
- * Small corner illustration for the intro band: a figure with a headset
- * beside a checklist/ticket card, same filled-flat-shape character language
- * as the other illustrations shipped this session (cream/violet figure,
- * cyan/fuchsia/violet accents). Kept compact -- this page's real content is
- * a per-location summary strip and a ticket list, so the illustration gets
- * a slim intro band rather than a full dark hero.
- *
- * Purely decorative -- aria-hidden. The headset "listening" pulse and the
- * checklist tick draw-on are the only animated pieces; both respect
- * useReducedMotion.
- */
-function SupportHeadsetIllustration() {
-  const shouldReduceMotion = useReducedMotion();
+/** A ticket's id, status and (when high/urgent) priority, on one line. */
+function TicketBadges({ id, status, priority }: { id: string; status: string; priority?: string }) {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 220 140"
-      className="h-auto w-full max-w-[190px]"
-      fill="none"
-    >
-      <defs>
-        <filter id="ticket-illo-glow" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="10" />
-        </filter>
-      </defs>
-      <circle
-        cx="70"
-        cy="76"
-        r="46"
-        fill="#7c3aed"
-        opacity="0.18"
-        filter="url(#ticket-illo-glow)"
-      />
-      <line
-        x1="12"
-        y1="128"
-        x2="208"
-        y2="128"
-        stroke="white"
-        strokeOpacity="0.12"
-        strokeWidth="1"
-      />
-
-      {/* seated support figure with a headset */}
-      <path d="M46 128c-3-26 4-42 18-42h4c14 0 21 16 18 42z" className="fill-muted" />
-      <path d="M52 92c0-11 7-19 16-19s16 8 16 19c-5-3-10-5-16-5s-11 2-16 5z" fill="#7c3aed" />
-      <circle cx="68" cy="72" r="15" className="fill-muted" />
-      <path
-        d="M53 70a15 15 0 0 1 30 0"
-        stroke="white"
-        strokeOpacity="0.85"
-        strokeWidth="2.5"
-        fill="none"
-      />
-      <circle cx="63" cy="73" r="1.5" fill="#1e1b4b" />
-      <circle cx="73" cy="73" r="1.5" fill="#1e1b4b" />
-      <path
-        d="M64 79c1.6 1.4 4.4 1.4 6 0"
-        stroke="#1e1b4b"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* headset band + earcup + mic */}
-      <path
-        d="M53 68a15 15 0 0 1 30 0"
-        stroke="#22d3ee"
-        strokeWidth="2.5"
-        fill="none"
-        strokeLinecap="round"
-      />
-      <motion.circle
-        cx="53"
-        cy="72"
-        r="4"
-        fill="#22d3ee"
-        animate={shouldReduceMotion ? { opacity: 0.7 } : { opacity: [0.5, 1, 0.5] }}
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2, repeat: Infinity, ease: "easeInOut" }
-        }
-      />
-      <circle cx="83" cy="72" r="4" fill="#22d3ee" />
-      <path
-        d="M53 76c-2 6-2 11 3 12"
-        stroke="#22d3ee"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-      />
-
-      {/* ticket/checklist card */}
-      <rect
-        x="128"
-        y="34"
-        width="72"
-        height="80"
-        rx="10"
-        fill="#241f4d"
-        stroke="white"
-        strokeOpacity="0.14"
-        strokeWidth="1.5"
-      />
-      <rect x="140" y="48" width="48" height="6" rx="3" fill="#a78bfa" fillOpacity="0.5" />
-      {[0, 1, 2].map((i) => (
-        <g key={i}>
-          <rect
-            x="140"
-            y={64 + i * 15}
-            width="12"
-            height="12"
-            rx="3"
-            stroke="#f0abfc"
-            strokeWidth="2"
-            fill="none"
-          />
-          <motion.path
-            d={`M142 ${70 + i * 15}l3 3 5-6`}
-            stroke="#22d3ee"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-            initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.4 + i * 0.15, ease: "easeOut" }}
-          />
-          <rect
-            x="158"
-            y={67 + i * 15}
-            width="30"
-            height="5"
-            rx="2.5"
-            fill="white"
-            fillOpacity="0.14"
-          />
-        </g>
-      ))}
-    </svg>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-mono text-xs text-[var(--wy-text-faint)]">{id}</span>
+      <StatusBadge status={STATUS_TONE[status] ?? "offline"} className="capitalize">
+        {status.replace(/[-_]/, " ")}
+      </StatusBadge>
+      {priority && (
+        <StatusBadge status="crit" dot={false}>
+          {priority}
+        </StatusBadge>
+      )}
+    </div>
   );
 }
 
-export default function TicketsPage({ locationId }: { locationId?: string } = {}) {
+const ROW_BUTTON = "h-8 gap-1.5 text-xs max-sm:h-10";
+
+export default function TicketsPage({
+  locationId,
+  scope,
+}: { locationId?: string; scope?: PageScope } = {}) {
   const demo = useIsDemo();
   const { data: locations } = useCustomerLocations();
 
@@ -276,7 +163,6 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
 
   // Reply thread (real mode only) -- keyed by ticket id.
   const [orgId, setOrgId] = useState<string | null>(null);
-  const [quoteIndex, setQuoteIndex] = useState(0);
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
   const [repliesByTicket, setRepliesByTicket] = useState<Record<string, TicketReply[]>>({});
   const [repliesLoading, setRepliesLoading] = useState<Record<string, boolean>>({});
@@ -303,11 +189,6 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
     refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demo]);
-
-  useEffect(() => {
-    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % SUPPORT_QUOTES.length), 5000);
-    return () => clearInterval(t);
-  }, []);
 
   useEffect(() => {
     if (demo) {
@@ -511,433 +392,395 @@ export default function TicketsPage({ locationId }: { locationId?: string } = {}
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <LifeBuoy className="h-3.5 w-3.5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">Support Tickets</h1>
-            <p className="text-sm text-muted-foreground">
-              Raise an issue for any of your locations and track its progress.
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" />
-          Raise Ticket
-        </button>
-      </div>
+    <div className="wy-console space-y-5">
+      {/* The page's only header: the shell hands over the tab name + venue
+          (the agent view mounts it bare). The gradient intro band, its
+          illustration and the rotating quote are gone (design review §1). */}
+      <PageHeader
+        title={scope?.title ?? "Support Tickets"}
+        venue={scope?.venue}
+        description="Raise an issue for any of your locations and track its progress."
+        actions={
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            Raise Ticket
+          </Button>
+        }
+      />
 
-      {/* Compact intro band -- illustration + rotating quote. Kept slim
-       * (not a full dark hero) since this page's real content is a
-       * per-location summary strip and a ticket list, not a handful of
-       * glance-numbers. */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] px-5 py-4 text-white shadow-lg shadow-indigo-950/20 sm:px-6">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-fuchsia-500/20 blur-3xl"
-        />
-        <div className="relative flex flex-wrap items-center gap-4 sm:flex-nowrap">
-          <div className="shrink-0">
-            <SupportHeadsetIllustration />
-          </div>
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-white/70">
-            <Quote className="h-3.5 w-3.5 shrink-0 text-white/30" />
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={quoteIndex}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.4 }}
-              >
-                {SUPPORT_QUOTES[quoteIndex]}
-              </motion.span>
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-
-      {/* Per-location summary */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {units.map((u) => (
-          <button
-            key={u}
-            onClick={() => setFilterUnit(filterUnit === u ? "" : u)}
-            className={cn(
-              "rounded-2xl border p-4 text-left shadow-sm transition-colors",
-              filterUnit === u ? "border-primary bg-primary/5" : "bg-card hover:bg-accent/50",
-            )}
-          >
-            <p className="truncate text-sm font-medium text-foreground">{u}</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-              {demo ? countForUnitDemo(u) : countForUnitReal(u)}
-            </p>
-            <p className="text-xs text-muted-foreground">tickets raised</p>
-          </button>
-        ))}
-      </div>
-
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-sm">
-            {filterUnit ? `Tickets · ${filterUnit}` : "All Tickets"}
-          </CardTitle>
-          {filterUnit && (
+      {/* Per-location summary: a StatTile per venue, each a toggle filter
+          for the list below (aria-pressed, visible focus). */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {units.map((u) => {
+          const pressed = filterUnit === u;
+          return (
             <button
+              key={u}
+              type="button"
+              aria-pressed={pressed}
+              onClick={() => setFilterUnit(pressed ? "" : u)}
+              className="min-w-0 rounded-[var(--wy-radius)] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wy-bg)]"
+            >
+              <StatTile
+                label={u}
+                value={demo ? countForUnitDemo(u) : countForUnitReal(u)}
+                hint="tickets raised"
+                className={cn(
+                  "h-full transition-colors hover:bg-[var(--wy-surface-2)]",
+                  pressed &&
+                    "border-[var(--wy-accent)] bg-[var(--wy-accent-soft)] hover:bg-[var(--wy-accent-soft)]",
+                )}
+              />
+            </button>
+          );
+        })}
+      </div>
+
+      <Panel
+        flush
+        title={filterUnit ? `Tickets · ${filterUnit}` : "All Tickets"}
+        actions={
+          filterUnit ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-[var(--wy-accent)] max-sm:h-10"
               onClick={() => setFilterUnit("")}
-              className="text-xs font-medium text-primary hover:underline"
             >
               Clear filter
-            </button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {!demo && loading ? (
+            </Button>
+          ) : undefined
+        }
+      >
+        {!demo && loading ? (
+          <div className="p-4">
             <LoadingSkeleton rows={4} />
-          ) : demo ? (
-            filteredDemo.length === 0 ? (
-              <EmptyState
-                icon={MessageSquare}
-                title="No tickets"
-                description="No tickets for this location yet."
-              />
-            ) : (
-              <div className="space-y-3">
-                {filteredDemo.map((t) => (
-                  <div key={t.id} className="rounded-xl border p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-muted-foreground">{t.id}</span>
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
-                              STATUS_STYLE[t.status],
-                            )}
-                          >
-                            {t.status.replace("-", " ")}
-                          </span>
-                          {t.priority === "Urgent" || t.priority === "High" ? (
-                            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
-                              {t.priority}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 truncate text-sm font-medium text-foreground">
-                          {t.subject}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {t.businessUnit} · {t.category} · {t.createdAt}
-                        </p>
-                        {t.description && (
-                          <p className="mt-1.5 text-xs text-muted-foreground">{t.description}</p>
-                        )}
-                      </div>
-                      {t.status !== "resolved" && (
-                        <button
-                          onClick={() => markResolved(t.id)}
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Mark resolved
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : filteredReal.length === 0 ? (
+          </div>
+        ) : demo ? (
+          filteredDemo.length === 0 ? (
             <EmptyState
               icon={MessageSquare}
               title="No tickets"
               description="No tickets for this location yet."
             />
           ) : (
-            <div className="space-y-3">
-              {filteredReal.map((t) => {
-                const locName =
-                  locations?.find((l) => l.id === t.locationId)?.name ?? "All locations";
-                return (
-                  <div key={t.id} className="rounded-xl border p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {t.id.slice(0, 8)}
-                          </span>
-                          <span
-                            className={cn(
-                              "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
-                              STATUS_STYLE[t.status],
-                            )}
-                          >
-                            {t.status.replace("_", " ")}
-                          </span>
-                          {(t.priority === "urgent" || t.priority === "high") && (
-                            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 dark:bg-rose-500/10 dark:text-rose-400">
-                              {PRIORITY_LABEL[t.priority]}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 truncate text-sm font-medium text-foreground">
-                          {t.subject}
+            <ul className="divide-y divide-[var(--wy-border)]">
+              {filteredDemo.map((t) => (
+                <li key={t.id} className="px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <TicketBadges
+                        id={t.id}
+                        status={t.status}
+                        priority={
+                          t.priority === "Urgent" || t.priority === "High" ? t.priority : undefined
+                        }
+                      />
+                      <p className="mt-1 truncate text-[13px] font-semibold text-[var(--wy-text)]">
+                        {t.subject}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[var(--wy-text-muted)]">
+                        {t.businessUnit} · {t.category} · {t.createdAt}
+                      </p>
+                      {t.description && (
+                        <p className="mt-1.5 text-xs text-[var(--wy-text-muted)]">
+                          {t.description}
                         </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {locName} ·{" "}
-                          {t.category ? (CATEGORY_LABEL[t.category] ?? t.category) : "—"} ·{" "}
-                          {new Date(t.createdAt).toLocaleDateString()}
-                        </p>
-                        {t.description && (
-                          <p className="mt-1.5 text-xs text-muted-foreground">{t.description}</p>
-                        )}
-                        {t.resolutionNotes && (
-                          <p className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-                            Resolution: {t.resolutionNotes}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        {t.status !== "resolved" && t.status !== "closed" && (
-                          <button
-                            onClick={() => markResolved(t.id)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Mark resolved
-                          </button>
-                        )}
-                        <button
-                          onClick={() => toggleThread(t.id)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          {(repliesByTicket[t.id]?.length ?? 0) > 0
-                            ? `Replies (${repliesByTicket[t.id]!.length})`
-                            : "Replies"}
-                          {expandedTicketId === t.id ? (
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          ) : (
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </div>
+                      )}
                     </div>
-
-                    {expandedTicketId === t.id && (
-                      <div className="mt-3 border-t pt-3">
-                        <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border bg-muted/30 p-3">
-                          {repliesLoading[t.id] ? (
-                            <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading replies…
-                            </div>
-                          ) : (repliesByTicket[t.id]?.length ?? 0) === 0 ? (
-                            <p className="py-4 text-center text-xs text-muted-foreground">
-                              No replies yet.
-                            </p>
-                          ) : (
-                            repliesByTicket[t.id]!.map((r) => (
-                              <div
-                                key={r.id}
-                                className={cn(
-                                  "rounded-lg border p-2.5 text-sm",
-                                  r.isStaffReply
-                                    ? "border-primary/30 bg-primary/5"
-                                    : "border-border bg-card",
-                                )}
-                              >
-                                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                                  {r.isStaffReply ? (
-                                    <ShieldCheck className="h-3 w-3 text-primary" />
-                                  ) : (
-                                    <User className="h-3 w-3" />
-                                  )}
-                                  <span>
-                                    {r.isStaffReply
-                                      ? `${r.authorName} · CloudGuest Support`
-                                      : r.authorName}
-                                  </span>
-                                  <span className="opacity-60">
-                                    · {new Date(r.createdAt).toLocaleString()}
-                                  </span>
-                                </div>
-                                <p className="whitespace-pre-wrap text-foreground">{r.message}</p>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                        <div className="mt-2 flex gap-2">
-                          <textarea
-                            className={cn(inputCls, "min-h-14 flex-1")}
-                            value={replyDrafts[t.id] ?? ""}
-                            onChange={(e) =>
-                              setReplyDrafts((prev) => ({ ...prev, [t.id]: e.target.value }))
-                            }
-                            placeholder="Write a reply…"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                                e.preventDefault();
-                                sendReply(t.id);
-                              }
-                            }}
-                          />
-                          <button
-                            onClick={() => sendReply(t.id)}
-                            disabled={sendingReply[t.id] || !(replyDrafts[t.id] ?? "").trim()}
-                            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-                          >
-                            {sendingReply[t.id] ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Send className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
+                    {t.status !== "resolved" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={ROW_BUTTON}
+                        onClick={() => markResolved(t.id)}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Mark resolved
+                      </Button>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : filteredReal.length === 0 ? (
+          <EmptyState
+            icon={MessageSquare}
+            title="No tickets"
+            description="No tickets for this location yet."
+          />
+        ) : (
+          <ul className="divide-y divide-[var(--wy-border)]">
+            {filteredReal.map((t) => {
+              const locName =
+                locations?.find((l) => l.id === t.locationId)?.name ?? "All locations";
+              const threadId = `ticket-thread-${t.id}`;
+              return (
+                <li key={t.id} className="px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <TicketBadges
+                        id={t.id.slice(0, 8)}
+                        status={t.status}
+                        priority={
+                          t.priority === "urgent" || t.priority === "high"
+                            ? PRIORITY_LABEL[t.priority]
+                            : undefined
+                        }
+                      />
+                      <p className="mt-1 truncate text-[13px] font-semibold text-[var(--wy-text)]">
+                        {t.subject}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[var(--wy-text-muted)]">
+                        {locName} · {t.category ? (CATEGORY_LABEL[t.category] ?? t.category) : "—"}{" "}
+                        · {new Date(t.createdAt).toLocaleDateString()}
+                      </p>
+                      {t.description && (
+                        <p className="mt-1.5 text-xs text-[var(--wy-text-muted)]">
+                          {t.description}
+                        </p>
+                      )}
+                      {t.resolutionNotes && (
+                        <p className="mt-1.5 text-xs text-[var(--wy-ok)]">
+                          Resolution: {t.resolutionNotes}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                      {t.status !== "resolved" && t.status !== "closed" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={ROW_BUTTON}
+                          onClick={() => markResolved(t.id)}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Mark resolved
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={ROW_BUTTON}
+                        aria-expanded={expandedTicketId === t.id}
+                        aria-controls={threadId}
+                        onClick={() => toggleThread(t.id)}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {(repliesByTicket[t.id]?.length ?? 0) > 0
+                          ? `Replies (${repliesByTicket[t.id]!.length})`
+                          : "Replies"}
+                        {expandedTicketId === t.id ? (
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl border bg-card p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold">Raise a ticket</h3>
-              <button
-                onClick={() => setOpen(false)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className={labelCls}>
-                  Location <span className="text-destructive">*</span>
-                </label>
-                <select
-                  value={form.businessUnit}
-                  onChange={(e) => setForm({ ...form, businessUnit: e.target.value })}
-                  className={inputCls}
-                >
-                  <option value="">Choose location</option>
-                  {units.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-                {errs.businessUnit && (
-                  <p className="mt-1 text-xs text-destructive">{errs.businessUnit}</p>
-                )}
-              </div>
-              <div>
-                <label className={labelCls}>
-                  Subject <span className="text-destructive">*</span>
-                </label>
-                <input
-                  value={form.subject}
-                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                  placeholder="Brief summary of the issue"
-                  className={inputCls}
-                />
-                {errs.subject && <p className="mt-1 text-xs text-destructive">{errs.subject}</p>}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>
-                    Category <span className="text-destructive">*</span>
-                  </label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className={inputCls}
-                  >
-                    <option value="">Choose category</option>
-                    {demo
-                      ? Object.values(CATEGORY_LABEL).map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))
-                      : CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {CATEGORY_LABEL[c]}
-                          </option>
-                        ))}
-                  </select>
-                  {errs.category && (
-                    <p className="mt-1 text-xs text-destructive">{errs.category}</p>
+                  {expandedTicketId === t.id && (
+                    <div id={threadId} className="mt-3 border-t border-[var(--wy-border)] pt-3">
+                      <div className="max-h-64 space-y-2 overflow-y-auto rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-3">
+                        {repliesLoading[t.id] ? (
+                          <div className="flex items-center justify-center gap-2 py-6 text-xs text-[var(--wy-text-muted)]">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading replies…
+                          </div>
+                        ) : (repliesByTicket[t.id]?.length ?? 0) === 0 ? (
+                          <p className="py-4 text-center text-xs text-[var(--wy-text-muted)]">
+                            No replies yet.
+                          </p>
+                        ) : (
+                          repliesByTicket[t.id]!.map((r) => (
+                            <div
+                              key={r.id}
+                              className={cn(
+                                "rounded-[var(--wy-radius)] border p-2.5 text-[13px]",
+                                r.isStaffReply
+                                  ? "border-[color-mix(in_srgb,var(--wy-accent)_30%,transparent)] bg-[var(--wy-accent-soft)]"
+                                  : "border-[var(--wy-border)] bg-[var(--wy-surface)]",
+                              )}
+                            >
+                              <div className="mb-1 flex flex-wrap items-center gap-1.5 text-xs font-medium text-[var(--wy-text-muted)]">
+                                {r.isStaffReply ? (
+                                  <ShieldCheck
+                                    aria-hidden
+                                    className="h-3 w-3 text-[var(--wy-accent)]"
+                                  />
+                                ) : (
+                                  <User aria-hidden className="h-3 w-3" />
+                                )}
+                                <span>
+                                  {r.isStaffReply
+                                    ? `${r.authorName} · CloudGuest Support`
+                                    : r.authorName}
+                                </span>
+                                <span className="text-[var(--wy-text-faint)]">
+                                  · {new Date(r.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="whitespace-pre-wrap text-[var(--wy-text)]">
+                                {r.message}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <Textarea
+                          aria-label="Reply"
+                          className="min-h-14 flex-1"
+                          value={replyDrafts[t.id] ?? ""}
+                          onChange={(e) =>
+                            setReplyDrafts((prev) => ({ ...prev, [t.id]: e.target.value }))
+                          }
+                          placeholder="Write a reply…"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                              e.preventDefault();
+                              sendReply(t.id);
+                            }
+                          }}
+                        />
+                        <Button
+                          size="icon"
+                          aria-label="Send reply"
+                          className="h-10 w-10 shrink-0"
+                          onClick={() => sendReply(t.id)}
+                          disabled={sendingReply[t.id] || !(replyDrafts[t.id] ?? "").trim()}
+                        >
+                          {sendingReply[t.id] ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   )}
-                </div>
-                <div>
-                  <label className={labelCls}>Priority</label>
-                  <select
-                    value={form.priority}
-                    onChange={(e) =>
-                      setForm({ ...form, priority: e.target.value as TicketPriority })
-                    }
-                    className={inputCls}
-                  >
-                    {PRIORITIES.map((p) => (
-                      <option key={p} value={p}>
-                        {PRIORITY_LABEL[p]}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Panel>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="wy-console sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Raise a ticket</DialogTitle>
+          </DialogHeader>
+          <FormSection variant="plain" className="py-1">
+            <FormField
+              label={
+                <>
+                  Location <span className="text-[var(--wy-crit)]">*</span>
+                </>
+              }
+              htmlFor="ticket-location"
+              error={errs.businessUnit}
+              wide
+            >
+              <select
+                id="ticket-location"
+                value={form.businessUnit}
+                onChange={(e) => setForm({ ...form, businessUnit: e.target.value })}
+                className={SELECT_CLS}
+              >
+                <option value="">Choose location</option>
+                {units.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              label={
+                <>
+                  Subject <span className="text-[var(--wy-crit)]">*</span>
+                </>
+              }
+              htmlFor="ticket-subject"
+              error={errs.subject}
+              wide
+            >
+              <Input
+                id="ticket-subject"
+                value={form.subject}
+                onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                placeholder="Brief summary of the issue"
+              />
+            </FormField>
+            <FormField
+              label={
+                <>
+                  Category <span className="text-[var(--wy-crit)]">*</span>
+                </>
+              }
+              htmlFor="ticket-category"
+              error={errs.category}
+            >
+              <select
+                id="ticket-category"
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className={SELECT_CLS}
+              >
+                <option value="">Choose category</option>
+                {demo
+                  ? Object.values(CATEGORY_LABEL).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))
+                  : CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {CATEGORY_LABEL[c]}
                       </option>
                     ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>
-                  Description {!demo && <span className="text-destructive">*</span>}
-                </label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={3}
-                  placeholder="Add any extra detail that will help support triage this."
-                  className={inputCls}
-                />
-                {errs.description && (
-                  <p className="mt-1 text-xs text-destructive">{errs.description}</p>
-                )}
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => setOpen(false)}
-                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-accent"
+              </select>
+            </FormField>
+            <FormField label="Priority" htmlFor="ticket-priority">
+              <select
+                id="ticket-priority"
+                value={form.priority}
+                onChange={(e) => setForm({ ...form, priority: e.target.value as TicketPriority })}
+                className={SELECT_CLS}
               >
-                Cancel
-              </button>
-              <button
-                onClick={submit}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-              >
-                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}Raise Ticket
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                {PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {PRIORITY_LABEL[p]}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              label={<>Description {!demo && <span className="text-[var(--wy-crit)]">*</span>}</>}
+              htmlFor="ticket-description"
+              error={errs.description}
+              wide
+            >
+              <Textarea
+                id="ticket-description"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                rows={3}
+                placeholder="Add any extra detail that will help support triage this."
+              />
+            </FormField>
+          </FormSection>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={saving}>
+              {saving && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Raise Ticket
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

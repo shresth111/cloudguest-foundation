@@ -75,6 +75,11 @@ const MIGRATED = [
   "src/components/features/UserReports.tsx",
   "src/components/customer/FixAProblem.tsx",
   "src/components/features/OperationsFeatures.tsx",
+  // batch 3c (2026-10-31): Help (Support Tickets, How It Works), Staff Access,
+  // Login Page › Portal
+  "src/components/features/TicketsPage.tsx",
+  "src/components/customer/HowItWorksPage.tsx",
+  "src/components/features/AgentsPage.tsx",
 ];
 
 const PALETTE =

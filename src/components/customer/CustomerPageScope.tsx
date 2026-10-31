@@ -27,6 +27,10 @@ export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
   "business-hours",
   "admin-logs",
   "mac-auth",
+  // batch 3c: Help, Staff Access, Login Page › Portal
+  "tickets",
+  "how-it-works",
+  "agents",
 ]);
 
 /** The title + venue a screen's own PageHeader shows: the same nav label
