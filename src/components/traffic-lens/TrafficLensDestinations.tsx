@@ -226,14 +226,17 @@ export function TrafficLensDestinations({
   const rows = loaded.filter((x) => kept.has(x.cells.key));
 
   return (
-    <section aria-label="Records" className="premium-card overflow-hidden rounded-2xl">
+    <section
+      aria-label="Records"
+      className="overflow-hidden rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] shadow-[var(--wy-shadow)]"
+    >
       <form
         onSubmit={submit}
         aria-label="Destination records"
-        className="space-y-4 border-b border-border p-5 sm:p-6"
+        className="space-y-4 border-b border-[var(--wy-border)] p-4 sm:p-5"
       >
         <div className="space-y-1.5">
-          <h3 className="font-display text-xl font-semibold tracking-tight">Records</h3>
+          <h2 className="text-sm font-semibold text-[var(--wy-text)]">Records</h2>
           <p className="max-w-3xl text-sm text-muted-foreground">{LENS_VENUE_RECORDS_INTRO}</p>
           <AboutRecords>
             {LENS_VENUE_RECORDS_ABOUT.map((line) => (
@@ -249,8 +252,11 @@ export function TrafficLensDestinations({
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-3">
-          <p className="font-display text-lg font-semibold tabular-nums" aria-live="polite">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] px-4 py-3">
+          <p
+            className="text-base font-semibold tabular-nums text-[var(--wy-text)]"
+            aria-live="polite"
+          >
             {q.isLoading ? "Loading records…" : r && !stateMessage ? retrievedLine(r) : "Records"}
             {searched && (
               <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">
@@ -333,7 +339,7 @@ export function TrafficLensDestinations({
         {filtersOpen && (
           <div
             id="lens-records-filters"
-            className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-4"
+            className="flex flex-wrap items-end gap-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-4"
           >
             <Labelled label="Dst addr or prefix" className="w-full sm:w-64">
               <Input
@@ -407,7 +413,7 @@ export function TrafficLensDestinations({
           <div
             role="status"
             aria-label="Loading records"
-            className="h-40 animate-pulse rounded-xl bg-muted"
+            className="h-40 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]"
           />
         ) : q.isError || !r ? (
           <Plain title="The search did not complete." tone="error">

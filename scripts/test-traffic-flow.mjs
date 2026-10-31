@@ -1043,7 +1043,7 @@ check(
 eq(
   "customer band colour by series position",
   m.seriesColor(summary(), "17/443", c.LENS_SERIES_COLORS),
-  "var(--chart-5)",
+  "var(--wy-series-2)",
 );
 eq("overview is the first view", c.LENS_VIEWS[0].id, "overview");
 // The customer summary is the Master one minus feature_enabled, plus three
@@ -1208,7 +1208,9 @@ check(
 );
 check(
   "the shell renders the view for the selected venue",
-  /feature === "traffic-lens" && <TrafficLensView locationId=\{locationId\} \/>/.test(featurePage),
+  /feature === "traffic-lens" && \(\s*<TrafficLensView locationId=\{locationId\} scope=\{pageScope\} \/>\s*\)/.test(
+    featurePage,
+  ),
 );
 check(
   "the route requires a customer session and a venue",

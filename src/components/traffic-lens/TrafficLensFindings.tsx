@@ -8,6 +8,7 @@ import {
 } from "@/lib/traffic-lens-findings";
 import type { LensCheck } from "@/lib/traffic-lens-insights";
 import type { FindingsResponse } from "@/types/traffic-lens-findings";
+import { PANEL_SURFACE } from "@/components/customer/console";
 
 /**
  * "Worth a look", from the server's findings. One block for the customer
@@ -21,7 +22,7 @@ import type { FindingsResponse } from "@/types/traffic-lens-findings";
  */
 
 const SURFACE = {
-  customer: "premium-card rounded-2xl p-5 sm:p-6",
+  customer: `${PANEL_SURFACE} p-4 sm:p-5`,
   master: "rounded-xl border border-border bg-card p-4",
 } as const;
 
@@ -31,9 +32,12 @@ const TONE = {
     icon: <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />,
     label: "Needs action",
   },
+  // The console's warn token. The Master console has no `--wy-*` tokens
+  // (they are scoped to `.wy-console`), so each use carries its own
+  // fallback: the same amber the block always had there.
   look: {
-    box: "border-amber-500/60 bg-amber-500/10",
-    icon: <Flag className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />,
+    box: "border-[color-mix(in_srgb,var(--wy-warn,#d97706)_45%,transparent)] bg-[color-mix(in_srgb,var(--wy-warn,#d97706)_10%,transparent)]",
+    icon: <Flag className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-warn,#d97706)]" aria-hidden />,
     label: "Worth a look",
   },
   info: {
@@ -62,7 +66,12 @@ export function TrafficLensFindings({
   fallbackChecks?: LensCheck[];
 }) {
   if (isLoading)
-    return <div className="h-40 animate-pulse rounded-2xl bg-muted" aria-label="Loading checks" />;
+    return (
+      <div
+        className={`h-40 animate-pulse bg-muted ${surface === "customer" ? "rounded-[var(--wy-radius)]" : "rounded-xl"}`}
+        aria-label="Loading checks"
+      />
+    );
   if (isError || !data) {
     if (fallbackChecks)
       return <FindingsBody view={browserChecksView(fallbackChecks)} surface={surface} />;
@@ -93,7 +102,7 @@ function Shell({
         <h3
           className={
             surface === "customer"
-              ? "font-display text-xl font-semibold tracking-tight"
+              ? "text-sm font-semibold text-[var(--wy-text)]"
               : "text-sm font-semibold"
           }
         >

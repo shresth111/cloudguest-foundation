@@ -532,7 +532,12 @@ console.log("\n4. Only act is alarming");
   check("act uses the destructive colour", block("act").includes("destructive"));
   check("look does not", !block("look").includes("destructive") && !/red-\d/.test(block("look")));
   check("info does not", !block("info").includes("destructive") && !/red-\d/.test(block("info")));
-  check("look is amber", block("look").includes("amber"));
+  // The console warn token, with the amber it falls back to on the Master
+  // console (no `--wy-*` tokens there). Was a Tailwind `amber-*` class.
+  check(
+    "look is the warn tone (amber off the console)",
+    block("look").includes("var(--wy-warn,#d97706)") && !/amber-\d/.test(block("look")),
+  );
   eq(
     "the destructive colour appears in the act tone only",
     component.split("destructive").length - 1,

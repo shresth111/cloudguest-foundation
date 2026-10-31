@@ -1226,7 +1226,7 @@ check(
 );
 check(
   "the range control offers Custom and refuses through customRangeFromInputs",
-  /<TabsTrigger value="custom">Custom<\/TabsTrigger>/.test(lensPage) &&
+  /\{ value: "custom", label: "Custom" \}/.test(lensPage) &&
     /customRangeFromInputs\(since, until, Date\.now\(\)\)/.test(lensPage) &&
     /type="datetime-local"/.test(lensPage),
 );

@@ -75,6 +75,15 @@ const MIGRATED = [
   "src/components/features/UserReports.tsx",
   "src/components/customer/FixAProblem.tsx",
   "src/components/features/OperationsFeatures.tsx",
+  // batch 3b (2026-10-31): Traffic Lens
+  "src/components/traffic-lens/TrafficLensDestinations.tsx",
+  "src/components/traffic-lens/TrafficLensFindings.tsx",
+  "src/components/traffic-lens/TrafficLensFlowRecords.tsx",
+  "src/components/traffic-lens/TrafficLensGeo.tsx",
+  "src/components/traffic-lens/TrafficLensLayout.tsx",
+  "src/components/traffic-lens/TrafficLensOverview.tsx",
+  "src/components/traffic-lens/TrafficLensParts.tsx",
+  "src/components/traffic-lens/TrafficLensView.tsx",
 ];
 
 const PALETTE =

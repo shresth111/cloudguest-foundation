@@ -1163,6 +1163,8 @@ console.log(
         "AdminLogsView",
       ],
       "mac-auth": ["MacAuthView", "src/components/features/OperationsFeatures.tsx", "MacAuthView"],
+      // batch 3b
+      "traffic-lens": ["TrafficLensView", "src/components/traffic-lens/TrafficLensView.tsx"],
     };
     // One screen's source: the whole file, or just `export function <fn>`
     // up to the next top-level export.

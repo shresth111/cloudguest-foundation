@@ -62,14 +62,6 @@
     "src/components/security/FirewallView.tsx",
     "src/components/security/SecurityOverviewView.tsx",
     "src/components/security/WebFilteringView.tsx",
-    "src/components/security/WebsiteBlockBox.tsx",
-    "src/components/traffic-lens/TrafficLensDestinations.tsx",
-    "src/components/traffic-lens/TrafficLensFindings.tsx",
-    "src/components/traffic-lens/TrafficLensFlowRecords.tsx",
-    "src/components/traffic-lens/TrafficLensGeo.tsx",
-    "src/components/traffic-lens/TrafficLensLayout.tsx",
-    "src/components/traffic-lens/TrafficLensOverview.tsx",
-    "src/components/traffic-lens/TrafficLensParts.tsx",
-    "src/components/traffic-lens/TrafficLensView.tsx"
+    "src/components/security/WebsiteBlockBox.tsx"
   ]
 }

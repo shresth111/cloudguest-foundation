@@ -437,7 +437,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {/* Not behind the controller gate above: the view shows its own
                   "not available at this venue" from the backend's answer, and
                   the lock screen has to show at any venue. */}
-              {feature === "traffic-lens" && <TrafficLensView locationId={locationId} />}
+              {feature === "traffic-lens" && (
+                <TrafficLensView locationId={locationId} scope={pageScope} />
+              )}
               {feature === "debugging" && (
                 <DebuggingView locationId={locationId} masked={masked} scope={pageScope} />
               )}
