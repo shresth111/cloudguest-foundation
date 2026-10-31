@@ -14,9 +14,7 @@ import {
   Printer,
   FileDown,
   Info,
-  Quote,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -26,6 +24,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/common/EmptyState";
+import {
+  Callout,
+  PageHeader,
+  PANEL_SURFACE,
+  SubTabs,
+  type PageScope,
+} from "@/components/customer/console";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
@@ -60,6 +65,8 @@ const CATEGORIES = [
   "OTP & SMS Delivery Report",
 ] as const;
 type Category = (typeof CATEGORIES)[number];
+/** A DOM-safe id per category, for the SubTabs' tab/panel ids. */
+const categorySlug = (c: Category) => c.toLowerCase().replace(/[^a-z]+/g, "-");
 
 // Demo-only: the demo world's venues (`@/lib/demo-world`) -- the report
 // venue picker used to offer hotel names this demo does not have.
@@ -102,8 +109,11 @@ function fmtDT(iso: string): string {
 const today = () => new Date().toISOString().slice(0, 10);
 const PAGE_SIZE = 15;
 const inputCls =
-  "block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
-const labelCls = "mb-1.5 block text-sm font-medium text-foreground";
+  "block h-10 w-full rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-[13px] text-[var(--wy-text)] placeholder:text-[var(--wy-text-faint)] outline-none transition-colors focus-visible:border-[var(--wy-accent)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--wy-accent)_35%,transparent)] sm:h-9";
+const labelCls = "mb-1 block text-xs font-medium text-[var(--wy-text)]";
+/** Quiet text buttons in the results header (CSV / Print / PDF). */
+const TOOL_BTN =
+  "inline-flex h-9 items-center gap-1.5 rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-xs font-medium text-[var(--wy-text)] transition-colors hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] sm:h-8";
 const NAMES = [
   "Ravi Sharma",
   "Priya Kapoor",
@@ -2257,7 +2267,7 @@ export function ReportPanel({
 
   return (
     <>
-      <div className="print:hidden rounded-2xl border bg-card p-6 shadow-sm md:p-8">
+      <div className={cn("print:hidden p-4 sm:p-5", PANEL_SURFACE)}>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label htmlFor="ur-bu" className={labelCls}>
@@ -2318,7 +2328,7 @@ export function ReportPanel({
             </button>
             <Err k="reportType" />
             {comboboxOpen && (
-              <div className="absolute left-0 right-0 top-full z-30 mt-1 rounded-xl border bg-popover shadow-lg">
+              <div className="absolute left-0 right-0 top-full z-30 mt-1 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] shadow-lg">
                 <div className="p-2">
                   <input
                     type="text"
@@ -2414,7 +2424,7 @@ export function ReportPanel({
                   <>
                     <p className={labelCls}>Team</p>
                     <p
-                      className="rounded-lg border border-dashed border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
+                      className="rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] bg-[var(--wy-surface-2)] px-3 py-2 text-[13px] text-[var(--wy-text-muted)]"
                       aria-live={teamOptions.kind === "loading" ? "polite" : undefined}
                     >
                       {teamOptions.kind === "loading"
@@ -2606,12 +2616,12 @@ export function ReportPanel({
           </div>
         )}
 
-        <hr className="my-6 border-border" />
-        <div className="flex justify-center">
+        <div className="mt-5 flex justify-end border-t border-[var(--wy-border)] pt-4">
           <button
+            type="button"
             onClick={handleRun}
             disabled={running}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="inline-flex h-10 items-center gap-2 rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-5 text-[13px] font-semibold text-[var(--wy-accent-fg)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2 disabled:opacity-60 sm:h-9"
           >
             {running ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -2623,7 +2633,7 @@ export function ReportPanel({
         </div>
       </div>
 
-      <div aria-live="polite" className="mt-6">
+      <div aria-live="polite" className="mt-5">
         {rows === null && !running && (
           <EmptyState
             icon={FileBarChart}
@@ -2643,11 +2653,11 @@ export function ReportPanel({
           />
         )}
         {!running && rows && rows.length > 0 && (
-          <Card className="border-0 shadow-sm">
-            <CardHeader className="print:hidden flex-row flex-wrap items-start justify-between gap-3 space-y-0">
-              <div>
-                <CardTitle className="text-sm">{rt?.label}</CardTitle>
-                <p className="text-xs text-muted-foreground">
+          <section className={PANEL_SURFACE}>
+            <header className="print:hidden flex flex-wrap items-start justify-between gap-3 border-b border-[var(--wy-border)] px-4 py-3">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold">{rt?.label}</h3>
+                <p className="text-xs text-[var(--wy-text-muted)]">
                   {bu} ·{" "}
                   {needsRange ? `${from} to ${to}` : needsSingle ? singleDate : "Current month"} ·{" "}
                   {sortedRows.length} rows
@@ -2670,38 +2680,29 @@ export function ReportPanel({
                       setSearchTxt(e.target.value);
                       setPage(0);
                     }}
-                    className={cn(inputCls, "w-40 py-1.5 pl-8")}
+                    aria-label="Filter rows"
+                    className={cn(inputCls, "w-44 pl-8")}
                   />
                 </div>
-                <button
-                  onClick={exportCsv}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <Download className="h-4 w-4" />
+                <button onClick={exportCsv} type="button" className={TOOL_BTN}>
+                  <Download className="h-3.5 w-3.5" aria-hidden />
                   CSV
                 </button>
-                <button
-                  onClick={handlePrint}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <Printer className="h-4 w-4" />
+                <button onClick={handlePrint} type="button" className={TOOL_BTN}>
+                  <Printer className="h-3.5 w-3.5" aria-hidden />
                   Print
                 </button>
-                <button
-                  onClick={handlePrint}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <FileDown className="h-4 w-4" />
+                <button onClick={handlePrint} type="button" className={TOOL_BTN}>
+                  <FileDown className="h-3.5 w-3.5" aria-hidden />
                   PDF
                 </button>
               </div>
-            </CardHeader>
-            <CardContent>
+            </header>
+            <div className="p-4">
               {explainMissingNames && (
-                <p className="mb-4 flex items-start gap-2 rounded-lg border border-dashed border-input bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span>{GUEST_NAME_NOT_COLLECTED_NOTICE}</span>
-                </p>
+                <Callout tone="info" className="mb-4 text-xs">
+                  {GUEST_NAME_NOT_COLLECTED_NOTICE}
+                </Callout>
               )}
               <div className="hidden print:block mb-4">
                 <h3 className="text-base font-semibold tracking-tight">{rt?.label}</h3>
@@ -2711,7 +2712,7 @@ export function ReportPanel({
                   {sortedRows.length} rows
                 </p>
               </div>
-              <div className="overflow-x-auto rounded-xl border">
+              <div className="overflow-x-auto rounded-[var(--wy-radius)] border border-[var(--wy-border)] [&_thead_th]:bg-[var(--wy-surface-2)] [&_thead_th]:text-[11px] [&_thead_th]:text-[var(--wy-text-faint)] [&_td]:text-[13px]">
                 <Table className="min-w-[900px]">
                   <TableHeader>
                     <TableRow>
@@ -2789,22 +2790,24 @@ export function ReportPanel({
                     <button
                       disabled={safePage === 0}
                       onClick={() => setPage(safePage - 1)}
-                      className="rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"
+                      aria-label="Previous page"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--wy-radius)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] disabled:opacity-40"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
                     <button
                       disabled={safePage >= totalPages - 1}
                       onClick={() => setPage(safePage + 1)}
-                      className="rounded-lg p-1.5 hover:bg-accent disabled:opacity-40"
+                      aria-label="Next page"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--wy-radius)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] disabled:opacity-40"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         )}
       </div>
       {showDeviceEvents && (
@@ -2818,18 +2821,6 @@ export function ReportPanel({
     </>
   );
 }
-
-/** Operator-voice lines, not fabricated testimonials -- same rotating-quote
- * pattern as the Dashboard hero, written for this page's own subject
- * (checking your own numbers) rather than reused WiFi-uptime lines. */
-const REPORTS_QUOTES = [
-  "The report you never run is the trend you never catch.",
-  "Real data beats a good guess, every time.",
-  "Export it -- don't just eyeball it.",
-  "A number nobody checks might as well not exist.",
-  "Yesterday's data only helps if you actually open it.",
-  "Guesswork is expensive. Reports are free.",
-];
 
 const CATEGORY_CONFIG: Record<Category, { reportTypes: ReportType[]; csvPrefix: string }> = {
   "Guest Activity Report": { reportTypes: USER_REPORT_TYPES, csvPrefix: "user-report" },
@@ -2848,114 +2839,55 @@ const CATEGORY_CONFIG: Record<Category, { reportTypes: ReportType[]; csvPrefix: 
  * `true` for the owner by design) and the `/agent` staff-preview dashboard
  * (`renderFeature`'s `masked` ctx, the previewed agent's real
  * `dataMasking` flag). Defaults to `true`, matching `ReportPanel`. */
-export default function UserReports({ masked = true }: { masked?: boolean } = {}) {
+export default function UserReports({
+  masked = true,
+  scope,
+}: { masked?: boolean; scope?: PageScope } = {}) {
   const [category, setCategory] = useState<Category>("Guest Activity Report");
-  const [quoteIndex, setQuoteIndex] = useState(0);
   const cfg = CATEGORY_CONFIG[category];
 
-  useEffect(() => {
-    const t = setInterval(() => setQuoteIndex((i) => (i + 1) % REPORTS_QUOTES.length), 5000);
-    return () => clearInterval(t);
-  }, []);
-
   return (
-    <div className="space-y-6">
-      {/* A right-sized banner, not a full glance-dashboard hero -- this is
-       * a utility tool (pick a report, run it, export it), so the dark
-       * treatment carries the framing and a rotating quote rather than big
-       * KPI numbers this page doesn't have. */}
-      <div className="print:hidden relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4c1d95] p-6 text-white shadow-xl shadow-indigo-950/30 sm:p-8">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-fuchsia-500/25 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-20 -left-10 h-64 w-64 rounded-full bg-cyan-400/15 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.12]"
-          style={{
-            backgroundImage: "radial-gradient(rgba(255,255,255,0.5) 1px, transparent 1px)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-        <div className="relative flex items-start gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15">
-            <FileBarChart className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-white/60">
-              Your data, on demand
-            </p>
-            <h1 className="font-display mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
-              Reports
-            </h1>
-            <p className="mt-1 text-sm text-white/70">
-              Run and export usage, voucher, campaign, data, and SMS reports.
-            </p>
-          </div>
-        </div>
-        <div className="relative mt-5 flex items-center gap-2 border-t border-white/10 pt-4 text-xs text-white/50">
-          <Quote className="h-3 w-3 shrink-0 text-white/30" />
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={quoteIndex}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.4 }}
-            >
-              {REPORTS_QUOTES[quoteIndex]}
-            </motion.span>
-          </AnimatePresence>
-        </div>
-      </div>
+    <div className="wy-console space-y-5">
+      {/* Under the customer shell this is the page's only header (the shell
+          passes the tab name and venue); the agent view mounts it bare. The
+          old gradient banner and its rotating quotes are gone: this is a
+          utility (pick a report, run it, export it). */}
+      <PageHeader
+        className="print:hidden"
+        title={scope?.title ?? "Reports"}
+        venue={scope?.venue}
+        description="Run and export usage, voucher, campaign, data, and SMS reports."
+      />
 
-      <div className="print:hidden overflow-x-auto rounded-xl border bg-muted/40 p-1">
-        {/* whitespace-nowrap: the container already opts into horizontal
-            scroll (overflow-x-auto) for narrow viewports, but without this
-            each button's own text wrapped instead of the row scrolling --
-            on the longer labels ("Campaign Engagement Report") that meant
-            three ragged text lines and a much taller tab bar even on a
-            full-width desktop viewport, well before scrolling was ever
-            needed. flex-1's default min-width:auto already keeps a
-            nowrap'd button from shrinking below its own text, so this
-            alone is enough to fall back to the intended scroll. */}
-        <div className="flex min-w-[500px] gap-1">
-          {CATEGORIES.map((label) => {
-            const active = label === category;
-            return (
-              <button
-                key={label}
-                onClick={() => setCategory(label)}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex-1 whitespace-nowrap rounded-lg px-3 py-2.5 text-center text-sm font-medium transition-colors",
-                  active
-                    ? "bg-card text-[#4f46e5] shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* Five report families: underline SubTabs (more than four views). */}
+      <SubTabs
+        className="print:hidden"
+        ariaLabel="Report type"
+        idPrefix="reports"
+        value={categorySlug(category)}
+        onChange={(slug) =>
+          setCategory(CATEGORIES.find((c) => categorySlug(c) === slug) ?? category)
+        }
+        options={CATEGORIES.map((label) => ({ value: categorySlug(label), label }))}
+      />
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={category}
-          initial={{ opacity: 0, x: 12 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -12 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-        >
-          <ReportPanel reportTypes={cfg.reportTypes} csvPrefix={cfg.csvPrefix} masked={masked} />
-        </motion.div>
-      </AnimatePresence>
+      <div
+        role="tabpanel"
+        id="reports-panel"
+        aria-labelledby={`reports-tab-${categorySlug(category)}`}
+      >
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={category}
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <ReportPanel reportTypes={cfg.reportTypes} csvPrefix={cfg.csvPrefix} masked={masked} />
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

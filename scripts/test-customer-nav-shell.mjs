@@ -1118,7 +1118,16 @@ console.log(
       /const ownPageHeader = OWN_PAGE_HEADER_FEATURES\.has\(feature\) && !controllerGated;/.test(
         featurePage,
       ) &&
-      /<SectionTabs featureId="users" \/>\s*<CustomerPageScope/.test(usersPage),
+      // /users is its own route: it draws its own one PageHeader from the
+      // same nav label + venue, directly under its tab bar.
+      /<SectionTabs featureId="users" \/>\s*<PageHeader\s+title=\{pageScope\.title\}\s+venue=\{pageScope\.venue\}/.test(
+        usersPage,
+      ) &&
+      /const pageScope = useCustomerPageScope\("users", activeLocation\?\.name\);/.test(
+        usersPage,
+      ) &&
+      (usersPage.match(/<PageHeader\b/g) ?? []).length === 1 &&
+      !/<CustomerPageScope\b/.test(usersPage),
   );
   {
     const scopeSrc = strip(scope);
@@ -1136,20 +1145,54 @@ console.log(
         "src/components/network/PortForwardingManagement.tsx",
       ],
       voip: ["VoipView", "src/components/network/QosManagement.tsx"],
+      // batch 2. A third element names the function to read when one file
+      // holds several screens; Fix a Problem's header lives in FixAProblem,
+      // which DebuggingView forwards the scope to (checked below).
+      debugging: ["DebuggingView", "src/components/customer/FixAProblem.tsx"],
+      teams: ["ManageTeamsPage", "src/components/features/ManageTeamsPage.tsx"],
+      vouchers: ["VouchersPage", "src/components/features/VouchersPage.tsx"],
+      reports: ["UserReports", "src/components/features/UserReports.tsx"],
+      "business-hours": [
+        "OpenHoursView",
+        "src/components/features/OperationsFeatures.tsx",
+        "OpenHoursView",
+      ],
+      "admin-logs": [
+        "AdminLogsView",
+        "src/components/features/OperationsFeatures.tsx",
+        "AdminLogsView",
+      ],
+      "mac-auth": ["MacAuthView", "src/components/features/OperationsFeatures.tsx", "MacAuthView"],
+    };
+    // One screen's source: the whole file, or just `export function <fn>`
+    // up to the next top-level export.
+    const screenSource = (file, fn) => {
+      const all = strip(readFileSync(join(ROOT, file), "utf8"));
+      if (!fn) return all;
+      const start = all.indexOf(`export function ${fn}(`);
+      if (start < 0) return "";
+      const next = all.indexOf("\nexport ", start + 1);
+      return all.slice(start, next < 0 ? undefined : next);
     };
     check(
       "every screen that skips the scope line is handed the scope and draws one PageHeader",
       own.length > 0 &&
         own.every((id) => {
-          const [view, file] = VIEW[id] ?? [];
+          const [view, file, fn] = VIEW[id] ?? [];
           if (!view) return false;
-          const src = strip(readFileSync(join(ROOT, file), "utf8"));
+          const src = screenSource(file, fn);
           return (
             new RegExp(`<${view}\\b[^>]*scope=\\{pageScope\\}`).test(featurePage) &&
             (src.match(/<PageHeader\b/g) ?? []).length === 1 &&
             /venue=\{scope\?\.venue\}/.test(src)
           );
         }),
+    );
+    check(
+      "Fix a Problem's DebuggingView forwards the shell's scope to FixAProblem",
+      /<FixAProblem\b[^>]*scope=\{scope\}/.test(
+        screenSource("src/components/features/OperationsFeatures.tsx", "DebuggingView"),
+      ),
     );
   }
   check(

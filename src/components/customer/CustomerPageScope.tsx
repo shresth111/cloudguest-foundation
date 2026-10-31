@@ -13,11 +13,20 @@ import type { PageScope } from "@/components/customer/console";
  * when it holds every screen, this component goes.
  */
 export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
+  // batch 1
   "alerts",
   "dhcp",
   "vlans",
   "port-forwarding",
   "voip",
+  // batch 2 (Guests' own route, /users, draws its PageHeader directly)
+  "debugging",
+  "teams",
+  "vouchers",
+  "reports",
+  "business-hours",
+  "admin-logs",
+  "mac-auth",
 ]);
 
 /** The title + venue a screen's own PageHeader shows: the same nav label

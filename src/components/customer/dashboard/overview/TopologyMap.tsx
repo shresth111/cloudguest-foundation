@@ -102,7 +102,7 @@ export function TopologyMap({
     t(
       `topology.status.${s}`,
       {
-        ok: "Up",
+        ok: "Online",
         warn: "Degraded",
         crit: "Down",
         info: "Info",

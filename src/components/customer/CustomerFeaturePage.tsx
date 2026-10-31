@@ -333,10 +333,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   went without. Deleted rather than re-wired; if this
                   shell ever needs to render a dashboard again it should
                   render the live component, not a fork of it. */}
-              {feature === "reports" && <UserReports masked={masked} />}
+              {feature === "reports" && <UserReports masked={masked} scope={pageScope} />}
               {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
               {feature === "portal" && <PortalPage locationId={locationId} />}
-              {feature === "vouchers" && <VouchersPage locationId={locationId} />}
+              {feature === "vouchers" && <VouchersPage locationId={locationId} scope={pageScope} />}
               {feature === "policies" && <PoliciesHub locationId={locationId} />}
               {/* Allow-list and Trusted Devices are live everywhere except a
                   NAS-only venue (Aruba Instant On), where `controllerGated`
@@ -358,7 +358,7 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   </SectionBoundary>
                 </div>
               )}
-              {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
+              {feature === "teams" && <ManageTeamsPage locationId={locationId} scope={pageScope} />}
               {feature === "agents" && <AgentsPage locationId={locationId} />}
               {feature === "advanced" && <AdvancedPage />}
               {/* "audit" no longer has its own nav entry (merged into Admin
@@ -369,7 +369,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "tickets" && <TicketsPage locationId={locationId} />}
               {feature === "how-it-works" && <HowItWorksView />}
               {feature === "alerts" && <AlertsView scope={pageScope} />}
-              {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
+              {feature === "business-hours" && (
+                <OpenHoursView locationId={locationId} scope={pageScope} />
+              )}
               {/* "background-image" no longer renders here -- the login-screen
                 backdrop is uploaded from Portal -> Design (PortalPage.tsx),
                 beside the logo and headline it has to stay legible against.
@@ -385,11 +387,13 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   are gone with it; the component stays because it is the
                   console's only complete connect flow and is moving to the
                   Master console (FE-0 step 3, not done here). */}
-              {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
+              {feature === "admin-logs" && (
+                <AdminLogsView locationId={locationId} scope={pageScope} />
+              )}
               {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
               {feature === "netlogs" && <NetLogsView locationId={locationId} />}
               {feature === "mac-auth" && !controllerGated && (
-                <MacAuthView locationId={locationId} />
+                <MacAuthView locationId={locationId} scope={pageScope} />
               )}
               {/* The RouterOS screens. On a controller-managed venue
                   the view is NOT MOUNTED -- this is not a disabled form over
@@ -434,7 +438,9 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   "not available at this venue" from the backend's answer, and
                   the lock screen has to show at any venue. */}
               {feature === "traffic-lens" && <TrafficLensView locationId={locationId} />}
-              {feature === "debugging" && <DebuggingView locationId={locationId} masked={masked} />}
+              {feature === "debugging" && (
+                <DebuggingView locationId={locationId} masked={masked} scope={pageScope} />
+              )}
               {feature === "hotspot" && <HotspotView locationId={locationId} />}
               {/* "audit" is handled above (redirected to AdminLogsView, see
                 that render line's own comment) -- excluded here too so it

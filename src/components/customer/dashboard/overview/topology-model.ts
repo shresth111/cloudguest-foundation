@@ -73,7 +73,7 @@ export interface TopoNode {
   sub: string | null;
   status: OverviewStatus;
   /** Status word to show, already in data vocabulary (may be English
-   * library copy, e.g. describeLiveness' "Up"). The view prefers its own
+   * library copy, e.g. describeLiveness' "Online"). The view prefers its own
    * translated word for `status` and shows this as the detail. */
   statusText: string | null;
   facts: TopoFact[];

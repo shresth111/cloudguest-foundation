@@ -61,7 +61,7 @@ function Facts({ rows }: { rows: { k: string; v: ReactNode; mono?: boolean }[] }
 function eventWords(e: DeviceHealthEvent): string {
   const word = (s: string | null) =>
     s === "up"
-      ? "Up"
+      ? "Online"
       : s === "down"
         ? "Down"
         : s === "degraded"

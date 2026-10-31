@@ -183,7 +183,7 @@ const measuredUp = describeLiveness(
   },
   NOW,
 );
-eq("an explicitly measured row still says Up", measuredUp.state, "Up");
+eq("an explicitly measured row still says Online", measuredUp.state, "Online");
 eq("with its uptime", measuredUp.detail, "up 7h 28m");
 eq("and no explanation to show", measuredUp.explanation, null);
 

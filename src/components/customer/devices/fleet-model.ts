@@ -60,7 +60,7 @@ export interface InventoryRow {
   /** Model / vendor line, when the source has one. */
   model: string | null;
   bucket: FleetBucket;
-  /** Badge word, e.g. "Up", "Down", "Can't reach router", "Not measured". */
+  /** Badge word, e.g. "Online", "Down", "Can't reach router", "Not measured". */
   statusWord: string;
   /** The short measured fact beside it, already labelled ("since 07:09 ·
    * port ether3 link down"), or null. Never a bare duration. */

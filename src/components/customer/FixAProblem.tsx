@@ -57,7 +57,6 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import {
-  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -68,12 +67,17 @@ import {
   Router as RouterIcon,
   Search,
   Users,
-  Wifi,
-  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Callout,
+  PageHeader,
+  PANEL_SURFACE,
+  type CalloutTone,
+  type PageScope,
+} from "@/components/customer/console";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -87,7 +91,6 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
-import { cn } from "@/lib/utils";
 import { maskPhone } from "@/lib/masking";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { demoIspLinks, demoOnlineNow, demoRouterDevices } from "@/lib/demo-world";
@@ -165,23 +168,13 @@ const API_TIMEOUT_MS = 20_000;
 
 /* ── shared bits ────────────────────────────────────────────────────── */
 
-const TONE_CARD: Record<VerdictTone, string> = {
-  success: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10",
-  warning: "border-amber-200 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10",
-  danger: "border-rose-200 bg-rose-50/70 dark:border-rose-500/30 dark:bg-rose-500/10",
-  neutral: "border-border bg-muted/40",
-};
-const TONE_TEXT: Record<VerdictTone, string> = {
-  success: "text-emerald-700 dark:text-emerald-300",
-  warning: "text-amber-700 dark:text-amber-300",
-  danger: "text-rose-700 dark:text-rose-300",
-  neutral: "text-foreground",
-};
-const TONE_ICON: Record<VerdictTone, typeof CheckCircle2> = {
-  success: CheckCircle2,
-  warning: AlertTriangle,
-  danger: XCircle,
-  neutral: Info,
+/** A verdict's tone as a console Callout tone (soft token fill, tone icon).
+ * `neutral` -- "we can't tell" -- is the console's grey, never a fault colour. */
+const TONE_CALLOUT: Record<VerdictTone, CalloutTone | null> = {
+  success: "ok",
+  warning: "warn",
+  danger: "crit",
+  neutral: null,
 };
 
 /**
@@ -207,24 +200,34 @@ function VerdictCard({
   footnote?: React.ReactNode;
   children?: React.ReactNode;
 }) {
-  const Icon = TONE_ICON[tone];
   const { t } = useTranslation("fixProblem", { i18n });
+  const calloutTone = TONE_CALLOUT[tone];
+  const body = (
+    <div className="mt-1 space-y-2">
+      {meaning && <p className="text-[var(--wy-text-muted)]">{meaning}</p>}
+      {action && (
+        <p>
+          <span className="font-medium">{t("whatToDo", "What to do:")} </span>
+          <span className="text-[var(--wy-text-muted)]">{action}</span>
+        </p>
+      )}
+      {children}
+      {footnote}
+    </div>
+  );
+  if (calloutTone) {
+    return (
+      <Callout tone={calloutTone} title={headline} className="px-4 py-3">
+        {body}
+      </Callout>
+    );
+  }
   return (
-    <div className={cn("rounded-xl border p-4", TONE_CARD[tone])}>
-      <div className="flex items-start gap-2.5">
-        <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", TONE_TEXT[tone])} />
-        <div className="min-w-0 flex-1 space-y-2">
-          <p className={cn("text-sm font-semibold", TONE_TEXT[tone])}>{headline}</p>
-          {meaning && <p className="text-sm text-muted-foreground">{meaning}</p>}
-          {action && (
-            <p className="text-sm">
-              <span className="font-medium">{t("whatToDo", "What to do:")} </span>
-              <span className="text-muted-foreground">{action}</span>
-            </p>
-          )}
-          {children}
-          {footnote}
-        </div>
+    <div className="flex gap-2.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-offline-soft)] px-4 py-3 text-[13px] leading-relaxed text-[var(--wy-text)]">
+      <Info aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-offline)]" />
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">{headline}</p>
+        {body}
       </div>
     </div>
   );
@@ -247,7 +250,7 @@ function Disclosure({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        className="flex items-center gap-1 rounded-sm text-xs font-medium text-[var(--wy-text-muted)] hover:text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
         aria-expanded={open}
       >
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -284,12 +287,12 @@ function CheckedList({ checked, notChecked }: { checked: string[]; notChecked: s
   if (checked.length === 0 && notChecked.length === 0) return null;
   return (
     <Disclosure label={t("whatWeChecked", "What we checked")}>
-      <div className="space-y-2 rounded-lg border bg-background/60 p-3">
+      <div className="space-y-2 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-3">
         {checked.length > 0 && (
           <ul className="space-y-1">
             {checked.map((c) => (
               <li key={c} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-500" />
+                <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-[var(--wy-ok)]" />
                 {c}
               </li>
             ))}
@@ -331,9 +334,12 @@ const DEMO_GUEST_IDENTIFIER = "+91 98765 43210";
 export function FixAProblem({
   locationId,
   masked = true,
+  scope,
 }: {
   locationId?: string;
   masked?: boolean;
+  /** Title + venue for the page's one header, from the customer shell. */
+  scope?: PageScope;
 }) {
   const demo = isDemo();
 
@@ -524,16 +530,16 @@ export function FixAProblem({
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <PageHeading demo={demo} />
+      <div className="wy-console space-y-5">
+        <PageHeading demo={demo} scope={scope} />
         <LoadingSkeleton rows={6} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeading demo={demo} />
+    <div className="wy-console space-y-5">
+      <PageHeading demo={demo} scope={scope} />
 
       <ZoneA
         venue={venue}
@@ -576,28 +582,22 @@ export function FixAProblem({
   );
 }
 
-function PageHeading({ demo }: { demo: boolean }) {
+function PageHeading({ demo, scope }: { demo: boolean; scope?: PageScope }) {
   const { t } = useTranslation("fixProblem", { i18n });
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa] shadow-sm shadow-indigo-500/20">
-          <Wifi className="h-[18px] w-[18px] text-white" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">
-            {t("nav:customerItem.debugging", "Fix a Problem")}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t(
-              "intro",
-              "Someone says the WiFi isn't working. Start with their phone number — most of the time the answer is already here.",
-            )}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-3">
+      {/* Under the customer shell this is the page's only header (the shell
+          passes the tab name and venue); the agent view mounts it bare. */}
+      <PageHeader
+        title={scope?.title ?? t("nav:customerItem.debugging", "Fix a Problem")}
+        venue={scope?.venue}
+        description={t(
+          "intro",
+          "Someone says the WiFi isn't working. Start with their phone number — most of the time the answer is already here.",
+        )}
+      />
       {demo && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[var(--wy-text-muted)]">
           {t(
             "demoNote",
             "This is a demo venue with sample guests. Your own venue shows your real guests.",
@@ -904,9 +904,9 @@ function ZoneBGuestLookup({
   };
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className={PANEL_SURFACE}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <Users className="h-4 w-4 text-primary" /> {t("whoTitle", "Who's having trouble?")}
         </CardTitle>
         <CardDescription>
@@ -1218,9 +1218,9 @@ function ZoneCSiteCheck({
   // codebase keeps producing -- so say what is true instead of offering it.
   if (!deviceChecksApply) {
     return (
-      <Card className="border-0 shadow-sm">
+      <Card className={PANEL_SURFACE}>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Globe className="h-4 w-4 text-primary" />{" "}
             {t("siteTitle", "A guest can't open one particular site?")}
           </CardTitle>
@@ -1246,9 +1246,9 @@ function ZoneCSiteCheck({
   }
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className={PANEL_SURFACE}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <Globe className="h-4 w-4 text-primary" />{" "}
           {t("siteTitle", "A guest can't open one particular site?")}
         </CardTitle>
@@ -1394,7 +1394,7 @@ function ZoneEWhatWeChecked({
   if (!loaded) return null;
 
   return (
-    <Card className="border-0 shadow-sm">
+    <Card className={PANEL_SURFACE}>
       <CardHeader>
         <CardTitle className="text-sm">{t("whatWeChecked", "What we checked")}</CardTitle>
         <CardDescription>

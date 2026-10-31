@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search,
   XCircle,
   Eye,
   ChevronLeft,
@@ -11,7 +10,6 @@ import {
   X,
   Download,
   Smartphone,
-  Wifi,
   Clock,
   LockOpen,
 } from "lucide-react";
@@ -19,7 +17,21 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
-import { CustomerPageScope } from "@/components/customer/CustomerPageScope";
+import { useCustomerPageScope } from "@/components/customer/CustomerPageScope";
+import {
+  DataTable,
+  EmptyState,
+  PageHeader,
+  Panel,
+  SegmentedControl,
+  StatTile,
+  StatusBadge,
+  StatusDot,
+  TablePager,
+  Toolbar,
+  ToolbarSearch,
+  type ConsoleStatus,
+} from "@/components/customer/console";
 import { SectionTabs } from "@/components/customer/console/SectionTabs";
 import {
   CustomerCommandPalette,
@@ -27,17 +39,8 @@ import {
 } from "@/components/customer/CustomerCommandPalette";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { GuestHistoryDrawer } from "@/components/guests/GuestHistoryDrawer";
 import {
@@ -90,36 +93,30 @@ import { GuestDeviceControls, isSendableMac } from "@/components/customer/GuestD
 import { useGuestUnblock } from "@/hooks/useGuestUnblock";
 import { blocksForGuest, unblockRefusal } from "@/lib/guest-unblock";
 
-/**
- * Shared empty-state graphic for the Users table -- a magnifying glass over
- * a dormant signal dish, same filled-flat-shape character language as the
- * other illustrations added this session (ChartEmptyState/
- * DashboardWatchIllustration). Used for both "no users at all" and "search/
- * filter found nothing" via the label prop, so a dead table row still feels
- * designed instead of a bare sentence. Purely decorative -- aria-hidden.
- */
-function UsersEmptyState({ label }: { label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-      <svg aria-hidden="true" viewBox="0 0 100 80" className="h-16 w-20" fill="none">
-        <ellipse cx="50" cy="68" rx="30" ry="4" fill="#6C4EFF" opacity="0.08" />
-        <path
-          d="M50 20a18 18 0 0 1 18 18"
-          stroke="#8B5CF6"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          fill="none"
-          opacity="0.35"
-        />
-        <circle cx="50" cy="46" r="3" fill="#22d3ee" opacity="0.6" />
-        <circle cx="42" cy="34" r="14" stroke="#6C4EFF" strokeWidth="3" className="fill-muted" />
-        <path d="M52 44l9 9" stroke="#6C4EFF" strokeWidth="3.5" strokeLinecap="round" />
-        <circle cx="42" cy="34" r="5" fill="#8B5CF6" opacity="0.3" />
-      </svg>
-      <p className="text-xs text-muted-foreground">{label}</p>
-    </div>
-  );
+/** A guest's initials for the avatar. */
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2);
 }
+
+/** The row status the users service reports, as a console status. */
+const GUEST_STATUS: Record<string, ConsoleStatus> = {
+  online: "ok",
+  idle: "warn",
+  offline: "offline",
+};
+
+/** Table dates: one short line ("10/31/26, 1:39 PM"); the full stamp is the
+ * cell's tooltip and the visit slide-over's. */
+const SHORT_DATE_TIME: Intl.DateTimeFormatOptions = { dateStyle: "short", timeStyle: "short" };
+
+/** One labelled fact in the visit slide-over. */
+const DETAIL_TILE =
+  "rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-3";
+const DETAIL_LABEL = "text-[11px] font-medium text-[var(--wy-text-faint)]";
 
 export const Route = createFileRoute("/users")({
   // See customer.index.tsx's identical comment: activeLocationId only
@@ -198,7 +195,10 @@ function CustomerUsersPage() {
   );
   const planExpiryIso = demoFlag ? DEMO_PLAN_RENEWAL_ISO : billing.data?.renewalDate;
   const [search, setSearch] = useState("");
-  const [statusTab, setStatusTab] = useState("all");
+  const [statusTab, setStatusTab] = useState<"all" | "online" | "offline">("all");
+  // The page's one header: the same nav label (and translation) the sidebar
+  // row that led here shows, with the venue beside it.
+  const pageScope = useCustomerPageScope("users", activeLocation?.name);
   const [page, setPage] = useState(0);
   const { open: paletteOpen, setOpen: setPaletteOpen } = useCustomerCommandPalette();
   const dataMasking = useDataMasking();
@@ -400,22 +400,18 @@ function CustomerUsersPage() {
           onTfaSettings={() => setTfaOpen(true)}
           onLogout={handleLogout}
         />
-        {/* Slim on-brand accent instead of a full dark hero -- this page's
-         * job is fast row-scanning, not a glance-dashboard, so a tall hero
-         * would just push the actual table below the fold. */}
-        <div
-          aria-hidden
-          className="h-[3px] bg-gradient-to-r from-[#6C4EFF] via-[#8B5CF6] to-transparent"
-        />
-
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-4">
-            {/* The venue name beside the heading is deliberate -- see
-                CustomerPageScope. */}
             {/* Guests › Guests: this page's own row is the Guests section,
-                and its siblings (Guest Groups, Vouchers, Reports) are tabs. */}
+                and its siblings (Guest Groups, Vouchers, Reports) are tabs.
+                The PageHeader is the page's one title; the venue chip beside
+                it is deliberate -- see CustomerPageScope. */}
             <SectionTabs featureId="users" />
-            <CustomerPageScope featureId="users" locationName={activeLocation?.name} />
+            <PageHeader
+              title={pageScope.title}
+              venue={pageScope.venue}
+              description={t("pageDescription")}
+            />
             {/* Previously 4 tiles (On this page/Online/Idle/Offline)
              * computed from data.users -- but that's only the current
              * paginated slice (8 rows), not this location's real totals,
@@ -429,467 +425,394 @@ function CustomerUsersPage() {
              * client-side count of the current page), which is exactly the
              * total-vs-currently-online distinction that was causing
              * confusion. */}
-            <div className="flex flex-wrap gap-3">
-              {data && (
-                <div className="inline-flex items-center gap-3 rounded-2xl px-4 py-3 premium-card premium-card-hover">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
-                    <Users className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">{t("totalGuests")}</p>
-                    <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">
-                      {/* Distinct guests on file at this location -- the raw
-                       * session total counts every reconnect (QA). The guests
-                       * lookup failing leaves it undefined; fall back to the
-                       * visit total rather than showing a bare dash. */}
-                      {(data.uniqueGuests ?? data.total).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              )}
-              <div className="inline-flex items-center gap-3 rounded-2xl px-4 py-3 premium-card premium-card-hover">
-                <div className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600">
-                  <Wifi className="h-4 w-4 text-white" />
-                  {(onlineNow.data ?? 0) > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-ping rounded-full bg-emerald-400" />
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">{t("onlineNow")}</p>
-                  <p className="text-lg font-bold tracking-tight tabular-nums leading-tight">
-                    {onlineNow.isLoading ? (
-                      <span className="inline-block h-5 w-8 animate-pulse rounded bg-muted align-middle" />
-                    ) : (
-                      (onlineNow.data ?? 0).toLocaleString()
-                    )}
-                  </p>
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+              <StatTile
+                label={t("totalGuests")}
+                // Distinct guests on file at this location -- the raw
+                // session total counts every reconnect (QA). The guests
+                // lookup failing leaves it undefined; fall back to the
+                // visit total rather than showing a bare dash.
+                value={data ? (data.uniqueGuests ?? data.total).toLocaleString() : null}
+                loading={isLoading}
+              />
+              <StatTile
+                label={t("onlineNow")}
+                leading={
+                  <StatusDot
+                    status={(onlineNow.data ?? 0) > 0 ? "ok" : "offline"}
+                    label={t("onlineNow")}
+                    pulse={(onlineNow.data ?? 0) > 0}
+                    size="sm"
+                  />
+                }
+                value={(onlineNow.data ?? 0).toLocaleString()}
+                loading={onlineNow.isLoading}
+              />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="relative flex-1 sm:max-w-xs">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
+            <Panel flush>
+              <Toolbar
+                divided
+                actions={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 sm:h-9"
+                    disabled={exporting || !data || data.total === 0}
+                    onClick={exportGuests}
+                  >
+                    <Download className="mr-1.5 h-4 w-4" aria-hidden />
+                    {exporting ? t("exporting", "Exporting…") : t("exportCsv", "Export CSV")}
+                  </Button>
+                }
+              >
+                <ToolbarSearch
                   placeholder={t("searchPlaceholder")}
                   value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
+                  onValueChange={(v) => {
+                    setSearch(v);
                     setPage(0);
                   }}
-                  className="h-10 pl-9 bg-background"
                 />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10"
-                disabled={exporting || !data || data.total === 0}
-                onClick={exportGuests}
-              >
-                <Download className="mr-1.5 h-4 w-4" />
-                {exporting ? t("exporting", "Exporting…") : t("exportCsv", "Export CSV")}
-              </Button>
-              <div className="flex gap-1 border rounded-lg p-0.5 bg-muted/50">
-                {(["all", "online", "offline"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => {
-                      setStatusTab(tab);
-                      setPage(0);
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 text-xs font-medium rounded-md capitalize",
-                      statusTab === tab
-                        ? "bg-background shadow-sm text-foreground"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {tab === "all"
-                      ? t("tabAll")
-                      : tab === "online"
-                        ? t("tabOnline")
-                        : t("tabOffline")}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl overflow-x-auto premium-card">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide">
-                      {t("colUser")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">
-                      {t("colPhone")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide hidden sm:table-cell">
-                      {t("colMac")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">
-                      {t("colIp")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide hidden md:table-cell">
-                      {t("colDevice")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide">
-                      {t("colDuration")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">
-                      {t("colConnectedAt")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide hidden xl:table-cell">
-                      {t("colDisconnectedAt")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide hidden lg:table-cell">
-                      {t("colDownload")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide">
-                      {t("colStatus")}
-                    </TableHead>
-                    <TableHead className="text-xs font-medium uppercase tracking-wide text-right">
-                      {t("colActions")}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}>
-                        {Array.from({ length: 11 }).map((_, j) => (
-                          <TableCell key={j}>
-                            <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))
-                  ) : !data || data.users.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={11} className="p-0">
-                        <UsersEmptyState
-                          label={search || statusTab !== "all" ? t("emptyNoMatch") : t("emptyNone")}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    data.users.map((u, i) => (
-                      <motion.tr
-                        key={u.id}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: Math.min(i * 0.015, 0.15) }}
-                        onClick={() => setDetailUser(u)}
-                        className="cursor-pointer border-b border-l-2 border-l-transparent transition-colors last:border-b-0 hover:border-l-[#6C4EFF] hover:bg-accent/50"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-2.5">
-                            <Avatar className="h-8 w-8">
-                              <AvatarFallback className="bg-primary/10 text-[11px] font-semibold text-primary">
-                                {u.name
-                                  .split(" ")
-                                  .map((w) => w[0])
-                                  .join("")
-                                  .slice(0, 2)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">{u.name}</p>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {masked ? maskEmail(u.email) : u.email}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs hidden sm:table-cell">
-                          {masked ? maskPhone(u.phone) : u.phone}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs hidden sm:table-cell">
-                          {/* "Unknown" is the service's honest marker for a
-                              session whose device could not be resolved. Render
-                              it as muted prose, not in the mono face the real
-                              addresses use, so it cannot be misread as a value
-                              -- and so it is visibly different from a MAC that
-                              is simply short. maskMac is a no-op (see
-                              lib/masking.ts), so nothing here is hidden. */}
-                          {u.mac === "Unknown" ? (
-                            <span className="font-sans text-muted-foreground">
-                              {t("noDevice", "No device on record")}
-                            </span>
-                          ) : masked ? (
-                            maskMac(u.mac)
-                          ) : (
-                            u.mac
-                          )}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs hidden xl:table-cell">
-                          {u.ip || "—"}
-                        </TableCell>
-                        <TableCell className="text-xs hidden md:table-cell">{u.device}</TableCell>
-                        {/* Honest about a grouped display row -- see
-                          groupFragmentedVisits()'s own docstring: this is
-                          one visit built from N real, separately-accounted
-                          GuestSession rows (a reconnect blip a few minutes
-                          apart), not a fabricated single session. */}
-                        <TableCell className="text-xs">
-                          <div className="flex items-center gap-1.5">
-                            {u.duration}
-                            {!!u.mergedSessionCount && u.mergedSessionCount > 1 && (
-                              <Badge
-                                variant="secondary"
-                                className="h-4 px-1.5 text-[10px] font-normal"
-                                title={t("reconnectsTooltip", { count: u.mergedSessionCount })}
-                              >
-                                ×{u.mergedSessionCount}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground hidden lg:table-cell">
-                          {new Date(u.connectedAt).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground hidden xl:table-cell">
-                          {u.disconnectedAt ? new Date(u.disconnectedAt).toLocaleString() : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs hidden lg:table-cell">
-                          {sessionDataCell(u.download)}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1.5 text-xs font-medium",
-                              u.status === "online"
-                                ? "text-emerald-500 dark:text-emerald-400"
-                                : u.status === "idle"
-                                  ? "text-amber-500 dark:text-amber-400"
-                                  : "text-muted-foreground",
-                            )}
+                <SegmentedControl
+                  ariaLabel={t("statusFilter")}
+                  size="md"
+                  value={statusTab}
+                  onChange={(tab) => {
+                    setStatusTab(tab);
+                    setPage(0);
+                  }}
+                  options={[
+                    { value: "all", label: t("tabAll") },
+                    { value: "online", label: t("tabOnline") },
+                    { value: "offline", label: t("tabOffline") },
+                  ]}
+                />
+              </Toolbar>
+              {/* A card per visit below `sm` (the review found the Status
+                  column clipped at 390px); the columns shed as the table
+                  narrows, so Status and the row actions never scroll out of
+                  view. IP and Disconnected-at live in the visit slide-over
+                  and the CSV, where they always were too. Clicking a row (or Enter
+                  on it) opens the visit, same as the eye button. */}
+              <DataTable
+                ariaLabel={t("tableLabel")}
+                rows={data?.users ?? []}
+                rowKey={(u) => u.id}
+                loading={isLoading}
+                loadingLabel={t("loading")}
+                empty={
+                  <EmptyState
+                    icon={Users}
+                    title={search || statusTab !== "all" ? t("emptyNoMatch") : t("emptyNone")}
+                  />
+                }
+                onRowClick={(u) => setDetailUser(u)}
+                rowLabel={(u) => t("viewGuestDetails", { name: u.name })}
+                actionsLabel={t("colActions")}
+                columns={[
+                  {
+                    id: "user",
+                    header: t("colUser"),
+                    mobile: "title",
+                    cell: (u) => (
+                      <div className="flex min-w-0 max-w-[13rem] items-center gap-2.5">
+                        <Avatar className="h-7 w-7 shrink-0">
+                          <AvatarFallback className="bg-[var(--wy-accent-soft)] text-[11px] font-semibold text-[var(--wy-accent)]">
+                            {initials(u.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{u.name}</p>
+                          <p className="truncate text-xs font-normal text-[var(--wy-text-muted)]">
+                            {masked ? maskEmail(u.email) : u.email}
+                          </p>
+                        </div>
+                      </div>
+                    ),
+                  },
+                  {
+                    id: "phone",
+                    header: t("colPhone"),
+                    mono: true,
+                    visibleFrom: "lg",
+                    cell: (u) => (masked ? maskPhone(u.phone) : u.phone),
+                  },
+                  {
+                    id: "mac",
+                    header: t("colMac"),
+                    mono: true,
+                    visibleFrom: "xl",
+                    mobile: "hidden",
+                    // "Unknown" is the service's honest marker for a
+                    // session whose device could not be resolved. Render it
+                    // as muted prose, not in the mono face the real
+                    // addresses use, so it cannot be misread as a value --
+                    // and so it is visibly different from a MAC that is
+                    // simply short. maskMac is a no-op (see lib/masking.ts),
+                    // so nothing here is hidden.
+                    cell: (u) =>
+                      u.mac === "Unknown" ? (
+                        <span className="font-sans text-[13px] text-[var(--wy-text-muted)]">
+                          {t("noDevice", "No device on record")}
+                        </span>
+                      ) : masked ? (
+                        maskMac(u.mac)
+                      ) : (
+                        u.mac
+                      ),
+                  },
+                  {
+                    id: "device",
+                    header: t("colDevice"),
+                    visibleFrom: "2xl",
+                    cell: (u) => u.device,
+                  },
+                  {
+                    id: "duration",
+                    header: t("colDuration"),
+                    // Honest about a grouped display row -- see
+                    // groupFragmentedVisits()'s own docstring: this is one
+                    // visit built from N real, separately-accounted
+                    // GuestSession rows (a reconnect blip a few minutes
+                    // apart), not a fabricated single session.
+                    cell: (u) => (
+                      <span className="inline-flex items-center gap-1.5 tabular-nums">
+                        {u.duration}
+                        {!!u.mergedSessionCount && u.mergedSessionCount > 1 && (
+                          <Badge
+                            variant="secondary"
+                            className="h-4 px-1.5 text-[11px] font-normal"
+                            title={t("reconnectsTooltip", { count: u.mergedSessionCount })}
                           >
-                            <span className="relative flex h-2 w-2">
-                              {u.status === "online" && (
-                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                              )}
-                              <span
-                                className={cn(
-                                  "relative inline-flex h-2 w-2 rounded-full",
-                                  u.status === "online"
-                                    ? "bg-emerald-500"
-                                    : u.status === "idle"
-                                      ? "bg-amber-500"
-                                      : "bg-muted-foreground",
-                                )}
-                              />
-                            </span>
-                            {u.status === "online"
-                              ? t("statusOnline")
-                              : u.status === "idle"
-                                ? t("statusIdle")
-                                : t("statusOffline")}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            {/* An icon-only button with no text child and no
-                              label has NO accessible name at all: a screen
-                              reader announces "button", once per row, and
-                              the two beside it (Extend, Disconnect) both
-                              carry a `title` while this one carried
-                              nothing. The name includes the guest, because
-                              a table of these is read row by row and "View
-                              details" eleven times identifies none of
-                              them. `title` stays generic so the sighted
-                              tooltip matches its two neighbours. */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              title={t("viewDetails")}
-                              aria-label={t("viewGuestDetails", { name: u.name })}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDetailUser(u);
-                              }}
-                            >
-                              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                            </Button>
-                            {(() => {
-                              if (!guestUnblock.offered) return null;
-                              const blocks = blocksForGuest(
-                                u,
-                                guestUnblock.rules,
-                                locationId || null,
-                              );
-                              if (blocks.length === 0) return null;
-                              const liftable = blocks.filter(
-                                (b) => !unblockRefusal(b, guestUnblock.venueScoped),
-                              );
-                              if (liftable.length < blocks.length) {
-                                // A ban on every venue: only an organization
-                                // account may lift it (the backend refuses a
-                                // venue account). Say so instead of offering
-                                // a button that would 403.
-                                return (
-                                  <span
-                                    data-testid="guest-blocked-everywhere"
-                                    title={t("blockedEverywhereTitle")}
-                                    className="inline-flex h-8 items-center rounded-md px-2 text-xs font-medium text-destructive"
-                                  >
-                                    {t("blockedEverywhere")}
-                                  </span>
-                                );
-                              }
-                              return (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 gap-1.5 px-2 text-xs"
-                                  data-testid="guest-unblock"
-                                  disabled={guestUnblock.unblock.isPending}
-                                  aria-label={t("unblockGuest", { name: u.name })}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleUnblock(u.name, liftable);
-                                  }}
-                                >
-                                  <LockOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                                  {t("unblock")}
-                                </Button>
-                              );
-                            })()}
-                            {u.status !== "offline" && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    disabled={extend.isPending}
-                                    title={t("extend")}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <Clock className="h-3.5 w-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                  align="end"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <DropdownMenuItem onClick={() => handleExtend(u.id, 30)}>
-                                    {t("extend30")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleExtend(u.id, 60)}>
-                                    {t("extend60")}
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                            {/* A NAS-only venue (Aruba Instant On): nothing
-                             * can end the device's connection, and ending
-                             * only our record would show an online guest as
-                             * gone. Greyed with PM_SPEC U2; the title is on
-                             * the wrapper because a disabled button takes no
-                             * pointer events. The live button below is
-                             * `hidden` there and untouched everywhere else. */}
-                            {disconnectUnsupported && (
-                              <span title={disconnectVerdict.reason ?? undefined}>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 disabled:text-muted-foreground"
-                                  disabled
-                                  aria-label={disconnectVerdict.reason ?? t("disconnect")}
-                                  data-testid="disconnect-unsupported-icon"
-                                >
-                                  <XCircle className="h-3.5 w-3.5" />
-                                </Button>
-                              </span>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive disabled:text-muted-foreground"
-                              hidden={disconnectUnsupported}
-                              disabled={u.status === "offline" || disconnect.isPending}
-                              title={u.status === "offline" ? t("alreadyOffline") : t("disconnect")}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setConfirmDisconnect({
-                                  id: u.id,
-                                  name: u.name,
-                                  guestId: u.guestId,
-                                  mac: u.mac,
-                                });
-                              }}
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </motion.tr>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between">
-                {/* "11 users" beside a "Total guests" tile reading 4, on the
-                  same screen, for the same venue. Both numbers were right
-                  and one of them was mislabelled: `data.total` is the count
-                  of SESSION ROWS, so a guest who reconnects seven times is
-                  seven of the eleven -- the same total-vs-unique confusion
-                  the tile above was already fixed for. The rows in this
-                  table are sessions, so the footer keeps counting them and
-                  now says which they are, with the distinct-guest figure
-                  beside it.
-
-                  `uniqueGuests` is optional (the guests lookup can fail,
-                  which is why the tile falls back). When it is missing we
-                  say only the part we can see -- "11 sessions" -- rather
-                  than quoting the session count twice under two names. */}
-                <span className="text-xs text-muted-foreground">
-                  {data?.uniqueGuests === undefined
-                    ? t("sessionsCount", { count: data?.total ?? 0 })
-                    : t("sessionsFromGuests", {
-                        sessions: t("sessionsCount", { count: data.total }),
-                        guests: t("guestsCount", { count: data.uniqueGuests }),
-                      })}
-                </span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    disabled={page === 0}
-                    onClick={() => setPage(page - 1)}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => (
+                            ×{u.mergedSessionCount}
+                          </Badge>
+                        )}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: "connectedAt",
+                    header: t("colConnectedAt"),
+                    visibleFrom: "xl",
+                    mobile: "hidden",
+                    className: "tabular-nums text-[var(--wy-text-muted)]",
+                    cell: (u) => (
+                      <time
+                        dateTime={u.connectedAt}
+                        title={new Date(u.connectedAt).toLocaleString()}
+                      >
+                        {new Date(u.connectedAt).toLocaleString(undefined, SHORT_DATE_TIME)}
+                      </time>
+                    ),
+                  },
+                  {
+                    id: "download",
+                    header: t("colDownload"),
+                    visibleFrom: "2xl",
+                    mobile: "hidden",
+                    className: "tabular-nums",
+                    cell: (u) => sessionDataCell(u.download),
+                  },
+                  {
+                    id: "status",
+                    header: t("colStatus"),
+                    cell: (u) => (
+                      <StatusBadge
+                        status={GUEST_STATUS[u.status] ?? "offline"}
+                        pulse={u.status === "online"}
+                        className="capitalize"
+                      >
+                        {u.status === "online"
+                          ? t("statusOnline")
+                          : u.status === "idle"
+                            ? t("statusIdle")
+                            : t("statusOffline")}
+                      </StatusBadge>
+                    ),
+                  },
+                ]}
+                rowActions={(u) => (
+                  <>
+                    {/* An icon-only button with no text child and no label
+                      has NO accessible name at all: a screen reader
+                      announces "button", once per row, and the two beside it
+                      (Extend, Disconnect) both carry a `title` while this one
+                      carried nothing. The name includes the guest, because a
+                      table of these is read row by row and "View details"
+                      eleven times identifies none of them. `title` stays
+                      generic so the sighted tooltip matches its two
+                      neighbours. */}
                     <Button
-                      key={i}
-                      variant={page === i ? "default" : "outline"}
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => setPage(i)}
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      title={t("viewDetails")}
+                      aria-label={t("viewGuestDetails", { name: u.name })}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDetailUser(u);
+                      }}
                     >
-                      {i + 1}
+                      <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    disabled={page >= totalPages - 1}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
+                    {(() => {
+                      if (!guestUnblock.offered) return null;
+                      const blocks = blocksForGuest(u, guestUnblock.rules, locationId || null);
+                      if (blocks.length === 0) return null;
+                      const liftable = blocks.filter(
+                        (b) => !unblockRefusal(b, guestUnblock.venueScoped),
+                      );
+                      if (liftable.length < blocks.length) {
+                        // A ban on every venue: only an organization
+                        // account may lift it (the backend refuses a venue
+                        // account). Say so instead of offering a button
+                        // that would 403.
+                        return (
+                          <span
+                            data-testid="guest-blocked-everywhere"
+                            title={t("blockedEverywhereTitle")}
+                          >
+                            <StatusBadge status="crit">{t("blockedEverywhere")}</StatusBadge>
+                          </span>
+                        );
+                      }
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 px-2 text-xs"
+                          data-testid="guest-unblock"
+                          disabled={guestUnblock.unblock.isPending}
+                          aria-label={t("unblockGuest", { name: u.name })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnblock(u.name, liftable);
+                          }}
+                        >
+                          <LockOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                          {t("unblock")}
+                        </Button>
+                      );
+                    })()}
+                    {u.status !== "offline" && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={extend.isPending}
+                            title={t("extend")}
+                            aria-label={t("extend")}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Clock className="h-3.5 w-3.5" aria-hidden />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="wy-console"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <DropdownMenuItem onClick={() => handleExtend(u.id, 30)}>
+                            {t("extend30")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleExtend(u.id, 60)}>
+                            {t("extend60")}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                    {/* A NAS-only venue (Aruba Instant On): nothing can end
+                     * the device's connection, and ending only our record
+                     * would show an online guest as gone. Greyed with
+                     * PM_SPEC U2; the title is on the wrapper because a
+                     * disabled button takes no pointer events. The live
+                     * button below is `hidden` there and untouched
+                     * everywhere else. */}
+                    {disconnectUnsupported && (
+                      <span title={disconnectVerdict.reason ?? undefined}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 disabled:text-[var(--wy-text-faint)]"
+                          disabled
+                          aria-label={disconnectVerdict.reason ?? t("disconnect")}
+                          data-testid="disconnect-unsupported-icon"
+                        >
+                          <XCircle className="h-3.5 w-3.5" aria-hidden />
+                        </Button>
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-[var(--wy-crit)] disabled:text-[var(--wy-text-faint)]"
+                      hidden={disconnectUnsupported}
+                      disabled={u.status === "offline" || disconnect.isPending}
+                      title={u.status === "offline" ? t("alreadyOffline") : t("disconnect")}
+                      aria-label={`${u.status === "offline" ? t("alreadyOffline") : t("disconnect")}: ${u.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDisconnect({
+                          id: u.id,
+                          name: u.name,
+                          guestId: u.guestId,
+                          mac: u.mac,
+                        });
+                      }}
+                    >
+                      <XCircle className="h-3.5 w-3.5" aria-hidden />
+                    </Button>
+                  </>
+                )}
+                footer={
+                  totalPages > 1 ? (
+                    <TablePager
+                      // "11 users" beside a "Total guests" tile reading 4,
+                      // on the same screen, for the same venue. Both numbers
+                      // were right and one of them was mislabelled:
+                      // `data.total` is the count of SESSION ROWS, so a guest
+                      // who reconnects seven times is seven of the eleven.
+                      // The rows in this table are sessions, so the footer
+                      // keeps counting them and says which they are, with the
+                      // distinct-guest figure beside it. `uniqueGuests` is
+                      // optional (the guests lookup can fail); when it is
+                      // missing we say only the part we can see.
+                      summary={
+                        <>
+                          {data?.uniqueGuests === undefined
+                            ? t("sessionsCount", { count: data?.total ?? 0 })
+                            : t("sessionsFromGuests", {
+                                sessions: t("sessionsCount", { count: data.total }),
+                                guests: t("guestsCount", { count: data.uniqueGuests }),
+                              })}
+                          {" · "}
+                          {t("pageOf", { page: page + 1, pages: totalPages })}
+                        </>
+                      }
+                      previousLabel={
+                        <>
+                          <ChevronLeft className="mr-1 h-3.5 w-3.5" aria-hidden />
+                          {t("pagePrevious")}
+                        </>
+                      }
+                      nextLabel={
+                        <>
+                          {t("pageNext")}
+                          <ChevronRight className="ml-1 h-3.5 w-3.5" aria-hidden />
+                        </>
+                      }
+                      hasPrevious={page > 0}
+                      hasNext={page < totalPages - 1}
+                      onPrevious={() => setPage(page - 1)}
+                      onNext={() => setPage(page + 1)}
+                    />
+                  ) : undefined
+                }
+              />
+            </Panel>
           </div>
         </main>
       </div>
@@ -910,28 +833,18 @@ function CustomerUsersPage() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 260 }}
-              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l bg-card shadow-2xl"
+              className="wy-console fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-[var(--wy-border)] bg-[var(--wy-bg)] text-[var(--wy-text)] shadow-2xl"
             >
-              <div className="flex items-center justify-between border-b p-5">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <div
-                      aria-hidden
-                      className="absolute -inset-1 rounded-full bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6] opacity-20 blur-md"
-                    />
-                    <Avatar className="relative h-11 w-11">
-                      <AvatarFallback className="bg-primary/10 font-semibold text-primary">
-                        {detailUser.name
-                          .split(" ")
-                          .map((w) => w[0])
-                          .join("")
-                          .slice(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </div>
+              <div className="flex items-center justify-between border-b border-[var(--wy-border)] bg-[var(--wy-surface)] p-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="bg-[var(--wy-accent-soft)] font-semibold text-[var(--wy-accent)]">
+                      {initials(detailUser.name)}
+                    </AvatarFallback>
+                  </Avatar>
                   <div>
-                    <p className="font-semibold">{detailUser.name}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm font-semibold">{detailUser.name}</p>
+                    <p className="text-xs text-[var(--wy-text-muted)]">
                       {masked ? maskEmail(detailUser.email) : detailUser.email}
                     </p>
                   </div>
@@ -948,72 +861,39 @@ function CustomerUsersPage() {
                         });
                         setDetailUser(null);
                       }}
-                      className="rounded-lg px-2 py-1.5 text-xs font-medium text-primary hover:bg-accent"
+                      className="h-9 rounded-[var(--wy-radius)] px-2 text-xs font-medium text-[var(--wy-accent)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
                     >
                       {t("fullHistory", "Full history")}
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={() => setDetailUser(null)}
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent"
+                    aria-label={t("closeDetails")}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--wy-radius)] text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
               </div>
-              <div className="flex-1 space-y-4 overflow-y-auto p-5">
-                <div
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl border p-3.5",
-                    detailUser.status === "online"
-                      ? "border-emerald-500/20 bg-emerald-500/5"
+              <div className="flex-1 space-y-3 overflow-y-auto p-4">
+                <div className={cn(DETAIL_TILE, "flex items-center justify-between gap-3")}>
+                  <p className={DETAIL_LABEL}>{t("detailStatus")}</p>
+                  <StatusBadge
+                    status={GUEST_STATUS[detailUser.status] ?? "offline"}
+                    pulse={detailUser.status === "online"}
+                    className="capitalize"
+                  >
+                    {detailUser.status === "online"
+                      ? t("statusOnline")
                       : detailUser.status === "idle"
-                        ? "border-amber-500/20 bg-amber-500/5"
-                        : "bg-muted/40",
-                  )}
-                >
-                  <span className="relative flex h-3 w-3 shrink-0">
-                    {detailUser.status === "online" && (
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                    )}
-                    <span
-                      className={cn(
-                        "relative inline-flex h-3 w-3 rounded-full",
-                        detailUser.status === "online"
-                          ? "bg-emerald-500"
-                          : detailUser.status === "idle"
-                            ? "bg-amber-500"
-                            : "bg-muted-foreground",
-                      )}
-                    />
-                  </span>
-                  <div>
-                    <p className="text-[11px] font-medium text-muted-foreground">
-                      {t("detailStatus")}
-                    </p>
-                    <p
-                      className={cn(
-                        "text-sm font-semibold capitalize",
-                        detailUser.status === "online"
-                          ? "text-emerald-600"
-                          : detailUser.status === "idle"
-                            ? "text-amber-600"
-                            : "text-foreground",
-                      )}
-                    >
-                      {detailUser.status === "online"
-                        ? t("statusOnline")
-                        : detailUser.status === "idle"
-                          ? t("statusIdle")
-                          : t("statusOffline")}
-                    </p>
-                  </div>
+                        ? t("statusIdle")
+                        : t("statusOffline")}
+                  </StatusBadge>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border p-3">
-                    <p className="text-[11px] font-medium text-muted-foreground">
-                      {t("detailDuration")}
-                    </p>
+                  <div className={DETAIL_TILE}>
+                    <p className={DETAIL_LABEL}>{t("detailDuration")}</p>
                     <p className="mt-1 text-sm font-semibold">{detailUser.duration}</p>
                     {!!detailUser.mergedSessionCount && detailUser.mergedSessionCount > 1 && (
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -1021,19 +901,15 @@ function CustomerUsersPage() {
                       </p>
                     )}
                   </div>
-                  <div className="rounded-xl border p-3">
-                    <p className="text-[11px] font-medium text-muted-foreground">
-                      {t("detailDevice")}
-                    </p>
+                  <div className={DETAIL_TILE}>
+                    <p className={DETAIL_LABEL}>{t("detailDevice")}</p>
                     <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
                       <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
                       {detailUser.device}
                     </p>
                   </div>
-                  <div className="rounded-xl border p-3 col-span-2">
-                    <p className="text-[11px] font-medium text-muted-foreground">
-                      {t("detailDataUsed")}
-                    </p>
+                  <div className={cn(DETAIL_TILE, "col-span-2")}>
+                    <p className={DETAIL_LABEL}>{t("detailDataUsed")}</p>
                     <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
                       <Download className="h-3.5 w-3.5 text-muted-foreground" />
                       {sessionDataCell(detailUser.download)}
@@ -1041,18 +917,14 @@ function CustomerUsersPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border p-3">
-                    <p className="text-[11px] font-medium text-muted-foreground">
-                      {t("detailConnectedAt")}
-                    </p>
+                  <div className={DETAIL_TILE}>
+                    <p className={DETAIL_LABEL}>{t("detailConnectedAt")}</p>
                     <p className="mt-1 text-sm font-semibold">
                       {new Date(detailUser.connectedAt).toLocaleString()}
                     </p>
                   </div>
-                  <div className="rounded-xl border p-3">
-                    <p className="text-[11px] font-medium text-muted-foreground">
-                      {t("detailDisconnectedAt")}
-                    </p>
+                  <div className={DETAIL_TILE}>
+                    <p className={DETAIL_LABEL}>{t("detailDisconnectedAt")}</p>
                     <p className="mt-1 text-sm font-semibold">
                       {detailUser.disconnectedAt
                         ? new Date(detailUser.disconnectedAt).toLocaleString()
@@ -1060,25 +932,21 @@ function CustomerUsersPage() {
                     </p>
                   </div>
                 </div>
-                <div className="rounded-xl border p-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    {t("detailPhone")}
-                  </p>
+                <div className={DETAIL_TILE}>
+                  <p className={DETAIL_LABEL}>{t("detailPhone")}</p>
                   <p className="mt-1 text-sm">
                     {masked ? maskPhone(detailUser.phone) : detailUser.phone}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border p-3">
-                    <p className="text-[11px] font-medium text-muted-foreground">
-                      {t("detailMac")}
-                    </p>
+                  <div className={DETAIL_TILE}>
+                    <p className={DETAIL_LABEL}>{t("detailMac")}</p>
                     <p className="mt-1 font-mono text-sm">
                       {masked ? maskMac(detailUser.mac) : detailUser.mac}
                     </p>
                   </div>
-                  <div className="rounded-xl border p-3">
-                    <p className="text-[11px] font-medium text-muted-foreground">{t("detailIp")}</p>
+                  <div className={DETAIL_TILE}>
+                    <p className={DETAIL_LABEL}>{t("detailIp")}</p>
                     <p className="mt-1 font-mono text-sm">{detailUser.ip || "—"}</p>
                   </div>
                 </div>
@@ -1089,7 +957,7 @@ function CustomerUsersPage() {
                     goes on the wire; the backend masks it on the way back. */}
                 <GuestDeviceControls mac={detailUser.mac} guestName={detailUser.name} />
               </div>
-              <div className="space-y-2 border-t p-4">
+              <div className="space-y-2 border-t border-[var(--wy-border)] bg-[var(--wy-surface)] p-4">
                 {detailUser.status !== "offline" && (
                   <div className="flex gap-2">
                     <Button

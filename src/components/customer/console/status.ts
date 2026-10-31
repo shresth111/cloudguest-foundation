@@ -18,14 +18,12 @@ export function livenessToStatus(tone: LivenessTone): ConsoleStatus {
 /**
  * The console's default English word per state, for when a screen has no
  * more specific word of its own. One map, here; screens translate through
- * their own namespace and fall back to this.
- *
- * TODO(design-review issue 6): the review settles on Online / Degraded /
- * Down / Not checking in / Unknown. `ok` still reads "Up" because the
- * Dashboard topology copy and its tests use it; switch it with that copy.
+ * their own namespace and fall back to this. The single vocabulary (design
+ * review issue 6): Online / Degraded / Down / Not checking in / Unknown --
+ * `ok` reads "Online" here, on the Dashboard map and on Devices alike.
  */
 export const CONSOLE_STATUS_WORD = {
-  ok: "Up",
+  ok: "Online",
   warn: "Degraded",
   crit: "Down",
   info: "Info",
