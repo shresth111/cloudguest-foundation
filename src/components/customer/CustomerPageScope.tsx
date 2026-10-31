@@ -33,6 +33,9 @@ export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
   "firewall",
   "policies",
   "whitelist",
+  // batch 3: Logs
+  "network-activity",
+  "netlogs",
 ]);
 
 /** The title + venue a screen's own PageHeader shows: the same nav label

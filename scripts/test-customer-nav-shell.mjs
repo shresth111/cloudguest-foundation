@@ -1169,6 +1169,9 @@ console.log(
       firewall: ["FirewallView", "src/components/security/FirewallView.tsx"],
       policies: ["PoliciesHub", "src/components/features/PoliciesHub.tsx"],
       whitelist: ["WhiteList", "src/components/features/WhiteList.tsx"],
+      // batch 3: Logs
+      "network-activity": ["NetworkActivityLog", "src/components/features/NetworkActivityLog.tsx"],
+      netlogs: ["NetLogsView", "src/components/netlogs/NetLogsView.tsx"],
     };
     // One screen's source: the whole file, or just `export function <fn>`
     // up to the next top-level export.

@@ -392,8 +392,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "admin-logs" && (
                 <AdminLogsView locationId={locationId} scope={pageScope} />
               )}
-              {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
-              {feature === "netlogs" && <NetLogsView locationId={locationId} />}
+              {feature === "network-activity" && (
+                <NetworkActivityLog masked={masked} scope={pageScope} />
+              )}
+              {feature === "netlogs" && <NetLogsView locationId={locationId} scope={pageScope} />}
               {feature === "mac-auth" && !controllerGated && (
                 <MacAuthView locationId={locationId} scope={pageScope} />
               )}

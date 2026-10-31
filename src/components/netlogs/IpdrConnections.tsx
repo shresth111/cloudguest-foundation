@@ -1,7 +1,19 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, FileSearch, Info, Loader2, RefreshCw, Search, ShieldAlert } from "lucide-react";
+import {
+  Download,
+  FileSearch,
+  Info,
+  Loader2,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  SlidersHorizontal,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
+import { PANEL_SURFACE, SegmentedControl } from "@/components/customer/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,7 +58,7 @@ import { cn } from "@/lib/utils";
 import type { IpdrItem } from "@/types/ipdr";
 
 const SELECT_CLASS =
-  "h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+  "h-9 rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-[13px] text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-10";
 
 /**
  * NetLogs -> "Connections (IPDR)": who held which address, talking to what,
@@ -84,6 +96,13 @@ export function IpdrConnections({
   const [search, setSearch] = useState<IpdrSearch>(EMPTY_IPDR_SEARCH);
   const [audience, setAudience] = useState<IpdrAudience>(DEFAULT_IPDR_AUDIENCE);
   const [exportGuestsOnly, setExportGuestsOnly] = useState(false);
+  const { t } = useTranslation("nav", { i18n });
+  const [moreOpen, setMoreOpen] = useState(false);
+  const narrowingCount =
+    (filters.location ? 1 : 0) +
+    (filters.router ? 1 : 0) +
+    (filters.range === "custom" ? 1 : 0) +
+    (audience !== DEFAULT_IPDR_AUDIENCE ? 1 : 0);
   const effLocation = effectiveLocationId(filters, activeLocationId, orgWide);
   const win = useMemo(() => netLogsWindow(filters, at), [filters, at]);
   const params = useMemo(
@@ -148,129 +167,128 @@ export function IpdrConnections({
 
   return (
     <div className="space-y-4">
-      <p className="max-w-3xl text-sm text-muted-foreground">
-        One row per connection, in the CERT-In IPDR column order. Phone numbers and e-mail addresses
-        are masked here and appear in full only in the export. Translated IP and port are derived
-        unless your router reports them; hover a row to see which.
+      {/* The page's PageHeader (NetLogsView) carries the first two
+          sentences of what used to be this paragraph. */}
+      <p className="max-w-3xl text-[13px] text-[var(--wy-text-muted)]">
+        Translated IP and port are derived unless your router reports them; hover a row to see
+        which.
       </p>
 
-      <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
+      <div className={cn(PANEL_SURFACE, "space-y-3 p-3")}>
         <div className="flex flex-wrap items-center gap-2">
-          <div
-            role="group"
-            aria-label="Time range"
-            className="inline-flex flex-wrap rounded-md border bg-background p-0.5"
-          >
-            {NETLOGS_PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={filters.range === p}
-                onClick={() => apply({ range: p, from: "", to: "" })}
-                className={cn(
-                  "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                  filters.range === p
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                )}
-              >
-                {NETLOGS_PRESET_LABEL[p]}
-              </button>
-            ))}
-          </div>
-          <label className="flex items-center gap-1 text-xs text-muted-foreground">
-            From
-            <Input
-              type="date"
-              aria-label="From"
-              className="h-9 w-auto"
-              value={filters.from}
-              onChange={(e) =>
-                e.target.value &&
-                apply({ range: "custom", from: e.target.value, to: filters.to || e.target.value })
-              }
-            />
-          </label>
-          <label className="flex items-center gap-1 text-xs text-muted-foreground">
-            To
-            <Input
-              type="date"
-              aria-label="To"
-              className="h-9 w-auto"
-              value={filters.to}
-              onChange={(e) =>
-                e.target.value &&
-                apply({ range: "custom", from: filters.from || e.target.value, to: e.target.value })
-              }
-            />
-          </label>
+          <SegmentedControl
+            ariaLabel="Time range"
+            size="md"
+            className="max-w-full flex-wrap"
+            value={filters.range}
+            onChange={(p) => apply({ range: p, from: "", to: "" })}
+            options={NETLOGS_PRESETS.map((p) => ({ value: p, label: NETLOGS_PRESET_LABEL[p] }))}
+          />
 
-          <select
-            aria-label="Location"
-            className={SELECT_CLASS}
-            value={locationValue}
-            onChange={(e) => {
-              const v = e.target.value;
-              apply({ location: v === activeLocationId ? "" : v, router: "" });
-            }}
+          {/* Below `sm` the dates, location, router and audience fold behind
+              one "Filters (n)" button, as on Log lines. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-10 gap-1.5 sm:hidden"
+            aria-expanded={moreOpen}
+            aria-controls="ipdr-more-filters"
+            onClick={() => setMoreOpen((o) => !o)}
           >
-            {orgWide && <option value="all">All locations</option>}
-            {locationOptions.length === 0 && effLocation && (
-              <option value={effLocation}>This location</option>
-            )}
-            {locationOptions.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Router"
-            className={SELECT_CLASS}
-            value={filters.router}
-            disabled={!effLocation}
-            onChange={(e) => apply({ router: e.target.value })}
-          >
-            <option value="">All routers</option>
-            {(routers.data ?? []).map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+            {narrowingCount > 0
+              ? t("netlogs.filtersCount", "Filters ({{count}})", { count: narrowingCount })
+              : t("netlogs.filters", "Filters")}
+          </Button>
 
-          <div
-            role="group"
-            aria-label="Show"
-            className="inline-flex rounded-md border bg-background p-0.5"
-          >
-            {(["guests", "all"] as const).map((a) => (
-              <button
-                key={a}
-                type="button"
-                aria-pressed={audience === a}
-                onClick={() => setAudience(a)}
-                className={cn(
-                  "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                  audience === a
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                )}
-              >
-                {IPDR_AUDIENCE_LABEL[a]}
-              </button>
-            ))}
+          <div id="ipdr-more-filters" className={cn("contents", !moreOpen && "max-sm:hidden")}>
+            <label className="flex items-center gap-1 text-xs text-[var(--wy-text-muted)]">
+              From
+              <Input
+                type="date"
+                aria-label="From"
+                className="h-9 w-auto"
+                value={filters.from}
+                onChange={(e) =>
+                  e.target.value &&
+                  apply({ range: "custom", from: e.target.value, to: filters.to || e.target.value })
+                }
+              />
+            </label>
+            <label className="flex items-center gap-1 text-xs text-[var(--wy-text-muted)]">
+              To
+              <Input
+                type="date"
+                aria-label="To"
+                className="h-9 w-auto"
+                value={filters.to}
+                onChange={(e) =>
+                  e.target.value &&
+                  apply({
+                    range: "custom",
+                    from: filters.from || e.target.value,
+                    to: e.target.value,
+                  })
+                }
+              />
+            </label>
+
+            <select
+              aria-label="Location"
+              className={SELECT_CLASS}
+              value={locationValue}
+              onChange={(e) => {
+                const v = e.target.value;
+                apply({ location: v === activeLocationId ? "" : v, router: "" });
+              }}
+            >
+              {orgWide && <option value="all">All locations</option>}
+              {locationOptions.length === 0 && effLocation && (
+                <option value={effLocation}>This location</option>
+              )}
+              {locationOptions.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Router"
+              className={SELECT_CLASS}
+              value={filters.router}
+              disabled={!effLocation}
+              onChange={(e) => apply({ router: e.target.value })}
+            >
+              <option value="">All routers</option>
+              {(routers.data ?? []).map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+
+            <SegmentedControl
+              ariaLabel="Show"
+              size="md"
+              value={audience}
+              onChange={setAudience}
+              options={(["guests", "all"] as const).map((a) => ({
+                value: a,
+                label: IPDR_AUDIENCE_LABEL[a],
+              }))}
+            />
           </div>
 
           <div className="ml-auto flex items-center gap-2">
             {canExport && (
               <label
-                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                className="flex items-center gap-1.5 text-xs text-[var(--wy-text-muted)]"
                 title="By default the export has every row, guests and devices. Tick to download guest rows only."
               >
                 <input
                   type="checkbox"
-                  className="h-3.5 w-3.5"
+                  className="h-3.5 w-3.5 accent-[var(--wy-accent)]"
                   checked={exportGuestsOnly}
                   onChange={(e) => setExportGuestsOnly(e.target.checked)}
                 />
@@ -305,14 +323,14 @@ export function IpdrConnections({
         </div>
 
         <form
-          className="flex flex-wrap items-center gap-2 border-t pt-3"
+          className="flex flex-wrap items-center gap-2 border-t border-[var(--wy-border)] pt-3"
           onSubmit={(e) => {
             e.preventDefault();
             setAt(Date.now());
             setSearch({ ...draft });
           }}
         >
-          <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
+          <Search className="h-4 w-4 text-[var(--wy-text-faint)]" aria-hidden />
           {(
             [
               ["phone", "Phone", 32],
@@ -326,7 +344,7 @@ export function IpdrConnections({
               aria-label={label}
               placeholder={label}
               maxLength={max}
-              className="h-9 w-44"
+              className="h-9 w-full sm:w-44"
               value={draft[key]}
               onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
             />
@@ -351,7 +369,7 @@ export function IpdrConnections({
       </div>
 
       {note && (
-        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        <p className="flex items-start gap-1.5 text-xs text-[var(--wy-text-muted)]">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           {note}
         </p>
@@ -360,7 +378,7 @@ export function IpdrConnections({
       {friendly ? (
         <EmptyState icon={ShieldAlert} title={friendly.title} description={friendly.detail} />
       ) : rows.isLoading ? (
-        <div className="h-48 animate-pulse rounded-xl bg-muted" />
+        <div className="h-48 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]" />
       ) : items.length === 0 ? (
         <EmptyState
           icon={FileSearch}
@@ -398,7 +416,7 @@ function IpdrTable({
 }) {
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
+      <div className={cn(PANEL_SURFACE, "overflow-x-auto")}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -435,10 +453,10 @@ function IpdrTable({
                       title={value && source ? source : undefined}
                       className={cn(
                         "whitespace-nowrap font-mono text-xs",
-                        derived && value && "italic text-muted-foreground",
+                        derived && value && "italic text-[var(--wy-text-muted)]",
                         item.translated_source === "ambiguous" &&
                           derived &&
-                          "text-amber-700 dark:text-amber-400",
+                          "text-[var(--wy-warn)]",
                       )}
                     >
                       {value || "—"}
@@ -451,7 +469,7 @@ function IpdrTable({
           </TableBody>
         </Table>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-[var(--wy-text-faint)]">
         Translated IP/port in italics are derived (router's public IP and the same port); amber
         means another device may have used the same port at that time. A blank source port means the
         router's records for that row were summarised. Hover a MAC or allocation time to see where
@@ -482,9 +500,9 @@ function WhoCell({ item }: { item: IpdrItem }) {
         }
         className={cn(
           "rounded px-1.5 py-0.5 font-medium",
-          cls === "guest" && "bg-primary/10 text-primary",
-          cls === "device" && "bg-muted text-muted-foreground",
-          cls === "unknown" && "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+          cls === "guest" && "bg-[var(--wy-info-soft)] text-[var(--wy-info)]",
+          cls === "device" && "bg-[var(--wy-offline-soft)] text-[var(--wy-offline)]",
+          cls === "unknown" && "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]",
         )}
       >
         {who.label}

@@ -89,6 +89,11 @@ const MIGRATED = [
   "src/components/features/LocationPolicies.tsx",
   "src/components/features/CreateGroup.tsx",
   "src/components/features/WhiteList.tsx",
+  // batch 3 (2026-10-31): Logs -- Guest Connection Records, NetLogs
+  "src/components/features/NetworkActivityLog.tsx",
+  "src/components/netlogs/NetLogsView.tsx",
+  "src/components/netlogs/IpdrConnections.tsx",
+  "src/components/netlogs/NetLogsCharts.tsx",
 ];
 
 const PALETTE =
