@@ -530,7 +530,17 @@ check(
   "dashboard-header-no-longer-falls-through-to-a-red-dot",
   !/activeLocation\?\.status === "online"[\s\S]{0,200}bg-rose-400/.test(dash),
 );
-check("dashboard-header-renders-the-shared-badge", dash.includes("<LocationLivenessBadge"));
+// The console shell (dashboard-revamp) replaced the header badge with a
+// health pill in the top bar; the requirement is unchanged -- the header's
+// status must be the liveness verdict, not something of its own.
+{
+  const header = readFileSync(resolve(ROOT, "src/components/customer/CustomerHeader.tsx"), "utf8");
+  const pill = readFileSync(resolve(ROOT, "src/components/customer/ConsoleHealth.tsx"), "utf8");
+  check(
+    "dashboard-header-renders-the-liveness-verdict",
+    header.includes("<ConsoleHealthPill") && pill.includes("livenessTone(liveness.state)"),
+  );
+}
 check("dashboard-header-has-a-loading-state-of-its-own", dash.includes("CHECKING_LIVENESS"));
 check(
   "dashboard-header-survives-a-summary-persisted-before-liveness-existed",
@@ -541,13 +551,20 @@ check(
   "core-systems-icons-are-not-unconditionally-green",
   !/className="h-3\.5 w-3\.5 text-emerald-500"/.test(dash),
 );
-check("core-systems-icons-follow-the-verdict", dash.includes("CORE_ICON[livenessTone("));
+// System and Routers carry the verdict's status dot (`verdict` comes from
+// `livenessTone(liveness.state)`), never a fixed colour.
+check(
+  "core-systems-icons-follow-the-verdict",
+  dash.includes('VERDICT[isLoading ? "neutral" : tone]') &&
+    dash.includes("const tone = livenessTone(liveness.state)") &&
+    (dash.match(/d\.health\.(systemHealth|routersOnline),\s*verdict\.status/g) ?? []).length === 2,
+);
 check("dashboard-explains-why-it-is-not-live", dash.includes("<LocationLivenessExplainer"));
 // The ISP pill is not an ISP signal (see getDashboard()); it must not wear
 // a status icon that implies it is one.
 check(
   "the-isp-pill-does-not-claim-a-status-it-never-measured",
-  /<Activity aria-hidden className="h-3\.5 w-3\.5 text-muted-foreground" \/>/.test(dash),
+  /t\("status\.isp", "ISP"\), d\.health\.isp, null\]/.test(dash),
 );
 
 // This used to assert that CustomerFeaturePage rendered the explainer too,
