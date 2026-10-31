@@ -15,6 +15,7 @@ import type { RouterLiveness } from "@/lib/location-liveness";
 import type { RouterDevice } from "@/types/router";
 import type { DeviceHealth, DeviceHealthEvent } from "@/lib/hardware-health";
 import type { MonitoredDeviceRow } from "@/services/deviceHardware.service";
+import { demoHardwareState, demoVenue } from "@/lib/demo-world";
 
 /** The demo venue's routers, as the liveness summary in the store already
  * names them, so the inventory, the traffic picker and the Overview all
@@ -24,33 +25,41 @@ export function demoRouterDevices(
   routers: readonly RouterLiveness[] | null | undefined,
 ): RouterDevice[] {
   const now = new Date().toISOString();
-  return (routers ?? []).map((r, i) => ({
-    id: r.key,
-    locationId,
-    locationName: "",
-    organizationId: "org-1",
-    organizationName: "Acme Corp",
-    name: r.label,
-    serialNumber: `DEMO-${r.key.toUpperCase()}`,
-    macAddress: `02:00:5E:00:0${i + 1}:${(16 + i * 7).toString(16).toUpperCase().padStart(2, "0")}`,
-    model: i === 0 ? "hAP ax²" : "hAP ax lite",
-    vendor: "MikroTik",
-    routerOsVersion: "7.19.4",
-    managementIpAddress: null,
-    publicIpAddress: null,
-    status: "online",
-    lastSeenAt: r.lastContactIso,
-    lastHealthCheckAt: r.lastContactIso,
-    healthStatus: r.state === "online" ? "healthy" : null,
-    hasApiCredentials: true,
-    controllerState: null,
-    controllerStateReason: null,
-    controllerLastContactedAt: null,
-    vendorClaimIsContradicted: false,
-    settings: {},
-    createdAt: now,
-    updatedAt: now,
-  }));
+  const venue = demoVenue(locationId);
+  return (routers ?? []).map((r, i) => {
+    // Model, serial and MAC from the demo world, so Devices names the same
+    // hardware as Internet Connection and Security.
+    const w = venue?.routers.find((x) => x.id === r.key);
+    return {
+      id: r.key,
+      locationId,
+      locationName: venue?.name ?? "",
+      organizationId: "org-1",
+      organizationName: "Acme Corp",
+      name: r.label,
+      serialNumber: w?.serial ?? `DEMO-${r.key.toUpperCase()}`,
+      macAddress:
+        w?.mac ??
+        `02:00:5E:00:0${i + 1}:${(16 + i * 7).toString(16).toUpperCase().padStart(2, "0")}`,
+      model: w?.model ?? "hAP ax²",
+      vendor: "MikroTik",
+      routerOsVersion: "7.19.4",
+      managementIpAddress: null,
+      publicIpAddress: null,
+      status: w?.status ?? "online",
+      lastSeenAt: r.lastContactIso,
+      lastHealthCheckAt: r.lastContactIso,
+      healthStatus: r.state === "online" ? "healthy" : null,
+      hasApiCredentials: true,
+      controllerState: null,
+      controllerStateReason: null,
+      controllerLastContactedAt: null,
+      vendorClaimIsContradicted: false,
+      settings: {},
+      createdAt: now,
+      updatedAt: now,
+    } satisfies RouterDevice;
+  });
 }
 
 function hash(s: string): number {
@@ -73,7 +82,11 @@ export function withDemoHealth(
     const h = hash(d.mac);
     const port = `ether${2 + (idx % 4)}`;
     const at = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
-    const kind = d.status === "down" ? "down" : idx === 0 ? "flapping" : "up";
+    // The demo world says which device is down or unstable; the store's
+    // `status` agrees with it (deviceStore seeds from the same world).
+    const state = demoHardwareState(d.mac);
+    const kind =
+      d.status === "down" || state === "down" ? "down" : state === "unstable" ? "flapping" : "up";
     const events: DeviceHealthEvent[] =
       kind === "down"
         ? [

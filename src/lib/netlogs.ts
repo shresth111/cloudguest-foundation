@@ -72,7 +72,7 @@ export const NETLOGS_CATEGORIES = [
 export const NETLOGS_CATEGORY_LABEL: Record<string, string> = {
   dhcp: "DHCP",
   hotspot_auth: "Hotspot sign-in",
-  radius: "RADIUS",
+  radius: "Sign-in check",
   firewall: "Firewall",
   dns: "DNS",
   system: "System",

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import {
   AlertTriangle,
   HelpCircle,
@@ -123,7 +124,9 @@ type PolicyForm = GuestWifiLimitsForm;
 // asserts the data-limit control is aimed at the fields that are read.
 
 // ── constants ───────────────────────────────────────────────────
-const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
+// Demo-only: the demo world's venues (`@/lib/demo-world`), so every picker
+// lists the same venues as the venue switcher.
+const UNITS: string[] = [...DEMO_VENUE_NAMES];
 const DATA_UNITS = ["MB", "GB"];
 // "Per session" is deliberately NOT here any more, and its absence is the
 // honest half of making this control real -- the same trade IDLE_TIMEOUT made

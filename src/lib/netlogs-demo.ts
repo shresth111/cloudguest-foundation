@@ -13,7 +13,7 @@ import type { IpdrItem, IpdrPage } from "@/types/ipdr";
  * while someone pages through it.
  *
  * Address plan (documentation and private ranges only):
- *   - guests: 10.5.50.x (Mumbai HQ), 10.5.60.x (Rooftop Café);
+ *   - guests: 10.5.50.x (Mumbai HQ), 10.5.60.x (Chennai Office café);
  *   - the routers' public addresses: 203.0.113.10 / 203.0.113.20;
  *   - outside destinations: 198.51.100.x, 203.0.113.5x, public DNS;
  *   - MACs in 02:00:5E:xx:xx:xx; phones 98000001xx.
@@ -22,18 +22,22 @@ import type { IpdrItem, IpdrPage } from "@/types/ipdr";
  *
  * Pure (types only), so the script tests can bundle it on its own.
  */
+import { DEMO_VENUES, demoAllRouters } from "@/lib/demo-world";
 
 // ---------------------------------------------------------------------------
 // Shared fake venue
 // ---------------------------------------------------------------------------
 
 export const DEMO_HQ_LOCATION_ID = "loc-1";
-export const DEMO_CAFE_LOCATION_ID = "loc-1-cafe";
+/** The café venue: Chennai Office in the demo world. */
+export const DEMO_CAFE_LOCATION_ID = "loc-4";
 
-export const DEMO_NETLOGS_LOCATIONS: readonly { id: string; name: string }[] = [
-  { id: DEMO_HQ_LOCATION_ID, name: "Mumbai HQ" },
-  { id: DEMO_CAFE_LOCATION_ID, name: "Mumbai HQ – Rooftop Café" },
-];
+/** Every demo venue, as the venue switcher lists them (`@/lib/demo-world`).
+ * Log rows exist for the two venues the logs fixtures cover (Mumbai HQ and
+ * the Chennai café); the others are real venues with nothing logged here. */
+export const DEMO_NETLOGS_LOCATIONS: readonly { id: string; name: string }[] = DEMO_VENUES.map(
+  (v) => ({ id: v.id, name: v.name }),
+);
 
 export interface DemoNetLogRouter {
   id: string;
@@ -68,9 +72,9 @@ export const DEMO_NETLOGS_ROUTERS: readonly DemoNetLogRouter[] = [
     firstHost: 120,
   },
   {
-    id: "r-1-cafe",
-    name: "Rooftop Café router",
-    hostname: "MUM-CAFE-ROOF",
+    id: "r-4",
+    name: "Counter router",
+    hostname: "CHN-COUNTER",
     locationId: DEMO_CAFE_LOCATION_ID,
     publicIp: "203.0.113.20",
     subnet: "10.5.60",
@@ -78,11 +82,12 @@ export const DEMO_NETLOGS_ROUTERS: readonly DemoNetLogRouter[] = [
   },
 ];
 
-/** Routers for a location, in the shape the NetLogs router picker reads. */
+/** Routers for a location, in the shape the NetLogs router picker reads:
+ * the venue's own routers from the demo world. */
 export function demoNetLogsRoutersFor(locationId: string | null): { id: string; name: string }[] {
-  return DEMO_NETLOGS_ROUTERS.filter((r) => !locationId || r.locationId === locationId).map(
-    (r) => ({ id: r.id, name: r.name }),
-  );
+  return demoAllRouters()
+    .filter(({ venue }) => !locationId || venue.id === locationId)
+    .map(({ router }) => ({ id: router.id, name: router.name }));
 }
 
 export interface DemoGuest {

@@ -90,6 +90,8 @@ import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import { cn } from "@/lib/utils";
 import { maskPhone } from "@/lib/masking";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { demoIspLinks, demoOnlineNow, demoRouterDevices } from "@/lib/demo-world";
+import { pickSubjectRouter } from "@/lib/fix-problem-subject";
 import { routerService } from "@/services/router.service";
 import { ispService } from "@/services/isp.service";
 import { guestService } from "@/services/guest.service";
@@ -124,11 +126,7 @@ import {
   minutesSince,
   stateIsControllerManaged,
 } from "@/lib/location-liveness";
-import {
-  controllerRouterDeviceWriteReason,
-  isAgentManaged,
-  routerVendorLabel,
-} from "@/lib/router-vendors";
+import { controllerRouterDeviceWriteReason, routerVendorLabel } from "@/lib/router-vendors";
 import { useClientControls } from "@/hooks/useClientControls";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
 
@@ -326,22 +324,7 @@ function CheckedList({ checked, notChecked }: { checked: string[]; notChecked: s
  * Labelled "Example" inline rather than badged "Demo" as a status tile: it
  * is a property of the data, not of the venue's network.
  */
-const DEMO_NOW = () => Date.now();
-const DEMO_LINKS: LinkReading[] = [
-  {
-    id: "demo-primary",
-    providerName: "Airtel Fiber",
-    isPrimary: true,
-    status: "up",
-    latencyMs: 18,
-    packetLossPercent: 0,
-    checkedAt: new Date(DEMO_NOW() - 12_000).toISOString(),
-  },
-];
 const DEMO_GUEST_IDENTIFIER = "+91 98765 43210";
-/** Three, and the strip says three -- a demo that claims 41 guests over an
- * empty picker is the same small dishonesty this page exists to remove. */
-const DEMO_SESSION_COUNT = 3;
 
 /* ── the page ───────────────────────────────────────────────────────── */
 
@@ -363,6 +346,13 @@ export function FixAProblem({
 
   useEffect(() => {
     if (demo) {
+      // The venue's own routers and lines from the demo world, run through
+      // the same verdict as a real venue: Bangalore's quiet router and
+      // Hyderabad's dead line read here exactly as the dashboard says.
+      setRouters(demoRouterDevices(locationId));
+      setLinks(demoIspLinks(locationId).filter((l) => l.isEnabled));
+      setSessions([]);
+      setLoadError(false);
       setLoading(false);
       return;
     }
@@ -422,10 +412,7 @@ export function FixAProblem({
    * still the subject when it is all this venue has, and the copy below then
    * says so rather than pretending.
    */
-  const router = useMemo(
-    () => routers.find((r) => isAgentManaged(r.vendor)) ?? routers[0] ?? null,
-    [routers],
-  );
+  const router = useMemo(() => pickSubjectRouter(routers), [routers]);
   const routerOrgId = router?.organizationId;
 
   /**
@@ -434,7 +421,7 @@ export function FixAProblem({
    * platform does not reach that device" and it lives in `router-vendors.ts`.
    */
   const controllerSignals = useMemo(() => {
-    if (demo || !router) {
+    if (!router) {
       return { measured: true, reportedDown: false, vendorLabel: null as string | null };
     }
     const live = deriveRouterLiveness(
@@ -477,7 +464,7 @@ export function FixAProblem({
       reportedDown: live.state === "controller-reported-down",
       vendorLabel: controller && router.vendor ? routerVendorLabel(router.vendor) : null,
     };
-  }, [router, demo]);
+  }, [router]);
 
   /** Contact is judged on heartbeat age, never on a probe -- a probe is
    * what fails during the outage this has to describe.
@@ -488,16 +475,14 @@ export function FixAProblem({
    * separately (`routerLivenessMeasured`) so it cannot mistake this null for
    * "we have not looked yet". */
   const routerReachable = useMemo<boolean | null>(() => {
-    if (demo) return true;
     if (!router) return null;
     if (!controllerSignals.measured) return null;
     const mins = minutesSince(router.lastSeenAt, new Date());
     if (mins == null) return null;
     return mins < HEARTBEAT_SILENT_AFTER_MINUTES;
-  }, [router, demo, controllerSignals.measured]);
+  }, [router, controllerSignals.measured]);
 
   const readings = useMemo<LinkReading[]>(() => {
-    if (demo) return DEMO_LINKS;
     return links.map((l) => ({
       id: l.id,
       providerName: l.providerName,
@@ -514,25 +499,25 @@ export function FixAProblem({
       packetLossPercent: l.packetLossPercentage,
       checkedAt: l.lastCheckedAt,
     }));
-  }, [links, demo]);
+  }, [links]);
 
-  const guestsOnline = demo ? DEMO_SESSION_COUNT : sessions.length;
+  // Demo: guests online right now at this venue, from the same roster the
+  // dashboard and Guests page count.
+  const guestsOnline = demo ? demoOnlineNow(locationId ?? "") : sessions.length;
 
   const venue: VenueVerdict = useMemo(
     () =>
       venueVerdict({
-        hasRouter: demo ? true : routers.length > 0,
+        hasRouter: routers.length > 0,
         links: readings,
-        routerLastSeenAt: demo
-          ? new Date(Date.now() - 20_000).toISOString()
-          : (router?.lastSeenAt ?? null),
+        routerLastSeenAt: router?.lastSeenAt ?? null,
         routerReachable,
         guestsOnline,
         routerLivenessMeasured: controllerSignals.measured,
         controllerReportedDown: controllerSignals.reportedDown,
         controllerVendorLabel: controllerSignals.vendorLabel,
       }),
-    [routers.length, readings, router, routerReachable, guestsOnline, demo, controllerSignals],
+    [routers.length, readings, router, routerReachable, guestsOnline, controllerSignals],
   );
 
   const reload = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -613,7 +598,10 @@ function PageHeading({ demo }: { demo: boolean }) {
       </div>
       {demo && (
         <p className="text-xs text-muted-foreground">
-          {t("demoNote", "This is an example, using sample guests. Sign in to see your own.")}
+          {t(
+            "demoNote",
+            "This is a demo venue with sample guests. Your own venue shows your real guests.",
+          )}
         </p>
       )}
     </div>

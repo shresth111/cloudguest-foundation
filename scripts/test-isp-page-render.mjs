@@ -222,7 +222,8 @@ await build({
         }));
         b.onResolve({ filter: /^\.\.?\// }, (args) => {
           const target = resolve(args.resolveDir, args.path);
-          if (target === join(ROOT, "src", "services", "api")) return { path: join(work, "api-stub.js") };
+          if (target === join(ROOT, "src", "services", "api"))
+            return { path: join(work, "api-stub.js") };
           if (target === join(ROOT, "src", "services", "customer.service")) {
             return { path: join(work, "customer-service-stub.js") };
           }
@@ -230,7 +231,13 @@ await build({
         });
         b.onResolve({ filter: /^@\// }, (args) => {
           const base = join(ROOT, "src", args.path.slice(2));
-          const probes = [base, `${base}.tsx`, `${base}.ts`, join(base, "index.tsx"), join(base, "index.ts")];
+          const probes = [
+            base,
+            `${base}.tsx`,
+            `${base}.ts`,
+            join(base, "index.tsx"),
+            join(base, "index.ts"),
+          ];
           for (const p of probes) if (existsSync(p) && extname(p)) return { path: p };
           return { errors: [{ text: `cannot resolve ${args.path}` }] };
         });
@@ -287,34 +294,68 @@ async function mount(which, { width = 1280, dark = false, shot } = {}) {
   return { page, calls, text, html, errors };
 }
 const count = (calls, re) => calls.filter((c) => re.test(c.url)).length;
-const noDemo = (r) => !/DEMO-EDGE-01|isp-demo-|Demo Location/.test(r.html);
+// Demo-world ids/serials (src/lib/demo-world.ts) plus the retired fixture's.
+const noDemo = (r) =>
+  !/DEMO-EDGE-01|isp-demo-|Demo Location|isp-loc-\d|DEMO-HQ-|RB5009UG/.test(r.html);
 
 console.log("\nInternet Connection page");
 
 {
   const r = await mount("dual-failover", { shot: "render-isp-failover.png" });
   check("dual-failover renders", r.errors.length === 0, r.errors.join(" | "));
-  check("dual-failover banner is on-backup", (await r.page.locator('[data-wy="failover-banner"][data-kind="on-backup"]').count()) === 1);
-  check("dual-failover says 'On backup since'", /On backup since/.test(r.text), r.text.slice(0, 300));
+  check(
+    "dual-failover banner is on-backup",
+    (await r.page.locator('[data-wy="failover-banner"][data-kind="on-backup"]').count()) === 1,
+  );
+  check(
+    "dual-failover says 'On backup since'",
+    /On backup since/.test(r.text),
+    r.text.slice(0, 300),
+  );
   check("dual-failover headline", /Online on backup/.test(r.text));
-  check("dual-failover shows both ISPs", /ACT Fibernet/.test(r.text) && /Jio AirFiber/.test(r.text));
-  check("dual-failover two link cards", (await r.page.locator('[data-wy="isp-card"]').count()) === 2);
+  check(
+    "dual-failover shows both ISPs",
+    /ACT Fibernet/.test(r.text) && /Jio AirFiber/.test(r.text),
+  );
+  check(
+    "dual-failover two link cards",
+    (await r.page.locator('[data-wy="isp-card"]').count()) === 2,
+  );
   check("dual-failover down-for on the primary", /Down for 4\dm/.test(r.text));
-  check("dual-failover incident chip from summary", (await r.page.locator('[data-wy="incident-chip"]').count()) >= 1);
+  check(
+    "dual-failover incident chip from summary",
+    (await r.page.locator('[data-wy="incident-chip"]').count()) >= 1,
+  );
   await r.page.locator('[data-wy="incident-chip"]').first().click();
-  check("clicking an incident pins its window", (await r.page.locator('[data-wy="incident-readout"]').count()) === 1);
+  check(
+    "clicking an incident pins its window",
+    (await r.page.locator('[data-wy="incident-readout"]').count()) === 1,
+  );
   if (SHOTS && css) {
-    const box = await r.page.locator('[data-wy="isp-history"] .recharts-surface').first().boundingBox();
+    const box = await r.page
+      .locator('[data-wy="isp-history"] .recharts-surface')
+      .first()
+      .boundingBox();
     if (box) {
       await r.page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
       await r.page.waitForTimeout(400);
-      await r.page.screenshot({ path: join(SHOTS, "render-isp-tooltip-pinned.png"), fullPage: true });
+      await r.page.screenshot({
+        path: join(SHOTS, "render-isp-tooltip-pinned.png"),
+        fullPage: true,
+      });
     }
   }
   check("real session shows no demo fixture", noDemo(r));
   check("routers read once", count(r.calls, /^\/locations\/[^/]+\/routers$/) === 1);
-  check("links read once", count(r.calls, /^\/isp\/links$/) === 1, JSON.stringify(r.calls.map((c) => c.url)));
-  check("recent checks: one read per link", count(r.calls, /^\/isp\/links\/[^/]+\/health-checks$/) === 2);
+  check(
+    "links read once",
+    count(r.calls, /^\/isp\/links$/) === 1,
+    JSON.stringify(r.calls.map((c) => c.url)),
+  );
+  check(
+    "recent checks: one read per link",
+    count(r.calls, /^\/isp\/links\/[^/]+\/health-checks$/) === 2,
+  );
   check("summary: one read per link", count(r.calls, /\/health-checks\/summary$/) === 2);
   check(
     "recent checks ask for 30 rows",
@@ -325,8 +366,15 @@ console.log("\nInternet Connection page");
 {
   const r = await mount("single", { shot: "render-isp-single.png" });
   check("single renders", r.errors.length === 0, r.errors.join(" | "));
-  check("single: one card + backup prompt", (await r.page.locator('[data-wy="isp-card"]').count()) === 1 && /One line, no failover/.test(r.text));
-  check("single: no failover banner", (await r.page.locator('[data-wy="failover-banner"]').count()) === 0);
+  check(
+    "single: one card + backup prompt",
+    (await r.page.locator('[data-wy="isp-card"]').count()) === 1 &&
+      /One line, no failover/.test(r.text),
+  );
+  check(
+    "single: no failover banner",
+    (await r.page.locator('[data-wy="failover-banner"]').count()) === 0,
+  );
   check("single real session shows no demo fixture", noDemo(r));
   await r.page.close();
 }
@@ -347,29 +395,60 @@ console.log("\nInternet Connection page");
 {
   const r = await mount("no-checks", { shot: "render-isp-no-checks.png" });
   check("health checks missing renders", r.errors.length === 0, r.errors.join(" | "));
-  check("health checks missing: says so", /No health checks in this range/.test(r.text) && /No health checks yet/.test(r.text));
-  check("health checks missing: no uptime invented", !/100%/.test(r.text), "a 100% appeared with zero checks");
+  check(
+    "health checks missing: says so",
+    /No health checks in this range/.test(r.text) && /No health checks yet/.test(r.text),
+  );
+  check(
+    "health checks missing: no uptime invented",
+    !/100%/.test(r.text),
+    "a 100% appeared with zero checks",
+  );
   await r.page.close();
 }
 {
   const r = await mount("controller");
   check("controller venue renders", r.errors.length === 0, r.errors.join(" | "));
-  check("controller venue: note shown", (await r.page.locator('[data-wy="controller-note"]').count()) === 1);
+  check(
+    "controller venue: note shown",
+    (await r.page.locator('[data-wy="controller-note"]').count()) === 1,
+  );
   check("controller venue: no routing rules panel", !/Routing rules/.test(r.text));
   await r.page.close();
 }
 {
   const r = await mount("bad-shape");
-  check("wrong-shaped history body does not crash the page", r.errors.length === 0, r.errors.join(" | "));
-  check("wrong-shaped history body shows the error state", /Couldn't load the history/.test(r.text));
+  check(
+    "wrong-shaped history body does not crash the page",
+    r.errors.length === 0,
+    r.errors.join(" | "),
+  );
+  check(
+    "wrong-shaped history body shows the error state",
+    /Couldn't load the history/.test(r.text),
+  );
   check("cards still render", (await r.page.locator('[data-wy="isp-card"]').count()) === 2);
   await r.page.close();
 }
 {
   const r = await mount("demo");
   check("demo renders", r.errors.length === 0, r.errors.join(" | "));
-  check("demo shows its fixture", /DEMO-EDGE-01/.test(r.html));
-  check("demo makes no /isp or router request", count(r.calls, /^\/isp|\/routers$/) === 0, JSON.stringify(r.calls.map((c) => c.url)));
+  // The venue's own router and lines from the demo world (Mumbai HQ =
+  // loc-1): the same router model and carriers every other screen names.
+  check(
+    "demo shows its venue's router",
+    /Lobby router/.test(r.text) && /RB5009UG/.test(r.html),
+    r.text.slice(0, 300),
+  );
+  check(
+    "demo shows its venue's lines",
+    /Airtel/.test(r.text) && /Jio/.test(r.text) && /isp-loc-1-/.test(r.html),
+  );
+  check(
+    "demo makes no /isp or router request",
+    count(r.calls, /^\/isp|\/routers$/) === 0,
+    JSON.stringify(r.calls.map((c) => c.url)),
+  );
   await r.page.close();
 }
 if (SHOTS && css) {
@@ -386,7 +465,10 @@ console.log("\nOverview Internet Connection card");
 {
   const r = await mount("card-failover", { shot: "render-card-failover.png" });
   check("card failover renders", r.errors.length === 0, r.errors.join(" | "));
-  check("card failover banner", (await r.page.locator('[data-wy="failover-banner"][data-kind="on-backup"]').count()) === 1);
+  check(
+    "card failover banner",
+    (await r.page.locator('[data-wy="failover-banner"][data-kind="on-backup"]').count()) === 1,
+  );
   check("card failover rows", (await r.page.locator('[data-wy="wan-row"]').count()) === 2);
   check("card makes no request", r.calls.length === 0, JSON.stringify(r.calls));
   await r.page.close();
@@ -395,13 +477,20 @@ console.log("\nOverview Internet Connection card");
   const r = await mount("card-dual", { shot: "render-card-dual.png" });
   check("card dual renders", r.errors.length === 0, r.errors.join(" | "));
   check("card dual headline", /All 2 ISPs online/.test(r.text));
-  check("card dual: no banner when calm", (await r.page.locator('[data-wy="failover-banner"]').count()) === 0);
+  check(
+    "card dual: no banner when calm",
+    (await r.page.locator('[data-wy="failover-banner"]').count()) === 0,
+  );
   check("card dual: plan meters", (await r.page.locator('[role="meter"]').count()) >= 3);
   await r.page.close();
 }
 {
   const r = await mount("card-empty");
-  check("card empty renders", r.errors.length === 0 && /No WAN link configured/.test(r.text), r.errors.join(" | "));
+  check(
+    "card empty renders",
+    r.errors.length === 0 && /No WAN link configured/.test(r.text),
+    r.errors.join(" | "),
+  );
   await r.page.close();
 }
 

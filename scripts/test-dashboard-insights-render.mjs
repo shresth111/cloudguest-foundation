@@ -429,8 +429,6 @@ console.log("LocationComparisonCard");
   check("locations: loading renders a skeleton", render(el).includes('data-state="loading"'));
   m.setState("locations", { isError: true });
   check("locations: error renders an alert", render(el).includes('role="alert"'));
-  m.setState("locations", { isDemo: true });
-  check("locations: hidden in the demo", render(el) === "");
 
   const row = (id, name, guests, sessions, total, online) => ({
     location_id: id,
@@ -447,6 +445,22 @@ console.log("LocationComparisonCard");
 
   m.setState("locations", wrap([row("a", "Andheri", 10, 20, 1, 1)]));
   check("locations: hidden for a single-venue org", render(el) === "");
+
+  // The demo has several venues and shows them (a selling point); the demo
+  // body comes only from useLocationComparison's demo branch.
+  m.setState("locations", {
+    ...wrap([row("a", "Andheri", 10, 20, 1, 1), row("b", "Bandra", 4, 5, 1, 1)]),
+    isDemo: true,
+  });
+  {
+    const demoHtml = render(el);
+    check(
+      "locations: shown in the demo when it has more than one venue",
+      (demoHtml.match(/data-testid="location-row-/g) ?? []).length === 2,
+    );
+  }
+  m.setState("locations", { ...wrap([row("a", "Andheri", 10, 20, 1, 1)]), isDemo: true });
+  check("locations: still hidden for a single-venue demo", render(el) === "");
 
   m.setState(
     "locations",

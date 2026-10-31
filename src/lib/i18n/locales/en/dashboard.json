@@ -196,5 +196,8 @@
     "viewLabel": "Network view",
     "cards": "Cards",
     "map": "Map"
+  },
+  "liveness": {
+    "raiseTicket": "Raise a support ticket"
   }
 }

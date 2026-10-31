@@ -302,7 +302,7 @@ export function demoLensSummary(locationId: string, params: Record<string, strin
       const bytes = Math.round(total * share);
       const match = i % 6 === 5 ? "ambiguous" : i % 7 === 6 ? "none" : "session";
       return {
-        router_id: ["r-1", "r-1-floor2", "r-1-cafe"][g.router],
+        router_id: ["r-1", "r-1-floor2", "r-4"][g.router],
         ip: g.ip,
         bytes_up: Math.round(bytes * (n === 0 ? 0.04 : UP_SHARE)),
         bytes_down: Math.round(bytes * (n === 0 ? 0.96 : 1 - UP_SHARE)),

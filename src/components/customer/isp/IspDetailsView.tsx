@@ -89,7 +89,7 @@ import {
   type IspLinkFormState,
   type IspRuleFormState,
 } from "./IspDialogs";
-import { DEMO_ISP_LINKS, DEMO_ISP_ROUTER, type IspRange } from "./isp.demo";
+import { demoIspLinksFor, demoIspRouters, type IspRange } from "./isp.demo";
 import { useIspRecentChecks, useIspSummaries } from "./useIspHistory";
 
 const ISP_LINKS_POLL_INTERVAL_MS = 20_000;
@@ -131,7 +131,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       setRoutersError(false);
       try {
         const rows = demo
-          ? [DEMO_ISP_ROUTER]
+          ? demoIspRouters(locationId)
           : locationId
             ? await routerService.listForLocation(locationId, await resolveOrgId())
             : [];
@@ -170,7 +170,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
     }
     try {
       if (demo) {
-        setLinks(routerId === DEMO_ISP_ROUTER.id ? DEMO_ISP_LINKS : []);
+        setLinks(demoIspLinksFor(locationId, routerId));
       } else {
         const result = await ispService.listLinks({ routerId, page: 1, pageSize: 25 });
         if (!isLinkList(result?.rows)) throw new Error("bad /isp/links shape");

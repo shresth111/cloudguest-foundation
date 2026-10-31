@@ -258,19 +258,46 @@ check(
   neverCheckedIn.label === "Never checked in",
   neverCheckedIn.label,
 );
-// The whole point of the report: name the block AND the fix.
+// The whole point of the report: name the block AND the fix -- for the
+// technician (Master console). The venue owner's `nextStep` must not: a cafe
+// owner cannot paste a script into a router terminal, so theirs says what
+// they can do (contact support) and names no technician detail.
 check(
-  "never-checked-in-next-step-names-the-heartbeat-block",
-  /heartbeat block/i.test(neverCheckedIn.nextStep ?? ""),
+  "never-checked-in-technician-next-step-names-the-heartbeat-block",
+  /heartbeat block/i.test(neverCheckedIn.technicianNextStep ?? ""),
+  String(neverCheckedIn.technicianNextStep),
+);
+check(
+  "never-checked-in-technician-next-step-explains-the-single-line-paste",
+  /single line/i.test(neverCheckedIn.technicianNextStep ?? ""),
+  String(neverCheckedIn.technicianNextStep),
+);
+const TECHNICIAN_WORDS =
+  /heartbeat|setup script|script|terminal|scheduler|routeros|wireguard|radius|tunnel/i;
+check(
+  "never-checked-in-customer-next-step-has-no-technician-words",
+  !!neverCheckedIn.nextStep && !TECHNICIAN_WORDS.test(neverCheckedIn.nextStep),
   String(neverCheckedIn.nextStep),
 );
 check(
-  "never-checked-in-next-step-explains-the-single-line-paste",
-  /single line/i.test(neverCheckedIn.nextStep ?? ""),
+  "never-checked-in-customer-next-step-points-to-support",
+  /contact support/i.test(neverCheckedIn.nextStep ?? ""),
   String(neverCheckedIn.nextStep),
 );
 
 check("gone-quiet-is-not-live", wentSilent.state === "not-live", wentSilent.state);
+check(
+  "gone-quiet-customer-next-step-is-power-internet-then-support",
+  /power/i.test(wentSilent.nextStep ?? "") &&
+    /contact support/i.test(wentSilent.nextStep ?? "") &&
+    !TECHNICIAN_WORDS.test(wentSilent.nextStep ?? ""),
+  String(wentSilent.nextStep),
+);
+check(
+  "gone-quiet-technician-next-step-keeps-the-heartbeat-block",
+  /heartbeat block/i.test(wentSilent.technicianNextStep ?? ""),
+  String(wentSilent.technicianNextStep),
+);
 check(
   "gone-quiet-says-when-it-was-last-heard-from",
   /3 hours ago/.test(wentSilent.summary),

@@ -2,7 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
-import { demoGuestMix, demoLoginFunnel, demoPeakHours } from "./insights.demo";
+import {
+  demoGuestMix,
+  demoLocationComparison,
+  demoLoginFunnel,
+  demoPeakHours,
+} from "./insights.demo";
 import type {
   GuestMixData,
   InsightRangeDays,
@@ -167,6 +172,17 @@ export function useLocationComparison(
     enabled: !demo,
     ...QUERY_DEFAULTS,
   });
+  if (demo) {
+    // Demo workspace only: every demo venue, counted from the demo world.
+    // It is a selling point for multi-venue owners, so the demo shows it.
+    return {
+      data: demoLocationComparison(days),
+      isLoading: false,
+      isError: false,
+      isDemo: true,
+      refetch: () => {},
+    };
+  }
   return {
     data: q.data,
     isLoading: q.isLoading,

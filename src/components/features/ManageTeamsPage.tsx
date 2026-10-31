@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   Plus,
@@ -31,7 +32,9 @@ import { guestService } from "@/services/guest.service";
 import type { Guest, GuestTeamRosterMember } from "@/types/guest";
 import { resolveOrgId } from "@/services/customer.service";
 
-const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
+// Demo-only: the demo world's venues (`@/lib/demo-world`), so every picker
+// lists the same venues as the venue switcher.
+const UNITS: string[] = [...DEMO_VENUE_NAMES];
 
 // quotaPercent is null when the team has no shared_data_limit_mb configured
 // at all -- "no cap set", which is a materially different fact from "0% of

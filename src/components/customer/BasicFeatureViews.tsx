@@ -76,11 +76,11 @@ import { requestErrorMessage } from "@/services/api";
 import { describeAddressBinding } from "@/lib/hardware-address-binding";
 
 /** Realistic (but fake) guest identities shared by this file's demo/preview
- * views -- see customer.service.ts's own `DEMO_GUEST_IDENTITIES` for why
+ * views -- see `demoGuestIdentity` in `@/lib/demo-world` for why
  * these carry a real-looking phone number and a varied email domain rather
  * than the generic `user{n}@email.com` placeholders these views used to
  * show (no phone field existed at all). Kept as its own small copy here
- * rather than importing customer.service.ts's list -- this file's views are
+ * rather than importing the demo world's -- this file's views are
  * pure local mock data with no `isDemo()`/API seam, used only by the
  * per-agent preview dashboard (`/agent`), and importing from a `services/`
  * module would wrongly imply these views participate in that data-fetching

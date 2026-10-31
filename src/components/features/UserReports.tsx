@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -60,7 +61,9 @@ const CATEGORIES = [
 ] as const;
 type Category = (typeof CATEGORIES)[number];
 
-const UNITS = ["Marina Bay Hotel", "Downtown CoWork", "Eastside Cafe", "Airport Lounge T3"];
+// Demo-only: the demo world's venues (`@/lib/demo-world`) -- the report
+// venue picker used to offer hotel names this demo does not have.
+const UNITS: string[] = [...DEMO_VENUE_NAMES];
 // The team list a real account sees now comes from GET /guest-teams (see
 // lib/report-team-options.ts). `DEMO_TEAMS` is fixtures, reachable only
 // through resolveTeamOptions' `demo` branch -- it must never be rendered
@@ -1846,7 +1849,7 @@ export function ReportPanel({
   csvPrefix: string;
   masked?: boolean;
 }) {
-  // UNITS ("Marina Bay Hotel" etc.) is demo-only seed data -- a real
+  // UNITS (the demo world's venues) is demo-only seed data -- a real
   // customer only has their own real locations, same real-vs-demo split
   // WhiteList.tsx/TicketsPage.tsx already use for their own "Business
   // Unit" pickers.

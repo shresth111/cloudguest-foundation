@@ -3,7 +3,7 @@
  * console primitives -- PageHeader, four StatTiles and one Panel list with
  * token-coloured severity icons and StatusBadges. Moved out of
  * OperationsFeatures.tsx (which re-exports it) with its data path unchanged:
- * demo sessions get DEMO_ALERTS, real ones GET /alerts once, post-mount.
+ * demo sessions get the demo world's alerts, real ones GET /alerts once, post-mount.
  */
 import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, Bell, CheckCircle2, XCircle } from "lucide-react";
@@ -19,6 +19,7 @@ import {
   type PageScope,
 } from "@/components/customer/console";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
+import { demoAllAlerts } from "@/lib/demo-world";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
 
@@ -35,43 +36,20 @@ interface AlertRow {
   status: string;
 }
 
-const DEMO_ALERTS: AlertRow[] = [
-  {
-    sev: "error",
-    title: "Bandwidth threshold exceeded",
-    src: "GW-02 · Marathahalli",
-    t: "4 min ago",
+/** Demo only: every open problem across the demo venues, derived from the
+ * demo world (`@/lib/demo-world`) -- the same alerts the dashboard's Needs
+ * attention counts and the venue screens show. */
+function demoAlertRows(): AlertRow[] {
+  const ago = (m: number) =>
+    m < 60 ? `${Math.max(1, m)} min ago` : `${Math.round(m / 60)} hour${m < 90 ? "" : "s"} ago`;
+  return demoAllAlerts().map((a) => ({
+    sev: a.severity === "critical" ? "error" : "warning",
+    title: a.title,
+    src: `${a.source} · ${a.venueName}`,
+    t: ago(a.minutesAgo),
     status: "open",
-  },
-  {
-    sev: "warning",
-    title: "Signal degradation detected",
-    src: "AP-14 · Lobby",
-    t: "22 min ago",
-    status: "open",
-  },
-  {
-    sev: "success",
-    title: "ISP failover completed",
-    src: "System",
-    t: "1 hour ago",
-    status: "resolved",
-  },
-  {
-    sev: "info",
-    title: "Firmware update available",
-    src: "Router fleet",
-    t: "3 hours ago",
-    status: "open",
-  },
-  {
-    sev: "warning",
-    title: "OTP delivery delayed",
-    src: "Telecom gateway",
-    t: "5 hours ago",
-    status: "open",
-  },
-];
+  }));
+}
 
 interface RawAlert {
   severity: string;
@@ -96,7 +74,7 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
 
   useEffect(() => {
     if (isDemo()) {
-      setAlerts(DEMO_ALERTS);
+      setAlerts(demoAlertRows());
       setLoading(false);
       return;
     }

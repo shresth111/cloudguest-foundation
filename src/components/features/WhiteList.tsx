@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { Trans, useTranslation } from "react-i18next";
 import { motion, useReducedMotion } from "framer-motion";
 import {
@@ -91,7 +92,9 @@ const COUNTRIES = [
   { code: "+61", label: "🇦🇺 +61" },
   { code: "+971", label: "🇦🇪 +971" },
 ];
-const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
+// Demo-only: the demo world's venues (`@/lib/demo-world`), so every picker
+// lists the same venues as the venue switcher.
+const UNITS: string[] = [...DEMO_VENUE_NAMES];
 
 // A guest's login identifier is E.164 with the dialling code attached --
 // the real captive portal submits `dialCode + nationalPhone`

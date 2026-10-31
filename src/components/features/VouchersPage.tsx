@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { motion, useReducedMotion } from "framer-motion";
 import { Plus, Trash2, Download, Printer, Mail, Eye, Ticket, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,9 @@ interface Voucher {
   businessUnit: string;
   redeemedAt: string | null;
 }
-const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
+// Demo-only: the demo world's venues (`@/lib/demo-world`), so every picker
+// lists the same venues as the venue switcher.
+const UNITS: string[] = [...DEMO_VENUE_NAMES];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Clamps a (possibly NaN, from an emptied number input) value into [lo, hi], falling back to `fallback` when NaN. */
