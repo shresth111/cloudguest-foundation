@@ -173,7 +173,7 @@ export function TrafficLensOverview({
       {/* 1. The answer -------------------------------------------------- */}
       <section
         aria-label="Summary of this period"
-        className="relative overflow-hidden rounded-3xl bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)]"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] to-[#312e81] text-[#e9e7fb] shadow-[var(--shadow-elevated)]"
       >
         <div
           aria-hidden

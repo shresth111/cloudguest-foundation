@@ -345,7 +345,7 @@ function LockedScreen() {
   return (
     <section
       aria-label={`${TRAFFIC_LENS_NAME} is an add-on`}
-      className="relative overflow-hidden rounded-3xl bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)]"
+      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1e1b4b] to-[#312e81] text-[#e9e7fb] shadow-[var(--shadow-elevated)]"
     >
       <div
         aria-hidden

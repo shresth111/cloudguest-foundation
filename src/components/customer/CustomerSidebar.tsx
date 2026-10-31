@@ -461,7 +461,10 @@ function SidebarEntries({
       muted = tabs.every((i) => unsupported(i.id));
       locked = tabs.every((i) => isLocked(i.id));
       tooltip = {
-        className: "p-2",
+        // Radix portals the tooltip onto <body>, outside the rail, so it
+        // needs the console scope (and the rail's indigo) by class.
+        className:
+          "wy-console customer-rail border border-white/10 bg-[#241f5c] p-2 text-[#d6d3f0]",
         children: (
           <SectionFlyout
             label={label}
