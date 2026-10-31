@@ -190,7 +190,7 @@ await only(
 );
 await only({ status: "blocked" }, (e) => e.status === "blocked", "status filter");
 await only({ q: "invalid otp" }, (e) => /invalid otp/i.test(e.message), "search");
-await only({ location_id: "loc-1-cafe" }, (e) => e.location_id === "loc-1-cafe", "location filter");
+await only({ location_id: "loc-4" }, (e) => e.location_id === "loc-4", "location filter");
 await only({ router_id: "r-1-floor2" }, (e) => e.router_id === "r-1-floor2", "router filter");
 
 console.log("\nNetLogs: summary agrees with the list");
@@ -321,8 +321,8 @@ check(
   "IP search narrows",
   byIp.every((r) => [r.source_ip, r.translated_ip, r.destination_ip].includes("8.8.8.8")),
 );
-const cafe = (await ipdrService.list({ ...w24, location_id: "loc-1-cafe" })).items;
-check("location narrows", cafe.length > 0 && cafe.every((r) => r.location_id === "loc-1-cafe"));
+const cafe = (await ipdrService.list({ ...w24, location_id: "loc-4" })).items;
+check("location narrows", cafe.length > 0 && cafe.every((r) => r.location_id === "loc-4"));
 const ipdrCsv = await ipdrService.exportCsv({ ...w24 });
 const ipdrText = await blobText(ipdrCsv.blob);
 const lines = ipdrText.trim().split(/\r\n/);

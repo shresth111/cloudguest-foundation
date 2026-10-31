@@ -335,7 +335,23 @@ function StatusChip({
   );
 }
 
+/** Plain-language hint per counter, keyed by the backend's counter key.
+ * `counter.source` is deliberately NOT shown: it names the database table
+ * the number was counted from (`content_filter_rules`,
+ * `router_rogue_dhcp_statuses`), which means nothing to a venue owner. A
+ * counter this table does not know gets no hint rather than a raw one. */
+const COUNTER_HINT_KEYS = new Set([
+  "blocked_domains",
+  "blocked_addresses",
+  "blocks_not_applied",
+  "blocked_devices",
+  "firewall_rules",
+  "rogue_dhcp_unguarded",
+  "open_alerts",
+]);
+
 function CounterCard({ counter }: { counter: SecurityCounter }) {
+  const { t } = useTranslation("nav", { i18n });
   if (!counter.available) {
     return (
       <Card className="border-dashed">
@@ -352,7 +368,15 @@ function CounterCard({ counter }: { counter: SecurityCounter }) {
     );
   }
   return (
-    <StatCard label={counter.label} value={counter.count ?? 0} hint={counter.source ?? undefined} />
+    <StatCard
+      label={counter.label}
+      value={counter.count ?? 0}
+      hint={
+        COUNTER_HINT_KEYS.has(counter.key)
+          ? t(`securityScore.counterHint.${counter.key}`)
+          : undefined
+      }
+    />
   );
 }
 

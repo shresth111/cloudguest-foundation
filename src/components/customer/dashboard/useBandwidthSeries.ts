@@ -3,12 +3,8 @@ import { isDemo } from "@/services/customer.service";
 import { ispService } from "@/services/isp.service";
 import type { IspLink, IspHealthCheck } from "@/types/isp";
 import type { BandwidthSeriesState } from "./dashboard.types";
-import {
-  DEMO_WAN_LINK,
-  DEMO_WAN_BACKUP_LINK,
-  DEMO_BANDWIDTH_CHECKS,
-  BANDWIDTH_POLL_INTERVAL_MS,
-} from "./dashboard.types";
+import { DEMO_BANDWIDTH_CHECKS, BANDWIDTH_POLL_INTERVAL_MS } from "./dashboard.types";
+import { demoIspLinks } from "@/lib/demo-world";
 
 export function useBandwidthSeries(locationId: string): BandwidthSeriesState {
   const [phase, setPhase] = useState<"loading" | "empty" | "ready">("loading");
@@ -23,9 +19,17 @@ export function useBandwidthSeries(locationId: string): BandwidthSeriesState {
     setOtherLinks([]);
     setChecks([]);
     if (isDemo()) {
-      setLink(DEMO_WAN_LINK);
-      setOtherLinks([DEMO_WAN_BACKUP_LINK]);
-      setChecks(DEMO_BANDWIDTH_CHECKS);
+      // The venue's own line in use, from the demo world -- the same
+      // carrier the WAN card and the Internet Connection page name.
+      const links = demoIspLinks(locationId);
+      const active = links.find((l) => l.isActiveUplink && l.healthStatus !== "unhealthy");
+      if (!active) {
+        setPhase("empty");
+        return;
+      }
+      setLink(active);
+      setOtherLinks(links.filter((l) => l.id !== active.id));
+      setChecks(DEMO_BANDWIDTH_CHECKS.map((c) => ({ ...c, ispLinkId: active.id })));
       setPhase("ready");
       return;
     }

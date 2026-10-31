@@ -20,6 +20,22 @@ import { distinctGuestCount } from "@/lib/guest-counts";
 // see that call site's comment. `isp.service` imports only `api` and the
 // shared org-id resolver, so this is not a cycle.
 import { ispService } from "@/services/isp.service";
+import {
+  DEMO_ORG,
+  DEMO_VENUES,
+  demoGuestCounts,
+  demoGuestRows,
+  demoIspLabel,
+  demoNow,
+  demoOnlineNow,
+  demoOpenAt,
+  demoPeakOnline,
+  demoRawRouters,
+  demoRoster,
+  demoSessionsIn,
+  demoVenue,
+  demoVenueAlerts,
+} from "@/lib/demo-world";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -243,65 +259,58 @@ interface RawDashboardSeries {
   os_breakdown: { name: string; count: number }[];
 }
 
-/** Demo only: how busy a venue is at hour `h` (0-23), ~0.08 overnight to
- * ~1 at the evening peak. Shared by the demo chart and the demo "currently
- * online" KPI so the two agree at any time of day. */
-const demoHourShape = (h: number) =>
-  0.08 +
-  0.55 * Math.exp(-((h - 13) ** 2) / 8) +
-  0.92 * Math.exp(-((h - 19.5) ** 2) / 6) +
-  0.25 * Math.exp(-((h - 9) ** 2) / 4);
-
-/** Demo host only (`isDemo()` is honoured nowhere else -- see #300). */
-function demoDashboardSeries(win: DashboardRangeWindow): DashboardSeries {
+/** Demo host only (`isDemo()` is honoured nowhere else -- see #300).
+ *
+ * Counted from the venue's demo roster (`@/lib/demo-world`), the same list
+ * the Guests page pages through: `guests` is the distinct guests whose
+ * session started in the window, `online` is the most guests online at
+ * once in each bucket. So "Guests, last 24 hours" here, "Currently online"
+ * and the Guests page can never disagree. */
+function demoDashboardSeries(locationId: string, win: DashboardRangeWindow): DashboardSeries {
+  const now = demoNow();
+  const end = Math.min(win.end.getTime(), now);
   const step = win.bucket === "hour" ? 3_600_000 : 86_400_000;
   const first = new Date(win.start);
   if (win.bucket === "hour") first.setMinutes(0, 0, 0);
-  // A venue's day, not a counter: quiet overnight, a morning ramp, a lunch
-  // peak and a bigger evening one (hourly), busier weekends (daily). The
-  // old `(i * 17) % 120` drew a sawtooth that no real venue produces.
-  // Jitter is a fixed function of the bucket, so a refetch draws the same
-  // line.
-  const jitter = (n: number) => (((Math.sin(n * 12.9898) * 43758.5453) % 1) + 1) % 1;
+  const roster = demoRoster(locationId, now);
+  // Minute-aligned like `now`, so this window and getDashboard()'s 24h
+  // count cover exactly the same sessions.
+  const from = demoNow(win.start.getTime());
   const series: DashboardSeries["series"] = [];
-  for (let t = first.getTime(); t < win.end.getTime(); t += step) {
-    const at = new Date(t);
-    const bucketKey = Math.floor(t / step);
-    const shape =
-      win.bucket === "hour"
-        ? demoHourShape(at.getHours())
-        : [0.95, 0.7, 0.72, 0.75, 0.8, 0.92, 1][at.getDay()];
-    const noise = 0.92 + 0.16 * jitter(bucketKey);
-    // `online` is the bucket's peak concurrency either way (~140 at the
-    // busiest); `arrivals` is new sessions in the bucket, so a day holds
-    // roughly a full day's worth of the hourly ones.
-    const arrivalsPeak = win.bucket === "hour" ? 46 : 780;
+  for (let t = first.getTime(); t < end; t = nextBucket(t, win.bucket, step)) {
+    const to = Math.min(nextBucket(t, win.bucket, step), end);
+    const [a, b] = demoSessionsIn(roster, Math.max(t, from), to);
     series.push({
-      bucketStart: at.toISOString(),
-      online: Math.max(2, Math.round(138 * shape * noise)),
-      arrivals: Math.max(
-        1,
-        Math.round(arrivalsPeak * shape * (0.85 + 0.3 * jitter(bucketKey + 7))),
-      ),
+      bucketStart: new Date(t).toISOString(),
+      arrivals: b - a,
+      online: demoPeakOnline(locationId, t, to, now),
     });
   }
-  const sessions = series.reduce((s, b) => s + b.arrivals, 0);
+  const counts = demoGuestCounts(locationId, from, end, now);
+  const os = [
+    { name: "Android", value: 0 },
+    { name: "iOS", value: 0 },
+    { name: "Windows", value: 0 },
+    { name: "macOS", value: 0 },
+  ];
+  const [a, b] = demoSessionsIn(roster, from, end);
+  for (let i = a; i < b; i++) os[[0, 0, 1, 0, 1, 2, 3, 0][roster.guest[i] % 8]].value += 1;
   return {
     bucket: win.bucket,
-    guests: Math.round(sessions * 0.8),
-    sessions,
-    avgSessionMinutes: 34,
-    peakOnline: Math.max(...series.map((b) => b.online)),
+    guests: counts.guests,
+    sessions: counts.sessions,
+    avgSessionMinutes: counts.avgSessionMinutes,
+    peakOnline: Math.max(0, ...series.map((x) => x.online)),
     series,
-    osBreakdown: [
-      { name: "iOS", value: 35 },
-      { name: "Android", value: 28 },
-      { name: "Windows", value: 18 },
-      { name: "macOS", value: 12 },
-      { name: "Linux", value: 5 },
-      { name: "Other", value: 2 },
-    ],
+    osBreakdown: os.filter((o) => o.value > 0),
   };
+}
+
+/** Next bucket start: an hour later, or the next local midnight (DST-safe). */
+function nextBucket(t: number, bucket: "hour" | "day", step: number): number {
+  if (bucket === "hour") return t + step;
+  const d = new Date(t);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
 }
 
 export interface CustomerUsersData {
@@ -490,20 +499,19 @@ export interface CustomerFeatureData {
 
 /* ── Demo Data ─────────────────────────────────────────────── */
 
-// Every demo location runs a single router (one venue, one gateway --
-// the realistic small-business topology this product actually targets),
-// and ISPs are kept to the two carriers guests will actually recognize
-// (Airtel/Jio) rather than a grab-bag of every regional ISP name.
+// Every demo venue comes from `@/lib/demo-world` -- the one source of
+// truth every demo screen derives from, so the dashboard, Guests, Devices,
+// Internet Connection, Security and Fix a Problem describe the same routers,
+// lines and guests for the same venue.
 //
 // LIVENESS IS DERIVED HERE TOO, not hand-written. Each seed carries the
 // raw router rows the API would have returned, and `demoLocations()` runs
 // them through the same `deriveLocationLiveness()` the real path uses --
 // a fixture that hardcodes its own answer cannot catch a regression in
-// the answer. It also means demo mode is where the states are actually
-// demonstrable, so the seeds deliberately span all five: Bangalore runs
-// two routers with one gone quiet, Hyderabad's single router has gone
-// quiet, Kolkata's was set up but has never checked in (the 2026-08-23
-// defect, reproduced), and Ahmedabad has no router at all yet.
+// the answer. The world spans all five states: Bangalore runs two routers
+// with one gone quiet, Hyderabad's single router has gone quiet,
+// Kolkata's was set up but has never checked in (the 2026-08-23 defect,
+// reproduced), and Ahmedabad has no router at all yet.
 type DemoLocationSeed = Omit<
   CustomerLocationSummary,
   "liveness" | "status" | "routerHealth" | "routersTotal" | "routersOnline"
@@ -512,174 +520,30 @@ type DemoLocationSeed = Omit<
   demoRouters: RawRouterLiveness[] | null;
 };
 
-/** ISO timestamp `minutes` in the past, relative to the passed clock. */
-function demoAgo(now: Date, minutes: number): string {
-  return new Date(now.getTime() - minutes * 60_000).toISOString();
-}
-
 function demoSeeds(now: Date): DemoLocationSeed[] {
-  return [
-    {
-      id: "loc-1",
-      name: "Mumbai HQ",
-      city: "Mumbai",
-      onlineUsers: 142,
-      bandwidth: "450 Mbps",
-      isp: "Airtel",
-      lastSync: "Just now",
-      organizationId: "org-1",
-      organizationName: "Acme Corp",
-      sessionsActive: 142,
-      sessionsTotal: 892,
-      propertyType: "office",
-      demoRouters: [
-        { id: "r-1", name: "Lobby router", status: "online", last_seen_at: demoAgo(now, 1) },
-      ],
-    },
-    {
-      id: "loc-2",
-      name: "Delhi Office",
-      city: "Delhi",
-      onlineUsers: 98,
-      bandwidth: "300 Mbps",
-      isp: "Jio",
-      lastSync: "2 min ago",
-      organizationId: "org-1",
-      organizationName: "Acme Corp",
-      sessionsActive: 98,
-      sessionsTotal: 456,
-      propertyType: "office",
-      demoRouters: [
-        { id: "r-2", name: "Front desk router", status: "online", last_seen_at: demoAgo(now, 2) },
-      ],
-    },
-    {
-      id: "loc-3",
-      name: "Bangalore DC",
-      city: "Bangalore",
-      onlineUsers: 76,
-      bandwidth: "180 Mbps",
-      isp: "Jio",
-      lastSync: "5 min ago",
-      organizationId: "org-1",
-      organizationName: "Acme Corp",
-      sessionsActive: 76,
-      sessionsTotal: 312,
-      propertyType: "coworking_space",
-      // Two routers, one of them quiet -- the only honest way to be
-      // "partly live". The old fixture claimed "degraded" off 1-of-1
-      // routers online, which the real derivation can never produce.
-      demoRouters: [
-        {
-          id: "r-3a",
-          name: "Ground floor router",
-          status: "online",
-          last_seen_at: demoAgo(now, 1),
-        },
-        {
-          id: "r-3b",
-          name: "First floor router",
-          status: "online",
-          last_seen_at: demoAgo(now, 55),
-        },
-      ],
-    },
-    {
-      id: "loc-4",
-      name: "Chennai Office",
-      city: "Chennai",
-      onlineUsers: 54,
-      bandwidth: "250 Mbps",
-      isp: "Airtel",
-      lastSync: "1 min ago",
-      organizationId: "org-1",
-      organizationName: "Acme Corp",
-      sessionsActive: 54,
-      sessionsTotal: 234,
-      propertyType: "cafe",
-      demoRouters: [
-        { id: "r-4", name: "Counter router", status: "online", last_seen_at: demoAgo(now, 1) },
-      ],
-    },
-    {
-      id: "loc-5",
-      name: "Hyderabad DC",
-      city: "Hyderabad",
-      onlineUsers: 0,
-      bandwidth: "0 Mbps",
-      isp: "Airtel",
-      lastSync: "15 min ago",
-      organizationId: "org-1",
-      organizationName: "Acme Corp",
-      sessionsActive: 0,
-      sessionsTotal: 0,
-      propertyType: "hotel",
-      // Still `online` in the database -- nothing in the backend ever
-      // writes the online->offline transition. The staleness of
-      // `last_seen_at` is the only thing that reveals it.
-      demoRouters: [
-        { id: "r-5", name: "Reception router", status: "online", last_seen_at: demoAgo(now, 190) },
-      ],
-    },
-    {
-      id: "loc-6",
-      name: "Kolkata Office",
-      city: "Kolkata",
-      onlineUsers: 0,
-      bandwidth: "0 Mbps",
-      isp: "Jio",
-      lastSync: "3 min ago",
-      organizationId: "org-1",
-      organizationName: "Acme Corp",
-      sessionsActive: 0,
-      sessionsTotal: 0,
-      propertyType: null,
-      // The real 2026-08-23 shape: enrolled (so `last_seen_at` is set, by
-      // the provisioning-token exchange) but never once heartbeated, so
-      // still sitting at `provisioning`.
-      demoRouters: [
-        {
-          id: "r-6",
-          name: "Lobby router",
-          status: "provisioning",
-          last_seen_at: demoAgo(now, 185),
-        },
-      ],
-    },
-    {
-      id: "loc-7",
-      name: "Pune Office",
-      city: "Pune",
-      onlineUsers: 67,
-      bandwidth: "350 Mbps",
-      isp: "Jio",
-      lastSync: "Just now",
-      organizationId: "org-1",
-      organizationName: "Acme Corp",
-      sessionsActive: 67,
-      sessionsTotal: 345,
-      propertyType: "restaurant",
-      demoRouters: [
-        { id: "r-7", name: "Bar router", status: "online", last_seen_at: demoAgo(now, 0) },
-      ],
-    },
-    {
-      id: "loc-8",
-      name: "Ahmedabad DC",
-      city: "Ahmedabad",
-      onlineUsers: 0,
-      bandwidth: "0 Mbps",
-      isp: "Airtel",
-      lastSync: "4 min ago",
-      organizationId: "org-1",
-      organizationName: "Acme Corp",
-      sessionsActive: 0,
-      sessionsTotal: 0,
-      propertyType: "hospital",
-      // A venue that has been created but never had hardware added.
-      demoRouters: [],
-    },
-  ];
+  const at = demoNow(now.getTime());
+  return DEMO_VENUES.map((v) => {
+    const inUse = v.isp.find((l) => l.inUse);
+    const online = demoOnlineNow(v.id, at);
+    const lastHeard = v.routers.length
+      ? Math.min(...v.routers.map((r) => r.lastSeenMinutesAgo))
+      : null;
+    return {
+      id: v.id,
+      name: v.name,
+      city: v.city,
+      onlineUsers: online,
+      bandwidth: inUse ? `${inUse.downloadMbps} Mbps` : "0 Mbps",
+      isp: demoIspLabel(v),
+      lastSync: lastHeard === null ? "Never" : lastHeard <= 1 ? "Just now" : `${lastHeard} min ago`,
+      organizationId: DEMO_ORG.id,
+      organizationName: DEMO_ORG.name,
+      sessionsActive: online,
+      sessionsTotal: demoRoster(v.id, at).start.length,
+      propertyType: v.propertyType,
+      demoRouters: demoRawRouters(v, at),
+    };
+  });
 }
 
 /**
@@ -767,28 +631,6 @@ function demoLocations(): CustomerLocationSummary[] {
     summaryFromLiveness(rest, deriveLocationLiveness(demoRouters, now)),
   );
 }
-
-/** Realistic (but fake) guest identities for demo mode -- previously
- * `getUsers()`/`getDashboard()` paired a real-looking name with a generic
- * `user{n}@email.com` address and no phone number at all, so a demo account
- * (used for sales walkthroughs and marketing-site screenshots) never had
- * anything to actually show off on the "data-masking" feature: there was no
- * phone field to mask, and every email looked like the same auto-generated
- * placeholder. One identity per name, reused everywhere that name is reused
- * (getUsers cycles through these by index, same as it already cycled through
- * names/devices) so the same demo guest carries the same email/phone across
- * rows -- more realistic than a fresh fake address per row, and gives
- * `maskEmail`/`maskPhone` real, varied strings to redact. */
-const DEMO_GUEST_IDENTITIES: { name: string; email: string; phone: string }[] = [
-  { name: "John Doe", email: "john.doe83@gmail.com", phone: "+91 98765 43210" },
-  { name: "Jane Smith", email: "jane.smith22@yahoo.com", phone: "+91 91234 56780" },
-  { name: "Raj Kumar", email: "raj.kumar99@outlook.com", phone: "+91 90000 12345" },
-  { name: "Priya Sharma", email: "priya.sharma7@gmail.com", phone: "+91 88888 22334" },
-  { name: "Alex Chen", email: "alex.chen@hotmail.com", phone: "+91 99887 76655" },
-  { name: "Sarah Wilson", email: "sarah.wilson1@gmail.com", phone: "+91 97654 32109" },
-  { name: "Mike Brown", email: "mike.brown44@yahoo.com", phone: "+91 96543 21098" },
-  { name: "Emily Davis", email: "emily.davis5@gmail.com", phone: "+91 95432 10987" },
-];
 
 const DEMO_NAV: NavItem[] = [
   { id: "dashboard", label: "Dashboard", module: "dashboard" },
@@ -1219,12 +1061,32 @@ export const customerService = {
   /* ── Executive Dashboard ───────────────────────────────── */
   async getDashboard(locationId: string): Promise<DashboardDataResult> {
     if (isDemo()) {
-      // Each location has its own routers and ISP (see demoSeeds())
-      // -- this dashboard used to return one hardcoded Mumbai-shaped snapshot
-      // ("4/4" routers, Tata Communications) no matter which location was
-      // open, so switching locations never changed the "Core systems" strip.
+      // Every number below is read off the demo world (`@/lib/demo-world`):
+      // the venue's routers and line, and its guest roster -- the same list
+      // the Guests page shows -- so this dashboard cannot disagree with the
+      // Guests, Devices, Internet Connection or Alerts screens.
       const all = demoLocations();
       const loc = all.find((l) => l.id === locationId) ?? all[0];
+      const venue = demoVenue(loc.id)!;
+      const now = demoNow();
+      const roster = demoRoster(venue.id, now);
+      const day = demoGuestCounts(venue.id, now - 86_400_000, now, now);
+      const open = new Set(demoOpenAt(roster, now));
+      const recent = demoGuestRows(venue.id, now).slice(0, 6);
+      const ago = (ms: number) => {
+        const m = Math.max(0, Math.round((now - ms) / 60_000));
+        return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+      };
+      const hourly = Array.from({ length: 6 }, (_, k) => {
+        const h = k * 4;
+        const [a, b] = demoSessionsIn(roster, now - 86_400_000, now);
+        let n = 0;
+        for (let i = a; i < b; i++) {
+          const hr = new Date(roster.start[i]).getHours();
+          if (hr >= h && hr < h + 4) n += 1;
+        }
+        return { hour: String(h).padStart(2, "0"), sessions: n };
+      });
       return {
         liveness: loc.liveness,
         health: {
@@ -1232,24 +1094,22 @@ export const customerService = {
           isp: loc.isp,
         },
         kpis: {
-          // Scaled to the hour so it matches the demo Guests Online chart
-          // (loc.onlineUsers is the venue's evening-peak figure).
-          onlineUsers: Math.max(
-            1,
-            Math.round(loc.onlineUsers * demoHourShape(new Date().getHours())),
-          ),
+          onlineUsers: demoOnlineNow(venue.id, now),
           routersOnline: loc.routersOnline,
           totalRouters: loc.routersTotal,
-          todayGuests: 456,
-          avgSession: 34,
-          peakConcurrent: 234,
-          failedLogins: 12,
-          slaUptime: 99.97,
+          todayGuests: day.guests,
+          avgSession: day.avgSessionMinutes ?? 0,
+          peakConcurrent: demoPeakOnline(venue.id, now - 86_400_000, now, now),
+          failedLogins: venue.failedLoginsToday,
+          slaUptime: venue.uptimePercent,
         },
-        usersTrend: Array.from({ length: 24 }, (_, i) => ({
-          hour: `${i}`,
-          users: 20 + ((i * 17) % 120),
-        })),
+        usersTrend: Array.from({ length: 24 }, (_, i) => {
+          const t = now - (23 - i) * 3_600_000;
+          return {
+            hour: `${new Date(t).getHours()}`,
+            users: demoPeakOnline(venue.id, t - 3_600_000, t, now),
+          };
+        }),
         deviceDistribution: [
           { name: "iOS", value: 35 },
           { name: "Android", value: 28 },
@@ -1258,35 +1118,23 @@ export const customerService = {
           { name: "Linux", value: 5 },
           { name: "Other", value: 2 },
         ],
-        hourlySessions: [
-          { hour: "00", sessions: 45 },
-          { hour: "04", sessions: 22 },
-          { hour: "08", sessions: 156 },
-          { hour: "12", sessions: 289 },
-          { hour: "16", sessions: 342 },
-          { hour: "20", sessions: 198 },
-        ],
-        recentUsers: DEMO_GUEST_IDENTITIES.slice(0, 6).map((identity, i) => ({
-          id: `u${i + 1}`,
-          name: identity.name,
-          email: identity.email,
-          device: [
-            "iPhone 15",
-            "Samsung S24",
-            "MacBook Pro",
-            "Pixel 8",
-            "iPad Air",
-            "Windows Laptop",
-          ][i],
-          time: `${[2, 5, 12, 18, 25, 32][i]} min ago`,
-          status: i < 5 ? "online" : "offline",
+        hourlySessions: hourly,
+        recentUsers: recent.map((r) => ({
+          id: `s-${venue.id}-${r.index}`,
+          name: r.identity.name,
+          email: r.identity.email,
+          device: r.identity.device,
+          time: ago(r.startedAt),
+          status: open.has(r.index) ? "online" : "offline",
         })),
-        recentAlerts: [
-          { type: "warning" as const, msg: "Router signal degradation", time: "2 min ago" },
-          { type: "success" as const, msg: "ISP failover completed", time: "8 min ago" },
-          { type: "error" as const, msg: `Bandwidth threshold at ${loc.name}`, time: "15 min ago" },
-          { type: "info" as const, msg: "Firmware update available", time: "22 min ago" },
-        ],
+        // Open problems at THIS venue, derived from its routers, lines and
+        // hardware -- one alert per fact, so the Needs-attention count and
+        // the Alerts page match what the other screens show.
+        recentAlerts: demoVenueAlerts(venue).map((a) => ({
+          type: a.severity === "critical" ? ("error" as const) : ("warning" as const),
+          msg: a.title,
+          time: ago(now - a.minutesAgo * 60_000),
+        })),
       };
     }
     // Real API composition. Deliberately not routerService.list()/
@@ -1610,7 +1458,7 @@ export const customerService = {
    */
   async getDashboardSeries(locationId: string, range: DashboardRange): Promise<DashboardSeries> {
     const win = dashboardRangeWindow(range);
-    if (isDemo()) return demoDashboardSeries(win);
+    if (isDemo()) return demoDashboardSeries(locationId, win);
     const orgId = await resolveOrgId();
     const { data } = await api.get<RawDashboardSeries>("/guest-analytics/dashboard-series", {
       params: {
@@ -1650,58 +1498,48 @@ export const customerService = {
     pageSize = 20,
   ): Promise<CustomerUsersData> {
     if (isDemo()) {
-      const all = Array.from({ length: 24 }, (_, i) => {
-        const identity = DEMO_GUEST_IDENTITIES[i % DEMO_GUEST_IDENTITIES.length];
-        const durationMinutes = 15 + (i % 6) * 10;
-        const status = (i < 16 ? "online" : i < 20 ? "idle" : "offline") as
-          | "online"
-          | "offline"
-          | "idle";
-        // Demo has no real GuestSession row to read started_at/ended_at
-        // from, so these are derived to stay consistent with the fixture's
-        // own `duration` figure above: connectedAt is `durationMinutes` ago,
-        // and only an "offline" demo row gets a disconnectedAt (now) -- an
-        // online/idle row is still connected, same "no ended_at yet" shape
-        // real active sessions have.
-        const connectedAt = new Date(Date.now() - durationMinutes * 60_000).toISOString();
-        const disconnectedAt = status === "offline" ? new Date().toISOString() : null;
-        return {
-          id: `u-${i}`,
-          name: identity.name,
-          email: identity.email,
-          phone: identity.phone,
-          device: [
-            "iPhone 15",
-            "Samsung S24",
-            "MacBook Pro",
-            "Pixel 8",
-            "iPad Air",
-            "Windows Laptop",
-          ][i % 6],
-          mac: `00:1A:${10 + i}`,
-          ip: `10.0.${Math.floor(i / 8) + 1}.${100 + i}`,
-          duration: `${durationMinutes} min`,
-          connectedAt,
-          disconnectedAt,
-          download: `${(Math.random() * 500).toFixed(0)} MB`,
-          status,
-          // No real guest/device row backs a demo fixture -- disconnectSession()
-          // is already a no-op in demo mode, so this is never dereferenced, but
-          // keeping it null (not a fabricated id) matches this file's honest-
-          // placeholder convention rather than pretending it's real.
-          guestId: null as string | null,
-        };
-      });
-      let f = [...all];
+      // The venue's demo roster (`@/lib/demo-world`), newest first: one row
+      // per session, the same list every demo guest count is taken from.
+      const fmt = (min: number) =>
+        min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
+      let rows = demoGuestRows(locationId);
+      const uniqueOnFile = demoRoster(locationId).guestCount;
       if (search) {
         const q = search.toLowerCase();
-        f = f.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+        rows = rows.filter(
+          (r) =>
+            r.identity.name.toLowerCase().includes(q) ||
+            r.identity.email.toLowerCase().includes(q) ||
+            r.identity.phone.replace(/\s/g, "").includes(q.replace(/\s/g, "")),
+        );
       }
-      if (status && status !== "all") f = f.filter((u) => u.status === status);
+      if (status && status !== "all") {
+        rows = rows.filter((r) => (r.online ? "online" : "offline") === status);
+      }
+      const users = rows.slice((page - 1) * pageSize, page * pageSize).map((r) => ({
+        id: `s-${locationId}-${r.index}`,
+        name: r.identity.name,
+        email: r.identity.email,
+        phone: r.identity.phone,
+        device: r.identity.device,
+        mac: r.identity.mac,
+        ip: `10.5.${50 + (r.guest % 40)}.${20 + (r.guest % 200)}`,
+        // Same convention as a real open session: no end, so "Active".
+        duration: r.online ? "Active" : fmt(r.minutes),
+        connectedAt: new Date(r.startedAt).toISOString(),
+        disconnectedAt: r.endedAt === null ? null : new Date(r.endedAt).toISOString(),
+        download: `${Math.round(r.minutes * (2 + (r.guest % 9)))} MB`,
+        status: (r.online ? "online" : "offline") as "online" | "offline" | "idle",
+        // No real guest/device row backs a demo fixture -- disconnectSession()
+        // is already a no-op in demo mode, so this is never dereferenced.
+        guestId: null as string | null,
+      }));
       return {
-        users: f.slice((page - 1) * pageSize, page * pageSize),
-        total: f.length,
-        uniqueGuests: f.length,
+        users,
+        total: rows.length,
+        // Distinct guests on file, as the real `/guests` total is (that
+        // lookup ignores the search/status filters too).
+        uniqueGuests: uniqueOnFile,
         page,
         pageSize,
       };
@@ -1858,7 +1696,8 @@ export const customerService = {
    * dropped off is still an open row, and counting it here made "Online now"
    * contradict the presence badge on the very same guest. */
   async getOnlineCount(locationId: string): Promise<number> {
-    if (isDemo()) return 16; // matches getUsers()'s demo fixture (16 of 24 rows are "online")
+    // The same roster getUsers() pages through and the dashboard counts.
+    if (isDemo()) return demoOnlineNow(locationId);
     try {
       const orgId = await resolveOrgId();
       const seen = new Set<string>();
@@ -2021,7 +1860,7 @@ export const customerService = {
    * is materially worse than showing them that it could not load.
    */
   async getFeatureData(feature: string, locationId: string): Promise<CustomerFeatureData> {
-    if (isDemo()) return getDemoFeatureData(feature);
+    if (isDemo()) return getDemoFeatureData(feature, locationId);
 
     switch (feature) {
       case "analytics": {
@@ -2544,12 +2383,30 @@ function paginateDemoAdminLogs<K extends keyof NonNullable<CustomerFeatureData["
 
 type DashboardDataResult = CustomerDashboardData;
 
-function getDemoFeatureData(feature: string): CustomerFeatureData {
+function getDemoFeatureData(feature: string, locationId?: string): CustomerFeatureData {
   switch (feature) {
-    case "analytics":
+    case "analytics": {
+      // Same 30-day window as the real branch, counted off the venue's demo
+      // roster (`@/lib/demo-world`) like every other demo guest number.
+      const venue = demoVenue(locationId) ?? DEMO_VENUES[0];
+      const now = demoNow();
+      const from = now - 30 * 86_400_000;
+      const c = demoGuestCounts(venue.id, from, now, now);
+      const roster = demoRoster(venue.id, now);
+      const [a, b] = demoSessionsIn(roster, from, now);
+      const returning = new Set<number>();
+      for (let i = a; i < b; i++) {
+        if (roster.firstSeen[roster.guest[i]] < from) returning.add(roster.guest[i]);
+      }
       return {
-        analytics: { totalSessions: 1892, uniqueGuests: 847, returningRate: 34, avgDuration: 28 },
+        analytics: {
+          totalSessions: c.sessions,
+          uniqueGuests: c.guests,
+          returningRate: c.guests ? Math.round((returning.size / c.guests) * 100) : 0,
+          avgDuration: c.avgSessionMinutes ?? 0,
+        },
       };
+    }
     case "campaigns":
       return {
         campaigns: [
@@ -2654,7 +2511,7 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
             {
               id: "1",
               locationName: "Mumbai HQ",
-              routerName: "mikrotik-mumbai-1",
+              routerName: "Lobby router",
               eventType: "config_applied",
               message: "Hotspot policy pushed",
               isError: false,
@@ -2663,7 +2520,7 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
             {
               id: "2",
               locationName: "Delhi Office",
-              routerName: "mikrotik-delhi-1",
+              routerName: "Front desk router",
               eventType: "config_apply_failed",
               message: "Device unreachable during push",
               isError: true,
@@ -2672,7 +2529,7 @@ function getDemoFeatureData(feature: string): CustomerFeatureData {
             {
               id: "3",
               locationName: "Bangalore DC",
-              routerName: "mikrotik-blr-1",
+              routerName: "Ground floor router",
               eventType: "enrollment_approved",
               message: null,
               isError: false,

@@ -3,7 +3,8 @@ import { isDemo } from "@/services/customer.service";
 import { ispService } from "@/services/isp.service";
 import type { IspHealthCheck } from "@/types/isp";
 import type { WanSummaryState } from "./dashboard.types";
-import { DEMO_WAN_LINK, DEMO_WAN_BACKUP_LINK, DEMO_WAN_CHECKS } from "./dashboard.types";
+import { demoIspLinks } from "@/lib/demo-world";
+import { demoIspChecks } from "@/components/customer/isp/isp.demo";
 
 export function useWanSummary(locationId: string): WanSummaryState {
   const [state, setState] = useState<WanSummaryState>({ status: "loading" });
@@ -11,18 +12,21 @@ export function useWanSummary(locationId: string): WanSummaryState {
     let alive = true;
     setState({ status: "loading" });
     if (isDemo()) {
-      setState({
-        status: "ready",
-        links: [DEMO_WAN_LINK, DEMO_WAN_BACKUP_LINK],
-        checks: {
-          [DEMO_WAN_LINK.id]: DEMO_WAN_CHECKS,
-          [DEMO_WAN_BACKUP_LINK.id]: DEMO_WAN_CHECKS.map((c) => ({
-            ...c,
-            id: `${c.id}-backup`,
-            ispLinkId: DEMO_WAN_BACKUP_LINK.id,
-          })),
-        },
-      });
+      // The venue's own lines from the demo world -- the same rows and
+      // the same recent checks the Internet Connection page shows.
+      const links = demoIspLinks(locationId).slice(0, 2);
+      setState(
+        links.length === 0
+          ? { status: "empty" }
+          : {
+              status: "ready",
+              links,
+              // Oldest first, like the real 12-row read reversed for the ticks.
+              checks: Object.fromEntries(
+                links.map((l) => [l.id, demoIspChecks(l.id).slice(0, 12).reverse()]),
+              ),
+            },
+      );
       return;
     }
     (async () => {

@@ -16,6 +16,7 @@
  */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { DEMO_VENUES } from "@/lib/demo-world";
 
 export type DeviceType = "Access Point" | "Printer" | "Router" | "Camera" | "Other";
 
@@ -109,15 +110,26 @@ function seedDevice(
   return { id: mac, locationId, name, mac, type, floor, ...deriveStatus(mac) };
 }
 
-// Mumbai HQ (loc-1) is the only location with hardware set up so far -- every
-// other location shows empty until someone adds a device from its Devices page.
-const SEED_DEVICES: MonitoredDevice[] = [
-  seedDevice("loc-1", "AP TP Link 7", "3C:64:CF:CE:2D:38", "Access Point", "GF"),
-  seedDevice("loc-1", "EAP225-8C-90-2D-6D-53-26", "8C:90:2D:6D:53:26", "Access Point", "GF"),
-  seedDevice("loc-1", "EAP225-B0-19-21-73-E2-CA", "B0:19:21:73:E2:CA", "Access Point", "GF"),
-  seedDevice("loc-1", "EAP225-B0-19-21-74-0A-90", "B0:19:21:74:0A:90", "Access Point", "GF"),
-  seedDevice("loc-1", "EAP225-B0-19-21-74-0A-68", "B0:19:21:74:0A:68", "Access Point", "GF"),
-];
+// Each demo venue's hardware comes from the demo world (`@/lib/demo-world`),
+// with the state it gives: up, unstable (up, link flapping) or down. The
+// MAC-hash status is no longer the answer for these rows -- a random "down"
+// here used to make the Devices card, Needs attention and the Alerts page
+// disagree about the same access point. A device someone adds by hand still
+// gets the hash-derived fixture.
+const SEED_DEVICES: MonitoredDevice[] = DEMO_VENUES.flatMap((v) =>
+  v.hardware.map((h) => {
+    const d = seedDevice(v.id, h.name, h.mac, h.type, h.floor);
+    if (h.state === "down") {
+      return { ...d, status: "down" as const, connectedAt: null };
+    }
+    return {
+      ...d,
+      status: "up" as const,
+      lastSeenAt: new Date(Date.now() - 60_000).toISOString(),
+      connectedAt: d.connectedAt ?? new Date(Date.now() - 26 * 3600 * 1000).toISOString(),
+    };
+  }),
+);
 
 interface DeviceState {
   devices: MonitoredDevice[];
@@ -148,6 +160,7 @@ export const useDeviceStore = create<DeviceState>()(
     // reseeds it correctly, whereas carrying one forward would leave rows
     // whose `uptimeSeconds` is `undefined` -- the exact value every
     // `!= null` guard downstream is written to exclude.
-    { name: "cg-monitored-devices", version: 3 },
+    // 4: reseeded from the demo world (per-venue hardware, explicit states).
+    { name: "cg-monitored-devices", version: 4 },
   ),
 );

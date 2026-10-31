@@ -428,6 +428,33 @@ check(
   demoRows.every((r) => (r.status === "down") === (r.health.state === "down")),
 );
 
+// The demo routers carry the demo world's models (src/lib/demo-world.ts),
+// so Devices names the same hardware as Internet Connection and Security --
+// the PM review found "hAP" here and "RB5009" there for the same venue.
+const worldRouters = m.demoRouterDevices("loc-1", [
+  { key: "r-1", label: "Lobby router", state: "online", lastContactIso: null },
+  { key: "r-1-floor2", label: "Floor 2 router", state: "online", lastContactIso: null },
+]);
+eq(
+  "demo router models come from the demo world",
+  worldRouters.map((r) => `${r.name}:${r.model}`).join("|"),
+  "Lobby router:RB5009UG+S+|Floor 2 router:hAP ax³",
+);
+// The world's down / unstable devices read that way, not from a MAC hash.
+const worldHw = m.withDemoHealth(
+  [
+    { ...HW[0], mac: "B0:19:21:75:11:3C", status: "up", health: null },
+    { ...HW[0], mac: "3C:64:CF:CE:2D:38", status: "up", health: null },
+  ],
+  NOW,
+);
+check(
+  "a device the demo world says is down reads down; unstable reads degraded",
+  worldHw[0].health.state === "down" &&
+    worldHw[0].status === "down" &&
+    worldHw[1].health.state === "degraded",
+);
+
 console.log("\n6. the Overview card");
 const card = (devices) =>
   render(React.createElement(m.DeviceStatusCardView, { devices, onManage: () => {} }));

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle,
@@ -62,7 +63,9 @@ import { ControllerControlNotice } from "@/components/customer/ControllerControl
 const MAC_SHAPE_RE = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
+// Demo-only: the demo world's venues (`@/lib/demo-world`), so every picker
+// lists the same venues as the venue switcher.
+const UNITS: string[] = [...DEMO_VENUE_NAMES];
 const PAGE_SIZE_OPTS = [10, 25, 50] as const;
 
 // Which shape the "Block User" textarea's contents are parsed/validated

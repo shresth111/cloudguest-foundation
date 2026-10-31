@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { persist } from "zustand/middleware";
 import { CORE_FEATURE_IDS } from "@/config/customerFeatureCatalog";
 
@@ -32,12 +33,8 @@ export interface AgentRecord {
 }
 
 export const READ_ONLY_ROLE_ID = "role-read-only";
-export const LOCATIONS = [
-  "Marina Bay Hotel",
-  "Downtown CoWork",
-  "Eastside Cafe",
-  "Airport Lounge T3",
-];
+/** Demo-only: the demo world's venues, as the venue switcher lists them. */
+export const LOCATIONS: string[] = [...DEMO_VENUE_NAMES];
 
 const SEED_ROLES: AgentRole[] = [
   { id: READ_ONLY_ROLE_ID, name: "Read-Only", features: ["policies", "whitelist"], locked: true },
@@ -78,7 +75,7 @@ const SEED_AGENTS: AgentRecord[] = [
     status: "active",
     dataMasking: true,
     roleId: "role-front-desk",
-    locations: ["Marina Bay Hotel"],
+    locations: ["Mumbai HQ"],
   },
   {
     id: "ag-2",
@@ -98,7 +95,7 @@ const SEED_AGENTS: AgentRecord[] = [
     status: "active",
     dataMasking: true,
     roleId: "role-marketing",
-    locations: ["Marina Bay Hotel", "Downtown CoWork"],
+    locations: ["Mumbai HQ", "Bangalore DC"],
   },
 ];
 

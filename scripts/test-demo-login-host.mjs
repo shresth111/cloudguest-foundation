@@ -674,6 +674,83 @@ console.log("single source of truth");
   );
 }
 
+// The demo world (src/lib/demo-world.ts) is every demo fixture's source.
+// Only demo fixture modules and call sites that read it behind the demo gate
+// may import it, so a real session can never be handed a demo venue.
+{
+  const importers = [];
+  const walk = (dir) => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, ent.name);
+      if (ent.isDirectory()) walk(p);
+      else if (
+        /\.(ts|tsx)$/.test(ent.name) &&
+        /["']@\/lib\/demo-world["']/.test(readFileSync(p, "utf8"))
+      ) {
+        importers.push(relative(ROOT, p).replace(/\\/g, "/"));
+      }
+    }
+  };
+  walk(join(ROOT, "src"));
+  const ALLOWED = [
+    // Fixture modules: only reached through demo branches (their own tests).
+    "src/components/customer/dashboard/insights/insights.demo.ts",
+    "src/components/customer/devices/demo-fixtures.ts",
+    "src/components/customer/isp/isp.demo.ts",
+    "src/lib/firewall-demo.ts",
+    "src/lib/netlogs-demo.ts",
+    // Demo-only seed stores / venue-name pickers.
+    "src/stores/deviceStore.ts",
+    "src/stores/agentPermissionStore.ts",
+    "src/components/features/BlockUsers.tsx",
+    "src/components/features/LocationPolicies.tsx",
+    "src/components/features/ManageTeamsPage.tsx",
+    "src/components/features/UserReports.tsx",
+    "src/components/features/VouchersPage.tsx",
+    "src/components/features/WhiteList.tsx",
+    // Call sites with an isDemo() branch (checked below / test-demo-world.mjs).
+    "src/components/customer/dashboard/useBandwidthSeries.ts",
+    "src/components/customer/dashboard/useWanSummary.ts",
+    "src/components/customer/FixAProblem.tsx",
+    "src/components/features/OperationsFeatures.tsx",
+    "src/services/customer.service.ts",
+  ].sort();
+  const extra = importers.filter((f) => !ALLOWED.includes(f));
+  check("only known demo modules import the demo world", extra.length === 0, extra.join(", "));
+  const gated = [
+    [
+      "src/components/customer/dashboard/useWanSummary.ts",
+      "demoIspLinks(",
+      /if \(isDemo\(\)\) \{[\s\S]{0,400}demoIspLinks\(/,
+    ],
+    [
+      "src/components/customer/dashboard/useBandwidthSeries.ts",
+      "demoIspLinks(",
+      /if \(isDemo\(\)\) \{[\s\S]{0,400}demoIspLinks\(/,
+    ],
+    [
+      "src/components/customer/FixAProblem.tsx",
+      "demoRouterDevices(",
+      /if \(demo\) \{[\s\S]{0,400}demoRouterDevices\(/,
+    ],
+    ["src/components/customer/FixAProblem.tsx", "demoOnlineNow(", /demo \? demoOnlineNow\(/],
+    [
+      "src/components/features/OperationsFeatures.tsx",
+      "setAlerts(demoAlertRows",
+      /if \(isDemo\(\)\) \{\s*setAlerts\(demoAlertRows\(\)\)/,
+    ],
+  ];
+  for (const [file, call, re] of gated) {
+    const src = readFileSync(join(ROOT, file), "utf8");
+    const calls = src.split(call).length - 1;
+    check(
+      `${file.split("/").pop()}: ${call}) only on the demo branch`,
+      re.test(src) && calls === 1,
+      `${calls} call(s)`,
+    );
+  }
+}
+
 console.log("");
 if (failures > 0) {
   console.log(`FAIL: ${failures} failing, ${passes} passing`);

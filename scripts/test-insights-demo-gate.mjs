@@ -51,7 +51,8 @@ writeFileSync(
    import { renderToStaticMarkup } from "react-dom/server";
    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
    import * as hooks from "${p("src/components/customer/dashboard/insights/useInsights.ts")}";
-   export { React, renderToStaticMarkup, QueryClient, QueryClientProvider, hooks };`,
+   import * as world from "${p("src/lib/demo-world.ts")}";
+   export { React, renderToStaticMarkup, QueryClient, QueryClientProvider, hooks, world };`,
 );
 const outfile = join(outdir, "bundle.cjs");
 await build({
@@ -157,7 +158,14 @@ console.log("\ndemo session");
     "peak-hours: the demo fixture, not the cache",
     r.peak.data && r.peak.data !== REAL["peak-hours"] && r.peak.data.cells.length > 50,
   );
-  check("guest-mix: the demo fixture", r.mix.data && r.mix.data.unique_guests === 1840);
+  // Counted from the demo world's roster for THIS venue, not a constant.
+  const now = m.world.demoNow();
+  const counted = m.world.demoGuestCounts(LOC, now - DAYS * 86_400_000, now, now);
+  check(
+    "guest-mix: the demo fixture, counted from the demo world",
+    r.mix.data && r.mix.data.unique_guests > 0 && r.mix.data.unique_guests === counted.guests,
+    `${r.mix.data?.unique_guests} vs ${counted.guests}`,
+  );
   check(
     "funnel: the demo fixture",
     r.funnel.data && Array.isArray(r.funnel.data.methods) && r.funnel.data.methods.length > 0,
@@ -167,8 +175,11 @@ console.log("\ndemo session");
     !r.peak.isDemo && !r.mix.isDemo && !r.funnel.isDemo,
   );
   check(
-    "location comparison unchanged in demo (no fixture, flagged demo)",
-    r.locations.data === undefined && r.locations.isDemo === true,
+    "location comparison in demo: every demo venue, flagged demo",
+    r.locations.isDemo === true &&
+      Array.isArray(r.locations.data?.locations) &&
+      r.locations.data.locations.map((l) => l.location_name).join("|") ===
+        m.world.DEMO_VENUE_NAMES.join("|"),
   );
   check(
     "no request is made in the demo",

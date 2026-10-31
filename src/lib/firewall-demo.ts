@@ -1,4 +1,11 @@
 import type { RouterDevice } from "@/types/router";
+import {
+  demoRouterIsLive,
+  demoVenue,
+  demoVenueAlerts,
+  type DemoVenue,
+  type DemoWorldRouter,
+} from "@/lib/demo-world";
 import type {
   CreateFirewallRulePayload,
   FirewallBandStatus,
@@ -51,9 +58,10 @@ import type {
  * the demo -- the demo host never calls the backend for any of it.
  *
  * Same fake venue as `netlogs-demo.ts` / `traffic-lens-demo.ts`: Mumbai HQ
- * (`loc-1`) with its Lobby and Floor 2 routers, and the Rooftop Café
- * (`loc-1-cafe`). Any other demo venue gets one "Main router" with the same
- * baseline, so no venue in the demo shows an empty Security page.
+ * (`loc-1`) with its Lobby and Floor 2 routers, and the café at Chennai
+ * Office (`loc-4`). Every other demo venue lists its own routers from the
+ * demo world (`@/lib/demo-world`) with the same baseline; a venue with no
+ * router lists none, as a real one would.
  *
  * WRITES. The demo behaves like the rest of the demo account (see
  * `useDisconnectSession`'s local patch): a change is applied to this
@@ -62,7 +70,7 @@ import type {
  * a reload starts from the seed again.
  *
  * Address plan (documentation and private ranges only):
- *   - guest network 10.5.50.0/24 (Mumbai HQ), 10.5.60.0/24 (Rooftop Café);
+ *   - guest network 10.5.50.0/24 (Mumbai HQ), 10.5.60.0/24 (Chennai café);
  *   - staff network 10.5.40.0/24 (printer, CCTV recorder, reception PC);
  *   - the routers' public addresses 203.0.113.10 / 203.0.113.20;
  *   - outside addresses 198.51.100.x / 203.0.113.128/25;
@@ -79,7 +87,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 export const DEMO_FW_HQ_LOCATION_ID = "loc-1";
-export const DEMO_FW_CAFE_LOCATION_ID = "loc-1-cafe";
+/** The café venue (Chennai Office in the demo world). */
+export const DEMO_FW_CAFE_LOCATION_ID = "loc-4";
 
 const GUEST_NET_HQ = "10.5.50.0/24";
 const GUEST_NET_CAFE = "10.5.60.0/24";
@@ -105,46 +114,39 @@ interface VenueRouterSeed {
   profile: "lobby" | "floor2" | "cafe" | "other";
 }
 
+/** A demo-world router as a Security seed. Name, model, serial, MAC and
+ * addresses all come from the world, so Security lists the same routers as
+ * the dashboard, Devices and Internet Connection. */
+function fromWorld(
+  venue: DemoVenue,
+  r: DemoWorldRouter,
+  guestNet: string,
+  profile: VenueRouterSeed["profile"],
+): VenueRouterSeed {
+  return {
+    id: r.id,
+    locationId: venue.id,
+    locationName: venue.name,
+    name: r.name,
+    model: r.model,
+    serial: r.serial,
+    mac: r.mac,
+    lan: r.lan,
+    wan: r.wan,
+    guestNet,
+    profile,
+  };
+}
+
+function worldRouter(locationId: string, routerId: string): [DemoVenue, DemoWorldRouter] {
+  const v = demoVenue(locationId)!;
+  return [v, v.routers.find((r) => r.id === routerId)!];
+}
+
 const HQ_ROUTERS: readonly VenueRouterSeed[] = [
-  {
-    id: "r-1",
-    locationId: DEMO_FW_HQ_LOCATION_ID,
-    locationName: "Mumbai HQ",
-    name: "Lobby router",
-    model: "RB5009UG+S+",
-    serial: "DEMO-HQ-LOBBY",
-    mac: "02:00:5E:00:00:01",
-    lan: "10.5.50.1",
-    wan: "203.0.113.10",
-    guestNet: GUEST_NET_HQ,
-    profile: "lobby",
-  },
-  {
-    id: "r-1-floor2",
-    locationId: DEMO_FW_HQ_LOCATION_ID,
-    locationName: "Mumbai HQ",
-    name: "Floor 2 router",
-    model: "hAP ax³",
-    serial: "DEMO-HQ-FL2",
-    mac: "02:00:5E:00:00:02",
-    lan: "10.5.50.2",
-    wan: "203.0.113.10",
-    guestNet: GUEST_NET_HQ,
-    profile: "floor2",
-  },
-  {
-    id: "r-1-cafe",
-    locationId: DEMO_FW_CAFE_LOCATION_ID,
-    locationName: "Mumbai HQ – Rooftop Café",
-    name: "Rooftop Café router",
-    model: "hAP ax²",
-    serial: "DEMO-CAFE-ROOF",
-    mac: "02:00:5E:00:00:03",
-    lan: "10.5.60.1",
-    wan: "203.0.113.20",
-    guestNet: GUEST_NET_CAFE,
-    profile: "cafe",
-  },
+  fromWorld(...worldRouter(DEMO_FW_HQ_LOCATION_ID, "r-1"), GUEST_NET_HQ, "lobby"),
+  fromWorld(...worldRouter(DEMO_FW_HQ_LOCATION_ID, "r-1-floor2"), GUEST_NET_HQ, "floor2"),
+  fromWorld(...worldRouter(DEMO_FW_CAFE_LOCATION_ID, "r-4"), GUEST_NET_CAFE, "cafe"),
 ];
 
 /** One anchor per page load, so timestamps read "a few minutes ago" without
@@ -163,28 +165,29 @@ const seedsById = new Map<string, VenueRouterSeed>(HQ_ROUTERS.map((r) => [r.id, 
 function seedsFor(locationId: string): VenueRouterSeed[] {
   const known = HQ_ROUTERS.filter((r) => r.locationId === locationId);
   if (known.length) return known;
-  const other: VenueRouterSeed = {
-    id: `${locationId}-main-router`,
-    locationId,
-    locationName: "",
-    name: "Main router",
-    model: "hAP ax²",
-    serial: `DEMO-${locationId.toUpperCase()}`,
-    mac: "02:00:5E:00:00:10",
-    lan: "10.5.80.1",
-    wan: "203.0.113.30",
-    guestNet: GUEST_NET_OTHER,
-    profile: "other",
-  };
-  seedsById.set(other.id, other);
-  return [other];
+  // Any other demo venue: its own routers from the demo world, with the
+  // baseline rule set. A venue with no router has nothing to list.
+  const venue = demoVenue(locationId);
+  if (!venue) return [];
+  return venue.routers.map((r) => {
+    const seed = fromWorld(venue, r, GUEST_NET_OTHER, "other");
+    seedsById.set(seed.id, seed);
+    return seed;
+  });
 }
 
 function seedOf(routerId: string): VenueRouterSeed | null {
   return seedsById.get(routerId) ?? null;
 }
 
+function worldOf(s: VenueRouterSeed): DemoWorldRouter | undefined {
+  return demoVenue(s.locationId)?.routers.find((r) => r.id === s.id);
+}
+
 function toRouterDevice(s: VenueRouterSeed): RouterDevice {
+  const w = worldOf(s);
+  const seen = ago(w?.lastSeenMinutesAgo ?? 1);
+  const live = w ? demoRouterIsLive(w) : true;
   return {
     id: s.id,
     locationId: s.locationId,
@@ -199,10 +202,10 @@ function toRouterDevice(s: VenueRouterSeed): RouterDevice {
     routerOsVersion: "7.19.4",
     managementIpAddress: s.lan,
     publicIpAddress: s.wan,
-    status: "online",
-    lastSeenAt: ago(1),
-    lastHealthCheckAt: ago(1),
-    healthStatus: "healthy",
+    status: w?.status ?? "online",
+    lastSeenAt: seen,
+    lastHealthCheckAt: seen,
+    healthStatus: live ? "healthy" : null,
     hasApiCredentials: true,
     controllerState: null,
     controllerStateReason: null,
@@ -210,7 +213,7 @@ function toRouterDevice(s: VenueRouterSeed): RouterDevice {
     vendorClaimIsContradicted: false,
     settings: {},
     createdAt: ago(90 * 24 * 60),
-    updatedAt: ago(1),
+    updatedAt: seen,
   };
 }
 
@@ -1303,7 +1306,14 @@ export function demoSecurityOverview(locationId?: string | null): SecurityOvervi
   const notApplied = content.filter((r) => r.devicePushStatus !== "active").length;
   const firewallRules = routers.flatMap((s) => rulesOf(s.id)).filter((r) => r.isEnabled).length;
   const blockedDevices = 2;
-  const openAlerts = 1;
+  // From the demo world: the same open alerts the dashboard and Alerts
+  // page show for this venue, and the same routers checking in.
+  const venue = demoVenue(locationId);
+  const openAlerts = venue ? demoVenueAlerts(venue).length : 0;
+  const reporting = routers.filter((s) => {
+    const w = worldOf(s);
+    return w ? demoRouterIsLive(w) : true;
+  }).length;
   const interfaces = routers.length * 2;
   const unguarded = 0;
 
@@ -1311,11 +1321,11 @@ export function demoSecurityOverview(locationId?: string | null): SecurityOvervi
     {
       key: "fleet_reporting",
       label: "Gateways reporting",
-      penalty: penalty("fleet_reporting", 0, routers.length),
+      penalty: penalty("fleet_reporting", routers.length - reporting, routers.length),
       maxPenalty: WEIGHTS.fleet_reporting[1],
-      affected: 0,
+      affected: routers.length - reporting,
       available: true,
-      detail: `${routers.length} of ${routers.length} gateways checked in within the last 10 minutes.`,
+      detail: `${reporting} of ${routers.length} gateways checked in within the last 10 minutes.`,
     },
     {
       key: "block_push_integrity",
@@ -1344,7 +1354,7 @@ export function demoSecurityOverview(locationId?: string | null): SecurityOvervi
       maxPenalty: WEIGHTS.alert_pressure[1],
       affected: openAlerts,
       available: true,
-      detail: `${openAlerts} alert(s) are triggered or acknowledged and not yet resolved.`,
+      detail: `${openAlerts} ${openAlerts === 1 ? "alert is" : "alerts are"} open and not yet resolved.`,
     },
   ];
   const score = Math.max(0, 100 - factors.reduce((n, f) => n + f.penalty, 0));
@@ -1404,10 +1414,10 @@ export function demoSecurityOverview(locationId?: string | null): SecurityOvervi
     ],
     fleet: {
       routersTotal: routers.length,
-      routersReporting: routers.length,
-      routersStale: 0,
+      routersReporting: reporting,
+      routersStale: routers.length - reporting,
       routersUnhealthy: 0,
-      noManagedGateway: false,
+      noManagedGateway: routers.length === 0,
     },
     generatedAt,
   };

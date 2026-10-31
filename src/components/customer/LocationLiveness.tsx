@@ -17,6 +17,9 @@
  * the same thing for the same reason.
  */
 import { CheckCircle2, XCircle, HelpCircle, CircleDashed, AlertTriangle } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { lastContactLabel, livenessTone } from "@/lib/location-liveness";
 import type { LocationLiveness, RouterLiveness, LivenessTone } from "@/lib/location-liveness";
@@ -128,9 +131,13 @@ export function LocationLivenessExplainer({
   now?: Date;
   className?: string;
 }) {
+  const { t } = useTranslation("dashboard", { i18n });
   const tone = livenessTone(liveness.state);
   const nothingToSay = liveness.state === "live" && liveness.nextStep === null;
   if (nothingToSay) return null;
+  // A router that is not checking in is something the venue owner hands to
+  // us, not something they fix from a terminal -- so the action is a ticket.
+  const offerTicket = liveness.state === "partly-live" || liveness.state === "not-live";
 
   const HeadIcon = tone === "down" ? AlertTriangle : tone === "neutral" ? CircleDashed : HelpCircle;
 
@@ -159,6 +166,14 @@ export function LocationLivenessExplainer({
           <p className="text-sm text-muted-foreground">{liveness.summary}</p>
           {liveness.nextStep && (
             <p className="text-sm text-foreground">Next step: {liveness.nextStep}</p>
+          )}
+          {offerTicket && (
+            <Link
+              to="/tickets"
+              className="inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {t("liveness.raiseTicket", "Raise a support ticket")}
+            </Link>
           )}
         </div>
       </div>

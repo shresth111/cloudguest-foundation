@@ -660,9 +660,15 @@ check(
 );
 
 const fixAProblem = read("src/components/customer/FixAProblem.tsx");
+// The subject choice moved to `fix-problem-subject.ts` (a silent
+// agent-managed router first -- the one an owner opened the page about --
+// then any agent-managed router, then whatever the venue has).
+const subjectSrc = read("src/lib/fix-problem-subject.ts");
 check(
   "Fix a Problem prefers an agent-managed router as its subject",
-  /routers\.find\(\(r\) => isAgentManaged\(r\.vendor\)\)/.test(fixAProblem),
+  /pickSubjectRouter\(routers\)/.test(fixAProblem) &&
+    /routers\.filter\(\(r\) => isAgentManaged\(r\.vendor\)\)/.test(subjectSrc) &&
+    /return silent \?\? agent\[0\] \?\? routers\[0\] \?\? null;/.test(subjectSrc),
 );
 check(
   "Fix a Problem tells the verdict engine whether liveness is measured",
