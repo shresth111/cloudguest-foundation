@@ -1,77 +1,73 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { IspLink, IspHealthCheck } from "@/types/isp";
 import { IspProviderIcon } from "@/components/icons/isp";
-import {
-  WAN_HEALTH_STYLE,
-  WAN_CONNECTION_MODE_LABEL,
-  formatDownDuration,
-  integratedWanHealth,
-} from "./dashboard.types";
 import { useWanSummary } from "./useWanSummary";
 import type { WanSummaryState } from "./dashboard.types";
-import { Panel } from "@/components/customer/console";
+import { Panel, StatusDot } from "@/components/customer/console";
 import { PanelLink, PanelTitle } from "./overview/console-ui";
+import { failoverState, linkStatus } from "@/components/customer/isp/isp-model";
+import {
+  CheckTicks,
+  FailoverBanner,
+  LatencySpark,
+  LinkStatus,
+  PlanMeter,
+  RoleChips,
+  STATUS_TEXT,
+  fmtClock,
+  fmtDuration,
+  fmtNum,
+  ispColor,
+  useIspT,
+} from "@/components/customer/isp/isp-ui";
 
-/** Oldest -> newest, left to right -- the exact same "last dozen real
- * checks as colored ticks" reading `IspStatusTimeline` (Internet
- * Connection page) already established, so this widget's timeline isn't a
- * visually-unrelated second idiom for the same underlying data. */
+/** Oldest -> newest, left to right -- the same "last dozen real checks as
+ * ticks" reading the Internet Connection page uses, so the two surfaces
+ * share one idiom for the same rows. Non-interactive here: the page is
+ * where a tick opens its detail. */
 export function WanRecentChecks({ checks }: { checks: IspHealthCheck[] }) {
+  const { t } = useIspT();
   if (checks.length === 0) {
-    return <p className="text-xs text-muted-foreground">No health-check history yet.</p>;
+    return (
+      <p className="text-[11px] text-[var(--wy-text-muted)]">
+        {t("card.noHistory", "No health-check history yet.")}
+      </p>
+    );
   }
-  const ordered = [...checks].reverse();
-  return (
-    <div className="flex items-center gap-1" title="Recent health checks, oldest to newest">
-      {ordered.map((c) => {
-        const style = WAN_HEALTH_STYLE[c.status] ?? WAN_HEALTH_STYLE.unknown;
-        return (
-          <span
-            key={c.id}
-            title={`${new Date(c.checkedAt).toLocaleString()} — ${style.label}`}
-            className={cn("h-5 w-1.5 rounded-sm", style.bar)}
-          />
-        );
-      })}
-    </div>
-  );
+  return <CheckTicks checks={checks} max={12} interactive={false} />;
 }
 
 /**
- * Empty-state illustration for the WAN Status card: a router waiting on a
- * dashed, animated link up to an outline-only globe -- deliberately never
- * a solid connected line or filled globe, either of which would visually
- * claim a connection that doesn't exist yet.
+ * Empty-state illustration: a router waiting on a dashed link up to an
+ * outline-only globe -- never a solid line or filled globe, either of
+ * which would claim a connection that doesn't exist yet. Kept for callers
+ * of the barrel export; colours follow the console accent.
  */
 export function WanSetupIllustration() {
   const shouldReduceMotion = useReducedMotion();
   return (
-    <svg aria-hidden="true" viewBox="0 0 200 130" className="h-24 w-auto" fill="none">
-      <ellipse cx="100" cy="119" rx="66" ry="5" fill="#6C4EFF" opacity="0.07" />
-
+    <svg aria-hidden="true" viewBox="0 0 200 130" className="h-20 w-auto" fill="none">
       <circle
         cx="136"
         cy="42"
         r="24"
-        stroke="#8B5CF6"
+        stroke="var(--wy-accent)"
         strokeWidth="2"
         strokeDasharray="4 5"
         opacity="0.55"
       />
       <path
         d="M112 42h48M136 18a32 32 0 0 1 0 48 32 32 0 0 1 0-48z"
-        stroke="#8B5CF6"
+        stroke="var(--wy-accent)"
         strokeWidth="1.4"
         opacity="0.4"
       />
-
       <motion.path
         d="M92 100C100 78 114 58 126 48"
-        stroke="#22d3ee"
+        stroke="var(--wy-text-faint)"
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeDasharray="1 7"
@@ -80,108 +76,114 @@ export function WanSetupIllustration() {
           shouldReduceMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "linear" }
         }
       />
-
-      <rect x="48" y="90" width="58" height="28" rx="7" fill="#4338ca" />
-      <rect x="48" y="90" width="58" height="28" rx="7" fill="#7c3aed" opacity="0.15" />
-      <rect x="56" y="84" width="4" height="8" rx="2" fill="#4338ca" />
-      <rect x="94" y="84" width="4" height="8" rx="2" fill="#4338ca" />
-      <circle cx="60" cy="104" r="2.6" fill="white" />
-      <motion.circle
-        cx="70"
-        cy="104"
-        r="2.6"
-        fill="#22d3ee"
-        animate={shouldReduceMotion ? { opacity: 0.7 } : { opacity: [0.25, 1, 0.25] }}
-        transition={
-          shouldReduceMotion ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
-        }
+      <rect
+        x="48"
+        y="90"
+        width="58"
+        height="28"
+        rx="7"
+        fill="var(--wy-surface-2)"
+        stroke="var(--wy-border-strong)"
       />
-      <circle cx="80" cy="104" r="2.6" fill="white" opacity="0.5" />
+      <circle cx="60" cy="104" r="2.6" fill="var(--wy-text-faint)" />
+      <circle cx="70" cy="104" r="2.6" fill="var(--wy-text-faint)" opacity="0.6" />
+      <circle cx="80" cy="104" r="2.6" fill="var(--wy-text-faint)" opacity="0.3" />
     </svg>
   );
 }
 
-function fmt(value: number | null, digits: number, unit: string) {
-  return value != null ? `${value.toFixed(digits)} ${unit}` : "—";
-}
-
-/** One ISP's own health: status, latency/loss, live rate and its own
- * recent-check timeline. Shown for every uplink, so a venue on two ISPs
- * sees each line separately, not only the one flagged active. */
-export function UplinkHealthRow({ link, checks }: { link: IspLink; checks: IspHealthCheck[] }) {
-  const style = WAN_HEALTH_STYLE[link.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
+/** One ISP, compact: identity + role, status, ↓/↑ against plan, latency with
+ * a sparkline from the checks already in hand, loss, and the recent-check
+ * ticks. Shown for every uplink, so a venue on two ISPs sees each line. */
+export function UplinkHealthRow({
+  link,
+  checks,
+  index = 0,
+  multi = false,
+}: {
+  link: IspLink;
+  checks: IspHealthCheck[];
+  index?: number;
+  multi?: boolean;
+}) {
+  const { t, i18n: inst } = useIspT();
+  const color = ispColor(index);
+  const down = link.healthStatus === "unhealthy";
   return (
-    <div className="space-y-1.5 rounded-lg border border-border/60 px-3 py-2.5">
+    <div
+      className={cn(
+        "space-y-2 rounded-[var(--wy-radius)] border px-3 py-2.5",
+        down
+          ? "border-[color-mix(in_srgb,var(--wy-crit)_45%,var(--wy-border))]"
+          : "border-[var(--wy-border)]",
+      )}
+      data-wy="wan-row"
+    >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="flex min-w-0 items-center gap-1.5 text-xs">
+          <span
+            aria-hidden
+            className="h-3 w-1 shrink-0 rounded-full"
+            style={{ background: color }}
+          />
           <IspProviderIcon providerName={link.providerName} className="h-4 w-4 shrink-0" />
-          <span className="truncate font-medium text-foreground">{link.providerName}</span>
-          <span className="text-muted-foreground">
-            · {link.role === "primary" ? "Primary" : "Backup"}
-            {link.interface ? ` · ${link.interface}` : ""}
-          </span>
+          <span className="truncate font-semibold text-[var(--wy-text)]">{link.providerName}</span>
+          <RoleChips link={link} multi={multi} />
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className={cn("h-2 w-2 rounded-full", style.dot)} />
-          <span className={cn("text-xs font-semibold", style.text)}>{style.label}</span>
-          {link.healthStatusSource === "manual" && (
-            <Badge
-              variant="outline"
-              className="h-4 px-1 text-[9px] font-normal text-muted-foreground"
-              title="Manually set by an admin, not the automated health-check sweep"
-            >
-              Manual
-            </Badge>
-          )}
-        </span>
+        <LinkStatus link={link} />
       </div>
-      {link.healthStatus === "unhealthy" && link.unhealthySince && (
-        <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400">
-          Down for {formatDownDuration(link.unhealthySince)}
+      {down && link.unhealthySince && (
+        <p className="text-[11px] font-medium text-[var(--wy-crit)]">
+          {t("card.downFor", "Down for {{d}} · since {{time}}", {
+            d: fmtDuration(Date.now() - new Date(link.unhealthySince).getTime()),
+            time: fmtClock(link.unhealthySince, inst.language),
+          })}
         </p>
       )}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground sm:grid-cols-4">
-        <span>
-          ↓{" "}
-          <span className="tabular-nums text-foreground">
-            {fmt(link.currentDownloadMbps, 0, "Mbps")}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-[1fr_1fr_12rem]">
+        <PlanMeter
+          dir="down"
+          current={link.currentDownloadMbps}
+          plan={link.downloadBandwidthMbps}
+          color={color}
+          compact
+        />
+        <PlanMeter
+          dir="up"
+          current={link.currentUploadMbps}
+          plan={link.uploadBandwidthMbps}
+          color={color}
+          compact
+        />
+        <div className="col-span-2 flex items-center gap-3 text-xs sm:col-span-1 sm:justify-end">
+          <span className="flex items-center gap-1.5">
+            <span className="text-[var(--wy-text-muted)]">{t("card.latency", "Latency")}</span>
+            <span className="font-semibold tabular-nums text-[var(--wy-text)]">
+              {fmtNum(link.latencyMs, 0) != null ? `${fmtNum(link.latencyMs, 0)} ms` : "—"}
+            </span>
+            <LatencySpark checks={checks} color={color} className="w-12" />
           </span>
-        </span>
-        <span>
-          ↑{" "}
-          <span className="tabular-nums text-foreground">
-            {fmt(link.currentUploadMbps, 0, "Mbps")}
+          <span className="flex items-center gap-1">
+            <span className="text-[var(--wy-text-muted)]">{t("card.loss", "Loss")}</span>
+            <span className="font-semibold tabular-nums text-[var(--wy-text)]">
+              {fmtNum(link.packetLossPercentage, 1) != null
+                ? `${fmtNum(link.packetLossPercentage, 1)}%`
+                : "—"}
+            </span>
           </span>
-        </span>
-        <span>
-          Latency{" "}
-          <span className="tabular-nums text-foreground">{fmt(link.latencyMs, 0, "ms")}</span>
-        </span>
-        <span>
-          Loss{" "}
-          <span className="tabular-nums text-foreground">
-            {fmt(link.packetLossPercentage, 1, "%")}
-          </span>
-        </span>
+        </div>
       </div>
       <WanRecentChecks checks={checks} />
     </div>
   );
 }
 
-const INTEGRATED_STYLE_KEY = {
-  healthy: "healthy",
-  degraded: "degraded",
-  unhealthy: "unhealthy",
-  unknown: "unknown",
-} as const;
-
 /**
- * The dashboard's own WAN/Internet Connection status widget. One uplink:
- * that link's real status and history. Two or more: an integrated reading
- * first (how many ISPs are up), then every ISP's own health row underneath.
- * Live traffic is the Bandwidth Utilization card's job, not repeated here. An honest setup prompt
- * when no `IspLink` is configured yet.
+ * The Overview's Internet Connection card: a compact summary of the
+ * Internet Connection page. One headline for the venue, the failover state
+ * when traffic is on a backup line or every line is down, then each ISP's
+ * own row. Data: exactly the `useWanSummary` state the page already holds
+ * (links + up to 12 recent checks each) -- this card fetches nothing.
  */
 export function WanStatusCard({
   locationId,
@@ -205,137 +207,119 @@ export function WanStatusCardView({
   wan: WanSummaryState;
   onManage: () => void;
 }) {
+  const { t } = useIspT();
   return (
-    <Panel
-      className="h-full"
-      title={<PanelTitle icon={<Globe />}>Internet Connection</PanelTitle>}
-      actions={<PanelLink onClick={onManage}>Manage →</PanelLink>}
-    >
-      <div>
+    <div className="h-full" data-wy="wan-card">
+      <Panel
+        className="h-full"
+        title={<PanelTitle icon={<Globe />}>{t("card.title", "Internet Connection")}</PanelTitle>}
+        actions={<PanelLink onClick={onManage}>{t("card.manage", "Manage →")}</PanelLink>}
+      >
         {wan.status === "loading" && (
-          <div className="space-y-3">
-            <div className="h-4 w-28 animate-pulse rounded bg-muted" />
-            <div className="flex items-center gap-1">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <span key={i} className="h-5 w-1.5 animate-pulse rounded-sm bg-muted" />
-              ))}
-            </div>
+          <div className="space-y-3" aria-busy="true">
+            <div className="h-5 w-32 animate-pulse rounded bg-[var(--wy-surface-2)]" />
+            <div className="h-20 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]" />
           </div>
         )}
         {wan.status === "empty" && (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+          <div className="flex flex-col items-center gap-2 px-4 py-4 text-center">
             <WanSetupIllustration />
-            <div>
-              <p className="text-sm font-semibold text-foreground">No WAN link configured</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Connect this location's internet uplink to see live up/down status here.
-              </p>
-            </div>
+            <p className="text-[13px] font-semibold text-[var(--wy-text)]">
+              {t("card.emptyTitle", "No WAN link configured")}
+            </p>
+            <p className="max-w-xs text-xs text-[var(--wy-text-muted)]">
+              {t(
+                "card.emptyBody",
+                "Connect this location's internet uplink to see live up/down status here.",
+              )}
+            </p>
             <Button size="sm" variant="outline" className="mt-1 text-xs" onClick={onManage}>
-              Set up Internet Connection
+              {t("card.setUp", "Set up Internet Connection")}
             </Button>
           </div>
         )}
-        {wan.status === "ready" && wan.links.length === 1 && (
-          <SingleWanView link={wan.links[0]} checks={wan.checks[wan.links[0].id] ?? []} />
-        )}
-        {wan.status === "ready" && wan.links.length > 1 && (
-          <MultiWanView links={wan.links} checks={wan.checks} />
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-function SingleWanView({ link, checks }: { link: IspLink; checks: IspHealthCheck[] }) {
-  const style = WAN_HEALTH_STYLE[link.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
-  return (
-    <div className="space-y-4">
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <div className="flex items-center gap-2">
-            <span className={cn("h-2 w-2 rounded-full", style.dot)} />
-            <span className={cn("text-base font-semibold leading-none", style.text)}>
-              {style.label}
-            </span>
-            {link.healthStatusSource === "manual" && (
-              <Badge
-                variant="outline"
-                className="h-4 px-1 text-[9px] font-normal text-muted-foreground"
-                title="Manually set by an admin, not the automated health-check sweep"
-              >
-                Manual
-              </Badge>
-            )}
-          </div>
-          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <IspProviderIcon providerName={link.providerName} className="h-4 w-4" />
-            <span className="truncate">
-              {link.providerName} ·{" "}
-              {WAN_CONNECTION_MODE_LABEL[link.connectionMode] ?? link.connectionMode}
-            </span>
-          </span>
-        </div>
-        {link.healthStatus === "unhealthy" && link.unhealthySince && (
-          <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">
-            Down for {formatDownDuration(link.unhealthySince)}
-          </p>
-        )}
-        <div className="mt-2">
-          <WanRecentChecks checks={checks} />
-        </div>
-      </div>
+        {wan.status === "ready" && <WanReady links={wan.links} checks={wan.checks} />}
+      </Panel>
     </div>
   );
 }
 
-function MultiWanView({
+function WanReady({
   links,
   checks,
 }: {
   links: IspLink[];
   checks: Record<string, IspHealthCheck[]>;
 }) {
-  const health = integratedWanHealth(links);
-  const style = WAN_HEALTH_STYLE[INTEGRATED_STYLE_KEY[health.status]];
-  const working = links.filter((l) => l.isEnabled && l.healthStatus !== "unhealthy");
+  const { t } = useIspT();
+  const multi = links.length > 1;
+  const failover = failoverState(links);
+  const active = links.find((l) => l.isActiveUplink) ?? null;
+  const known = links.filter((l) => l.healthStatus && l.healthStatus !== "unknown");
+  const healthy = links.filter((l) => l.healthStatus === "healthy").length;
+
   let headline: string;
-  if (health.status === "unknown") headline = "Not checked yet";
-  else if (health.status === "unhealthy") headline = "All ISPs down";
-  else if (health.status === "healthy") headline = `All ${health.total} ISPs online`;
-  else if (health.down > 0) headline = `${health.down} of ${health.total} ISPs down`;
-  else headline = `${health.degraded} of ${health.total} ISPs degraded`;
+  let status = linkStatus("unknown");
+  if (failover.kind === "all-down") {
+    headline = multi ? t("head.allIspsDown", "All ISPs down") : t("head.allDown", "No internet");
+    status = "crit";
+  } else if (failover.kind === "on-backup") {
+    headline = t("head.onBackup", "Online on backup");
+    status = "warn";
+  } else if (known.length === 0) {
+    headline = t("head.notChecked", "Not checked yet");
+  } else if (healthy === links.length) {
+    headline = multi
+      ? t("head.allIsps", "All {{n}} ISPs online", { n: links.length })
+      : t("head.online", "Online");
+    status = "ok";
+  } else if (active?.healthStatus === "healthy") {
+    headline = t("head.online", "Online");
+    status = "ok";
+  } else {
+    headline = t("head.someIssues", "{{up}} of {{n}} lines healthy", {
+      up: healthy,
+      n: links.length,
+    });
+    status = active?.healthStatus === "unhealthy" ? "crit" : "warn";
+  }
+
   return (
-    <div className="space-y-4">
-      {/* Integrated reading */}
-      <div>
-        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          Integrated · {health.total} ISPs
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p
+          className={cn("flex items-center gap-2 text-[15px] font-semibold", STATUS_TEXT[status])}
+          data-wy="wan-headline"
+        >
+          <StatusDot status={status} label={headline} pulse={status === "ok"} />
+          {headline}
         </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <span className={cn("h-2 w-2 rounded-full", style.dot)} />
-          <span className={cn("text-base font-semibold leading-none", style.text)}>{headline}</span>
-        </div>
-        {health.down > 0 && health.status !== "unhealthy" && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Guests are running on {working.map((l) => l.providerName).join(" + ")} only
-            {health.planDownloadMbps != null && " — reduced capacity"}.
+        {multi && (
+          <p className="text-[11px] uppercase tracking-wider text-[var(--wy-text-faint)]">
+            {t("card.nIsps", "{{n}} ISPs", { n: links.length })}
           </p>
         )}
       </div>
-
-      {/* Each ISP on its own */}
-      <div className="space-y-2 border-t border-border/60 pt-3">
-        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          Each ISP
-        </p>
-        {links.map((l) => (
-          <UplinkHealthRow key={l.id} link={l} checks={checks[l.id] ?? []} />
+      <FailoverBanner state={failover} compact />
+      <div className="space-y-2">
+        {links.map((l, i) => (
+          <UplinkHealthRow
+            key={l.id}
+            link={l}
+            checks={checks[l.id] ?? []}
+            index={i}
+            multi={multi}
+          />
         ))}
-        <p className="pt-0.5 text-[11px] text-muted-foreground">
-          If one ISP fails its health checks, traffic moves to the remaining ISP automatically.
-        </p>
       </div>
+      {multi && failover.kind === "normal" && (
+        <p className="text-[11px] text-[var(--wy-text-muted)]">
+          {t(
+            "card.failoverNote",
+            "If one ISP fails its health checks, traffic moves to the remaining ISP automatically.",
+          )}
+        </p>
+      )}
     </div>
   );
 }
