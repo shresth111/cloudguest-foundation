@@ -1,3 +1,5 @@
+import i18n from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { motion, AnimatePresence } from "framer-motion";
@@ -57,6 +59,7 @@ import type { CampaignType } from "@/types/campaign";
 import { routerService } from "@/services/router.service";
 import { GuestSessionDeviceEventsDrawer } from "@/components/features/GuestSessionDeviceEventsDrawer";
 
+// i18n-ignore-start: English fallbacks; rendered via reportLabel/categoryLabel/colLabel (reports ns)
 const CATEGORIES = [
   "Guest Activity Report",
   "Voucher Redemption Report",
@@ -64,6 +67,7 @@ const CATEGORIES = [
   "Bandwidth & Cost Report",
   "OTP & SMS Delivery Report",
 ] as const;
+// i18n-ignore-end
 type Category = (typeof CATEGORIES)[number];
 /** A DOM-safe id per category, for the SubTabs' tab/panel ids. */
 const categorySlug = (c: Category) => c.toLowerCase().replace(/[^a-z]+/g, "-");
@@ -131,6 +135,7 @@ const NAMES = [
 const phone = (i: number) => `+9198${String(70000000 + i * 1111111).slice(0, 10)}`;
 
 // ── report catalogs, one per category ──────────────────────────────
+// i18n-ignore-start: labels/descs are English fallbacks for reports:type.<id>.*, columns for reports:col.<slug>
 const USER_REPORT_TYPES: ReportType[] = [
   {
     id: "user-data",
@@ -468,6 +473,26 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "attemptedAt", label: "Attempted At", sortType: "date" },
   ],
 };
+// i18n-ignore-end
+
+/** Report/category/column names in the dashboard language. The catalogs
+ * above stay English (the CSV header and the fallback); these look up
+ * `reports:type.<id>.label|desc`, `reports:category.<slug>` and
+ * `reports:col.<slug of the English label>` (one key per distinct label, so
+ * "Avg Per Guest" and "Avg Per Session" never share a translation). */
+const slugKey = (s: string) =>
+  s
+    .replace(/[^A-Za-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .map((w, i) => (i ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase()))
+    .join("") || "hash";
+type TFn = (key: string, fallback: string) => string;
+const reportLabel = (t: TFn, r: ReportType) => t(`type.${r.id}.label`, r.label);
+const reportDesc = (t: TFn, r: ReportType) => t(`type.${r.id}.desc`, r.desc);
+const colLabel = (t: TFn, c: ColumnDef) =>
+  c.label === "#" ? "#" : t(`col.${slugKey(c.label)}`, c.label);
+const categoryLabel = (t: TFn, c: string) => t(`category.${slugKey(c)}`, c);
 
 const NEEDS_TEAM = new Set(["team-report"]);
 const NEEDS_SINGLE = new Set(["user-presence"]);
@@ -1859,6 +1884,7 @@ export function ReportPanel({
   csvPrefix: string;
   masked?: boolean;
 }) {
+  const { t } = useTranslation("reports", { i18n });
   // UNITS (the demo world's venues) is demo-only seed data -- a real
   // customer only has their own real locations, same real-vs-demo split
   // WhiteList.tsx/TicketsPage.tsx already use for their own "Business
@@ -1974,9 +2000,10 @@ export function ReportPanel({
   const filteredCombos = useMemo(() => {
     const q = comboFilter.toLowerCase();
     return reportTypes.filter(
-      (r) => r.label.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q),
+      (r) =>
+        reportLabel(t, r).toLowerCase().includes(q) || reportDesc(t, r).toLowerCase().includes(q),
     );
-  }, [comboFilter, reportTypes]);
+  }, [comboFilter, reportTypes, t]);
 
   const setQuick = (days: number) => {
     const toD = new Date();
@@ -2271,7 +2298,7 @@ export function ReportPanel({
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label htmlFor="ur-bu" className={labelCls}>
-              Business Unit <span className="text-destructive">*</span>
+              {t("r.businessUnit", "Location")} <span className="text-destructive">*</span>
             </label>
             <select
               id="ur-bu"
@@ -2287,7 +2314,7 @@ export function ReportPanel({
               }}
               className={inputCls}
             >
-              <option value="">Choose business unit</option>
+              <option value="">{t("r.chooseBusinessUnit")}</option>
               {units.map((u) => (
                 <option key={u} value={u}>
                   {u}
@@ -2299,7 +2326,7 @@ export function ReportPanel({
 
           <div ref={comboRef} className="relative">
             <label className={labelCls}>
-              Report Type <span className="text-destructive">*</span>
+              {t("r.reportType")} <span className="text-destructive">*</span>
             </label>
             <button
               type="button"
@@ -2320,7 +2347,7 @@ export function ReportPanel({
               )}
             >
               <span className={rt ? "text-foreground" : "text-muted-foreground"}>
-                {rt ? rt.label : "Choose report type"}
+                {rt ? reportLabel(t, rt) : t("r.chooseReportType")}
               </span>
               <ChevronDown
                 className={`h-4 w-4 text-muted-foreground transition-transform ${comboboxOpen ? "rotate-180" : ""}`}
@@ -2332,7 +2359,7 @@ export function ReportPanel({
                 <div className="p-2">
                   <input
                     type="text"
-                    placeholder="Filter reports…"
+                    placeholder={t("r.filterReports")}
                     value={comboFilter}
                     onChange={(e) => {
                       setComboFilter(e.target.value);
@@ -2345,7 +2372,7 @@ export function ReportPanel({
                 <ul role="listbox" className="max-h-60 overflow-y-auto pb-1">
                   {filteredCombos.length === 0 ? (
                     <li className="px-3 py-4 text-center text-sm text-muted-foreground">
-                      No report matches that.
+                      {t("r.noReportMatchesThat")}
                     </li>
                   ) : (
                     filteredCombos.map((r, i) => (
@@ -2372,8 +2399,8 @@ export function ReportPanel({
                           });
                         }}
                       >
-                        <p className="text-sm font-medium text-foreground">{r.label}</p>
-                        <p className="text-xs text-muted-foreground">{r.desc}</p>
+                        <p className="text-sm font-medium text-foreground">{reportLabel(t, r)}</p>
+                        <p className="text-xs text-muted-foreground">{reportDesc(t, r)}</p>
                       </li>
                     ))
                   )}
@@ -2390,7 +2417,7 @@ export function ReportPanel({
                 {teamOptions.kind === "ready" ? (
                   <>
                     <label htmlFor="ur-team" className={labelCls}>
-                      Team <span className="text-destructive">*</span>
+                      {t("r.team")} <span className="text-destructive">*</span>
                     </label>
                     <select
                       id="ur-team"
@@ -2405,7 +2432,7 @@ export function ReportPanel({
                       }}
                       className={inputCls}
                     >
-                      <option value="">Choose team</option>
+                      <option value="">{t("r.chooseTeam")}</option>
                       {teamOptions.options.map((t) => (
                         <option key={t} value={t}>
                           {t}
@@ -2422,13 +2449,13 @@ export function ReportPanel({
                   // -- there is no form control to label, and pointing one
                   // at a <p> is not a valid association.
                   <>
-                    <p className={labelCls}>Team</p>
+                    <p className={labelCls}>{t("r.team")}</p>
                     <p
                       className="rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] bg-[var(--wy-surface-2)] px-3 py-2 text-[13px] text-[var(--wy-text-muted)]"
                       aria-live={teamOptions.kind === "loading" ? "polite" : undefined}
                     >
                       {teamOptions.kind === "loading"
-                        ? "Loading this venue's teams…"
+                        ? t("r.loadingThisVenueSTeams")
                         : teamOptions.kind === "error"
                           ? TEAMS_LOOKUP_FAILED_NOTICE
                           : NO_TEAMS_NOTICE}
@@ -2440,7 +2467,7 @@ export function ReportPanel({
             {needsCampaignType && (
               <div>
                 <label htmlFor="ur-ct" className={labelCls}>
-                  Campaign Type <span className="text-destructive">*</span>
+                  {t("r.campaignType", "Campaign type")} <span className="text-destructive">*</span>
                 </label>
                 <select
                   id="ur-ct"
@@ -2456,7 +2483,7 @@ export function ReportPanel({
                   }}
                   className={inputCls}
                 >
-                  <option value="">Choose campaign type</option>
+                  <option value="">{t("r.chooseCampaignType")}</option>
                   {CAMPAIGN_TYPES.map((t) => (
                     <option key={t} value={t}>
                       {t}
@@ -2469,8 +2496,10 @@ export function ReportPanel({
             {needsRate && (
               <div>
                 <label htmlFor="ur-rate" className={labelCls}>
-                  Rate Per GB{" "}
-                  <span className="text-xs font-normal text-muted-foreground">(optional, ₹)</span>
+                  {t("r.ratePerGb", "Rate per GB")}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {t("r.optional")}
+                  </span>
                 </label>
                 <input
                   id="ur-rate"
@@ -2497,7 +2526,7 @@ export function ReportPanel({
             {needsSingle && (
               <div>
                 <label htmlFor="ur-sd" className={labelCls}>
-                  Date <span className="text-destructive">*</span>
+                  {t("r.date", "Date")} <span className="text-destructive">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -2525,7 +2554,7 @@ export function ReportPanel({
               <>
                 <div>
                   <label htmlFor="ur-fr" className={labelCls}>
-                    From <span className="text-destructive">*</span>
+                    {t("r.from", "From")} <span className="text-destructive">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -2550,7 +2579,7 @@ export function ReportPanel({
                 </div>
                 <div>
                   <label htmlFor="ur-to" className={labelCls}>
-                    To <span className="text-destructive">*</span>
+                    {t("r.toLabel", "To")} <span className="text-destructive">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -2574,7 +2603,7 @@ export function ReportPanel({
                   <Err k="to" />
                 </div>
                 <div className="flex items-end gap-2">
-                  <span className="text-xs text-muted-foreground">Quick: </span>
+                  <span className="text-xs text-muted-foreground">{t("r.quick")} </span>
                   {[
                     ["Last 7 days", 7],
                     ["Last 30 days", 30],
@@ -2597,20 +2626,19 @@ export function ReportPanel({
                     }}
                     className="rounded-full bg-primary/5 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
                   >
-                    This month
+                    {t("r.thisMonth")}
                   </button>
                 </div>
               </>
             )}
             {(reportType === "top-users" || reportType === "top-vouchers") && (
               <p className="text-xs text-muted-foreground md:col-span-2">
-                This report always covers the current month.
+                {t("r.thisReportAlwaysCoversThe")}
               </p>
             )}
             {(reportType === "top-campaigns" || reportType === "campaign-performance") && (
               <p className="text-xs text-muted-foreground md:col-span-2">
-                Engagement counts are lifetime totals per campaign (impressions, responses, skips
-                and clicks recorded to date), not limited to a date range.
+                {t("r.engagementCountsAreLifetimeTotals")}
               </p>
             )}
           </div>
@@ -2628,7 +2656,7 @@ export function ReportPanel({
             ) : (
               <Search className="h-4 w-4" />
             )}
-            {running ? "Running…" : "Search"}
+            {running ? t("r.running") : t("r.search")}
           </button>
         </div>
       </div>
@@ -2637,30 +2665,34 @@ export function ReportPanel({
         {rows === null && !running && (
           <EmptyState
             icon={FileBarChart}
-            title="No report run yet"
-            description="Choose a report type and press Search to see results."
+            title={t("r.noReportRunYet")}
+            description={t("r.chooseAReportTypeAnd")}
           />
         )}
         {running && <LoadingSkeleton rows={5} />}
         {!running && rows !== null && rows.length === 0 && unavailable && (
-          <EmptyState icon={Info} title="Not available yet" description={unavailable} />
+          <EmptyState icon={Info} title={t("r.notAvailableYet")} description={unavailable} />
         )}
         {!running && rows !== null && rows.length === 0 && !unavailable && (
           <EmptyState
             icon={FileBarChart}
-            title="No data for this report"
-            description="Try a wider date range or a different location."
+            title={t("r.noDataForThisReport")}
+            description={t("r.tryAWiderDateRange")}
           />
         )}
         {!running && rows && rows.length > 0 && (
           <section className={PANEL_SURFACE}>
             <header className="print:hidden flex flex-wrap items-start justify-between gap-3 border-b border-[var(--wy-border)] px-4 py-3">
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold">{rt?.label}</h3>
+                <h3 className="text-sm font-semibold">{rt && reportLabel(t, rt)}</h3>
                 <p className="text-xs text-[var(--wy-text-muted)]">
                   {bu} ·{" "}
-                  {needsRange ? `${from} to ${to}` : needsSingle ? singleDate : "Current month"} ·{" "}
-                  {sortedRows.length} rows
+                  {needsRange
+                    ? t("r.to", { from, to })
+                    : needsSingle
+                      ? singleDate
+                      : t("r.currentMonth")}{" "}
+                  · {t("r.rows", { count: sortedRows.length })}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -2670,17 +2702,17 @@ export function ReportPanel({
                     type="text"
                     placeholder={
                       reportType === "guest-session-log"
-                        ? "Private IP, venue public IP, phone, MAC…"
+                        ? t("r.privateIpVenuePublicIp")
                         : reportType === "login-access-log"
-                          ? "Identifier or IP…"
-                          : "Filter…"
+                          ? t("r.identifierOrIp")
+                          : t("r.filter")
                     }
                     value={searchTxt}
                     onChange={(e) => {
                       setSearchTxt(e.target.value);
                       setPage(0);
                     }}
-                    aria-label="Filter rows"
+                    aria-label={t("r.filterRows")}
                     className={cn(inputCls, "w-44 pl-8")}
                   />
                 </div>
@@ -2690,7 +2722,7 @@ export function ReportPanel({
                 </button>
                 <button onClick={handlePrint} type="button" className={TOOL_BTN}>
                   <Printer className="h-3.5 w-3.5" aria-hidden />
-                  Print
+                  {t("r.print", "Print")}
                 </button>
                 <button onClick={handlePrint} type="button" className={TOOL_BTN}>
                   <FileDown className="h-3.5 w-3.5" aria-hidden />
@@ -2705,11 +2737,17 @@ export function ReportPanel({
                 </Callout>
               )}
               <div className="hidden print:block mb-4">
-                <h3 className="text-base font-semibold tracking-tight">{rt?.label}</h3>
+                <h3 className="text-base font-semibold tracking-tight">
+                  {rt && reportLabel(t, rt)}
+                </h3>
                 <p className="text-xs text-muted-foreground">
                   {bu} ·{" "}
-                  {needsRange ? `${from} to ${to}` : needsSingle ? singleDate : "Current month"} ·{" "}
-                  {sortedRows.length} rows
+                  {needsRange
+                    ? t("r.to", { from, to })
+                    : needsSingle
+                      ? singleDate
+                      : t("r.currentMonth")}{" "}
+                  · {t("r.rows", { count: sortedRows.length })}
                 </p>
               </div>
               <div className="overflow-x-auto rounded-[var(--wy-radius)] border border-[var(--wy-border)] [&_thead_th]:bg-[var(--wy-surface-2)] [&_thead_th]:text-[11px] [&_thead_th]:text-[var(--wy-text-faint)] [&_td]:text-[13px]">
@@ -2731,7 +2769,7 @@ export function ReportPanel({
                             }
                           >
                             <span className="inline-flex items-center gap-1">
-                              {c.label}
+                              {colLabel(t, c)}
                               {active ? (
                                 <ChevronUp className="h-3 w-3 text-primary print:hidden" />
                               ) : null}
@@ -2741,7 +2779,7 @@ export function ReportPanel({
                       })}
                       {showDeviceEvents && (
                         <TableHead className="text-xs font-medium uppercase tracking-wide print:hidden">
-                          <span className="sr-only">Device events</span>
+                          <span className="sr-only">{t("r.deviceEvents")}</span>
                         </TableHead>
                       )}
                     </TableRow>
@@ -2764,13 +2802,15 @@ export function ReportPanel({
                                     id: r.sessionId as string,
                                     label:
                                       typeof r.sessionStart === "string"
-                                        ? `Session started ${fmtDT(r.sessionStart)}`
-                                        : "What the venue's router logged about this session's device.",
+                                        ? t("r.sessionStarted", {
+                                            sessionStart: fmtDT(r.sessionStart),
+                                          })
+                                        : t("r.whatTheVenueSRouter"),
                                   })
                                 }
                                 className="whitespace-nowrap rounded-md px-2 py-1 font-medium text-primary hover:bg-accent"
                               >
-                                Device events
+                                {t("r.deviceEvents")}
                               </button>
                             ) : null}
                           </TableCell>
@@ -2783,14 +2823,17 @@ export function ReportPanel({
               {sortedRows.length > 0 && (
                 <div className="print:hidden mt-4 flex items-center justify-between text-xs text-muted-foreground">
                   <span>
-                    Showing {safePage * PAGE_SIZE + 1}–
-                    {Math.min((safePage + 1) * PAGE_SIZE, sortedRows.length)} of {sortedRows.length}
+                    {t("r.showing", "Showing {{from}}–{{to}} of {{total}}", {
+                      from: safePage * PAGE_SIZE + 1,
+                      to: Math.min((safePage + 1) * PAGE_SIZE, sortedRows.length),
+                      total: sortedRows.length,
+                    })}
                   </span>
                   <div className="flex gap-1">
                     <button
                       disabled={safePage === 0}
                       onClick={() => setPage(safePage - 1)}
-                      aria-label="Previous page"
+                      aria-label={t("r.previousPage")}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--wy-radius)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] disabled:opacity-40"
                     >
                       <ChevronLeft className="h-4 w-4" />
@@ -2798,7 +2841,7 @@ export function ReportPanel({
                     <button
                       disabled={safePage >= totalPages - 1}
                       onClick={() => setPage(safePage + 1)}
-                      aria-label="Next page"
+                      aria-label={t("r.nextPage")}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--wy-radius)] hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] disabled:opacity-40"
                     >
                       <ChevronRight className="h-4 w-4" />
@@ -2843,6 +2886,7 @@ export default function UserReports({
   masked = true,
   scope,
 }: { masked?: boolean; scope?: PageScope } = {}) {
+  const { t } = useTranslation("reports", { i18n });
   const [category, setCategory] = useState<Category>("Guest Activity Report");
   const cfg = CATEGORY_CONFIG[category];
 
@@ -2854,21 +2898,24 @@ export default function UserReports({
           utility (pick a report, run it, export it). */}
       <PageHeader
         className="print:hidden"
-        title={scope?.title ?? "Reports"}
+        title={scope?.title ?? t("r.reports")}
         venue={scope?.venue}
-        description="Run and export usage, voucher, campaign, data, and SMS reports."
+        description={t("r.runAndExportUsageVoucher")}
       />
 
       {/* Five report families: underline SubTabs (more than four views). */}
       <SubTabs
         className="print:hidden"
-        ariaLabel="Report type"
+        ariaLabel={t("r.reportType")}
         idPrefix="reports"
         value={categorySlug(category)}
         onChange={(slug) =>
           setCategory(CATEGORIES.find((c) => categorySlug(c) === slug) ?? category)
         }
-        options={CATEGORIES.map((label) => ({ value: categorySlug(label), label }))}
+        options={CATEGORIES.map((label) => ({
+          value: categorySlug(label),
+          label: categoryLabel(t, label),
+        }))}
       />
 
       <div

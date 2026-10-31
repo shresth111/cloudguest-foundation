@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import i18n from "@/lib/i18n";
+import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   StatusDot,
@@ -131,19 +132,53 @@ export function SortHeader<K extends string>({
 /** A filter chip (toggle button). Lives in the shared console primitives now. */
 export { FilterChip as Chip } from "@/components/customer/console";
 
-/** "4m ago" style relative time, or an em dash. Locale-free on purpose: the
- * rest of the page's durations use the same compact form. */
+/** "4 min ago" / "4 मिनट पहले", or an em dash -- the shared formatter
+ * (`@/lib/format`) in the dashboard's language. */
 export function relTime(iso: string | null | undefined, now: number = Date.now()): string {
-  if (!iso) return "—";
-  const ms = now - new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return "—";
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 48) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
+  if (!iso || !Number.isFinite(new Date(iso).getTime())) return "—";
+  return formatRelative(iso, i18n.language, { now, style: "short" });
+}
+
+/** Status words written in English by `@/lib/device-liveness`,
+ * `@/lib/hardware-health` and `@/lib/location-liveness` (shared with the
+ * Master console), looked up here by their English text so the Devices
+ * screens show them in the dashboard language. Unknown words pass through. */
+const STATUS_WORD_KEY: Record<string, string> = {
+  Online: "online",
+  Down: "down",
+  Unstable: "unstable",
+  "Not responding": "notResponding",
+  "Status stale": "stale",
+  "Not measured": "notMeasured",
+  "Can't reach router": "cantReachRouter",
+  "Not checked yet": "notCheckedYet",
+  "Not monitored": "notMonitored",
+  "Not seen on network": "notSeen",
+  "Never observed": "neverObserved",
+  "Gone quiet": "goneQuiet",
+  "Can't confirm": "cantConfirm",
+  "Never checked in": "neverCheckedIn",
+  "Waiting for setup": "waitingForSetup",
+  "Setup not started": "setupNotStarted",
+  Suspended: "suspended",
+  Retired: "retired",
+  "Controller down": "controllerDown",
+  "Managed by controller": "managedByController",
+};
+const TYPE_KEY: Record<string, string> = {
+  "Access Point": "ap",
+  Printer: "printer",
+  Router: "router",
+  Camera: "camera",
+  Other: "other",
+};
+/** `(word) => translated word` for row status words and device types. */
+export function useRowWords() {
+  const t = useDevicesT();
+  return {
+    status: (w: string) => (STATUS_WORD_KEY[w] ? t(`statusWord.${STATUS_WORD_KEY[w]}`, w) : w),
+    type: (w: string) => (TYPE_KEY[w] ? t(`hw.type.${TYPE_KEY[w]}`, w) : w),
+  };
 }
 
 export const MONO = "font-[family-name:var(--wy-font-mono)]";

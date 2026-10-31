@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+import { useFormat } from "@/lib/useFormat";
 import i18n from "@/lib/i18n";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { useCustomerPageScope } from "@/components/customer/CustomerPageScope";
@@ -109,9 +110,8 @@ const GUEST_STATUS: Record<string, ConsoleStatus> = {
   offline: "offline",
 };
 
-/** Table dates: one short line ("10/31/26, 1:39 PM"); the full stamp is the
- * cell's tooltip and the visit slide-over's. */
-const SHORT_DATE_TIME: Intl.DateTimeFormatOptions = { dateStyle: "short", timeStyle: "short" };
+/* Table dates: one short line ("31 Oct, 1:39 pm"); the full stamp, with the
+ * year, is the cell's tooltip and the visit slide-over's (`@/lib/format`). */
 
 /** One labelled fact in the visit slide-over. */
 const DETAIL_TILE =
@@ -132,6 +132,7 @@ export const Route = createFileRoute("/users")({
 
 function CustomerUsersPage() {
   const { t } = useTranslation("guests", { i18n });
+  const fmt = useFormat();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { activeLocation, activeLocationId } = useCustomerStore();
@@ -432,7 +433,7 @@ function CustomerUsersPage() {
                 // session total counts every reconnect (QA). The guests
                 // lookup failing leaves it undefined; fall back to the
                 // visit total rather than showing a bare dash.
-                value={data ? (data.uniqueGuests ?? data.total).toLocaleString() : null}
+                value={data ? fmt.integer(data.uniqueGuests ?? data.total) : null}
                 loading={isLoading}
               />
               <StatTile
@@ -445,7 +446,7 @@ function CustomerUsersPage() {
                     size="sm"
                   />
                 }
-                value={(onlineNow.data ?? 0).toLocaleString()}
+                value={fmt.integer(onlineNow.data ?? 0)}
                 loading={onlineNow.isLoading}
               />
             </div>
@@ -600,9 +601,9 @@ function CustomerUsersPage() {
                     cell: (u) => (
                       <time
                         dateTime={u.connectedAt}
-                        title={new Date(u.connectedAt).toLocaleString()}
+                        title={fmt.dateTime(u.connectedAt, { withYear: true })}
                       >
-                        {new Date(u.connectedAt).toLocaleString(undefined, SHORT_DATE_TIME)}
+                        {fmt.dateTime(u.connectedAt)}
                       </time>
                     ),
                   },
@@ -920,14 +921,14 @@ function CustomerUsersPage() {
                   <div className={DETAIL_TILE}>
                     <p className={DETAIL_LABEL}>{t("detailConnectedAt")}</p>
                     <p className="mt-1 text-sm font-semibold">
-                      {new Date(detailUser.connectedAt).toLocaleString()}
+                      {fmt.dateTime(detailUser.connectedAt, { withYear: true })}
                     </p>
                   </div>
                   <div className={DETAIL_TILE}>
                     <p className={DETAIL_LABEL}>{t("detailDisconnectedAt")}</p>
                     <p className="mt-1 text-sm font-semibold">
                       {detailUser.disconnectedAt
-                        ? new Date(detailUser.disconnectedAt).toLocaleString()
+                        ? fmt.dateTime(detailUser.disconnectedAt, { withYear: true })
                         : "—"}
                     </p>
                   </div>

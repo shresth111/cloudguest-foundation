@@ -31,6 +31,7 @@ import {
 import { routerVendorLabel } from "@/lib/router-vendors";
 import type { WanSummaryState } from "../dashboard.types";
 import type { OverviewStatus } from "./console-ui";
+import { intlLocale } from "@/lib/format";
 
 export type TopoKind = "isp" | "gateway" | "ap" | "switch" | "device" | "clients" | "more";
 
@@ -192,6 +193,7 @@ export function controllerDeviceStatus(raw: string): OverviewStatus {
 }
 
 function hardwareStatus(d: MonitoredDeviceRow): { status: OverviewStatus; text: string | null } {
+  // i18n-ignore: TopologyMap renders this exact value through t("topology.notMeasured").
   if (!hardwareLivenessIsMeasured(d)) return { status: "unknown", text: "Not measured" };
   const live = describeLiveness(d);
   const status: OverviewStatus =
@@ -398,7 +400,7 @@ export function buildTopology(input: TopologyInput): TopologyModel {
       : {
           id: "clients",
           kind: "clients",
-          label: input.onlineGuests.toLocaleString(),
+          label: input.onlineGuests.toLocaleString(intlLocale()),
           sub: null,
           status: input.onlineGuests > 0 ? "ok" : "unknown",
           statusText: null,

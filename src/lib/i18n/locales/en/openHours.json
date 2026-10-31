@@ -19,7 +19,7 @@
   "discard": "Discard",
   "saving": "Saving…",
   "save": "Save",
-  "loadErrorBanner": "Could not load this location's saved open hours ({{error}}). Saving is turned off so the real schedule is not overwritten -- reload the page to try again.",
+  "loadErrorBanner": "Could not load this location's saved open hours ({{error}}). Saving is turned off so the real schedule is not overwritten — reload the page to try again.",
   "timezoneMismatch": "This schedule is enforced in {{venueZone}} — not your browser's {{browserZone}}. Times below are the venue's local time.",
   "weekly": {
     "title": "Weekly schedule",
@@ -51,7 +51,7 @@
   "closedAllDay": "Closed all day",
   "dayErrors": {
     "missing": "Set both an opening and a closing time, or mark the day closed.",
-    "order": "Closing time must be after opening time. Overnight hours are not supported -- end at 23:59 and open the next day at 00:00."
+    "order": "Closing time must be after opening time. Overnight hours are not supported — end at 23:59 and open the next day at 00:00."
   },
   "guestExperience": {
     "title": "Guest experience",

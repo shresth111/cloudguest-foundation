@@ -1,3 +1,5 @@
+import i18n from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
 import { useId, useState } from "react";
 import { Plus } from "lucide-react";
 import { z } from "zod";
@@ -78,8 +80,8 @@ const MATCH_KINDS = ["port", "dscp"] as const;
 // required per rule -- never both, never neither.
 const ruleSchema = z
   .object({
-    routerId: z.string().min(1, "Select a router"),
-    name: z.string().trim().min(2, "Required").max(48),
+    routerId: z.string().min(1, "common.selectRouter"),
+    name: z.string().trim().min(2, "common.required").max(48),
     matchKind: z.enum(MATCH_KINDS),
     protocol: z.enum(PROTOCOLS),
     portRangeStart: z.coerce.number().int().min(1).max(65535).optional(),
@@ -92,16 +94,16 @@ const ruleSchema = z
     (v) =>
       v.matchKind !== "port" ||
       (v.portRangeStart != null && v.portRangeEnd != null && v.portRangeStart <= v.portRangeEnd),
-    { message: "Enter a valid port range (start ≤ end)", path: ["portRangeEnd"] },
+    { message: "qos.errPortRange", path: ["portRangeEnd"] },
   )
   .refine((v) => v.matchKind !== "dscp" || v.dscpValue != null, {
-    message: "Enter a DSCP value (0-63)",
+    message: "qos.errDscp",
     path: ["dscpValue"],
   });
 type RuleFormValues = z.infer<typeof ruleSchema>;
 
 function matchLabel(r: QosTrafficRule): string {
-  if (r.dscpValue != null) return `DSCP ${r.dscpValue}`;
+  if (r.dscpValue != null) return `DSCP ${r.dscpValue}`; // i18n-ignore: DSCP is a protocol token
   if (r.portRangeStart != null && r.portRangeEnd != null) {
     const proto = r.protocol ? r.protocol.toUpperCase() : "";
     return r.portRangeStart === r.portRangeEnd
@@ -115,10 +117,11 @@ function matchLabel(r: QosTrafficRule): string {
 // backend's own "queue tree"/"packet mark"/"device push" vocabulary here,
 // this is what tells a customer whether a rule they created is actually
 // doing anything on their real router or just sitting as a database row.
+/** i18n keys (network namespace), rendered through `t`. */
 const DEVICE_PUSH_LABEL: Record<DevicePushStatus, string> = {
-  active: "Applied to your router",
-  pending: "Not yet applied",
-  failed: "Couldn't apply",
+  active: "common.push.appliedToRouter",
+  pending: "common.push.pending",
+  failed: "common.push.failed",
 };
 
 // The badge alone can't hold a full error message -- a failed push wraps it
@@ -126,12 +129,13 @@ const DEVICE_PUSH_LABEL: Record<DevicePushStatus, string> = {
 // come straight from the backend/router, so wording isn't guaranteed to be
 // customer-plain; showing it beats hiding it.
 function DevicePushBadge({ rule }: { rule: QosTrafficRule }) {
+  const { t } = useTranslation("network", { i18n });
   return (
     <PushStatusBadge
       status={rule.devicePushStatus}
-      label={DEVICE_PUSH_LABEL[rule.devicePushStatus]}
+      label={t(DEVICE_PUSH_LABEL[rule.devicePushStatus])}
       error={rule.devicePushError}
-      errorPrefix="Couldn't apply this rule to your router:"
+      errorPrefix={t("portForwarding.couldnTApplyThisRule")}
     />
   );
 }
@@ -156,6 +160,7 @@ export function QosManagement({
   /** Title + venue from the customer shell, which then draws no header of its own. */
   scope?: PageScope;
 } = {}) {
+  const { t } = useTranslation("network", { i18n });
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -237,19 +242,29 @@ export function QosManagement({
   async function handlePush(rule: QosTrafficRule) {
     try {
       await push.mutateAsync({ id: rule.id });
-      toast.success(`"${rule.name}" applied to your router`);
+      toast.success(t("qos.appliedToYourRouter", { name: rule.name }));
     } catch (err) {
-      toast.error((err as AppError).message || `Couldn't apply "${rule.name}" to your router`);
+      toast.error((err as AppError).message || t("qos.couldnTApplyToYour", { name: rule.name }));
     }
   }
 
   const columns: DataTableColumn<QosTrafficRule>[] = [
-    { id: "name", header: "Rule", mobile: "title", cell: (r) => <NameCell name={r.name} /> },
-    { id: "router", header: "Router", cell: (r) => routerName(r.routerId) },
-    { id: "match", header: "Match", mono: true, cell: (r) => matchLabel(r) },
-    { id: "priority", header: "Priority", className: "tabular-nums", cell: (r) => r.priority },
-    { id: "status", header: "Status", cell: (r) => <EnabledBadge enabled={r.isEnabled} /> },
-    { id: "push", header: "On your router", cell: (r) => <DevicePushBadge rule={r} /> },
+    {
+      id: "name",
+      header: t("portForwarding.rule"),
+      mobile: "title",
+      cell: (r) => <NameCell name={r.name} />,
+    },
+    { id: "router", header: t("dhcp.router"), cell: (r) => routerName(r.routerId) },
+    { id: "match", header: t("qos.match"), mono: true, cell: (r) => matchLabel(r) },
+    {
+      id: "priority",
+      header: t("qos.priority"),
+      className: "tabular-nums",
+      cell: (r) => r.priority,
+    },
+    { id: "status", header: t("dhcp.status"), cell: (r) => <EnabledBadge enabled={r.isEnabled} /> },
+    { id: "push", header: t("qos.onYourRouter"), cell: (r) => <DevicePushBadge rule={r} /> },
   ];
 
   return (
@@ -262,7 +277,7 @@ export function QosManagement({
        * instead of silently inheriting the customer-friendly one. Under the
        * customer shell this is the page's only header (`scope`). */}
       <PageHeader
-        title={scope?.title ?? (locationId ? "Call Priority" : "VOIP Priority")}
+        title={scope?.title ?? (locationId ? t("qos.callPriority") : t("qos.voipPriority"))}
         venue={scope?.venue}
         // NOT GATED HERE, BECAUSE IT ALREADY IS, ONE LAYER UP.
         //
@@ -284,35 +299,38 @@ export function QosManagement({
         // saturated the calls degrade anyway. So the copy now says what the
         // rule DOES, which is both true and still the reason to use it.
         description={
-          locationId
-            ? "Send voice and video calls ahead of other guest traffic when the network is busy. This changes the order traffic is sent in; it cannot add capacity your internet line does not have."
-            : "Traffic-classification rules -- match voice signaling/media (or a raw DSCP value) and assign a real RouterOS queue priority."
+          locationId ? t("qos.callPriorityIntro") : t("qos.trafficClassificationRulesMatchVoice")
         }
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus aria-hidden className="mr-1.5 h-4 w-4" /> New Rule
+            <Plus aria-hidden className="mr-1.5 h-4 w-4" /> {t("portForwarding.newRule")}
           </Button>
         }
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="Total Rules" value={total} hint={totalHint} loading={isLoading} />
         <StatTile
-          label="Enabled"
+          label={t("portForwarding.totalRules")}
+          value={total}
+          hint={totalHint}
+          loading={isLoading}
+        />
+        <StatTile
+          label={t("dhcp.enabled")}
           value={enabledCount}
           hint={statHint}
           loading={isLoading}
-          leading={<StatusDot status="ok" label="Enabled" size="sm" />}
+          leading={<StatusDot status="ok" label={t("dhcp.enabled")} size="sm" />}
         />
         <StatTile
-          label="SIP rules (5060/5061)"
+          label={t("qos.sipRules50605061")}
           value={voiceCount}
           hint={statHint}
           loading={isLoading}
         />
       </div>
 
-      <Panel flush title="All Rules">
+      <Panel flush title={t("portForwarding.allRules")}>
         <Toolbar divided>
           <Select
             value={routerFilter}
@@ -321,11 +339,11 @@ export function QosManagement({
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-full sm:w-48" aria-label="Router">
-              <SelectValue placeholder="All routers" />
+            <SelectTrigger className="w-full sm:w-48" aria-label={t("dhcp.router")}>
+              <SelectValue placeholder={t("dhcp.allRouters")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All routers</SelectItem>
+              <SelectItem value="all">{t("dhcp.allRouters")}</SelectItem>
               {/* Contract §11.5: the two kinds of device are listed
                   apart, and only the ones this platform configures are
                   selectable. See RouterPickerItems. */}
@@ -335,23 +353,23 @@ export function QosManagement({
           <ToolbarSearch
             value={search}
             onValueChange={setSearch}
-            placeholder="Search name, match, router…"
+            placeholder={t("qos.searchNameMatchRouter")}
           />
         </Toolbar>
         <DataTable
-          ariaLabel="All Rules"
+          ariaLabel={t("portForwarding.allRules")}
           columns={columns}
           rows={rows}
           rowKey={(r) => r.id}
           loading={isLoading}
-          loadingLabel="Loading…"
-          empty="No QoS rules match your filters."
+          loadingLabel={t("dhcp.loading")}
+          empty={t("qos.noQosRulesMatchYour")}
           maxHeight="70vh"
           rowActions={(r) => (
             <RowActions
               name={r.name}
               apply={{
-                label: "Apply to your router",
+                label: t("qos.applyToYourRouter"),
                 pending: push.isPending && push.variables?.id === r.id,
                 quiet: true,
                 iconOnly: true,
@@ -364,9 +382,9 @@ export function QosManagement({
           footer={
             totalPages > 1 ? (
               <TablePager
-                summary={`Page ${page} of ${totalPages} · ${total} rules`}
-                previousLabel="Previous"
-                nextLabel="Next"
+                summary={t("portForwarding.pageOfRules", { page, totalPages, total })}
+                previousLabel={t("common.previous")}
+                nextLabel={t("common.next")}
                 hasPrevious={hasPrevious}
                 hasNext={hasNext}
                 onPrevious={() => setPage((p) => p - 1)}
@@ -390,27 +408,30 @@ export function QosManagement({
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent className={DIALOG_CONSOLE}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete rule "{confirmDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("portForwarding.deleteRuleTitle", { name: confirmDelete?.name })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes this QoS rule from{" "}
-              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
+              {t("qos.removeBody", {
+                router: confirmDelete ? routerName(confirmDelete.routerId) : "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dhcp.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
                   await del.mutateAsync({ id: confirmDelete.id });
-                  toast.success(`Rule "${confirmDelete.name}" deleted`);
+                  toast.success(t("portForwarding.ruleDeleted", { name: confirmDelete.name }));
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failed to delete rule");
+                  toast.error((err as AppError).message || t("portForwarding.failedToDeleteRule"));
                 }
                 setConfirmDelete(null);
               }}
             >
-              Delete rule
+              {t("portForwarding.deleteRule")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -430,6 +451,7 @@ function RuleDialog({
   routers: { id: string; name: string }[];
   onClose: () => void;
 }) {
+  const { t } = useTranslation("network", { i18n });
   const create = useCreateQosRule();
   const update = useUpdateQosRule();
 
@@ -493,14 +515,14 @@ function RuleDialog({
     try {
       if (rule) {
         await update.mutateAsync({ id: rule.id, payload });
-        toast.success("Rule updated");
+        toast.success(t("portForwarding.ruleUpdated"));
       } else {
         await create.mutateAsync({ routerId: v.routerId, ...payload });
-        toast.success("Rule created");
+        toast.success(t("portForwarding.ruleCreated"));
       }
       close();
     } catch (err) {
-      toast.error((err as AppError).message || "Failed to save rule");
+      toast.error((err as AppError).message || t("portForwarding.failedToSaveRule"));
     }
   }
 
@@ -510,11 +532,11 @@ function RuleDialog({
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className={`${DIALOG_CONSOLE} max-w-lg`}>
         <DialogHeader>
-          <DialogTitle>{rule ? "Edit rule" : "New rule"}</DialogTitle>
+          <DialogTitle>
+            {rule ? t("portForwarding.editRule") : t("portForwarding.newRule")}
+          </DialogTitle>
           <DialogDescription>
-            {rule
-              ? "The router this rule belongs to cannot be changed — delete and recreate to move it."
-              : "Match traffic by a port range (e.g. SIP 5060/5061) or by a raw DSCP value — never both."}
+            {rule ? t("portForwarding.theRouterThisRuleBelongs") : t("qos.matchTrafficByAPort")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)}>
@@ -523,19 +545,19 @@ function RuleDialog({
             footer={
               <>
                 <Button type="button" variant="outline" onClick={close}>
-                  Cancel
+                  {t("dhcp.cancel")}
                 </Button>
                 <Button type="submit" disabled={create.isPending || update.isPending}>
-                  {rule ? "Save changes" : "Create rule"}
+                  {rule ? t("dhcp.saveChanges") : t("portForwarding.createRule")}
                 </Button>
               </>
             }
           >
             <FormField
               wide
-              label="Router"
+              label={t("dhcp.router")}
               htmlFor={`${id}-router`}
-              error={errors.routerId?.message}
+              error={errors.routerId?.message && t(errors.routerId.message)}
             >
               <Controller
                 control={form.control}
@@ -543,7 +565,7 @@ function RuleDialog({
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange} disabled={!!rule}>
                     <SelectTrigger id={`${id}-router`}>
-                      <SelectValue placeholder="Select router" />
+                      <SelectValue placeholder={t("dhcp.selectRouter")} />
                     </SelectTrigger>
                     <SelectContent>
                       {/* Contract §11.5. A controller is listed here but not
@@ -559,10 +581,19 @@ function RuleDialog({
                   with no controller. */}
               <ControllerRoutersNote rows={routers} />
             </FormField>
-            <FormField wide label="Name" htmlFor={`${id}-name`} error={errors.name?.message}>
-              <Input id={`${id}-name`} {...form.register("name")} placeholder="SIP signaling" />
+            <FormField
+              wide
+              label={t("dhcp.name")}
+              htmlFor={`${id}-name`}
+              error={errors.name?.message && t(errors.name.message)}
+            >
+              <Input
+                id={`${id}-name`}
+                {...form.register("name")}
+                placeholder={t("qos.sipSignaling")}
+              />
             </FormField>
-            <FormField wide label="Match by" htmlFor={`${id}-kind`}>
+            <FormField wide label={t("qos.matchBy")} htmlFor={`${id}-kind`}>
               <Controller
                 control={form.control}
                 name="matchKind"
@@ -572,8 +603,8 @@ function RuleDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="port">Protocol / port range</SelectItem>
-                      <SelectItem value="dscp">DSCP value</SelectItem>
+                      <SelectItem value="port">{t("qos.protocolPortRange")}</SelectItem>
+                      <SelectItem value="dscp">{t("qos.dscpValue")}</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -581,7 +612,7 @@ function RuleDialog({
             </FormField>
             {matchKind === "port" ? (
               <>
-                <FormField label="Protocol" htmlFor={`${id}-protocol`}>
+                <FormField label={t("portForwarding.protocol")} htmlFor={`${id}-protocol`}>
                   <Controller
                     control={form.control}
                     name="protocol"
@@ -602,7 +633,7 @@ function RuleDialog({
                   />
                 </FormField>
                 <div aria-hidden className="hidden sm:block" />
-                <FormField label="Port range start" htmlFor={`${id}-pstart`}>
+                <FormField label={t("qos.portRangeStart")} htmlFor={`${id}-pstart`}>
                   <Input
                     id={`${id}-pstart`}
                     type="number"
@@ -612,9 +643,9 @@ function RuleDialog({
                   />
                 </FormField>
                 <FormField
-                  label="Port range end"
+                  label={t("qos.portRangeEnd")}
                   htmlFor={`${id}-pend`}
-                  error={errors.portRangeEnd?.message}
+                  error={errors.portRangeEnd?.message && t(errors.portRangeEnd.message)}
                 >
                   <Input
                     id={`${id}-pend`}
@@ -628,9 +659,9 @@ function RuleDialog({
             ) : (
               <FormField
                 wide
-                label="DSCP value (0-63)"
+                label={t("qos.dscpValue063")}
                 htmlFor={`${id}-dscp`}
-                error={errors.dscpValue?.message}
+                error={errors.dscpValue?.message && t(errors.dscpValue.message)}
               >
                 <Input
                   id={`${id}-dscp`}
@@ -638,11 +669,11 @@ function RuleDialog({
                   min={0}
                   max={63}
                   {...form.register("dscpValue")}
-                  placeholder="46 (EF, voice)"
+                  placeholder={t("qos.46EfVoice")}
                 />
               </FormField>
             )}
-            <FormField label="Priority (1 = highest)" htmlFor={`${id}-priority`}>
+            <FormField label={t("qos.priority1Highest")} htmlFor={`${id}-priority`}>
               <Controller
                 control={form.control}
                 name="priority"
@@ -667,7 +698,7 @@ function RuleDialog({
             </FormField>
             <FormSwitchRow
               className="self-end"
-              label="Enabled"
+              label={t("dhcp.enabled")}
               control={
                 <Controller
                   control={form.control}

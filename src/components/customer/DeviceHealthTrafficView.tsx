@@ -68,7 +68,6 @@ import {
   formatOctets,
   isTunnelInterfaceName,
   metricsSourceLabel,
-  readingSpanLabel,
   toInterfaceSeries,
 } from "@/lib/device-health";
 import type { DeviceHealthReading } from "@/types/deviceHealth";
@@ -81,24 +80,27 @@ import {
   isNasOnlyVendor,
 } from "@/lib/router-vendors";
 import { SHOW_ROUTER_TRAFFIC_EVENT } from "@/components/customer/devices/fleet-model";
+import { useDevicesT } from "@/components/customer/devices/ui";
+import { Trans } from "react-i18next";
+import i18n from "@/lib/i18n";
+import { formatDuration, formatTime, formatWhen } from "@/lib/format";
 
-/** Short clock label for an axis tick. */
+/** Short clock label for an axis tick (12-hour, Indian locale). */
 function timeLabel(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return formatTime(iso, i18n.language);
 }
 
 function whenLabel(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatWhen(iso, i18n.language);
+}
+
+/** The window the readings cover, e.g. "45 min" / "45 मिनट". */
+function readingSpan(readings: DeviceHealthReading[]): string | null {
+  if (readings.length < 2) return null;
+  const ms =
+    new Date(readings[readings.length - 1].recordedAt).getTime() -
+    new Date(readings[0].recordedAt).getTime();
+  return Number.isFinite(ms) && ms >= 60_000 ? formatDuration(ms, i18n.language) : null;
 }
 
 // The chart tooltip is the console's shared one (CONSOLE_TOOLTIP_STYLE), the
@@ -190,6 +192,7 @@ function PortTrafficChart({
   showIn: boolean;
   showOut: boolean;
 }) {
+  const t = useDevicesT();
   const gid = `p${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const data = useMemo(
     () =>
@@ -206,7 +209,17 @@ function PortTrafficChart({
       className="h-52 sm:h-56"
       data-wy="port-chart"
       role="img"
-      aria-label={`Traffic on ${s.ifName}: peak in ${formatMbps(s.peakDownMbps)}, peak out ${formatMbps(s.peakUpMbps)}; ${formatOctets(s.totalInOctets)} in, ${formatOctets(s.totalOutOctets)} out in this window.`}
+      aria-label={t(
+        "traffic.chartLabel",
+        "Traffic on {{port}}: peak in {{peakIn}}, peak out {{peakOut}}; {{totalIn}} in, {{totalOut}} out in this window.",
+        {
+          port: s.ifName,
+          peakIn: formatMbps(s.peakDownMbps),
+          peakOut: formatMbps(s.peakUpMbps),
+          totalIn: formatOctets(s.totalInOctets),
+          totalOut: formatOctets(s.totalOutOctets),
+        },
+      )}
     >
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}>
@@ -242,8 +255,8 @@ function PortTrafficChart({
             cursor={{ stroke: "var(--wy-border-strong)", strokeDasharray: "3 3" }}
             labelFormatter={(i: number) => data[i]?.label ?? ""}
             formatter={(value: unknown, name: unknown) => [
-              typeof value === "number" ? formatMbps(value) : "No reading",
-              name === "down" ? "In" : "Out",
+              typeof value === "number" ? formatMbps(value) : t("traffic.noReading", "No reading"),
+              name === "down" ? t("traffic.in", "In") : t("traffic.out", "Out"),
             ]}
           />
           {/* connectNulls={false} is load-bearing: a null point means the
@@ -297,6 +310,7 @@ function PortSelector({
   value: string;
   onChange: (key: string) => void;
 }) {
+  const t = useDevicesT();
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const keyOf = (s: InterfaceSeries) => `${s.ifIndex}-${s.ifName}`;
   const onKey = (e: KeyboardEvent) => {
@@ -316,7 +330,7 @@ function PortSelector({
   return (
     <div
       role="radiogroup"
-      aria-label="Port"
+      aria-label={t("traffic.port", "Port")}
       onKeyDown={onKey}
       className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:thin]"
     >
@@ -347,17 +361,24 @@ function PortSelector({
               <StatusDot
                 status={s.up === true ? "ok" : s.up === false ? "crit" : "unknown"}
                 label={
-                  s.up === true ? "Link up" : s.up === false ? "Link down" : "Link not reported"
+                  s.up === true
+                    ? t("traffic.linkUp", "Link up")
+                    : s.up === false
+                      ? t("traffic.linkDown", "Link down")
+                      : t("traffic.linkUnknown", "Link not reported")
                 }
               />
               <span className="font-[family-name:var(--wy-font-mono)]">{s.ifName}</span>
             </span>
             <span className="text-[10px] tabular-nums text-[var(--wy-text-faint)]">
               {active
-                ? `${formatOctets(s.totalInOctets)} in · ${formatOctets(s.totalOutOctets)} out`
+                ? t("traffic.inOut", "{{in}} in · {{out}} out", {
+                    in: formatOctets(s.totalInOctets),
+                    out: formatOctets(s.totalOutOctets),
+                  })
                 : s.up === false
-                  ? "Down · no traffic"
-                  : "No traffic"}
+                  ? t("traffic.downNoTraffic", "Down · no traffic")
+                  : t("traffic.noTraffic", "No traffic")}
             </span>
           </button>
         );
@@ -376,6 +397,7 @@ function Tile({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export function DeviceHealthTrafficView({ locationId }: { locationId?: string }) {
+  const t = useDevicesT();
   const devices = useLocationDevices(locationId);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [portKey, setPortKey] = useState<string | null>(null);
@@ -430,7 +452,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
   );
 
   const series = useMemo(() => toInterfaceSeries(readings), [readings]);
-  const span = readingSpanLabel(readings);
+  const span = readingSpan(readings);
 
   // Provenance of the most recent reading, and whether any reading at all
   // carried a per-interface breakdown.
@@ -500,13 +522,22 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
     return best;
   }, [series]);
 
-  const title = <PanelTitle icon={<Activity />}>Device health &amp; interface traffic</PanelTitle>;
+  const title = (
+    <PanelTitle icon={<Activity />}>
+      {t("traffic.title", "Device health & port traffic")}
+    </PanelTitle>
+  );
 
   /* ── No location context (the /agent preview passes none) ── */
   if (!locationId) {
     return (
       <Panel title={title}>
-        <EmptyNote>Pick a venue to see how its network devices have been performing.</EmptyNote>
+        <EmptyNote>
+          {t(
+            "traffic.pickVenue",
+            "Pick a venue to see how its network devices have been performing.",
+          )}
+        </EmptyNote>
       </Panel>
     );
   }
@@ -517,9 +548,13 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
         title={title}
         description={
           <>
-            How much traffic each network port has carried, and how your hardware has been holding
-            up.
-            {span ? ` Showing the last ${span} of readings.` : ""}
+            {t(
+              "traffic.description",
+              "How much traffic each network port has carried, and how your hardware has been holding up.",
+            )}
+            {span
+              ? ` ${t("traffic.showingSpan", "Showing the last {{span}} of readings.", { span })}`
+              : ""}
           </>
         }
         bodyClassName="space-y-5"
@@ -537,8 +572,10 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                   whatever was typed at onboarding, which in production was a
                   MikroTik model string sitting under a TP-Link Omada badge. */}
                   {activeIsController
-                    ? `${routerVendorLabel(activeDevice.vendor)} ${isNasOnlyVendor(activeDevice.vendor) ? "access points" : "controller"}`
-                    : activeDevice.model || activeDevice.vendor || "Network device"}
+                    ? `${routerVendorLabel(activeDevice.vendor)} ${isNasOnlyVendor(activeDevice.vendor) ? t("traffic.accessPoints", "access points") : t("traffic.controller", "controller")}`
+                    : activeDevice.model ||
+                      activeDevice.vendor ||
+                      t("traffic.networkDevice", "Network device")}
                 </span>
                 {/* No provenance badge either. `metricsSourceLabel(null)` renders
                 "Not recorded", which is a statement about a reading; there is
@@ -546,12 +583,24 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                 {!activeIsController && latest && (
                   <>
                     <span aria-hidden="true">·</span>
-                    <span>Last reading {whenLabel(latest.recordedAt)}</span>
+                    <span>
+                      {t("traffic.lastReading", "Last reading {{when}}", {
+                        when: whenLabel(latest.recordedAt),
+                      })}
+                    </span>
                     <span aria-hidden="true">·</span>
                     {/* Provenance, not configuration: it explains why some
                     readings carry per-port detail and others do not. */}
                     <span className="rounded-full border border-[var(--wy-border)] px-2 py-0.5 text-[11px]">
-                      via {metricsSourceLabel(latest.metricsSource)}
+                      {t("traffic.via", "via {{source}}", {
+                        source:
+                          latest.metricsSource === "snmp" || latest.metricsSource === "routerApi"
+                            ? t(
+                                `traffic.source.${latest.metricsSource}`,
+                                metricsSourceLabel(latest.metricsSource),
+                              )
+                            : t("traffic.source.none", metricsSourceLabel(latest.metricsSource)),
+                      })}
                     </span>
                   </>
                 )}
@@ -569,9 +618,9 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
               >
                 <SelectTrigger
                   className="h-8 w-full sm:w-[240px] text-[13px]"
-                  aria-label="Choose a device"
+                  aria-label={t("traffic.chooseDevice", "Choose a device")}
                 >
-                  <SelectValue placeholder="Choose a device" />
+                  <SelectValue placeholder={t("traffic.chooseDevice", "Choose a device")} />
                 </SelectTrigger>
                 <SelectContent className="wy-console">
                   {deviceList.map((d) => (
@@ -587,10 +636,10 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                         {d.name}
                         {isControllerManaged(d.vendor) && (
                           <span className="text-[var(--wy-text-faint)]">
-                            (
+                            ({routerVendorLabel(d.vendor)}{" "}
                             {isNasOnlyVendor(d.vendor)
-                              ? `${routerVendorLabel(d.vendor)} access points`
-                              : `${routerVendorLabel(d.vendor)} controller`}
+                              ? t("traffic.accessPoints", "access points")
+                              : t("traffic.controller", "controller")}
                             )
                           </span>
                         )}
@@ -608,13 +657,17 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
           <Skeleton className="h-48 w-full bg-[var(--wy-surface-2)]" />
         ) : devices.isError ? (
           <EmptyNote>
-            We could not read this venue&apos;s devices just now, so we can&apos;t say how they are
-            performing. This is a problem reading the data, not a report that anything is wrong.
+            {t(
+              "traffic.devicesError",
+              "We could not read this venue's devices just now, so we can't say how they are performing. This is a problem reading the data, not a report that anything is wrong.",
+            )}
           </EmptyNote>
         ) : deviceList.length === 0 ? (
           <EmptyNote>
-            No network devices have been added to this venue yet. Once one is set up, its
-            performance history appears here.
+            {t(
+              "traffic.noDevices",
+              "No network devices have been added to this venue yet. Once one is set up, its performance history appears here.",
+            )}
           </EmptyNote>
         ) : activeIsController ? (
           // Contract §11.5. Before the charts, the spinners and every
@@ -625,13 +678,17 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
           <Skeleton className="h-48 w-full bg-[var(--wy-surface-2)]" />
         ) : history.isError ? (
           <EmptyNote>
-            We could not read this device&apos;s history just now. Nothing is necessarily wrong with
-            the device — this is a problem fetching its readings.
+            {t(
+              "traffic.historyError",
+              "We could not read this device's history just now. Nothing is necessarily wrong with the device — this is a problem fetching its readings.",
+            )}
           </EmptyNote>
         ) : readings.length === 0 ? (
           <EmptyNote>
-            No readings recorded for this device yet. Measurements are taken automatically every few
-            minutes and will appear here.
+            {t(
+              "traffic.noReadings",
+              "No readings recorded for this device yet. Measurements are taken automatically every few minutes and will appear here.",
+            )}
           </EmptyNote>
         ) : (
           <>
@@ -639,21 +696,40 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
             {(busiest || portsReportingLink > 0) && (
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 {busiest && (
-                  <Tile label="Busiest port">
-                    <span className="font-medium font-[family-name:var(--wy-font-mono)]">
-                      {busiest.name}
-                    </span>{" "}
-                    peaked at{" "}
-                    <span className="font-semibold tabular-nums">{formatMbps(busiest.mbps)}</span>{" "}
-                    incoming around <span className="font-medium">{whenLabel(busiest.at)}</span>.
+                  <Tile label={t("traffic.busiest", "Busiest port")}>
+                    <Trans
+                      t={t}
+                      i18nKey="traffic.busiestBody"
+                      defaults="<port>{{port}}</port> peaked at <b>{{rate}}</b> incoming around <when>{{when}}</when>."
+                      values={{
+                        port: busiest.name,
+                        rate: formatMbps(busiest.mbps),
+                        when: whenLabel(busiest.at),
+                      }}
+                      components={{
+                        port: (
+                          <span className="font-medium font-[family-name:var(--wy-font-mono)]" />
+                        ),
+                        b: <span className="font-semibold tabular-nums" />,
+                        when: <span className="font-medium" />,
+                      }}
+                    />
                   </Tile>
                 )}
                 {/* Counted only over ports that reported a link state; a port
                     with no `up` reading is neither up nor down. */}
                 {portsReportingLink > 0 && (
-                  <Tile label="Ports up">
-                    <span className="font-semibold tabular-nums">{portsUp}</span>
-                    <span className="text-[var(--wy-text-muted)]"> of {portsReportingLink}</span>
+                  <Tile label={t("traffic.portsUp", "Ports up")}>
+                    <Trans
+                      t={t}
+                      i18nKey="traffic.portsUpBody"
+                      defaults="<b>{{up}}</b><m> of {{total}}</m>"
+                      values={{ up: portsUp, total: portsReportingLink }}
+                      components={{
+                        b: <span className="font-semibold tabular-nums" />,
+                        m: <span className="text-[var(--wy-text-muted)]" />,
+                      }}
+                    />
                   </Tile>
                 )}
               </div>
@@ -663,13 +739,17 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
             <section className="space-y-3" aria-labelledby="traffic-by-port">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 id="traffic-by-port" className="text-xs font-semibold">
-                  Traffic by port
+                  {t("traffic.byPort", "Traffic by port")}
                 </h3>
                 {hasRateData && selectedPort && (
-                  <div className="flex items-center gap-1" role="group" aria-label="Series">
+                  <div
+                    className="flex items-center gap-1"
+                    role="group"
+                    aria-label={t("traffic.series", "Series")}
+                  >
                     <LegendToggle
                       color={SERIES_1}
-                      label="In"
+                      label={t("traffic.in", "In")}
                       value={
                         <span className="inline-flex items-center gap-0.5">
                           <ArrowDownRight
@@ -684,7 +764,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                     />
                     <LegendToggle
                       color={SERIES_2}
-                      label="Out"
+                      label={t("traffic.out", "Out")}
                       value={
                         <span className="inline-flex items-center gap-0.5">
                           <ArrowUpRight
@@ -704,19 +784,25 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
               {!hasRateData ? (
                 hasCounters ? (
                   <EmptyNote>
-                    Port traffic is being measured, but throughput needs two readings to compare —
-                    the next one is due within a few minutes. Its overall health is below in the
-                    meantime.
+                    {t(
+                      "traffic.needTwo",
+                      "Port traffic is being measured, but speed needs two readings to compare — the next one is due within a few minutes. Its overall health is below in the meantime.",
+                    )}
                   </EmptyNote>
                 ) : (
                   <EmptyNote>
-                    Per-port traffic isn&apos;t being measured for this device, so we can only show
-                    its overall health below. Ask support if you need port-level traffic here.
+                    {t(
+                      "traffic.notMeasured",
+                      "Per-port traffic isn't being measured for this device, so we can only show its overall health below. Ask support if you need port-level traffic here.",
+                    )}
                   </EmptyNote>
                 )
               ) : ports.length === 0 || !selectedPort ? (
                 <p className="text-xs text-[var(--wy-text-muted)]">
-                  No port reported as up or carried traffic in this window.
+                  {t(
+                    "traffic.noActivePort",
+                    "No port reported as up or carried traffic in this window.",
+                  )}
                 </p>
               ) : (
                 <>
@@ -727,14 +813,21 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                   />
                   {quietCount > 0 && (
                     <p className="text-[11px] text-[var(--wy-text-faint)]">
-                      {quietCount} other port{quietCount === 1 ? "" : "s"} carried no traffic in
-                      this window; they are listed last.
+                      {t("traffic.quietPorts", {
+                        count: quietCount,
+                        defaultValue_one:
+                          "{{count}} other port carried no traffic in this window; it is listed last.",
+                        defaultValue_other:
+                          "{{count}} other ports carried no traffic in this window; they are listed last.",
+                      })}
                     </p>
                   )}
                   <PortTrafficChart series={selectedPort} showIn={showIn} showOut={showOut} />
                   <p className="text-[11px] text-[var(--wy-text-faint)]">
-                    In Mbps. Gaps mean no rate could be measured (a missed reading or the device
-                    restarting), not zero traffic.
+                    {t(
+                      "traffic.gapsNote",
+                      "In Mbps. Gaps mean no rate could be measured (a missed reading or the device restarting), not zero traffic.",
+                    )}
                   </p>
                 </>
               )}
@@ -747,13 +840,17 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 id="device-load" className="flex items-center gap-2 text-xs font-semibold">
-                  <Gauge aria-hidden className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" /> Device
-                  load
+                  <Gauge aria-hidden className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />{" "}
+                  {t("traffic.load", "Device load")}
                 </h3>
-                <div className="flex items-center gap-1" role="group" aria-label="Series">
+                <div
+                  className="flex items-center gap-1"
+                  role="group"
+                  aria-label={t("traffic.series", "Series")}
+                >
                   <LegendToggle
                     color={SERIES_1}
-                    label="Processor"
+                    label={t("traffic.cpu", "Processor")}
                     value={
                       latest?.cpuUsagePercent != null
                         ? `${latest.cpuUsagePercent.toFixed(0)}%`
@@ -764,7 +861,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                   />
                   <LegendToggle
                     color={SERIES_2}
-                    label="Memory"
+                    label={t("traffic.memory", "Memory")}
                     value={
                       latest?.memoryUsagePercent != null
                         ? `${latest.memoryUsagePercent.toFixed(0)}%`
@@ -778,7 +875,16 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
               <div
                 className="h-40"
                 role="img"
-                aria-label={`Processor and memory use over the last ${span ?? "readings"}.`}
+                aria-label={
+                  span
+                    ? t("traffic.loadLabel", "Processor and memory use over the last {{span}}.", {
+                        span,
+                      })
+                    : t(
+                        "traffic.loadLabelNoSpan",
+                        "Processor and memory use over the latest readings.",
+                      )
+                }
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={healthChart} margin={{ top: 4, right: 8, left: -6, bottom: 0 }}>
@@ -804,8 +910,12 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
                       cursor={{ stroke: "var(--wy-border-strong)", strokeDasharray: "3 3" }}
                       labelFormatter={(i: number) => healthChart[i]?.label ?? ""}
                       formatter={(value: unknown, name: unknown) => [
-                        typeof value === "number" ? `${value.toFixed(0)}%` : "No reading",
-                        name === "cpu" ? "Processor" : "Memory",
+                        typeof value === "number"
+                          ? `${value.toFixed(0)}%`
+                          : t("traffic.noReading", "No reading"),
+                        name === "cpu"
+                          ? t("traffic.cpu", "Processor")
+                          : t("traffic.memory", "Memory"),
                       ]}
                     />
                     {showCpu && (
@@ -839,7 +949,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
               </div>
               <p className="flex items-center gap-1.5 text-[11px] text-[var(--wy-text-faint)]">
                 <Cpu aria-hidden className="h-3 w-3" />
-                Gaps mean no reading was taken, not zero usage.
+                {t("traffic.loadGaps", "Gaps mean no reading was taken, not zero usage.")}
               </p>
             </section>
           </>

@@ -75,7 +75,37 @@
     "srSummary": "नए मेहमान सेशन, {{range}}: कुल {{total}}। हर हिस्सा पढ़ने के लिए तीर वाली कुंजियाँ दबाएँ।"
   },
   "bandwidth": {
-    "title": "बैंडविड्थ"
+    "title": "बैंडविड्थ",
+    "utilTitle": "बैंडविड्थ का इस्तेमाल",
+    "cadence": "{{line}} · लगभग हर 30 सेकंड में नई रीडिंग",
+    "primaryLine": "मुख्य लाइन",
+    "ofPlanHint": "आपके {{plan}} Mbps प्लान में से {{now}} (यह आपके ISP की बताई स्पीड है, हमारी मापी हुई नहीं)",
+    "ofPlan": "प्लान का {{pct}}",
+    "manage": "बदलें →",
+    "series": "लाइनें",
+    "download": "डाउनलोड",
+    "upload": "अपलोड",
+    "show": "{{series}} दिखाएँ",
+    "hide": "{{series}} छिपाएँ",
+    "alsoHere": "यहाँ ये भी",
+    "health": {
+      "healthy": "ऑनलाइन",
+      "degraded": "कमज़ोर",
+      "unhealthy": "ऑफ़लाइन",
+      "unknown": "पता नहीं"
+    },
+    "rolePrimary": "मुख्य",
+    "roleBackup": "बैकअप",
+    "comfortable": "पिछली {{total}} रीडिंग में इस्तेमाल {{plan}} Mbps से आराम से कम रहा।",
+    "congested": "पिछली {{total}} रीडिंग में से {{count}} में आपका {{plan}} Mbps प्लान 90% से ज़्यादा भरा रहा ({{pct}}%)",
+    "congestedAdvice": " — शायद मेहमानों को इंटरनेट धीमा लग रहा है। बड़ा प्लान लेने के बारे में सोचें।",
+    "fullStop": "।",
+    "emptyNoLine": "अभी कोई इंटरनेट लाइन सेट नहीं है।",
+    "emptyNoSamples": "अभी कोई रीडिंग नहीं — अगली जाँच एक मिनट के अंदर होगी।",
+    "noReading": "रीडिंग नहीं",
+    "planLine": "{{plan}} Mbps प्लान",
+    "setPlan": "इस्तेमाल % में देखने के लिए {{line}} के प्लान की स्पीड डालें।",
+    "setIt": "डालें →"
   },
   "recentUsers": {
     "title": "हाल के मेहमान",
@@ -86,7 +116,7 @@
     "colStatus": "स्थिति",
     "statusOnline": "ऑनलाइन",
     "statusOffline": "ऑफ़लाइन",
-    "statusIdle": "रुका हुआ"
+    "statusIdle": "आइडल"
   },
   "recentAlerts": {
     "title": "हाल के अलर्ट",
@@ -106,7 +136,7 @@
   },
   "sectionError": {
     "title": "यह हिस्सा नहीं दिख पाया",
-    "body": "बाकी पेज ठीक चल रहा है। पेज रिफ़्रेश करके देखें।"
+    "body": "बाकी पेज ठीक चल रहा है। पेज रीफ़्रेश करके देखें।"
   },
   "topology": {
     "title": "नेटवर्क नक्शा",
@@ -116,7 +146,7 @@
     "checking": "जाँच रहे हैं…",
     "status": {
       "ok": "ऑनलाइन",
-      "warn": "धीमा",
+      "warn": "कमज़ोर",
       "crit": "बंद",
       "info": "जानकारी",
       "offline": "ऑफ़लाइन",
@@ -125,9 +155,9 @@
     "ghost": {
       "noIsp": "कोई ISP नहीं जोड़ा",
       "noIspBody": "अपनी इंटरनेट लाइन जोड़ें",
-      "noRouter": "अभी कोई router नहीं",
-      "noRouterBody": "चालू करने के लिए router सेट करें",
-      "routersUnreadable": "router की हालत नहीं पढ़ पाए",
+      "noRouter": "अभी कोई राउटर नहीं",
+      "noRouterBody": "चालू करने के लिए राउटर सेट करें",
+      "routersUnreadable": "राउटर की हालत नहीं पढ़ पाए",
       "routersUnreadableBody": "अभी हालत पता नहीं",
       "apsUnmeasured": "एक्सेस पॉइंट यहाँ नहीं दिखते",
       "apsUnmeasuredBody": "आपकी कंपनी के ऐप से चलते हैं",
@@ -143,20 +173,20 @@
       "latency": "देरी",
       "loss": "पैकेट लॉस",
       "plan": "प्लान",
-      "lastChecked": "आखिरी जाँच",
+      "lastChecked": "आख़िरी जाँच",
       "vendor": "कंपनी",
       "state": "हालत",
-      "lastContact": "आखिरी संपर्क",
+      "lastContact": "आख़िरी संपर्क",
       "model": "मॉडल",
       "ip": "IP",
       "mac": "MAC",
-      "uptime": "चालू समय",
+      "uptime": "अपटाइम",
       "clients": "जुड़े डिवाइस",
       "firmware": "फ़र्मवेयर",
       "type": "प्रकार",
       "floor": "मंज़िल",
       "detail": "विवरण",
-      "lastSeen": "आखिरी बार दिखा",
+      "lastSeen": "आख़िरी बार दिखा",
       "source": "किसने बताया"
     },
     "role": {
@@ -179,14 +209,15 @@
     },
     "tier": {
       "isp": "इंटरनेट",
-      "gateway": "router",
+      "gateway": "राउटर",
       "downstream": "एक्सेस पॉइंट और डिवाइस",
       "clients": "मेहमान"
     },
-    "srDownstream": "{{total}} में से {{up}} चालू"
+    "srDownstream": "{{total}} में से {{up}} चालू",
+    "notMeasured": "नहीं मापा जाता"
   },
   "activity": {
-    "hint": "किसी बार पर क्लिक करके उसे रोकें",
+    "hint": "किसी बार पर क्लिक करके उसे चुनें",
     "peak": "सबसे ज़्यादा",
     "clear": "हटाएँ",
     "peakAt": "सबसे ज़्यादा {{value}}, {{when}} पर"

@@ -262,7 +262,7 @@ export function CustomerHeader({
           Radix moves real focus between items. */}
       <DropdownMenu>
         <DropdownMenuTrigger
-          aria-label="Account menu"
+          aria-label={t("consoleShell.account.menu", "Account menu")}
           className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wy-surface)]"
         >
           <Avatar className="h-8 w-8">
@@ -284,7 +284,7 @@ export function CustomerHeader({
             </Avatar>
             <span className="min-w-0">
               <span className="block truncate text-[13px] font-semibold">
-                {user?.name ?? "Admin"}
+                {user?.name ?? t("consoleShell.account.admin", "Admin")}
               </span>
               <span className="block truncate text-xs text-[var(--wy-text-muted)]">
                 {user?.email}

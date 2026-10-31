@@ -318,7 +318,9 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       }
       setDialogOpen(false);
     } catch (err) {
-      toast.error(humanizeApiError(err as AppError, "Could not save the ISP link."));
+      toast.error(
+        humanizeApiError(err as AppError, t("errors.saveLink", "Could not save the ISP line.")),
+      );
     } finally {
       setSaving(false);
     }
@@ -334,7 +336,9 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       await ispService.removeLink(link.id);
       toast.success(t("toast.linkRemoved", "ISP link removed"));
     } catch (err) {
-      toast.error(humanizeApiError(err as AppError, "Could not remove the ISP link."));
+      toast.error(
+        humanizeApiError(err as AppError, t("errors.removeLink", "Could not remove the ISP line.")),
+      );
       setLinks((ls) => [link, ...ls]);
     }
   };
@@ -359,7 +363,9 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
         }),
       );
     } catch (err) {
-      toast.error(humanizeApiError(err as AppError, "Health check failed."));
+      toast.error(
+        humanizeApiError(err as AppError, t("errors.check", "The health check didn't finish.")),
+      );
     } finally {
       setCheckingId(null);
     }
@@ -382,7 +388,12 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
           : t("toast.markedDown", "{{name}} marked Down", { name: link.providerName }),
       );
     } catch (err) {
-      toast.error(humanizeApiError(err as AppError, "Could not update ISP link status."));
+      toast.error(
+        humanizeApiError(
+          err as AppError,
+          t("errors.status", "Could not change the line's status."),
+        ),
+      );
     } finally {
       setStatusBusyId(null);
     }
@@ -438,7 +449,9 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       }
       setRuleDialogOpen(false);
     } catch (err) {
-      toast.error(humanizeApiError(err as AppError, "Could not save the routing rule."));
+      toast.error(
+        humanizeApiError(err as AppError, t("errors.saveRule", "Could not save the routing rule.")),
+      );
     } finally {
       setSavingRule(false);
     }
@@ -454,7 +467,12 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
       await ispService.removeRoutingRule(rule.id);
       toast.success(t("toast.ruleRemoved", "Routing rule removed"));
     } catch (err) {
-      toast.error(humanizeApiError(err as AppError, "Could not remove the routing rule."));
+      toast.error(
+        humanizeApiError(
+          err as AppError,
+          t("errors.removeRule", "Could not remove the routing rule."),
+        ),
+      );
       setRules((rs) => [rule, ...rs]);
     }
   };
@@ -576,7 +594,9 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                     <span className="text-muted-foreground">
                       {" "}
                       · {routerVendorLabel(r.vendor)}{" "}
-                      {isNasOnlyVendor(r.vendor) ? "access points" : "controller"}
+                      {isNasOnlyVendor(r.vendor)
+                        ? t("accessPoints", "access points")
+                        : t("controller", "controller")}
                     </span>
                   )}
                 </SelectItem>

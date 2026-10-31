@@ -39,6 +39,7 @@ import {
 import { fmtClock, fmtDuration, fmtNum, ispColor, STATUS_BG, useIspT } from "./isp-ui";
 import type { IspRange } from "./isp.demo";
 import type { Loadable } from "./useIspHistory";
+import { formatDate, formatHour, formatTime, intlLocale } from "@/lib/format";
 
 type Metric = "lat" | "loss" | "down";
 
@@ -88,12 +89,15 @@ export function IspHistoryPanel({
     0,
   );
   const linkName = (id: string) => links.find((l) => l.id === id)?.providerName ?? "";
+  // Indian locale + 12-hour clock, the same as every other date on the
+  // console (`@/lib/format`).
+  const loc = intlLocale(lang);
   const tickFmt = (ms: number) =>
     unit === "day"
-      ? new Date(ms).toLocaleDateString(lang, { month: "short", day: "numeric" })
+      ? formatDate(ms, lang)
       : range === "24h"
-        ? new Date(ms).toLocaleTimeString(lang, { hour: "numeric" })
-        : new Date(ms).toLocaleString(lang, { weekday: "short", hour: "numeric" });
+        ? formatHour(ms, lang)
+        : new Date(ms).toLocaleString(loc, { weekday: "short", hour: "numeric", hourCycle: "h12" });
   const windowFmt = (x: Incident) =>
     `${fmtClock(x.start, lang)} – ${fmtClock(x.end, lang)} · ${fmtDuration(new Date(x.end).getTime() - new Date(x.start).getTime())}`;
 
@@ -253,12 +257,12 @@ export function IspHistoryPanel({
               onPick={pickAt}
               tooltipTitle={(ms) =>
                 unit === "day"
-                  ? new Date(ms).toLocaleDateString(lang, {
+                  ? new Date(ms).toLocaleDateString(loc, {
                       weekday: "short",
                       month: "short",
                       day: "numeric",
                     })
-                  : `${fmtClock(new Date(ms).toISOString(), lang)} – ${new Date(ms + unitMs).toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" })}`
+                  : `${fmtClock(new Date(ms).toISOString(), lang)} – ${formatTime(ms + unitMs, lang)}`
               }
               upLabel={t("history.upload", "upload")}
             />

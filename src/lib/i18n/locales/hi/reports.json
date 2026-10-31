@@ -1,0 +1,203 @@
+{
+  "type": {
+    "user-data": {
+      "label": "तारीख़ के हिसाब से मेहमानों का डेटा इस्तेमाल",
+      "desc": "चुने गए समय में हर मेहमान ने कितना डेटा इस्तेमाल किया।"
+    },
+    "user-sessions": {
+      "label": "तारीख़ के हिसाब से मेहमान कितनी देर रुके",
+      "desc": "हर लॉगिन सेशन — शुरू, ख़त्म और कितनी देर चला।"
+    },
+    "user-presence": {
+      "label": "घंटे-वार मेहमान (एक दिन)",
+      "desc": "एक दिन में हर घंटे कौन-कौन मौजूद था।"
+    },
+    "top-users": {
+      "label": "सबसे ज़्यादा डेटा वाले मेहमान (इस महीने)",
+      "desc": "इस महीने सबसे ज़्यादा डेटा इस्तेमाल करने वाले मेहमान।"
+    },
+    "daywise-data": {
+      "label": "रोज़ का डेटा इस्तेमाल",
+      "desc": "पूरे समय में हर दिन का कुल डेटा।"
+    },
+    "daywise-unique": {
+      "label": "रोज़ के मेहमान और डिवाइस",
+      "desc": "हर दिन कितने अलग मेहमान और डिवाइस आए।"
+    },
+    "team-report": {
+      "label": "ग्रुप के हिसाब से इस्तेमाल",
+      "desc": "ग्रुप या टीम के हिसाब से जोड़कर इस्तेमाल।"
+    },
+    "voucher-usage": {
+      "label": "तारीख़ के हिसाब से इस्तेमाल हुए वाउचर",
+      "desc": "हर इस्तेमाल हुआ वाउचर — किसने और कब।"
+    },
+    "voucher-batch": {
+      "label": "वाउचर बैच कितने इस्तेमाल हुए",
+      "desc": "हर बनाए गए बैच में से कितने वाउचर इस्तेमाल हुए।"
+    },
+    "top-vouchers": {
+      "label": "सबसे ज़्यादा इस्तेमाल हुए वाउचर (इस महीने)",
+      "desc": "इस महीने सबसे ज़्यादा इस्तेमाल हुए वाउचर।"
+    },
+    "campaign-performance": {
+      "label": "प्रकार के हिसाब से कैंपेन पर प्रतिक्रिया",
+      "desc": "हर कैंपेन कितनी बार दिखा, सर्वे के जवाब, स्किप और क्लिक।"
+    },
+    "campaign-daywise": {
+      "label": "रोज़ की कैंपेन प्रतिक्रिया",
+      "desc": "पूरे समय में हर दिन कितने भेजे, पहुँचे और खोले गए।"
+    },
+    "top-campaigns": {
+      "label": "सबसे ज़्यादा दिखे कैंपेन",
+      "desc": "कितनी बार दिखे और कितने क्लिक हुए, उसके हिसाब से सबसे अच्छे कैंपेन।"
+    },
+    "data-consumption": {
+      "label": "तारीख़ के हिसाब से बैंडविड्थ और ख़र्च",
+      "desc": "हर दिन कुल अपलोड/डाउनलोड और सबसे ज़्यादा स्पीड।"
+    },
+    "data-by-location": {
+      "label": "लोकेशन के हिसाब से बैंडविड्थ",
+      "desc": "हर लोकेशन का कुल और औसत डेटा इस्तेमाल।"
+    },
+    "otp-delivery": {
+      "label": "तारीख़ के हिसाब से OTP अनुरोध और पुष्टि",
+      "desc": "हर OTP अनुरोध, कैसे भेजा गया और उसकी पुष्टि हुई या नहीं।"
+    },
+    "sms-daywise": {
+      "label": "लोकेशन के हिसाब से रोज़ के SMS OTP",
+      "desc": "हर लोकेशन पर असल में कितने SMS OTP माँगे गए, उस लोकेशन के अपने दिन के हिसाब से।"
+    },
+    "guest-session-log": {
+      "label": "मेहमानों के सेशन",
+      "desc": "हर मेहमान का कनेक्शन: पहचान, डिवाइस, IP, लॉगिन का तरीक़ा, कितनी देर और कितना डेटा।"
+    },
+    "login-access-log": {
+      "label": "लॉगिन की कोशिशें",
+      "desc": "हर लॉगिन की कोशिश — सफल या नहीं — पहचान, IP और वजह के साथ।"
+    }
+  },
+  "col": {
+    "name": "नाम",
+    "mobileNumber": "मोबाइल नंबर",
+    "email": "ईमेल",
+    "devices": "डिवाइस",
+    "dataUsed": "डेटा इस्तेमाल",
+    "lastSeen": "आख़िरी बार दिखे",
+    "device": "डिवाइस",
+    "sessionStart": "सेशन शुरू",
+    "sessionEnd": "सेशन ख़त्म",
+    "duration": "कितनी देर",
+    "firstSeen": "पहली बार दिखे",
+    "totalPresence": "कुल मौजूदगी",
+    "sessions": "सेशन",
+    "rank": "रैंक",
+    "date": "तारीख़",
+    "totalData": "कुल डेटा",
+    "guests": "मेहमान",
+    "avgPerGuest": "प्रति मेहमान औसत",
+    "uniqueUsers": "अलग मेहमान",
+    "uniqueDevices": "अलग डिवाइस",
+    "newUsers": "नए मेहमान",
+    "team": "ग्रुप",
+    "members": "सदस्य",
+    "avgPerMember": "प्रति सदस्य औसत",
+    "voucherCode": "वाउचर कोड",
+    "batch": "बैच",
+    "value": "वैल्यू",
+    "redeemedBy": "किसने इस्तेमाल किया",
+    "redeemedAt": "कब इस्तेमाल हुआ",
+    "generated": "बनाए गए",
+    "redeemed": "इस्तेमाल हुए",
+    "expired": "ख़त्म हुए",
+    "redemptionRate": "इस्तेमाल की दर",
+    "campaign": "कैंपेन",
+    "type": "प्रकार",
+    "impressions": "कितनी बार दिखा",
+    "responses": "जवाब",
+    "skipped": "स्किप",
+    "clicked": "क्लिक",
+    "ctr": "CTR",
+    "sent": "भेजे गए",
+    "delivered": "पहुँचे",
+    "opened": "खोले गए",
+    "upload": "अपलोड",
+    "download": "डाउनलोड",
+    "total": "कुल",
+    "peakThroughput": "सबसे ज़्यादा स्पीड",
+    "estCost": "अनुमानित ख़र्च",
+    "businessUnit": "लोकेशन",
+    "avgPerSession": "प्रति सेशन औसत",
+    "peakHour": "सबसे व्यस्त घंटा",
+    "identifier": "पहचान",
+    "channel": "कैसे भेजा",
+    "requestedAt": "कब माँगा",
+    "verified": "पुष्टि हुई",
+    "location": "लोकेशन",
+    "smsOtpRequests": "SMS OTP अनुरोध",
+    "privateIp": "निजी IP",
+    "venuePublicIp": "लोकेशन का पब्लिक IP",
+    "deviceMac": "डिवाइस MAC",
+    "authMethod": "लॉगिन का तरीक़ा",
+    "uploaded": "अपलोड",
+    "downloaded": "डाउनलोड",
+    "disconnectReason": "कनेक्शन टूटने की वजह",
+    "ipAddress": "IP पता",
+    "status": "स्थिति",
+    "failureReason": "न होने की वजह",
+    "attemptedAt": "कब कोशिश की"
+  },
+  "category": {
+    "guestActivityReport": "मेहमानों की गतिविधि",
+    "voucherRedemptionReport": "वाउचर इस्तेमाल",
+    "campaignEngagementReport": "कैंपेन पर प्रतिक्रिया",
+    "bandwidthCostReport": "बैंडविड्थ और ख़र्च",
+    "otpSmsDeliveryReport": "OTP और SMS"
+  },
+  "r": {
+    "chooseBusinessUnit": "लोकेशन चुनें",
+    "chooseReportType": "रिपोर्ट का प्रकार चुनें",
+    "filterReports": "रिपोर्ट खोजें…",
+    "noReportMatchesThat": "इससे कोई रिपोर्ट नहीं मिली।",
+    "chooseTeam": "ग्रुप चुनें",
+    "team": "ग्रुप",
+    "loadingThisVenueSTeams": "इस लोकेशन के ग्रुप लोड हो रहे हैं…",
+    "chooseCampaignType": "कैंपेन का प्रकार चुनें",
+    "optional": "(ज़रूरी नहीं, ₹)",
+    "quick": "जल्दी चुनें:",
+    "thisMonth": "इस महीने",
+    "thisReportAlwaysCoversThe": "यह रिपोर्ट हमेशा इसी महीने की होती है।",
+    "engagementCountsAreLifetimeTotals": "प्रतिक्रिया के आँकड़े हर कैंपेन के शुरू से अब तक के कुल हैं (कितनी बार दिखा, जवाब, स्किप और क्लिक) — किसी तारीख़ तक सीमित नहीं।",
+    "running": "चल रहा है…",
+    "search": "खोजें",
+    "noReportRunYet": "अभी कोई रिपोर्ट नहीं चलाई",
+    "chooseAReportTypeAnd": "रिपोर्ट का प्रकार चुनें और नतीजे देखने के लिए खोजें दबाएँ।",
+    "notAvailableYet": "अभी उपलब्ध नहीं",
+    "noDataForThisReport": "इस रिपोर्ट के लिए कोई डेटा नहीं",
+    "tryAWiderDateRange": "बड़ी तारीख़ रेंज या कोई दूसरी लोकेशन चुनकर देखें।",
+    "to": "{{from}} से {{to}}",
+    "currentMonth": "यह महीना",
+    "privateIpVenuePublicIp": "निजी IP, लोकेशन का पब्लिक IP, फ़ोन, MAC…",
+    "identifierOrIp": "पहचान या IP…",
+    "filter": "खोजें…",
+    "filterRows": "लाइनें खोजें",
+    "deviceEvents": "डिवाइस की घटनाएँ",
+    "sessionStarted": "सेशन {{sessionStart}} शुरू हुआ",
+    "whatTheVenueSRouter": "इस सेशन के डिवाइस के बारे में लोकेशन के राउटर ने क्या दर्ज किया।",
+    "previousPage": "पिछला पेज",
+    "nextPage": "अगला पेज",
+    "reports": "रिपोर्ट",
+    "runAndExportUsageVoucher": "इस्तेमाल, वाउचर, कैंपेन, डेटा और SMS की रिपोर्ट चलाएँ और डाउनलोड करें।",
+    "reportType": "रिपोर्ट का प्रकार",
+    "businessUnit": "लोकेशन",
+    "campaignType": "कैंपेन का प्रकार",
+    "ratePerGb": "प्रति GB दर",
+    "date": "तारीख़",
+    "from": "से",
+    "toLabel": "तक",
+    "print": "प्रिंट",
+    "showing": "{{total}} में से {{from}}–{{to}}",
+    "rows_one": "{{count}} लाइन",
+    "rows_other": "{{count}} लाइनें"
+  }
+}

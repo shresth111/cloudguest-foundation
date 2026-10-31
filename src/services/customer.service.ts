@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import { isHonouredDemoToken } from "@/lib/demo-host";
+import { formatRelative } from "@/lib/format";
 import { resolveOrganizationId as sharedResolveOrganizationId } from "./organization-id";
 // Straight from api.ts, which is where these now live -- AuthContext only
 // re-exports them, and importing it here would drag React into a module
@@ -226,9 +227,16 @@ export interface CustomerDashboardData {
     email: string;
     device: string;
     time: string;
+    /** When the session started; `time` is the same instant, pre-formatted. */
+    at?: string | number;
     status: string;
   }[];
-  recentAlerts: { type: "error" | "warning" | "success" | "info"; msg: string; time: string }[];
+  recentAlerts: {
+    type: "error" | "warning" | "success" | "info";
+    msg: string;
+    time: string;
+    at?: string | number;
+  }[];
   deviceDistribution: { name: string; value: number }[];
   hourlySessions: { hour: string; sessions: number }[];
 }
@@ -435,6 +443,7 @@ export interface AdminLogsDashboardLoginRow {
   success: boolean;
   failureReason: string | null;
   time: string;
+  at?: string;
 }
 export interface AdminLogsRouterEventRow {
   id: string;
@@ -444,6 +453,7 @@ export interface AdminLogsRouterEventRow {
   message: string | null;
   isError: boolean;
   time: string;
+  at?: string;
 }
 export interface AdminLogsActivityRow {
   id: string;
@@ -452,6 +462,7 @@ export interface AdminLogsActivityRow {
   actor: string;
   entityType: string;
   time: string;
+  at?: string;
 }
 
 export interface CustomerFeatureData {
@@ -857,9 +868,11 @@ interface RawIspHealthCheckBucket {
  * data story and for why a blank name is the honest answer. */
 export { identityFromGuest };
 
+/** "5 min ago" / "5 मिनट पहले", in the dashboard language at fetch time.
+ * Rows also carry the instant itself (`at`), and screens that re-render on a
+ * language switch format that instead (`useFormat().relative`). */
 function timeAgo(d: string): string {
-  const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-  return m < 1 ? "Just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)}h ago`;
+  return formatRelative(d, undefined, { style: "short" });
 }
 
 /* ── Customer Service ──────────────────────────────────────── */
@@ -1073,10 +1086,7 @@ export const customerService = {
       const day = demoGuestCounts(venue.id, now - 86_400_000, now, now);
       const open = new Set(demoOpenAt(roster, now));
       const recent = demoGuestRows(venue.id, now).slice(0, 6);
-      const ago = (ms: number) => {
-        const m = Math.max(0, Math.round((now - ms) / 60_000));
-        return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
-      };
+      const ago = (ms: number) => formatRelative(ms, undefined, { now, style: "short" });
       const hourly = Array.from({ length: 6 }, (_, k) => {
         const h = k * 4;
         const [a, b] = demoSessionsIn(roster, now - 86_400_000, now);
@@ -1125,6 +1135,7 @@ export const customerService = {
           email: r.identity.email,
           device: r.identity.device,
           time: ago(r.startedAt),
+          at: r.startedAt,
           status: open.has(r.index) ? "online" : "offline",
         })),
         // Open problems at THIS venue, derived from its routers, lines and
@@ -1134,6 +1145,7 @@ export const customerService = {
           type: a.severity === "critical" ? ("error" as const) : ("warning" as const),
           msg: a.title,
           time: ago(now - a.minutesAgo * 60_000),
+          at: now - a.minutesAgo * 60_000,
         })),
       };
     }
@@ -1429,6 +1441,7 @@ export const customerService = {
           email: identity.email,
           device: deviceLabelFrom(s.user_agent),
           time: timeAgo(s.started_at),
+          at: s.started_at,
           status: presence === "online" ? ("online" as const) : ("offline" as const),
         };
       }),
@@ -1445,6 +1458,7 @@ export const customerService = {
               : ("warning" as const),
         msg: a.status === "resolved" ? `Resolved: ${a.message}` : a.message,
         time: timeAgo(a.triggered_at),
+        at: a.triggered_at,
       })),
     };
   },
@@ -2134,6 +2148,7 @@ export const customerService = {
               success: l.success,
               failureReason: l.failure_reason,
               time: timeAgo(l.created_at),
+              at: l.created_at,
             })),
             routerLogs: routerEvents.map((e) => ({
               id: e.id,
@@ -2143,6 +2158,7 @@ export const customerService = {
               message: e.message,
               isError: e.is_error,
               time: timeAgo(e.occurred_at),
+              at: e.occurred_at,
             })),
             accountActivity: activity.map((a) => ({
               id: a.id,
@@ -2153,6 +2169,7 @@ export const customerService = {
                 : "System",
               entityType: a.entity_type,
               time: timeAgo(a.created_at),
+              at: a.created_at,
             })),
           },
         };
@@ -2210,6 +2227,7 @@ export const customerService = {
           success: l.success,
           failureReason: l.failure_reason,
           time: timeAgo(l.created_at),
+          at: l.created_at,
         })),
         meta: {
           page: data.page,
@@ -2261,6 +2279,7 @@ export const customerService = {
           message: e.message,
           isError: e.is_error,
           time: timeAgo(e.occurred_at),
+          at: e.occurred_at,
         })),
         meta: {
           page: data.page,
@@ -2332,6 +2351,7 @@ export const customerService = {
             : "System",
           entityType: a.entity_type,
           time: timeAgo(a.created_at),
+          at: a.created_at,
         })),
         meta: {
           page: data.page,

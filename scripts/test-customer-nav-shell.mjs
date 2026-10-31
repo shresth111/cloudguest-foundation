@@ -322,7 +322,11 @@ const headerCode = strip(
 check(
   "the avatar menu is the Radix DropdownMenu, with a named trigger",
   headerCode.includes('from "@/components/ui/dropdown-menu"') &&
-    /<DropdownMenuTrigger[^>]*aria-label="Account menu"/.test(headerCode) &&
+    // Named through i18n since the 2026-10-31 language pass: the key, with
+    // "Account menu" as its English default.
+    /<DropdownMenuTrigger[^>]*aria-label=\{t\("consoleShell\.account\.menu", "Account menu"\)\}/.test(
+      headerCode,
+    ) &&
     !/setMenu\(/.test(headerCode),
 );
 check(

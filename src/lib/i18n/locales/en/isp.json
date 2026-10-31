@@ -1,4 +1,5 @@
 {
+  "accessPoints": "access points",
   "action": {
     "check": "Check now",
     "checkController": "Health checks run on the router itself, which we do not reach for a controller-managed venue.",
@@ -32,7 +33,7 @@
     "loss": "Loss",
     "manage": "Manage →",
     "nIsps": "{{n}} ISPs",
-    "noChecks": "No health checks yet -- the first runs within a minute of the router being reachable.",
+    "noChecks": "No health checks yet — the first runs within a minute of the router being reachable.",
     "noChecksController": "Health checks don't run for a controller-managed venue.",
     "noHistory": "No health-check history yet.",
     "port": "Port",
@@ -45,7 +46,58 @@
     "uptimeRange": "Uptime {{range}}"
   },
   "cards": "the line cards",
+  "controller": "controller",
   "controllerNote": "You can still record this venue's uplinks here — provider, speed and which one is the main line — and they are used in your reports. What we cannot do from here is check them, switch between them or route traffic across them.",
+  "dialog": {
+    "addDesc": "Add an internet line that plugs into the selected router.",
+    "addLine": "Add line",
+    "addTitle": "Add ISP line",
+    "cancel": "Cancel",
+    "connectionType": "Connection type",
+    "dnsPrimary": "Primary DNS (optional)",
+    "dnsSecondary": "Secondary DNS (optional)",
+    "editDesc": "Change the details of this internet line.",
+    "editTitle": "Edit ISP line",
+    "egNumber": "e.g. {{n}}",
+    "gateway": "Gateway IP",
+    "gatewayDhcp": "Picked up automatically from the router's DHCP lease",
+    "gatewayOptional": "Gateway IP (optional)",
+    "gatewayPppoe": "Not needed for PPPoE",
+    "interface": "Router port",
+    "interfacePlaceholder": "Choose a port",
+    "linkType": {
+      "cable": "Cable",
+      "dsl": "DSL",
+      "fiber": "Fiber",
+      "leased_line": "Leased line",
+      "other": "Other",
+      "satellite": "Satellite",
+      "wireless_4g": "4G wireless",
+      "wireless_5g": "5G wireless"
+    },
+    "linkTypeLabel": "Line type",
+    "mode": {
+      "dhcp": "DHCP (automatic)",
+      "static": "Static IP"
+    },
+    "planDown": "Plan download speed (Mbps, optional)",
+    "planHint": "Use the speed your ISP sold you. We don't measure it ourselves, so the usage % is only as accurate as this number.",
+    "planUp": "Plan upload speed (Mbps, optional)",
+    "pppoeHint": "For PPPoE, we read this port's own connection state to tell if the line is up.",
+    "provider": "Internet provider *",
+    "providerPlaceholder": "e.g. Airtel",
+    "role": "Role",
+    "saveChanges": "Save changes",
+    "saving": "Saving…"
+  },
+  "errors": {
+    "check": "The health check didn't finish.",
+    "removeLink": "Could not remove the ISP line.",
+    "removeRule": "Could not remove the routing rule.",
+    "saveLink": "Could not save the ISP line.",
+    "saveRule": "Could not save the routing rule.",
+    "status": "Could not change the line's status."
+  },
   "events": {
     "desc": "Status changes in each line's latest health checks",
     "none": "No status changes",
@@ -86,10 +138,10 @@
     "cellUptime": "{{v}}% up",
     "clear": "Clear",
     "degradedChecks": "Degraded checks",
-    "emptyBody": "We check each line about once a minute while the router is reachable. None were recorded in this range yet -- try a longer range, or use Check now on a line.",
+    "emptyBody": "We check each line about once a minute while the router is reachable. None were recorded in this range yet — try a longer range, or use Check now on a line.",
     "emptyController": "Health checks run on a WyfyGuest-managed router. This venue's network is run by a controller, so there is no history to show.",
     "emptyTitle": "No health checks in this range",
-    "errorBody": "Something went wrong fetching health-check history -- your connection or our servers, not your internet line.",
+    "errorBody": "Something went wrong fetching health-check history — your connection or our servers, not your internet line.",
     "errorTitle": "Couldn't load the history",
     "failedChecks": "Failed checks",
     "failedN": "{{n}} failed checks",
@@ -118,7 +170,7 @@
   "internet": "Internet",
   "intro": "Your internet lines (ISPs): live health, speed against your plan, failover between lines, and history.",
   "linksError": {
-    "body": "Something went wrong fetching this router's ISP links -- your connection or our servers, not a real empty configuration.",
+    "body": "Something went wrong fetching this router's ISP links — your connection or our servers, not a real empty configuration.",
     "title": "Couldn't load ISP links"
   },
   "loading": "Loading",
@@ -133,7 +185,7 @@
   },
   "never": "Never",
   "noLinks": {
-    "body": "Add your ISP line -- provider, plan speed and the router port it plugs into -- to see its live health, speed and history here. Add a second line to get automatic failover.",
+    "body": "Add your ISP line — provider, plan speed and the router port it plugs into — to see its live health, speed and history here. Add a second line to get automatic failover.",
     "title": "No internet line added yet"
   },
   "noRouter": {
@@ -165,8 +217,35 @@
   },
   "router": "Router",
   "routersError": {
-    "body": "Something went wrong fetching the routers for this location -- your connection or our servers, not a real empty account.",
+    "body": "Something went wrong fetching the routers for this location — your connection or our servers, not a real empty account.",
     "title": "Couldn't load routers"
+  },
+  "ruleDialog": {
+    "add": "Add rule",
+    "desc": "Send matching traffic over one particular internet line.",
+    "description": "Description (optional)",
+    "editTitle": "Edit routing rule",
+    "field": {
+      "interface": "Port name",
+      "ip": "IP address",
+      "policy": "Policy ID",
+      "source": "Source network (CIDR)",
+      "user": "Device MAC address",
+      "vlan": "VLAN ID"
+    },
+    "linePlaceholder": "Choose a line",
+    "namePlaceholder": "VLAN 20 over the second line",
+    "newTitle": "New routing rule",
+    "notesPlaceholder": "Notes…",
+    "ruleType": "Rule type",
+    "type": {
+      "interface": "Port",
+      "ip": "IP address",
+      "policy": "Policy",
+      "source": "Source network",
+      "user": "Device (MAC)",
+      "vlan": "VLAN"
+    }
   },
   "rules": {
     "actions": "Actions",
@@ -216,7 +295,7 @@
   },
   "toast": {
     "checkDone": "Health check complete — {{status}}",
-    "demoCheck": "Health checks run against real router hardware -- not available in demo mode.",
+    "demoCheck": "Health checks run against real router hardware — not available in demo mode.",
     "demoLinks": "Sign in to a real account to manage ISP links.",
     "demoManual": "Manual status overrides aren't available in demo mode.",
     "demoRules": "Sign in to a real account to manage routing rules.",

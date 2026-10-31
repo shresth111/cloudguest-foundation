@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { formatDateTime, formatRelative } from "@/lib/format";
 import {
   AlertTriangle,
   Network,
@@ -132,6 +133,7 @@ export { AlertsView } from "@/components/features/AlertsView";
  * the same checks the backend runs -- see src/lib/open-hours-draft.ts).
  * Discard restores the baseline.
  */
+// i18n-ignore-start: English fallbacks; the Open Hours grid renders t(`days.<key>`)
 const BH_DAYS: { key: BusinessHoursWeekday; label: string }[] = [
   { key: "monday", label: "Monday" },
   { key: "tuesday", label: "Tuesday" },
@@ -141,6 +143,7 @@ const BH_DAYS: { key: BusinessHoursWeekday; label: string }[] = [
   { key: "saturday", label: "Saturday" },
   { key: "sunday", label: "Sunday" },
 ];
+// i18n-ignore-end
 
 const DEMO_BH_SCHEDULE: BusinessHoursSchedule = Object.fromEntries(
   BH_DAYS.map((d, i) => [
@@ -757,6 +760,9 @@ function LogsPager({
 export function AdminLogsView({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
   // `tNav`, not `t`: this view already uses `t` as the tab loop variable.
   const { t: tNav } = useTranslation("nav", { i18n });
+  const { t: tLog } = useTranslation("staffActivity", { i18n });
+  const when = (row: { at?: string; time: string }) =>
+    row.at ? formatRelative(row.at, i18n.language, { style: "short" }) : row.time;
   // Owner-only, render-time check -- defense in depth alongside the
   // sidebar/route-nav guard (customerNav.ts / customer.$locationId.$feature
   // .tsx's own NAV_GROUPS) and the backend's own independent enforcement
@@ -796,7 +802,10 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
     <PageHeader
       title={scope?.title ?? tNav("customerItem.admin-logs", "Staff Activity")}
       venue={scope?.venue}
-      description="Who logged into the dashboard and when, router activity, and account changes across every location."
+      description={tLog(
+        "description",
+        "Who logged into the dashboard and when, router activity, and account changes across every location.",
+      )}
     />
   );
 
@@ -807,8 +816,11 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
         <Panel>
           <EmptyState
             icon={ShieldAlert}
-            title="Owner access only"
-            description="Staff Activity shows a security-sensitive login and change-audit trail for the whole organization. Only the Organization Owner can view this page."
+            title={tLog("ownerOnly", "Owner access only")}
+            description={tLog(
+              "ownerOnlyBody",
+              "Staff Activity shows who signed in and what they changed across the whole organization. Only the organization owner can see this page.",
+            )}
           />
         </Panel>
       </div>
@@ -830,19 +842,19 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
   }[] = [
     {
       id: "logins",
-      label: "Dashboard Logins",
+      label: tLog("tabs.logins", "Dashboard sign-ins"),
       icon: KeyRound,
       count: loginsQuery.data?.meta.totalItems ?? logins.length,
     },
     {
       id: "router",
-      label: "Router Logs",
+      label: tLog("tabs.router", "Router events"),
       icon: Router,
       count: routerQuery.data?.meta.totalItems ?? routerLogs.length,
     },
     {
       id: "activity",
-      label: "Account Activity",
+      label: tLog("tabs.activity", "Account changes"),
       icon: History,
       count: activityQuery.data?.meta.totalItems ?? accountActivity.length,
     },
@@ -854,7 +866,7 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
 
       {/* Three views with their counts: the console's underline SubTabs. */}
       <SubTabs
-        ariaLabel="Staff activity log"
+        ariaLabel={tLog("ariaLog", "Staff activity log")}
         idPrefix="staff-activity"
         value={section}
         onChange={setSection}
@@ -867,9 +879,9 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
         aria-labelledby={`staff-activity-tab-${section}`}
       >
         {section === "logins" && (
-          <Panel title="Dashboard Logins" flush>
+          <Panel title={tLog("tabs.logins", "Dashboard sign-ins")} flush>
             <DataTable
-              ariaLabel="Dashboard logins"
+              ariaLabel={tLog("tabs.logins", "Dashboard sign-ins")}
               rows={logins}
               rowKey={(l) => l.id}
               loading={loginsQuery.isLoading}
@@ -879,37 +891,44 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
                 </div>
               }
               empty={
-                <LogsEmptyState label="No dashboard logins yet -- login activity for this organization will appear here." />
+                <LogsEmptyState
+                  label={tLog(
+                    "emptyLogins",
+                    "No dashboard sign-ins yet — sign-ins for this organization will appear here.",
+                  )}
+                />
               }
               columns={[
                 {
                   id: "email",
-                  header: "Email",
+                  header: tLog("col.email", "Email"),
                   mobile: "title",
                   className: "font-medium",
                   cell: (l) => l.email,
                 },
                 {
                   id: "ip",
-                  header: "IP Address",
+                  header: tLog("col.ip", "IP address"),
                   mono: true,
                   className: "text-[var(--wy-text-muted)]",
                   cell: (l) => l.ipAddress,
                 },
                 {
                   id: "result",
-                  header: "Result",
+                  header: tLog("col.result", "Result"),
                   cell: (l) => (
                     <StatusBadge status={l.success ? "ok" : "crit"}>
-                      {l.success ? "Success" : (l.failureReason ?? "Failed")}
+                      {l.success
+                        ? tLog("success", "Success")
+                        : (l.failureReason ?? tLog("failed", "Failed"))}
                     </StatusBadge>
                   ),
                 },
                 {
                   id: "when",
-                  header: "When",
+                  header: tLog("col.when", "When"),
                   className: "text-[var(--wy-text-muted)]",
-                  cell: (l) => l.time,
+                  cell: (l) => when(l),
                 },
               ]}
               footer={
@@ -926,9 +945,9 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
         )}
 
         {section === "router" && (
-          <Panel title="Router Logs by Location" flush>
+          <Panel title={tLog("routerTitle", "Router events by location")} flush>
             <DataTable
-              ariaLabel="Router logs by location"
+              ariaLabel={tLog("routerTitle", "Router events by location")}
               rows={routerLogs}
               rowKey={(e) => e.id}
               loading={routerQuery.isLoading}
@@ -938,25 +957,30 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
                 </div>
               }
               empty={
-                <LogsEmptyState label="No router events yet -- router activity across your locations will appear here." />
+                <LogsEmptyState
+                  label={tLog(
+                    "emptyRouter",
+                    "No router events yet — router activity across your locations will appear here.",
+                  )}
+                />
               }
               columns={[
                 {
                   id: "location",
-                  header: "Location",
+                  header: tLog("col.location", "Location"),
                   mobile: "title",
                   className: "font-medium",
                   cell: (e) => e.locationName,
                 },
                 {
                   id: "router",
-                  header: "Router",
+                  header: tLog("col.router", "Router"),
                   className: "text-[var(--wy-text-muted)]",
                   cell: (e) => e.routerName,
                 },
                 {
                   id: "event",
-                  header: "Event",
+                  header: tLog("col.event", "Event"),
                   cell: (e) => (
                     <StatusBadge status={e.isError ? "crit" : "offline"} className="capitalize">
                       {e.eventType.replace(/_/g, " ")}
@@ -965,15 +989,15 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
                 },
                 {
                   id: "message",
-                  header: "Message",
+                  header: tLog("col.message", "Message"),
                   className: "whitespace-normal text-[var(--wy-text-muted)]",
                   cell: (e) => e.message ?? "—",
                 },
                 {
                   id: "when",
-                  header: "When",
+                  header: tLog("col.when", "When"),
                   className: "text-[var(--wy-text-muted)]",
-                  cell: (e) => e.time,
+                  cell: (e) => when(e),
                 },
               ]}
               footer={
@@ -999,9 +1023,9 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
           exclude_view_events=true, so this is only real changes -- never
           the "*_viewed" access-logging noise that would otherwise bury it. */}
         {section === "activity" && (
-          <Panel title="Account Activity" flush>
+          <Panel title={tLog("tabs.activity", "Account changes")} flush>
             <DataTable
-              ariaLabel="Account activity"
+              ariaLabel={tLog("tabs.activity", "Account changes")}
               rows={accountActivity}
               rowKey={(a) => a.id}
               loading={activityQuery.isLoading}
@@ -1011,12 +1035,17 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
                 </div>
               }
               empty={
-                <LogsEmptyState label="No account activity yet -- role assignments and account/config changes across your organization will appear here." />
+                <LogsEmptyState
+                  label={tLog(
+                    "emptyActivity",
+                    "No account changes yet — role assignments and account or settings changes across your organization will appear here.",
+                  )}
+                />
               }
               columns={[
                 {
                   id: "change",
-                  header: "Change",
+                  header: tLog("col.change", "Change"),
                   mobile: "title",
                   className: "whitespace-normal",
                   cell: (a) => (
@@ -1030,15 +1059,15 @@ export function AdminLogsView({ locationId, scope }: { locationId?: string; scop
                 },
                 {
                   id: "actor",
-                  header: "Actor",
+                  header: tLog("col.actor", "Done by"),
                   className: "text-[var(--wy-text-muted)]",
-                  cell: (a) => a.actor,
+                  cell: (a) => (a.actor === "System" ? tLog("system", "System") : a.actor),
                 },
                 {
                   id: "when",
-                  header: "When",
+                  header: tLog("col.when", "When"),
                   className: "text-[var(--wy-text-muted)]",
-                  cell: (a) => a.time,
+                  cell: (a) => when(a),
                 },
               ]}
               footer={
@@ -1329,7 +1358,7 @@ export function MacAuthView({ locationId, scope }: { locationId?: string; scope?
                 className: "text-[var(--wy-text-muted)]",
                 cell: (e) =>
                   e.expiresAt
-                    ? new Date(e.expiresAt).toLocaleString()
+                    ? formatDateTime(e.expiresAt, i18n.language)
                     : e.type === "temporary"
                       ? t("ends.notSet", "Not set — never ends")
                       : t("ends.never", "Never"),

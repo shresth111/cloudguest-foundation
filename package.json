@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "test:a11y": "node scripts/check-a11y-invariants.mjs",
     "check:console-styles": "node scripts/check-console-styles.mjs",
+    "check:i18n-literals": "node scripts/check-i18n-literals.mjs",
     "test:fw-order": "node scripts/test-fw-rule-order.mjs",
     "test:output-analyser": "node scripts/test-output-analyser.mjs",
     "test:manual-wizard": "node scripts/test-manual-wizard-engine.mjs",

@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import i18n from "@/lib/i18n";
+import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { StatusDot, type OverviewStatus } from "./console-ui";
 
@@ -21,6 +22,8 @@ export interface RecentGuestRow {
   email: string;
   device: string;
   time: string;
+  /** The session's start; formatted at render so it follows the language. */
+  at?: string | number;
   status: string;
 }
 
@@ -141,7 +144,7 @@ export function RecentGuestsTable({
                 {u.device}
               </td>
               <td className="whitespace-nowrap px-3 py-2 tabular-nums text-[var(--wy-text-muted)]">
-                {u.time}
+                {u.at != null ? formatRelative(u.at, i18n.language, { style: "short" }) : u.time}
               </td>
               <td className="px-3 py-2 text-right">
                 {/* `status` is a free string from the API; an unknown value

@@ -17,6 +17,11 @@ import enNeedsAttention from "./locales/en/needsAttention.json";
 import enInsights from "./locales/en/insights.json";
 import enDevices from "./locales/en/devices.json";
 import enIsp from "./locales/en/isp.json";
+import enReports from "./locales/en/reports.json";
+import enStaffActivity from "./locales/en/staffActivity.json";
+import enVouchers from "./locales/en/vouchers.json";
+import enNetwork from "./locales/en/network.json";
+import enAlerts from "./locales/en/alerts.json";
 import hiCommon from "./locales/hi/common.json";
 import hiNav from "./locales/hi/nav.json";
 import hiGuests from "./locales/hi/guests.json";
@@ -34,6 +39,11 @@ import hiNeedsAttention from "./locales/hi/needsAttention.json";
 import hiInsights from "./locales/hi/insights.json";
 import hiDevices from "./locales/hi/devices.json";
 import hiIsp from "./locales/hi/isp.json";
+import hiReports from "./locales/hi/reports.json";
+import hiStaffActivity from "./locales/hi/staffActivity.json";
+import hiVouchers from "./locales/hi/vouchers.json";
+import hiNetwork from "./locales/hi/network.json";
+import hiAlerts from "./locales/hi/alerts.json";
 
 const LANG_CACHE_KEY = "cg.dashboard.lang";
 
@@ -65,15 +75,13 @@ function readCachedLang(): string {
 // English with zero extra work -- the intended, honest "partial coverage"
 // behavior rather than a raw i18next key falling through to the screen.
 //
-// `help` is the How It Works reference page (HowItWorksPage.tsx). Its `hi`
-// bundle deliberately carries only the page chrome and the seven group
-// lines; the 25 per-screen sentences are English-only for now and reach a
-// Hindi reader through `fallbackLng` above -- the same bounded, honest
-// partial coverage this file already documents, rather than shipping
-// machine-quality Hindi to paying venues. They need a native review pass
-// before they are added to `hi/help.json`.
+// `help` is the How It Works reference page (HowItWorksPage.tsx). Its
+// per-screen sentences were English-only until the 2026-10-31 language pass
+// translated them; every namespace is now complete in both languages, and
+// `scripts/check-i18n-literals.mjs` fails CI if an en key has no hi twin.
 // One namespace per translated customer screen (whitelist, trustedDevices,
-// openHours, guestGroups, fixProblem, accessRules, dashboard, needsAttention, insights, isp) rather than piling every
+// openHours, guestGroups, fixProblem, accessRules, dashboard, needsAttention, insights, isp,
+// alerts, network, vouchers, reports, staffActivity) rather than piling every
 // screen body into nav.json: each file stays reviewable on its own, and a
 // native-speaker pass can be done one screen at a time.
 i18n.use(initReactI18next).init({
@@ -96,6 +104,11 @@ i18n.use(initReactI18next).init({
       insights: enInsights,
       devices: enDevices,
       isp: enIsp,
+      reports: enReports,
+      staffActivity: enStaffActivity,
+      vouchers: enVouchers,
+      network: enNetwork,
+      alerts: enAlerts,
     },
     hi: {
       common: hiCommon,
@@ -115,6 +128,11 @@ i18n.use(initReactI18next).init({
       insights: hiInsights,
       devices: hiDevices,
       isp: hiIsp,
+      reports: hiReports,
+      staffActivity: hiStaffActivity,
+      vouchers: hiVouchers,
+      network: hiNetwork,
+      alerts: hiAlerts,
     },
   },
   lng: readCachedLang(),
@@ -137,6 +155,7 @@ i18n.use(initReactI18next).init({
     "insights",
     "devices",
     "isp",
+    "alerts",
   ],
   defaultNS: "common",
   interpolation: { escapeValue: false },

@@ -1,3 +1,5 @@
+import i18n from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
 import { useId, useState } from "react";
 import { Plus } from "lucide-react";
 import { z } from "zod";
@@ -74,18 +76,15 @@ import type { DhcpPool, DhcpDevicePushStatus } from "@/types/dhcp";
 const PAGE_SIZE = 25;
 
 const dhcpSchema = z.object({
-  routerId: z.string().min(1, "Select a router"),
-  name: z.string().trim().min(2, "Required").max(48),
-  addressRangeStart: z.string().trim().min(1, "Required"),
-  addressRangeEnd: z.string().trim().min(1, "Required"),
+  routerId: z.string().min(1, "common.selectRouter"),
+  name: z.string().trim().min(2, "common.required").max(48),
+  addressRangeStart: z.string().trim().min(1, "common.required"),
+  addressRangeEnd: z.string().trim().min(1, "common.required"),
   // Required, not optional -- see this component's own comment on the
   // "Interface" field below for why a pool with no interface never
   // actually starts a dhcp-server on the real device (silently creates a
   // bare /ip pool that hands out nothing).
-  interface: z
-    .string()
-    .trim()
-    .min(1, "Required — the DHCP server won't start on the router without it"),
+  interface: z.string().trim().min(1, "dhcp.gatewayRequired"),
   gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
   dnsPrimary: z.string().trim().optional().or(z.literal("")),
   dnsSecondary: z.string().trim().optional().or(z.literal("")),
@@ -109,10 +108,11 @@ const BLANK_DHCP_FORM: DhcpFormValues = {
   isEnabled: true,
 };
 
+/** i18n keys (network namespace), rendered through `t`. */
 const DEVICE_PUSH_LABEL: Record<DhcpDevicePushStatus, string> = {
-  active: "Applied",
-  pending: "Not yet applied",
-  failed: "Couldn't apply",
+  active: "common.push.applied",
+  pending: "common.push.pending",
+  failed: "common.push.failed",
 };
 
 /** Whether this pool actually exists on the router.
@@ -128,12 +128,13 @@ const DEVICE_PUSH_LABEL: Record<DhcpDevicePushStatus, string> = {
  * what to do, and summarising device errors is how the silence started.
  */
 function DevicePushBadge({ pool }: { pool: DhcpPool }) {
+  const { t } = useTranslation("network", { i18n });
   return (
     <PushStatusBadge
       status={pool.devicePushStatus}
-      label={DEVICE_PUSH_LABEL[pool.devicePushStatus]}
+      label={t(DEVICE_PUSH_LABEL[pool.devicePushStatus])}
       error={pool.devicePushError}
-      errorPrefix="Couldn't apply this pool to your router:"
+      errorPrefix={t("dhcp.couldnTApplyThisPool")}
     />
   );
 }
@@ -146,6 +147,7 @@ export function DhcpManagement({
   /** Title + venue from the customer shell, which then draws no header of its own. */
   scope?: PageScope;
 } = {}) {
+  const { t } = useTranslation("network", { i18n });
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -182,10 +184,11 @@ export function DhcpManagement({
     push.mutate(
       { id: pool.id },
       {
-        onSuccess: () => toast.success(`${pool.name} applied to the router`),
+        onSuccess: () => toast.success(t("dhcp.appliedToTheRouter", { name: pool.name })),
         onError: (err) =>
           toast.error(
-            (err as unknown as AppError)?.message || `Couldn't apply ${pool.name} to the router`,
+            (err as unknown as AppError)?.message ||
+              t("dhcp.couldnTApplyToThe", { name: pool.name }),
           ),
       },
     );
@@ -252,20 +255,20 @@ export function DhcpManagement({
   const columns: DataTableColumn<DhcpPool>[] = [
     {
       id: "name",
-      header: plain ? "Range" : "Pool",
+      header: plain ? t("dhcp.range") : t("dhcp.pool"),
       mobile: "title",
       cell: (p) => <NameCell name={p.name} sub={p.interface} />,
     },
-    { id: "router", header: "Router", cell: (p) => routerName(p.routerId) },
+    { id: "router", header: t("dhcp.router"), cell: (p) => routerName(p.routerId) },
     {
       id: "range",
-      header: "Address range",
+      header: t("dhcp.addressRange"),
       mono: true,
       cell: (p) => `${p.addressRangeStart} – ${p.addressRangeEnd}`,
     },
     {
       id: "gateway",
-      header: plain ? "Router address" : "Gateway",
+      header: plain ? t("dhcp.routerAddress") : t("dhcp.gateway"),
       mono: true,
       cell: (p) => p.gatewayIpAddress ?? "—",
     },
@@ -277,12 +280,12 @@ export function DhcpManagement({
     },
     {
       id: "lease",
-      header: plain ? "Held for" : "Lease",
+      header: plain ? t("dhcp.heldFor") : t("dhcp.lease"),
       className: "tabular-nums text-[var(--wy-text-muted)]",
       cell: (p) => `${Math.round(p.leaseTimeSeconds / 3600)}h`,
     },
-    { id: "status", header: "Status", cell: (p) => <EnabledBadge enabled={p.isEnabled} /> },
-    { id: "push", header: "On router", cell: (p) => <DevicePushBadge pool={p} /> },
+    { id: "status", header: t("dhcp.status"), cell: (p) => <EnabledBadge enabled={p.isEnabled} /> },
+    { id: "push", header: t("dhcp.onRouter"), cell: (p) => <DevicePushBadge pool={p} /> },
   ];
 
   return (
@@ -295,42 +298,38 @@ export function DhcpManagement({
        * Under the customer shell this is the page's only header: the shell
        * hands over the tab name and venue (`scope`) and draws none itself. */}
       <PageHeader
-        title={scope?.title ?? (plain ? "IP Addresses" : "DHCP Pool Management")}
+        title={scope?.title ?? (plain ? t("dhcp.ipAddresses") : t("dhcp.dhcpPoolManagement"))}
         venue={scope?.venue}
-        description={
-          plain
-            ? "The pool of IP addresses your router hands out to guest devices, plus their gateway, DNS and how long each address is held."
-            : "Per-router DHCP address pools, gateway, DNS and lease time. Apply a pool to send it to the router."
-        }
+        description={plain ? t("dhcp.thePoolOfIpAddresses") : t("dhcp.perRouterDhcpAddressPools")}
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus aria-hidden className="mr-1.5 h-4 w-4" />{" "}
-            {plain ? "New address range" : "New Pool"}
+            {plain ? t("dhcp.newAddressRange") : t("dhcp.newPool")}
           </Button>
         }
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="Total Pools" value={total} hint={totalHint} loading={isLoading} />
+        <StatTile label={t("dhcp.totalPools")} value={total} hint={totalHint} loading={isLoading} />
         <StatTile
-          label="Enabled"
+          label={t("dhcp.enabled")}
           value={enabledCount}
           hint={statHint}
           loading={isLoading}
-          leading={<StatusDot status="ok" label="Enabled" size="sm" />}
+          leading={<StatusDot status="ok" label={t("dhcp.enabled")} size="sm" />}
         />
         <StatTile
-          label="Disabled"
+          label={t("dhcp.disabled")}
           value={filteredRows.length - enabledCount}
           hint={statHint}
           loading={isLoading}
-          leading={<StatusDot status="offline" label="Disabled" size="sm" />}
+          leading={<StatusDot status="offline" label={t("dhcp.disabled")} size="sm" />}
         />
       </div>
 
       <CurrentRouterPools routers={livePoolRouters} />
 
-      <Panel flush title={plain ? "All address ranges" : "All DHCP Pools"}>
+      <Panel flush title={plain ? t("dhcp.allAddressRanges") : t("dhcp.allDhcpPools")}>
         <Toolbar divided>
           <Select
             value={routerFilter}
@@ -339,11 +338,11 @@ export function DhcpManagement({
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-full sm:w-48" aria-label="Router">
-              <SelectValue placeholder="All routers" />
+            <SelectTrigger className="w-full sm:w-48" aria-label={t("dhcp.router")}>
+              <SelectValue placeholder={t("dhcp.allRouters")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All routers</SelectItem>
+              <SelectItem value="all">{t("dhcp.allRouters")}</SelectItem>
               {/* Contract §11.5: the two kinds of device are listed
                   apart, and only the ones this platform configures are
                   selectable. See RouterPickerItems. */}
@@ -353,19 +352,17 @@ export function DhcpManagement({
           <ToolbarSearch
             value={search}
             onValueChange={setSearch}
-            placeholder="Search name, range, router…"
+            placeholder={t("dhcp.searchNameRangeRouter")}
           />
         </Toolbar>
         <DataTable
-          ariaLabel={plain ? "All address ranges" : "All DHCP Pools"}
+          ariaLabel={plain ? t("dhcp.allAddressRanges") : t("dhcp.allDhcpPools")}
           columns={columns}
           rows={rows}
           rowKey={(p) => p.id}
           loading={isLoading}
-          loadingLabel="Loading…"
-          empty={
-            plain ? "No address ranges match your filters." : "No DHCP pools match your filters."
-          }
+          loadingLabel={t("dhcp.loading")}
+          empty={plain ? t("dhcp.noAddressRangesMatchYour") : t("dhcp.noDhcpPoolsMatchYour")}
           maxHeight="70vh"
           rowActions={(p) => (
             /* Apply is always visible, unlike the revealed edit/delete
@@ -376,7 +373,7 @@ export function DhcpManagement({
             <RowActions
               name={p.name}
               apply={{
-                label: p.devicePushStatus === "active" ? "Re-apply" : "Apply",
+                label: p.devicePushStatus === "active" ? t("dhcp.reApply") : t("dhcp.apply"),
                 pending: push.isPending && push.variables?.id === p.id,
                 quiet: p.devicePushStatus === "active",
                 onClick: () => handlePush(p),
@@ -388,9 +385,9 @@ export function DhcpManagement({
           footer={
             totalPages > 1 ? (
               <TablePager
-                summary={`Page ${page} of ${totalPages} · ${total} pools`}
-                previousLabel="Previous"
-                nextLabel="Next"
+                summary={t("dhcp.pageOfPools", { page, totalPages, total })}
+                previousLabel={t("common.previous")}
+                nextLabel={t("common.next")}
                 hasPrevious={hasPrevious}
                 hasNext={hasNext}
                 onPrevious={() => setPage((p) => p - 1)}
@@ -416,28 +413,31 @@ export function DhcpManagement({
         <AlertDialogContent className={DIALOG_CONSOLE}>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {locationId ? "Delete address range" : "Delete pool"} "{confirmDelete?.name}"?
+              {locationId
+                ? t("dhcp.deleteRangeTitle", { name: confirmDelete?.name })
+                : t("dhcp.deletePoolTitle", { name: confirmDelete?.name })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes it from{" "}
-              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
+              {t("common.cannotUndo", {
+                router: confirmDelete ? routerName(confirmDelete.routerId) : "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dhcp.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
                   await del.mutateAsync({ id: confirmDelete.id });
-                  toast.success(`Pool ${confirmDelete.name} deleted`);
+                  toast.success(t("dhcp.poolDeleted", { name: confirmDelete.name }));
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failed to delete pool");
+                  toast.error((err as AppError).message || t("dhcp.failedToDeletePool"));
                 }
                 setConfirmDelete(null);
               }}
             >
-              {locationId ? "Delete range" : "Delete pool"}
+              {locationId ? t("dhcp.deleteRange") : t("dhcp.deletePool")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -464,6 +464,7 @@ function DhcpDialog({
   plain: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("network", { i18n });
   const create = useCreateDhcpPool();
   const update = useUpdateDhcpPool();
 
@@ -539,16 +540,16 @@ function DhcpDialog({
       };
       if (pool) {
         await update.mutateAsync({ id: pool.id, payload: shared });
-        toast.success(plain ? "Address range updated" : "DHCP pool updated");
+        toast.success(plain ? t("dhcp.addressRangeUpdated") : t("dhcp.dhcpPoolUpdated"));
       } else {
         await create.mutateAsync({ routerId: v.routerId, ...shared });
-        toast.success(plain ? "Address range created" : "DHCP pool created");
+        toast.success(plain ? t("dhcp.addressRangeCreated") : t("dhcp.dhcpPoolCreated"));
       }
       close();
     } catch (err) {
       toast.error(
         (err as AppError).message ||
-          (plain ? "Couldn't save that address range" : "Failed to save pool"),
+          (plain ? t("dhcp.couldnTSaveThatAddress") : t("dhcp.failedToSavePool")),
       );
     }
   }
@@ -567,20 +568,20 @@ function DhcpDialog({
           <DialogTitle>
             {plain
               ? pool
-                ? "Edit address range"
-                : "New address range"
+                ? t("dhcp.editAddressRange")
+                : t("dhcp.newAddressRange")
               : pool
-                ? "Edit DHCP pool"
-                : "New DHCP pool"}
+                ? t("dhcp.editDhcpPool")
+                : t("dhcp.newDhcpPool")}
           </DialogTitle>
           <DialogDescription>
             {pool
               ? plain
-                ? "The router this range belongs to cannot be changed — delete it and make a new one to move it."
-                : "The router this pool belongs to cannot be changed — delete and recreate to move it."
+                ? t("dhcp.theRouterThisRangeBelongs")
+                : t("dhcp.theRouterThisPoolBelongs")
               : plain
-                ? "An address range belongs to exactly one router for its whole life."
-                : "A DHCP pool belongs to exactly one router for its whole lifetime."}
+                ? t("dhcp.anAddressRangeBelongsTo")
+                : t("dhcp.aDhcpPoolBelongsTo")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)}>
@@ -589,19 +590,19 @@ function DhcpDialog({
             footer={
               <>
                 <Button type="button" variant="ghost" onClick={close}>
-                  Cancel
+                  {t("dhcp.cancel")}
                 </Button>
                 <Button type="submit" disabled={create.isPending || update.isPending}>
-                  {pool ? "Save changes" : "Create pool"}
+                  {pool ? t("dhcp.saveChanges") : t("dhcp.createPool")}
                 </Button>
               </>
             }
           >
             <FormField
               wide
-              label="Router"
+              label={t("dhcp.router")}
               htmlFor={`${id}-router`}
-              error={errors.routerId?.message}
+              error={errors.routerId?.message && t(errors.routerId.message)}
             >
               <Controller
                 control={form.control}
@@ -609,7 +610,7 @@ function DhcpDialog({
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange} disabled={!!pool}>
                     <SelectTrigger id={`${id}-router`}>
-                      <SelectValue placeholder="Select router" />
+                      <SelectValue placeholder={t("dhcp.selectRouter")} />
                     </SelectTrigger>
                     <SelectContent>
                       {/* Contract §11.5. A controller is listed here but not
@@ -625,13 +626,22 @@ function DhcpDialog({
                   with no controller. */}
               <ControllerRoutersNote rows={routers} />
             </FormField>
-            <FormField wide label="Name" htmlFor={`${id}-name`} error={errors.name?.message}>
-              <Input id={`${id}-name`} {...form.register("name")} placeholder="Guest pool" />
+            <FormField
+              wide
+              label={t("dhcp.name")}
+              htmlFor={`${id}-name`}
+              error={errors.name?.message && t(errors.name.message)}
+            >
+              <Input
+                id={`${id}-name`}
+                {...form.register("name")}
+                placeholder={t("dhcp.guestPool")}
+              />
             </FormField>
             <FormField
-              label="Range start"
+              label={t("dhcp.rangeStart")}
               htmlFor={`${id}-start`}
-              error={errors.addressRangeStart?.message}
+              error={errors.addressRangeStart?.message && t(errors.addressRangeStart.message)}
             >
               <Input
                 id={`${id}-start`}
@@ -641,9 +651,9 @@ function DhcpDialog({
               />
             </FormField>
             <FormField
-              label="Range end"
+              label={t("dhcp.rangeEnd")}
               htmlFor={`${id}-end`}
-              error={errors.addressRangeEnd?.message}
+              error={errors.addressRangeEnd?.message && t(errors.addressRangeEnd.message)}
             >
               <Input
                 id={`${id}-end`}
@@ -653,7 +663,7 @@ function DhcpDialog({
               />
             </FormField>
             <FormField
-              label={plain ? "Router address (optional)" : "Gateway IP (optional)"}
+              label={plain ? t("dhcp.routerAddressOptional") : t("dhcp.gatewayIpOptional")}
               htmlFor={`${id}-gateway`}
             >
               <Input
@@ -664,9 +674,9 @@ function DhcpDialog({
               />
             </FormField>
             <FormField
-              label={plain ? "Which cable or zone" : "Interface"}
+              label={plain ? t("dhcp.whichCableOrZone") : t("dhcp.interface")}
               htmlFor={`${id}-interface`}
-              error={errors.interface?.message}
+              error={errors.interface?.message && t(errors.interface.message)}
               hint={interfaceHint}
               hintTone={interfacesErrored ? "crit" : "muted"}
               labelAction={
@@ -676,7 +686,7 @@ function DhcpDialog({
                     className="rounded text-xs text-[var(--wy-text-muted)] underline underline-offset-2 hover:text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
                     onClick={() => setManualInterface(true)}
                   >
-                    Type manually
+                    {t("dhcp.typeManually")}
                   </button>
                 ) : null
               }
@@ -685,7 +695,7 @@ function DhcpDialog({
                 <Input
                   id={`${id}-interface`}
                   {...form.register("interface")}
-                  placeholder="bridgeLocal, ether3, vlan3…"
+                  placeholder={t("dhcp.bridgelocalEther3Vlan3")}
                 />
               ) : (
                 <Controller
@@ -701,10 +711,10 @@ function DhcpDialog({
                         <SelectValue
                           placeholder={
                             !selectedRouterId
-                              ? "Select a router first"
+                              ? t("dhcp.selectARouterFirst")
                               : interfacesLoading
-                                ? "Checking router…"
-                                : "Select interface"
+                                ? t("dhcp.checkingRouter")
+                                : t("dhcp.selectInterface")
                           }
                         />
                       </SelectTrigger>
@@ -712,8 +722,8 @@ function DhcpDialog({
                         {(deviceInterfaces ?? []).map((i) => (
                           <SelectItem key={i.name} value={i.name}>
                             {i.name}
-                            {i.bridge ? ` (in ${i.bridge})` : ""}
-                            {i.running ? " · link up" : ""}
+                            {i.bridge ? t("dhcp.in", { bridge: i.bridge }) : ""}
+                            {i.running ? t("dhcp.linkUp") : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -722,7 +732,7 @@ function DhcpDialog({
                 />
               )}
             </FormField>
-            <FormField label="DNS primary (optional)" htmlFor={`${id}-dns1`}>
+            <FormField label={t("dhcp.dnsPrimaryOptional")} htmlFor={`${id}-dns1`}>
               <Input
                 id={`${id}-dns1`}
                 {...form.register("dnsPrimary")}
@@ -730,7 +740,7 @@ function DhcpDialog({
                 className="font-mono"
               />
             </FormField>
-            <FormField label="DNS secondary (optional)" htmlFor={`${id}-dns2`}>
+            <FormField label={t("dhcp.dnsSecondaryOptional")} htmlFor={`${id}-dns2`}>
               <Input
                 id={`${id}-dns2`}
                 {...form.register("dnsSecondary")}
@@ -739,9 +749,9 @@ function DhcpDialog({
               />
             </FormField>
             <FormField
-              label={plain ? "Hold each address for (seconds)" : "Lease time (seconds)"}
+              label={plain ? t("dhcp.holdEachAddressForSeconds") : t("dhcp.leaseTimeSeconds")}
               htmlFor={`${id}-lease`}
-              error={errors.leaseTimeSeconds?.message}
+              error={errors.leaseTimeSeconds?.message && t(errors.leaseTimeSeconds.message)}
             >
               <Input
                 id={`${id}-lease`}
@@ -752,7 +762,7 @@ function DhcpDialog({
             </FormField>
             <FormSwitchRow
               className="self-end"
-              label="Enabled"
+              label={t("dhcp.enabled")}
               control={
                 <Controller
                   control={form.control}

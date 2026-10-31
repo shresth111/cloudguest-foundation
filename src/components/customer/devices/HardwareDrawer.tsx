@@ -16,16 +16,20 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
-import { formatDuration } from "@/lib/device-liveness";
-import {
-  formatBps,
-  formatWhen,
-  type DeviceHealth,
-  type DeviceHealthEvent,
-} from "@/lib/hardware-health";
+import { formatBps, type DeviceHealth, type DeviceHealthEvent } from "@/lib/hardware-health";
+import i18n from "@/lib/i18n";
+import { formatDuration as formatSpan, formatWhen as formatWhenIn } from "@/lib/format";
 import { HardwareHealthDetails } from "@/components/customer/HardwareHealthDetails";
 import type { InventoryRow } from "./fleet-model";
-import { BUCKET_TEXT, BucketDot, MONO, relTime, useBucketLabel, useDevicesT } from "./ui";
+import {
+  BUCKET_TEXT,
+  BucketDot,
+  MONO,
+  relTime,
+  useBucketLabel,
+  useDevicesT,
+  useRowWords,
+} from "./ui";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -57,23 +61,33 @@ function Facts({ rows }: { rows: { k: string; v: ReactNode; mono?: boolean }[] }
   );
 }
 
+/** "4:05 pm" / "yesterday, 4:05 pm" / "29 Oct, 4:05 pm", in the dashboard
+ * language (`@/lib/format`). */
+const formatWhen = (iso: string, now: number) => formatWhenIn(iso, i18n.language, now);
+/** Uptime in seconds, as "3 hr 5 min" / "3 घंटे 5 मिनट". */
+const formatDuration = (seconds: number) => formatSpan(seconds * 1000, i18n.language);
+
 /** One event of the last 24 h in words. */
-function eventWords(e: DeviceHealthEvent): string {
+function eventWords(e: DeviceHealthEvent, t: ReturnType<typeof useDevicesT>): string {
   const word = (s: string | null) =>
     s === "up"
-      ? "Online"
+      ? t("drawer.event.up", "Online")
       : s === "down"
-        ? "Down"
+        ? t("drawer.event.down", "Down")
         : s === "degraded"
-          ? "Unstable"
+          ? t("drawer.event.degraded", "Unstable")
           : s
             ? s
-            : "Not checked";
+            : t("drawer.event.unknown", "Not checked");
   if (e.kind === "state") return `${word(e.fromState)} → ${word(e.toState)}`;
   if (e.kind === "link_down")
-    return e.count && e.count > 1 ? `Port link dropped ${e.count}×` : "Port link dropped";
+    return e.count && e.count > 1
+      ? t("drawer.event.linkDropN", "Port link dropped {{n}}×", { n: e.count })
+      : t("drawer.event.linkDrop", "Port link dropped");
   if (e.kind === "ip_changed")
-    return e.detail ? `IP address changed (${e.detail})` : "IP address changed";
+    return e.detail
+      ? t("drawer.event.ipChangedTo", "IP address changed ({{detail}})", { detail: e.detail })
+      : t("drawer.event.ipChanged", "IP address changed");
   return e.kind.replace(/_/g, " ");
 }
 
@@ -171,6 +185,7 @@ export function HardwareDrawer({
   now?: number;
 }) {
   const t = useDevicesT();
+  const words = useRowWords();
   const bucketLabel = useBucketLabel();
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -217,7 +232,7 @@ export function HardwareDrawer({
                   <span className="inline-flex items-center gap-1.5">
                     <BucketDot bucket={row.bucket} label={bucketLabel(row.bucket)} />
                     <span className={cn("font-semibold", BUCKET_TEXT[row.bucket])}>
-                      {row.statusWord}
+                      {words.status(row.statusWord)}
                     </span>
                   </span>
                   {row.detail && <span className="text-[var(--wy-text-muted)]">{row.detail}</span>}
@@ -271,7 +286,7 @@ export function HardwareDrawer({
                             {formatWhen(e.at, now)}
                           </span>
                           <span className="min-w-0 text-[var(--wy-text-muted)]">
-                            {eventWords(e)}
+                            {eventWords(e, t)}
                           </span>
                         </li>
                       ))}
@@ -362,7 +377,7 @@ export function HardwareDrawer({
                     size="sm"
                     variant="ghost"
                     className="text-[var(--wy-crit)] hover:bg-[var(--wy-crit-soft)] hover:text-[var(--wy-crit)]"
-                    aria-label={`Remove ${row.name}`}
+                    aria-label={t("drawer.removeNamed", "Remove {{name}}", { name: row.name })}
                     onClick={() => setConfirming(true)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
