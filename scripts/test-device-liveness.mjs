@@ -406,7 +406,9 @@ check(
   // The card is now one verdict line for the whole fleet, not one per type
   // (console revamp); the rule is the same: "All devices up" renders only
   // under `upCount === devices.length`.
-  /upCount === devices\.length \? \(\s*<span[^>]*>\s*All devices up/.test(card) &&
+  /upCount === devices\.length \? \(\s*<span[^>]*>\s*\{t\("card\.allUp", "All devices up"\)\}/.test(
+    card,
+  ) &&
     // upCount is the strip's "ok" bucket (describeLiveness tone "up"), which
     // is stricter than status === "up": a degraded device is not counted.
     /const upCount = counts\.ok;/.test(card),

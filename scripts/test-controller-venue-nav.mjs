@@ -373,7 +373,7 @@ console.log("\ncontroller venue: the five Network screens");
 
   check(
     "omada-port-forwarding-mounts-no-form",
-    !r.text.includes("New Rule") &&
+    !r.text.includes("New rule") &&
       !/Total Rules/.test(r.text) &&
       !(await r.page.locator("form").count()),
     "the view fetches its rules and offers Add/Edit on mount; it must not mount at all",
@@ -467,10 +467,12 @@ console.log("\ncontroller venue: a screen that is NOT gated still works");
  * real screen, not the notice, is what mounted. Asserting only that the
  * controller copy is ABSENT would pass on a blank page. */
 const REAL_VIEW_CTA = {
-  "port-forwarding": "New Rule",
+  // Sentence case since the 2026-10-31 language pass moved it to i18n
+  // (network:portForwarding.newRule).
+  "port-forwarding": "New rule",
   dhcp: "New address range",
   vlans: "New zone",
-  voip: "New Rule",
+  voip: "New rule",
 };
 
 console.log("\nMikroTik venue: unchanged, screen by screen");
