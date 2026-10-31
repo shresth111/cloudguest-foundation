@@ -75,6 +75,20 @@ const MIGRATED = [
   "src/components/features/UserReports.tsx",
   "src/components/customer/FixAProblem.tsx",
   "src/components/features/OperationsFeatures.tsx",
+  // batch 3 (2026-10-31): Security -- Security Score, Blocking (+ Blocked
+  // Guests and the Websites tab's boxes), Firewall, Access Rules, Allow-list
+  "src/components/security/SecurityOverviewView.tsx",
+  "src/components/security/BlockingView.tsx",
+  "src/components/security/AppBlockBox.tsx",
+  "src/components/security/WebsiteBlockBox.tsx",
+  "src/components/security/WebFilteringView.tsx",
+  "src/components/security/FirewallView.tsx",
+  "src/components/security/FirewallDevicePicker.tsx",
+  "src/components/features/BlockUsers.tsx",
+  "src/components/features/PoliciesHub.tsx",
+  "src/components/features/LocationPolicies.tsx",
+  "src/components/features/CreateGroup.tsx",
+  "src/components/features/WhiteList.tsx",
 ];
 
 const PALETTE =

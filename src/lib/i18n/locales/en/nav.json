@@ -514,7 +514,10 @@
       "firewall_rules": "Rules deciding what can reach what",
       "rogue_dhcp_unguarded": "Network ports with no protection against a second router",
       "open_alerts": "Problems still waiting to be fixed"
-    }
+    },
+    "pageDescription": "How well this venue's protections are set up, and what you can switch on.",
+    "factorOk": "OK",
+    "factorPenalty": "−{{points}} points"
   },
   "blockGuests": {
     "deviceTab": "Device",

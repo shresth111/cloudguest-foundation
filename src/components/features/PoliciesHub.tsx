@@ -1,130 +1,11 @@
 import { useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { Shield, Layers } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { PageHeader, SubTabs, type PageScope } from "@/components/customer/console";
 import LocationPolicies from "./LocationPolicies";
 import CreateGroup from "./CreateGroup";
-
-/**
- * Header-accent illustration for the "Access Rules" page. Replaces the old
- * three-nodes-into-a-shield diagram (which read as "three tabs", not as
- * what this feature actually does) with the literal concept a venue owner
- * cares about: one guest let through, one guest stopped, a shield
- * deciding between them. Same filled-flat-shape character language and
- * dark-violet/lavender palette as this session's other illustrations
- * (AlertsIllustration, BlockedAccessIllustration, etc.), but now borrows
- * the rose/emerald pair that GuestBadges.tsx and OperationsFeatures.tsx
- * already use for "blocklist"/"whitelist" everywhere else in this exact
- * feature, so the color coding here isn't invented -- it's the same one
- * carried through to the Guest Access sub-tabs and status pills below.
- * Kept compact and inline with the header row (not a full hero band) --
- * this page's real content (three dense policy-config tabs) needs the
- * vertical space. Purely decorative -- aria-hidden. Entrance fades and the
- * "stopped" badge's pulse both respect useReducedMotion.
- */
-function PolicyShieldIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 56"
-      className="hidden h-14 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      {/* center shield -- the same access-control glyph as the header icon */}
-      <path
-        d="M42 6c6 2.6 10.5 2.6 10.5 2.6v11.5c0 8-4.5 13-10.5 15.9-6-2.9-10.5-7.9-10.5-15.9V8.6S36 8.6 42 6z"
-        fill="#2e2a5c"
-        stroke="#a78bfa"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M37 19.5l3.5 3.5 7-7"
-        stroke="#a78bfa"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-
-      {/* left: guest let through, path leading in */}
-      <motion.g
-        initial={shouldReduceMotion ? false : { x: 4, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
-        <circle cx="12" cy="27" r="4.2" fill="#241f4d" stroke="#10b981" strokeWidth="1.3" />
-        <path
-          d="M6 44c0-5 2.7-8.5 6-8.5s6 3.5 6 8.5"
-          fill="#241f4d"
-          stroke="#10b981"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-        <circle cx="19.5" cy="38" r="5.5" fill="#10b981" fillOpacity="0.16" />
-        <path
-          d="M16.8 38l1.8 1.8 3.4-3.6"
-          stroke="#10b981"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </motion.g>
-      <motion.path
-        d="M23 29h7"
-        stroke="#10b981"
-        strokeOpacity="0.6"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeDasharray="1 4"
-        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-      />
-
-      {/* right: guest stopped short of the shield */}
-      <motion.g
-        initial={shouldReduceMotion ? false : { x: -4, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-      >
-        <circle cx="72" cy="27" r="4.2" fill="#241f4d" stroke="#fb7185" strokeWidth="1.3" />
-        <path
-          d="M66 44c0-5 2.7-8.5 6-8.5s6 3.5 6 8.5"
-          fill="#241f4d"
-          stroke="#fb7185"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-        <motion.g
-          animate={
-            shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }
-          }
-          transition={
-            shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
-          }
-        >
-          <circle cx="62.5" cy="38" r="5.5" fill="#1e1b4b" stroke="#fb7185" strokeWidth="1.6" />
-          <path
-            d="M60.1 35.6l4.8 4.8M64.9 35.6l-4.8 4.8"
-            stroke="#fb7185"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-        </motion.g>
-      </motion.g>
-      <path
-        d="M53 29h8"
-        stroke="#fb7185"
-        strokeOpacity="0.5"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeDasharray="1 3"
-      />
-    </svg>
-  );
-}
 
 // Renamed from generic/technical "Location Policies"/"User Policies"/
 // "Group Policies" -- none of those said what they actually configure. Each
@@ -142,8 +23,8 @@ function PolicyShieldIllustration() {
 // tabs -- two visually near-identical pill bars stacked, so it was never
 // obvious which level a click landed in. There's no real hierarchy being
 // lost by flattening: each of these destinations is already a fully
-// self-contained page with its own icon-badge header (see BlockUsers.tsx/
-// CreateGroup.tsx's own `<h1>`), so "Guest Access" was a navigation-only
+// self-contained section with its own heading (see LocationPolicies.tsx/
+// CreateGroup.tsx's own `<h2>`), so "Guest Access" was a navigation-only
 // grouping, not a shared piece of content. That grouping is now carried by
 // adjacency and by the rose/blocked color coding the sub-tabs already used
 // (see GuestBadges.tsx / OperationsFeatures.tsx), plus a static divider on
@@ -181,103 +62,66 @@ const ACCESS_TABS = [
     i18nKey: "tabLimits",
     label: "Guest WiFi Limits",
     icon: Shield,
-    tone: "indigo" as const,
   },
   {
     id: "group",
     i18nKey: "tabTiers",
     label: "Access Tiers",
     icon: Layers,
-    tone: "indigo" as const,
   },
-];
+] as const;
 
-const TAB_ACTIVE_CLASSES: Record<(typeof ACCESS_TABS)[number]["tone"], string> = {
-  indigo: "bg-[#4f46e5]/10 text-[#4f46e5] shadow-sm",
-};
+type AccessTabId = (typeof ACCESS_TABS)[number]["id"];
 
-// Tabs with these ids get a static divider before them. Empty now: it used
-// to fence "Blocked Guests" off as its own visual group, and that tab has
-// moved (see above). Kept as a set rather than deleted so a future group
-// has the same mechanism to use.
-const DIVIDER_BEFORE = new Set<string>();
-
-export default function PoliciesHub({ locationId }: { locationId?: string } = {}) {
-  const [tab, setTab] = useState("location");
+export default function PoliciesHub({
+  locationId,
+  scope,
+}: {
+  locationId?: string;
+  /** Title + venue from the shell (OWN_PAGE_HEADER_FEATURES). */
+  scope?: PageScope;
+} = {}) {
+  const [tab, setTab] = useState<AccessTabId>("location");
   const { t } = useTranslation("accessRules", { i18n });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <Shield className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">
-              {t("nav:customerItem.policies", "Access Rules")}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {t("subtitle", "Set usage limits and access tiers for this location.")}
-            </p>
-          </div>
-        </div>
-        <PolicyShieldIllustration />
-      </div>
+    <div className="wy-console space-y-5">
+      {/* One header: the icon tile, the second title and the shield
+          illustration are gone (design review §2 issue 1). */}
+      <PageHeader
+        title={scope?.title ?? t("nav:customerItem.policies", "Access Rules")}
+        venue={scope?.venue}
+        description={t("subtitle", "Set usage limits and access tiers for this location.")}
+      />
 
-      {/* One flat row, one click away from any of the 3 real sections --
-       * no second tab level underneath it. `relative` wrapper + a
-       * right-edge fade: at narrow widths this row can still be wider than
-       * the viewport (min-w-[360px] so the three tabs never get cramped --
-       * down from 600px, which was sized for the five tabs this row used to
-       * carry and now only forced a scrollbar that had nothing to scroll
-       * to) and would silently clip "Access Tiers" at the screen edge with
-       * `overflow-x-auto`'s scrollbar being the only -- easy to miss on
-       * touch devices -- hint that there's more to swipe to. The fade is a
-       * static visual affordance (no scroll-position tracking), so it
-       * stays visible even once fully scrolled right; a small tradeoff for
-       * not needing a scroll listener for what's otherwise an edge case at
-       * the very narrowest widths. */}
-      <div className="relative">
-        <div className="overflow-x-auto">
-          <div className="inline-flex min-w-[360px] w-full items-center gap-1 rounded-lg border bg-muted/50 p-0.5 sm:w-auto">
-            {ACCESS_TABS.map((item) => {
-              const Icon = item.icon;
-              const active = tab === item.id;
-              return (
-                <div key={item.id} className="flex flex-1 items-center">
-                  {DIVIDER_BEFORE.has(item.id) && (
-                    <div aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border" />
-                  )}
-                  <button
-                    onClick={() => setTab(item.id)}
-                    aria-current={active ? "page" : undefined}
-                    className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      active
-                        ? TAB_ACTIVE_CLASSES[item.tone]
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {t(item.i18nKey, item.label)}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-background to-transparent sm:hidden"
-        />
-      </div>
+      {/* One flat tab row (no second level underneath it). SubTabs scrolls
+          sideways on its own at narrow widths, so the old min-width and the
+          hand-made edge fade are gone with the pill bar. */}
+      <SubTabs
+        idPrefix="access-rules"
+        ariaLabel={t("nav:customerItem.policies", "Access Rules")}
+        value={tab}
+        onChange={setTab}
+        options={ACCESS_TABS.map((item) => {
+          const Icon = item.icon;
+          return {
+            value: item.id,
+            label: (
+              <>
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {t(item.i18nKey, item.label)}
+              </>
+            ),
+          };
+        })}
+      />
 
-      <p className="text-sm text-muted-foreground">
+      <p className="text-[13px] text-[var(--wy-text-muted)]">
         {t("blockedMovedPrefix", "Looking for blocked guests? They are now under")}{" "}
         <Link
           to="/blocking"
           search={{ tab: "guests" }}
-          className="font-medium text-primary underline-offset-4 hover:underline"
+          className="rounded-sm font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wy-accent)]"
         >
           {t("nav:customerGroup.security", "Security")} &rarr;{" "}
           {t("nav:customerItem.blocking", "Blocking")}
@@ -285,11 +129,12 @@ export default function PoliciesHub({ locationId }: { locationId?: string } = {}
         {t("blockedMovedSuffix", ", together with blocked websites.")}
       </p>
 
-      {/* Content -- each of these already renders its own full header
-       * (icon badge + title + description), so this shell adds nothing
-       * more than the tab row above it. */}
-      {tab === "location" && <LocationPolicies locationId={locationId} />}
-      {tab === "group" && <CreateGroup locationId={locationId} />}
+      {/* Content -- each section draws its own section heading (h2) under
+          this page's one h1. */}
+      <div id="access-rules-panel" role="tabpanel" aria-labelledby={`access-rules-tab-${tab}`}>
+        {tab === "location" && <LocationPolicies locationId={locationId} />}
+        {tab === "group" && <CreateGroup locationId={locationId} />}
+      </div>
     </div>
   );
 }

@@ -718,7 +718,7 @@ console.log("\nSecurity -> Firewall is a real screen, owner-only, gated at contr
   const gatedBlock = shellSrc.split("controllerGated ?")[1] ?? "";
   check(
     "the owner shell mounts it inside the controller gate",
-    /feature === "firewall" && <FirewallView\b/.test(gatedBlock),
+    /feature === "firewall" && \(?\s*<FirewallView\b/.test(gatedBlock),
   );
   // The operator screen is untouched and still where it was.
   const operatorRoute = readFileSync(
@@ -1163,6 +1163,12 @@ console.log(
         "AdminLogsView",
       ],
       "mac-auth": ["MacAuthView", "src/components/features/OperationsFeatures.tsx", "MacAuthView"],
+      // batch 3: Security
+      security: ["SecurityOverviewView", "src/components/security/SecurityOverviewView.tsx"],
+      blocking: ["BlockingView", "src/components/security/BlockingView.tsx"],
+      firewall: ["FirewallView", "src/components/security/FirewallView.tsx"],
+      policies: ["PoliciesHub", "src/components/features/PoliciesHub.tsx"],
+      whitelist: ["WhiteList", "src/components/features/WhiteList.tsx"],
     };
     // One screen's source: the whole file, or just `export function <fn>`
     // up to the next top-level export.

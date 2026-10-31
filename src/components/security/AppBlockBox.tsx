@@ -19,10 +19,10 @@ import type { ContentFilterApp } from "@/types/contentFilter";
 
 const VIEW_STYLE: Record<AppToggleView, string> = {
   allowed: "text-muted-foreground",
-  blocked: "text-emerald-700 dark:text-emerald-400",
-  sending: "text-zinc-600 dark:text-zinc-400",
-  failed: "text-rose-700 dark:text-rose-400",
-  partial: "text-amber-700 dark:text-amber-400",
+  blocked: "text-[var(--wy-ok)]",
+  sending: "text-[var(--wy-text-muted)]",
+  failed: "text-[var(--wy-crit)]",
+  partial: "text-[var(--wy-warn)]",
 };
 
 const VIEW_LABEL: Record<AppToggleView, string> = {
@@ -92,7 +92,7 @@ export function AppBlockBox({ routerId }: { routerId: string }) {
   }
   if (apps.isError || !apps.data) {
     return (
-      <p role="alert" className="text-xs text-destructive">
+      <p role="alert" className="text-xs text-[var(--wy-crit)]">
         {requestErrorOf(apps.error)?.message ??
           t("blockApps.loadError", "Couldn't load the list of apps for this router.")}
       </p>
@@ -100,7 +100,7 @@ export function AppBlockBox({ routerId }: { routerId: string }) {
   }
 
   return (
-    <section className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
+    <section className="space-y-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4">
       <ul className="divide-y divide-border/60" aria-label={t("blockApps.listLabel", "Apps")}>
         {apps.data.items.map((app) => {
           const view = appToggleView(app);

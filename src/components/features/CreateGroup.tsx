@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { PANEL_SURFACE } from "@/components/customer/console";
 import {
   HelpCircle,
   X,
@@ -219,76 +219,6 @@ async function mirrorPairedGuestUnmap(
   );
 }
 
-/**
- * Small header-accent illustration: three user nodes wired into one shared
- * policy hub -- exactly what a "group" is on this page (a set of users
- * mapped to one shared network policy). Same filled-flat-shape character
- * language as the other illustrations shipped this session. Purely
- * decorative -- aria-hidden.
- */
-function GroupMappingIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  const users = [
-    { x: 16, y: 8, color: "#22d3ee" },
-    { x: 68, y: 6, color: "#f0abfc" },
-    { x: 68, y: 42, color: "#a78bfa" },
-  ];
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 52"
-      className="hidden h-14 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      {users.map((u, i) => (
-        <motion.line
-          key={i}
-          x1="42"
-          y1="26"
-          x2={u.x}
-          y2={u.y}
-          stroke={u.color}
-          strokeOpacity="0.5"
-          strokeWidth="1.5"
-          strokeDasharray="1 4"
-          strokeLinecap="round"
-          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.12 * i, ease: "easeOut" }}
-        />
-      ))}
-      {users.map((u, i) => (
-        <g key={i} transform={`translate(${u.x}, ${u.y})`}>
-          <circle r="7" fill="#2e2a5c" stroke={u.color} strokeWidth="1.5" />
-          <circle cy="-1.5" r="2.2" fill={u.color} />
-          <path
-            d="M-3.5 4c0-3 1.8-4.5 3.5-4.5S3.5 1 3.5 4"
-            stroke={u.color}
-            strokeWidth="1.3"
-            strokeLinecap="round"
-            fill="none"
-          />
-        </g>
-      ))}
-      <motion.circle
-        cx="42"
-        cy="26"
-        r="9"
-        fill="#1e1b4b"
-        stroke="#4f46e5"
-        strokeWidth="2"
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.1, 1], opacity: [0.85, 1, 0.85] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
-        }
-      />
-      <path d="M38 26h8M42 22v8" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 const STEPS = [
   { num: 1, label: "Create tier", icon: Plus, caption: "" },
   { num: 2, label: "Map tier", icon: Network, caption: "Not started" },
@@ -366,7 +296,7 @@ function Tooltip({ text }: { text: string }) {
         onBlur={(e) => {
           if (!ref.current?.contains(e.relatedTarget)) close();
         }}
-        className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className="inline-flex items-center justify-center rounded text-[var(--wy-text-faint)] hover:text-[var(--wy-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
       >
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
@@ -378,13 +308,13 @@ function Tooltip({ text }: { text: string }) {
           onKeyDown={(e) => {
             if (e.key === "Escape") close();
           }}
-          className="absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white shadow-lg dark:bg-white dark:text-slate-800"
+          className="absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-3 py-2 text-xs text-[var(--wy-surface)] shadow-lg"
         >
           <p>{text}</p>
           <button
             onClick={close}
             aria-label="Close"
-            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-600 text-white"
+            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--wy-offline)] text-[var(--wy-surface)]"
           >
             <X className="h-3 w-3" />
           </button>
@@ -423,10 +353,10 @@ function Select({
     <div>
       <label
         htmlFor={id}
-        className={`mb-1 flex items-center gap-1 text-sm font-medium ${disabled ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-300"}`}
+        className={`mb-1 flex items-center gap-1 text-sm font-medium ${disabled ? "text-[var(--wy-text-faint)]" : "text-[var(--wy-text-muted)]"}`}
       >
         {label}
-        {required && !disabled && <span className="text-indigo-500">*</span>}
+        {required && !disabled && <span className="text-[var(--wy-accent)]">*</span>}
         {tooltip && <Tooltip text={tooltip} />}
       </label>
       <select
@@ -434,7 +364,7 @@ function Select({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+        className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:cursor-not-allowed disabled:bg-[var(--wy-surface-2)] disabled:text-[var(--wy-text-faint)]"
       >
         {placeholder && (
           <option value="" disabled>
@@ -450,10 +380,8 @@ function Select({
       {/* Persistent caption instead of a click-to-reveal tooltip -- same
           consistency fix applied across Guest WiFi Limits and Blocked
           Guests. */}
-      {caption && !err && (
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{caption}</p>
-      )}
-      {err && <p className="mt-1 text-xs text-indigo-500">{err}</p>}
+      {caption && !err && <p className="mt-1 text-xs text-[var(--wy-text-faint)]">{caption}</p>}
+      {err && <p className="mt-1 text-xs text-[var(--wy-crit)]">{err}</p>}
     </div>
   );
 }
@@ -1952,32 +1880,26 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
   return (
     <div className="space-y-6">
       {toast && (
-        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-lg bg-slate-900 px-5 py-2.5 text-sm text-white shadow-lg dark:bg-white dark:text-slate-900">
+        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-5 py-2.5 text-sm text-[var(--wy-surface)] shadow-lg ">
           <span>{toast}</span>
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-            <Users className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">Access Tiers</h1>
-            <p className="text-sm text-muted-foreground">
-              Give a group of guests their own bandwidth and access limits, separate from the
-              location default.
-            </p>
-          </div>
-        </div>
-        <GroupMappingIllustration />
+      {/* A section heading under Access Rules' one PageHeader; the icon
+          tile and the illustration are gone (design review §2 issue 1). */}
+      <div>
+        <h2 className="text-base font-semibold text-[var(--wy-text)]">Access Tiers</h2>
+        <p className="text-[13px] text-[var(--wy-text-muted)]">
+          Give a group of guests their own bandwidth and access limits, separate from the location
+          default.
+        </p>
       </div>
 
       {/* Stepper wrapped in its own card with a plain-English summary of
           what "map" means for a non-technical owner underneath -- the
           three-icon row alone doesn't explain that "Map tier" is the step
           that actually chooses which location uses this tier's settings. */}
-      <div className="rounded-xl border bg-card p-4">
+      <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] shadow-[var(--wy-shadow)] p-4">
         <ol className="flex items-center gap-0" aria-label="Progress">
           {STEPS.map((s, i) => {
             // Step 1's "done" readout is step1Done (a group was just
@@ -1996,20 +1918,20 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               >
                 <div className="flex flex-col items-center min-w-0">
                   <div
-                    className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors ${done ? "bg-indigo-500" : s.num === 1 ? "bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]" : "bg-slate-100 dark:bg-slate-700"}`}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors ${done || s.num === 1 ? "bg-[var(--wy-accent)]" : "bg-[var(--wy-surface-2)]"}`}
                   >
                     <s.icon
-                      className={`h-4 w-4 ${done || s.num === 1 ? "text-white" : "text-slate-400 dark:text-slate-500"}`}
+                      className={`h-4 w-4 ${done || s.num === 1 ? "text-[var(--wy-accent-fg)]" : "text-[var(--wy-text-faint)]"}`}
                     />
                   </div>
                   <p
-                    className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}
+                    className={`mt-1 text-xs font-medium ${s.num === 1 || done ? "text-[var(--wy-text)]" : "text-[var(--wy-text-faint)]"}`}
                   >
                     {s.label}
                   </p>
                   {caption && (
                     <p
-                      className={`text-[10px] ${done ? "text-indigo-500" : "text-slate-400 dark:text-slate-500"}`}
+                      className={`text-[10px] ${done ? "text-[var(--wy-accent)]" : "text-[var(--wy-text-faint)]"}`}
                     >
                       {caption}
                     </p>
@@ -2017,27 +1939,27 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 </div>
                 {i < STEPS.length - 1 && (
                   <div
-                    className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-600"}`}
+                    className={`flex-1 h-px mx-2 ${(i === 0 && step1Done) || (i === 1 && step2Done) ? "bg-[var(--wy-accent)]" : "bg-[var(--wy-surface-2)]"}`}
                   />
                 )}
               </li>
             );
           })}
         </ol>
-        <p className="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">
+        <p className="mt-3 text-center text-xs text-[var(--wy-text-faint)]">
           Set a tier's limits, map it to the location(s) that should use it, then optionally assign
           specific guests to it.
         </p>
       </div>
 
-      <Card id="create-group-form" className="border-0 shadow-sm">
+      <Card id="create-group-form" className={PANEL_SURFACE}>
         <CardContent className="p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+              <h2 className="text-lg font-semibold text-[var(--wy-text)]">
                 {editingId ? "Edit Access Tier" : "Create Access Tier"}
               </h2>
-              <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
+              <p className="mt-1 text-sm text-[var(--wy-text-faint)]">
                 Members of this tier get its bandwidth, timeout, and access settings instead of the
                 location default.
               </p>
@@ -2046,7 +1968,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               <button
                 type="button"
                 onClick={resetForm}
-                className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-400 dark:hover:bg-slate-700"
+                className="shrink-0 rounded-[var(--wy-radius)] px-3 py-1.5 text-xs font-medium text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               >
                 Cancel edit
               </button>
@@ -2056,9 +1978,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           <div className="mt-5 max-w-md">
             <label
               htmlFor="g-name"
-              className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+              className="mb-1 block text-sm font-medium text-[var(--wy-text-muted)]"
             >
-              Tier Name <span className="text-indigo-500">*</span>
+              Tier Name <span className="text-[var(--wy-accent)]">*</span>
             </label>
             <input
               id="g-name"
@@ -2066,12 +1988,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               placeholder="e.g. Staff, Long-stay guests"
               value={name}
               onChange={(e) => setField("name", e.target.value)}
-              className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+              className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-3 py-2 text-sm placeholder:text-[var(--wy-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
             />
             {errs.name ? (
-              <p className="mt-1 text-xs text-indigo-500">{errs.name}</p>
+              <p className="mt-1 text-xs text-[var(--wy-crit)]">{errs.name}</p>
             ) : (
-              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+              <p className="mt-1 text-xs text-[var(--wy-text-faint)]">
                 A short, recognizable name for this tier.
               </p>
             )}
@@ -2082,11 +2004,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               data limit are all "how much" settings, grouped together
               (same grouping used on Guest WiFi Limits) instead of being
               scattered across a flat field grid. */}
-            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                Speed &amp; Devices
-              </h3>
-              <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+            <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-4">
+              <h3 className="text-sm font-semibold text-[var(--wy-text)]">Speed &amp; Devices</h3>
+              <p className="mb-4 mt-0.5 text-xs text-[var(--wy-text-faint)]">
                 How fast members connect, and how many devices each member can use.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -2130,14 +2050,16 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 onClick={() => setDlOpen((p) => !p)}
                 aria-expanded={dlOpen}
                 aria-controls="dl-panel"
-                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
+                className="mt-4 flex w-full items-center justify-between rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               >
-                <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                  <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
-                  <span className="text-xs font-normal text-slate-400">(Optional)</span>
+                <span className="flex items-center gap-2 text-sm font-medium text-[var(--wy-text)]">
+                  <Plus className="h-4 w-4 text-[var(--wy-accent)]" /> Add a data limit{" "}
+                  <span className="text-xs font-normal text-[var(--wy-text-faint)]">
+                    (Optional)
+                  </span>
                 </span>
                 <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition-transform ${dlOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 text-[var(--wy-text-faint)] transition-transform ${dlOpen ? "rotate-180" : ""}`}
                 />
               </button>
 
@@ -2146,7 +2068,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   <div>
                     <label
                       htmlFor="g-dq"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                      className="mb-1 block text-sm font-medium text-[var(--wy-text-muted)]"
                     >
                       Quota
                     </label>
@@ -2158,14 +2080,16 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       placeholder="0"
                       value={dlQuota}
                       onChange={(e) => setDlQuota(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                     />
-                    {errs.dlQuota && <p className="mt-1 text-xs text-indigo-500">{errs.dlQuota}</p>}
+                    {errs.dlQuota && (
+                      <p className="mt-1 text-xs text-[var(--wy-crit)]">{errs.dlQuota}</p>
+                    )}
                   </div>
                   <div>
                     <label
                       htmlFor="g-du"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                      className="mb-1 block text-sm font-medium text-[var(--wy-text-muted)]"
                     >
                       Unit
                     </label>
@@ -2173,7 +2097,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       id="g-du"
                       value={dlUnit}
                       onChange={(e) => setDlUnit(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                     >
                       {DATA_UNITS.map((u) => (
                         <option key={u}>{u}</option>
@@ -2183,7 +2107,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   <div>
                     <label
                       htmlFor="g-dr"
-                      className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                      className="mb-1 block text-sm font-medium text-[var(--wy-text-muted)]"
                     >
                       Resets
                     </label>
@@ -2191,7 +2115,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       id="g-dr"
                       value={dlResets}
                       onChange={(e) => setDlResets(e.target.value)}
-                      className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                      className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                     >
                       {RESETS.map((r) => (
                         <option key={r}>{r}</option>
@@ -2205,11 +2129,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             {/* Time Limits -- session/idle timeout, the daily cap, and login
               hours are all "when" settings, grouped together (parallel to
               Guest WiFi Limits' own Time Limits section). */}
-            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                Time Limits
-              </h3>
-              <p className="mb-4 mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+            <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-4">
+              <h3 className="text-sm font-semibold text-[var(--wy-text)]">Time Limits</h3>
+              <p className="mb-4 mt-0.5 text-xs text-[var(--wy-text-faint)]">
                 When a member gets disconnected or has to sign in again.
               </p>
               <div className="grid gap-4 sm:grid-cols-3">
@@ -2256,12 +2178,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             </div>
           </div>
 
-          <hr className="my-6 border-slate-100 dark:border-slate-600" />
+          <hr className="my-6 border-[var(--wy-border)]" />
           <div className="flex justify-center">
             <button
               onClick={handleCreate}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+              className="inline-flex items-center gap-2 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-8 py-2.5 text-sm font-semibold text-[var(--wy-surface)] transition-colors hover:bg-[var(--wy-text)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-border-strong)] focus:ring-offset-2 disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {saving
@@ -2276,14 +2198,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-sm">
+      <Card className={PANEL_SURFACE}>
         <CardContent className="p-6 md:p-8">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+              <h3 className="text-base font-semibold text-[var(--wy-text)]">
                 Existing Access Tiers
               </h3>
-              <p className="text-xs text-slate-400 dark:text-slate-500">
+              <p className="text-xs text-[var(--wy-text-faint)]">
                 {!showAllGroups && locationId
                   ? `Mapped to ${activeLocationName ?? "this location"} -- other tiers in the account are hidden.`
                   : "Every tier in this account, across all locations."}{" "}
@@ -2293,13 +2215,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {locationId && (
-                <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
+                <div className="flex items-center gap-0.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-0.5">
                   <button
                     onClick={() => {
                       setShowAllGroups(false);
                       setPage(0);
                     }}
-                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${!showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${!showAllGroups ? "bg-[var(--wy-text)] text-[var(--wy-surface)]" : "text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)]"}`}
                   >
                     This location
                   </button>
@@ -2308,14 +2230,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       setShowAllGroups(true);
                       setPage(0);
                     }}
-                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${showAllGroups ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${showAllGroups ? "bg-[var(--wy-text)] text-[var(--wy-surface)]" : "text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)]"}`}
                   >
                     All tiers
                   </button>
                 </div>
               )}
               <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--wy-text-faint)]" />
                 <input
                   type="text"
                   placeholder="Search…"
@@ -2324,10 +2246,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                     setSearch(e.target.value);
                     setPage(0);
                   }}
-                  className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                  className="w-44 rounded-[var(--wy-radius)] border border-[var(--wy-border)] py-1.5 pl-8 pr-3 text-sm placeholder:text-[var(--wy-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                 />
               </div>
-              <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
+              <div className="flex items-center gap-0.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-0.5">
                 {PAGE_SIZE_OPTS.map((n) => (
                   <button
                     key={n}
@@ -2335,7 +2257,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       setPageSize(n);
                       setPage(0);
                     }}
-                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-[var(--wy-text)] text-[var(--wy-surface)]" : "text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)]"}`}
                   >
                     {n}
                   </button>
@@ -2397,7 +2319,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       <TableCell>
                         {g.appliesToEveryoneHere ? (
                           <span
-                            className="text-xs text-amber-700 dark:text-amber-400"
+                            className="text-xs text-[var(--wy-warn)]"
                             title="This tier was mapped before tiers became members-only, so at this location it applies to every guest, not just the ones added to it. Unmap it and map it again to limit it to its members."
                           >
                             All guests here
@@ -2421,7 +2343,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                                 : `Mapped to: ${g.mappedLocationIds.map((id) => allLocations?.find((l) => l.id === id)?.name ?? id).join(", ")}`
                             }
                             onClick={() => openMapModal(g)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                            className="inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] px-2.5 py-1.5 text-xs font-medium text-[var(--wy-text-muted)] transition-colors hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                           >
                             <MapPin className="h-3.5 w-3.5" />
                             {g.mappedLocationIds.length === 0
@@ -2446,7 +2368,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                                   : `Use this tier's settings at ${activeLocationName ?? "this location"}.`
                               }
                               onClick={() => handleToggleMap(g)}
-                              className="inline-flex items-center gap-1 pl-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-indigo-400"
+                              className="inline-flex items-center gap-1 pl-0.5 text-[11px] font-medium text-[var(--wy-accent)] transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:opacity-50"
                             >
                               {mappingBusy.has(g.id) ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -2472,7 +2394,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                               : `Assign specific guests to ${g.name} instead of the location default.`
                           }
                           onClick={() => openUsersModal(g)}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                          className="inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] px-2.5 py-1.5 text-xs font-medium text-[var(--wy-text-muted)] transition-colors hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:opacity-50"
                         >
                           <Users className="h-3.5 w-3.5" />
                           Map users
@@ -2482,21 +2404,21 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                         <button
                           aria-label={`Edit ${g.name}`}
                           onClick={() => handleEdit(g)}
-                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                          className="inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 text-[var(--wy-text-faint)] transition-colors hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
                           aria-label={`Clone ${g.name}`}
                           onClick={() => handleClone(g)}
-                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                          className="inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 text-[var(--wy-text-faint)] transition-colors hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                         >
                           <Copy className="h-4 w-4" />
                         </button>
                         <button
                           aria-label={confirmingId === g.id ? "Confirm delete" : `Delete ${g.name}`}
                           onClick={() => handleDelete(g.id)}
-                          className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirmingId === g.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700 dark:hover:text-red-400"}`}
+                          className={`inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] ${confirmingId === g.id ? "bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]" : "text-[var(--wy-text-faint)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-crit)]"}`}
                         >
                           {confirmingId === g.id ? (
                             <span className="text-[11px] font-medium px-1">Confirm</span>
@@ -2512,7 +2434,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
             </div>
           )}
           {filtered.length > 0 && (
-            <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+            <div className="mt-4 flex items-center justify-between text-xs text-[var(--wy-text-muted)]">
               <span>
                 Showing {safePage * pageSize + 1}–
                 {Math.min((safePage + 1) * pageSize, filtered.length)} of {filtered.length}
@@ -2521,14 +2443,14 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 <button
                   disabled={safePage === 0}
                   onClick={() => setPage(safePage - 1)}
-                  className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
                   disabled={safePage >= totalPages - 1}
                   onClick={() => setPage(safePage + 1)}
-                  className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -2544,7 +2466,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           onClick={() => setUsersModalGroup(null)}
         >
           <div
-            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800"
+            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-[var(--wy-radius)] bg-[var(--wy-surface)] p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -2552,13 +2474,10 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3
-                  id="map-users-title"
-                  className="text-lg font-semibold text-slate-800 dark:text-slate-100"
-                >
+                <h3 id="map-users-title" className="text-lg font-semibold text-[var(--wy-text)]">
                   Map guests — {usersModalGroup.name}
                 </h3>
-                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                <p className="mt-0.5 text-xs text-[var(--wy-text-faint)]">
                   Guests added here get this tier's limits instead of the location's. A guest who is
                   online now gets the tier's speed within a few seconds; its timeouts and device
                   limit apply from their next sign-in.
@@ -2567,7 +2486,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               <button
                 aria-label="Close"
                 onClick={() => setUsersModalGroup(null)}
-                className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="shrink-0 rounded p-1 text-[var(--wy-text-faint)] hover:text-[var(--wy-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2582,12 +2501,12 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   if (e.key === "Enter") searchGuests();
                 }}
                 placeholder="Search by mobile or email…"
-                className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+                className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-3 py-2 text-sm placeholder:text-[var(--wy-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               />
               <button
                 onClick={searchGuests}
                 disabled={guestSearchBusy || !guestSearch.trim()}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900"
+                className="inline-flex shrink-0 items-center gap-1 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-3 py-2 text-xs font-semibold text-[var(--wy-surface)] transition-colors hover:bg-[var(--wy-text)] disabled:opacity-50"
               >
                 {guestSearchBusy ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2610,15 +2529,17 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   return (
                     <div
                       key={guest.id}
-                      className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 dark:border-slate-600"
+                      className="flex items-center justify-between rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-3 py-2"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                        <p className="truncate text-sm font-medium text-[var(--wy-text)]">
                           {guest.displayName ?? guest.identifier}
                         </p>
-                        <p className="truncate text-xs text-slate-400">{guest.identifier}</p>
+                        <p className="truncate text-xs text-[var(--wy-text-faint)]">
+                          {guest.identifier}
+                        </p>
                         {inOtherGroup && (
-                          <p className="truncate text-xs text-indigo-500">
+                          <p className="truncate text-xs text-[var(--wy-accent)]">
                             Already in {other.policyName}
                           </p>
                         )}
@@ -2628,7 +2549,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                           disabled={guestActionBusy.has(guest.id)}
                           onClick={() => switchGuestGroup(guest, other)}
                           title={`Unmap from ${other.policyName} and map into ${usersModalGroup.name} instead.`}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:hover:bg-indigo-900/20"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-[var(--wy-radius)] px-2 py-1 text-xs font-medium text-[var(--wy-accent)] transition-colors hover:bg-[var(--wy-accent-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:opacity-50"
                         >
                           {guestActionBusy.has(guest.id) ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2641,7 +2562,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                         <button
                           disabled={already || guestActionBusy.has(guest.id)}
                           onClick={() => mapGuest(guest)}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:hover:bg-indigo-900/20"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-[var(--wy-radius)] px-2 py-1 text-xs font-medium text-[var(--wy-accent)] transition-colors hover:bg-[var(--wy-accent-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:opacity-50"
                         >
                           {guestActionBusy.has(guest.id) ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2657,31 +2578,31 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               </div>
             )}
             {guestSearch.trim() && !guestSearchBusy && guestResults.length === 0 && (
-              <p className="mt-3 text-xs text-slate-400">
+              <p className="mt-3 text-xs text-[var(--wy-text-faint)]">
                 No guest found for "{guestSearch.trim()}" at this location.
               </p>
             )}
 
-            <hr className="my-4 border-slate-100 dark:border-slate-600" />
-            <h4 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-              Mapped users
-            </h4>
+            <hr className="my-4 border-[var(--wy-border)]" />
+            <h4 className="mb-2 text-sm font-semibold text-[var(--wy-text)]">Mapped users</h4>
             {guestsLoading ? (
               <LoadingSkeleton rows={2} />
             ) : mappedGuests.length === 0 ? (
-              <p className="text-xs text-slate-400">No users mapped into this tier yet.</p>
+              <p className="text-xs text-[var(--wy-text-faint)]">
+                No users mapped into this tier yet.
+              </p>
             ) : (
               <div className="space-y-1.5">
                 {mappedGuests.map((m) => (
                   <div
                     key={m.guestId}
-                    className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-700/50"
+                    className="flex items-center justify-between rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] px-3 py-2"
                   >
-                    <p className="truncate text-sm text-slate-600 dark:text-slate-300">{m.label}</p>
+                    <p className="truncate text-sm text-[var(--wy-text-muted)]">{m.label}</p>
                     <button
                       disabled={guestActionBusy.has(m.guestId)}
                       onClick={() => unmapGuest(m)}
-                      className="inline-flex shrink-0 items-center justify-center rounded p-1 text-slate-400 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                      className="inline-flex shrink-0 items-center justify-center rounded p-1 text-[var(--wy-text-faint)] hover:text-[var(--wy-crit)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:opacity-50"
                       aria-label={`Unmap ${m.label}`}
                     >
                       {guestActionBusy.has(m.guestId) ? (
@@ -2712,7 +2633,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
           onClick={closeMapModal}
         >
           <div
-            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-slate-800"
+            className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-[var(--wy-radius)] bg-[var(--wy-surface)] p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -2722,11 +2643,11 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               <div>
                 <h3
                   id="map-locations-title"
-                  className="text-lg font-semibold text-slate-800 dark:text-slate-100"
+                  className="text-lg font-semibold text-[var(--wy-text)]"
                 >
                   Map to locations — {mapModalGroup.name}
                 </h3>
-                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                <p className="mt-0.5 text-xs text-[var(--wy-text-faint)]">
                   Select every location that should use this tier's settings, then save.
                 </p>
               </div>
@@ -2734,7 +2655,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                 aria-label="Close"
                 disabled={mapModalSaving}
                 onClick={closeMapModal}
-                className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                className="shrink-0 rounded p-1 text-[var(--wy-text-faint)] hover:text-[var(--wy-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2742,13 +2663,13 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
 
             {(allLocations?.length ?? 0) > 5 && (
               <div className="relative mt-4">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--wy-text-faint)]" />
                 <input
                   type="text"
                   value={mapModalSearch}
                   onChange={(e) => setMapModalSearch(e.target.value)}
                   placeholder="Search locations…"
-                  className="block w-full rounded-md border border-slate-200 py-2 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+                  className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] py-2 pl-8 pr-3 text-sm placeholder:text-[var(--wy-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                 />
               </div>
             )}
@@ -2757,7 +2678,9 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               {mapModalLoading ? (
                 <LoadingSkeleton rows={3} />
               ) : !allLocations || allLocations.length === 0 ? (
-                <p className="text-xs text-slate-400">No locations found on this account.</p>
+                <p className="text-xs text-[var(--wy-text-faint)]">
+                  No locations found on this account.
+                </p>
               ) : (
                 <div className="max-h-64 space-y-1 overflow-y-auto">
                   {allLocations
@@ -2773,7 +2696,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                         <label
                           key={loc.id}
                           htmlFor={`map-loc-${loc.id}`}
-                          className={`flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 transition-colors ${checked ? "border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-500/10" : "border-slate-200 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700/50"}`}
+                          className={`flex cursor-pointer items-center gap-3 rounded-[var(--wy-radius)] border px-3 py-2 transition-colors ${checked ? "border-[color-mix(in_srgb,var(--wy-accent)_30%,transparent)] bg-[var(--wy-accent-soft)]" : "border-[var(--wy-border)] hover:bg-[var(--wy-surface-2)]"}`}
                         >
                           <Checkbox
                             id={`map-loc-${loc.id}`}
@@ -2782,15 +2705,15 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                             onCheckedChange={() => toggleMapModalLocation(loc.id)}
                           />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">
+                            <span className="block truncate text-sm font-medium text-[var(--wy-text)]">
                               {loc.name}
                               {loc.id === locationId && (
-                                <span className="ml-1.5 text-[10px] font-normal text-indigo-500">
+                                <span className="ml-1.5 text-[10px] font-normal text-[var(--wy-accent)]">
                                   (current)
                                 </span>
                               )}
                             </span>
-                            <span className="block truncate text-xs text-slate-400">
+                            <span className="block truncate text-xs text-[var(--wy-text-faint)]">
                               {loc.city}
                             </span>
                           </span>
@@ -2803,7 +2726,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                       loc.name.toLowerCase().includes(mapModalSearch.trim().toLowerCase()) ||
                       loc.city.toLowerCase().includes(mapModalSearch.trim().toLowerCase()),
                   ).length === 0 && (
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-[var(--wy-text-faint)]">
                       No location matches "{mapModalSearch.trim()}".
                     </p>
                   )}
@@ -2811,8 +2734,8 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
               )}
             </div>
 
-            <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-slate-600">
-              <p className="text-xs text-slate-400 dark:text-slate-500">
+            <div className="mt-5 flex items-center justify-between gap-3 border-t border-[var(--wy-border)] pt-4">
+              <p className="text-xs text-[var(--wy-text-faint)]">
                 {mapModalSelected.size} of {allLocations?.length ?? 0} selected
               </p>
               <div className="flex gap-2">
@@ -2820,7 +2743,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   type="button"
                   disabled={mapModalSaving}
                   onClick={closeMapModal}
-                  className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700"
+                  className="rounded-[var(--wy-radius)] px-3 py-1.5 text-xs font-medium text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -2828,7 +2751,7 @@ export default function CreateGroup({ locationId }: { locationId?: string } = {}
                   type="button"
                   disabled={mapModalSaving || mapModalLoading}
                   onClick={handleSaveMapModal}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-4 py-1.5 text-xs font-semibold text-[var(--wy-surface)] transition-colors hover:bg-[var(--wy-text)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-border-strong)] disabled:opacity-60"
                 >
                   {mapModalSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
                   {mapModalSaving ? "Saving…" : "Save"}
