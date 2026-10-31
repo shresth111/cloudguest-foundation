@@ -40,6 +40,8 @@ import { filterNavGroupsByPermissions } from "@/lib/customerNavPermissions";
 import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { LocationSwitcher } from "@/components/customer/LocationSwitcher";
 import { ConsoleHealthPill } from "@/components/customer/ConsoleHealth";
+import { useVenueIssues } from "@/components/customer/venueIssues";
+import { actionLabel, rowCopy } from "@/components/customer/dashboard/needsAttentionCopy";
 
 interface CustomerHeaderProps {
   /** Optional content after the breadcrumb -- a page may add a status chip.
@@ -133,6 +135,8 @@ export function CustomerHeader({
   const { t } = useTranslation("nav", { i18n });
   const theme = useTheme();
   const crumb = useCurrentNavCrumb();
+  const crumbSection = crumb ? t(`customerGroup.${crumb.groupId}`, crumb.groupLabel) : "";
+  const crumbPage = crumb ? t(`customerItem.${crumb.itemId}`, crumb.itemLabel) : "";
   // Staff Access left the sidebar for this menu (customerNav.ts's "account"
   // group, `inSidebar: false`). Offered by the exact gate the sidebar row
   // used -- owner login role, then `users.read` from the caller's real
@@ -143,6 +147,31 @@ export function CustomerHeader({
     customerNavGroupsForRole(getCustomerLoginRole()),
     permissions,
   ).some((g) => g.items.some((item) => item.id === "agents"));
+
+  // The bell lists the venue's shared issue list -- the pill's and the
+  // Needs-attention card's -- so all three show one count.
+  const { t: tna, i18n: naI18n } = useTranslation("needsAttention", { i18n });
+  const issues = useVenueIssues(locationId);
+  const attention = issues
+    ? {
+        heading: t("consoleShell.health.bellHeading", "Needs attention at this venue"),
+        includesAlerts:
+          issues.checked.includes("alerts") ||
+          issues.items.some((i) => i.kind === "criticalAlerts" || i.kind === "warningAlerts"),
+        items: issues.items.map((item) => ({
+          key: item.kind,
+          title: rowCopy(item, tna, naI18n.language || "en").title,
+          severity:
+            item.severity === "error"
+              ? ("critical" as const)
+              : item.severity === "warning"
+                ? ("warning" as const)
+                : ("info" as const),
+          href: item.actionId ? customerFeatureHref(item.actionId) : null,
+          action: item.actionId ? actionLabel(item.actionId, tna) : undefined,
+        })),
+      }
+    : undefined;
 
   const initials = `${user?.firstName?.[0] ?? "A"}${user?.lastName?.[0] ?? "U"}`;
 
@@ -164,14 +193,19 @@ export function CustomerHeader({
               <li aria-hidden>
                 <ChevronRight className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
               </li>
-              <li className="shrink-0 text-[var(--wy-text-faint)]">
-                {t(`customerGroup.${crumb.groupId}`, crumb.groupLabel)}
-              </li>
-              <li aria-hidden>
-                <ChevronRight className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
-              </li>
+              {/* Section › tab. When the tab is named like its section
+                  (Guests › Guests) the crumb says it once. Compared after
+                  translation, so it holds in every language. */}
+              {crumbSection !== crumbPage && (
+                <>
+                  <li className="shrink-0 text-[var(--wy-text-faint)]">{crumbSection}</li>
+                  <li aria-hidden>
+                    <ChevronRight className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
+                  </li>
+                </>
+              )}
               <li aria-current="page" className="truncate font-medium text-[var(--wy-text)]">
-                {t(`customerItem.${crumb.itemId}`, crumb.itemLabel)}
+                {crumbPage}
               </li>
             </ol>
           </nav>
@@ -215,7 +249,11 @@ export function CustomerHeader({
           <ThemeToggle className={ICON_BUTTON} />
         </span>
         <span className="[&_button]:h-8 [&_button]:w-8 [&_button]:rounded-[var(--wy-radius)] [&_button]:text-[var(--wy-text-muted)] [&_button:hover]:bg-[var(--wy-surface-2)] [&_button:hover]:text-[var(--wy-text)]">
-          <NotificationBell scope="org" viewAllPath={customerFeatureHref("alerts")} />
+          <NotificationBell
+            scope="org"
+            viewAllPath={customerFeatureHref("alerts")}
+            attention={attention}
+          />
         </span>
       </div>
 

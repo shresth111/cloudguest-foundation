@@ -50,7 +50,7 @@
     "acrossSessions_one": "Across {{formatted}} session",
     "acrossSessions_other": "Across {{formatted}} sessions",
     "uptime": "Uptime",
-    "allHealthy": "All systems healthy"
+    "uptimeFooter": "Main internet line, last 24 hours"
   },
   "guestsOnline": {
     "title": "Guests Online",

@@ -50,7 +50,7 @@
     "acrossSessions_one": "{{formatted}} सेशन के हिसाब से",
     "acrossSessions_other": "{{formatted}} सेशन के हिसाब से",
     "uptime": "अपटाइम",
-    "allHealthy": "सब सिस्टम ठीक हैं"
+    "uptimeFooter": "मुख्य इंटरनेट लाइन, पिछले 24 घंटे"
   },
   "guestsOnline": {
     "title": "ऑनलाइन मेहमान",

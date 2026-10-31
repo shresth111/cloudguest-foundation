@@ -122,7 +122,7 @@ export function RecentGuestsTable({
                   onOpenRow(u);
                 }
               }}
-              className="cursor-pointer border-b border-[var(--wy-border)] transition-colors duration-150 last:border-0 hover:bg-[var(--wy-surface-2)] focus-visible:bg-[var(--wy-surface-2)] focus-visible:outline-none"
+              className="cursor-pointer border-b border-[var(--wy-border)] transition-colors duration-150 last:border-0 hover:bg-[var(--wy-surface-2)] focus-visible:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--wy-accent)]"
             >
               <td className="max-w-[14rem] px-3 py-2">
                 <div className="flex items-center gap-2">

@@ -746,6 +746,16 @@ check(
     dashPage,
   ),
 );
+// The status bar that used to hold it is gone (one verdict: the top-bar
+// pill). The CTA lives in the page header, beside the range control, so it
+// stays one click away on a not-live venue.
+check(
+  "the Fix a problem CTA sits in the page header, not a status bar",
+  !dashPage.includes('data-testid="status-bar"') &&
+    /\{!isLoading && tone !== "live" && \(\s*<button[\s\S]{0,900}t\("status\.fixProblem", "Fix a problem"\)[\s\S]{0,1600}<RangeSelect value=\{range\} onChange=\{setRange\} \/>/.test(
+      dashPage,
+    ),
+);
 check(
   "the Fix a problem CTA label is translated",
   dashPage.includes('t("status.fixProblem", "Fix a problem")'),

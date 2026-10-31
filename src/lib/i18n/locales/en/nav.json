@@ -527,7 +527,37 @@
       "issues_one": "{{count}} issue",
       "issues_other": "{{count}} issues",
       "checkedAgo": "Live · checked {{ago}}",
-      "snapshot": "Last known status, from when this venue was opened. The Dashboard checks it live."
+      "snapshot": "Last known status, from when this venue was opened. The Dashboard checks it live.",
+      "routersCheckingIn": "Routers checking in",
+      "checking": "Checking…",
+      "notAllChecked": "Couldn't check everything",
+      "needAttention_one": "{{count}} needs attention",
+      "needAttention_other": "{{count}} need attention",
+      "routersHeading": "Routers · {{online}} of {{total}} checking in",
+      "routersOnlyNote": "Only your routers were checked. Open the Dashboard to also check alerts, devices and internet lines.",
+      "bellHeading": "Needs attention at this venue",
+      "short": {
+        "routerOffline": "Router offline",
+        "routersOffline": "Routers offline",
+        "someRoutersOffline_one": "{{count}} router offline",
+        "someRoutersOffline_other": "{{count}} routers offline",
+        "noRouter": "No router yet",
+        "criticalAlerts_one": "{{count}} critical alert",
+        "criticalAlerts_other": "{{count}} critical alerts",
+        "warningAlerts_one": "{{count}} warning",
+        "warningAlerts_other": "{{count}} warnings",
+        "devicesDown_one": "{{count}} device down",
+        "devicesDown_other": "{{count}} devices down",
+        "devicesUnstable_one": "{{count}} device unstable",
+        "devicesUnstable_other": "{{count}} devices unstable",
+        "ispDown": "Internet line down",
+        "ispDegraded": "Internet line degraded",
+        "failedLogins_one": "{{count}} failed sign-in",
+        "failedLogins_other": "{{count}} failed sign-ins",
+        "planExpired": "Plan expired",
+        "planPastDue": "Payment overdue",
+        "planExpiring": "Plan ending soon"
+      }
     },
     "switcher": {
       "label": "Switch venue",
@@ -555,6 +585,10 @@
       "navigate": "to move",
       "open": "to open",
       "close": "to close"
+    },
+    "language": {
+      "label": "Language",
+      "notSaved": "Language changed on this device. We couldn't save it to your account just now — we'll use it here anyway."
     }
   }
 }

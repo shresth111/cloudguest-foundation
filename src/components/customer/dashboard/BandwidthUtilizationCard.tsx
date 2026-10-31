@@ -12,7 +12,6 @@ import {
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { IspProviderIcon } from "@/components/icons/isp";
-import { BlurFade } from "@/components/magicui/blur-fade";
 import { ChartEmptyState } from "./ChartEmptyState";
 import { WAN_HEALTH_STYLE } from "./dashboard.types";
 import { useBandwidthSeries } from "./useBandwidthSeries";
@@ -211,7 +210,13 @@ export function BandwidthUtilizationCard({
           ) : !hasTraffic ? (
             <ChartEmptyState label="No bandwidth samples yet — the next health-check sweep runs within 60 seconds." />
           ) : (
-            <BlurFade inView className="h-full w-full" blur="4px" offset={4}>
+            // No BlurFade here. Its `inView` mode keeps the chart at opacity 0
+            // until an IntersectionObserver fires, so anything that does not
+            // scroll the card into view -- a full-page screenshot, print, a
+            // slow observer -- saw ~250px of white under the chips (PM review
+            // 2026-10-31). A live series also has `isAnimationActive={false}`
+            // on purpose; it should simply be there.
+            <div className="h-full w-full" data-testid="bandwidth-chart">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
                   <defs>
@@ -293,7 +298,7 @@ export function BandwidthUtilizationCard({
                   )}
                 </AreaChart>
               </ResponsiveContainer>
-            </BlurFade>
+            </div>
           )}
         </div>
         {bw.status === "ready" && capacityDownload == null && (

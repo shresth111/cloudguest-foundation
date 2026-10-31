@@ -1,19 +1,7 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import {
-  Activity,
-  AlertTriangle,
-  Clock,
-  Gauge,
-  Globe,
-  Laptop,
-  Network,
-  Router as RouterIcon,
-  Users,
-  Wifi,
-  Wrench,
-} from "lucide-react";
+import { Activity, AlertTriangle, Clock, Laptop, Network, Users, Wifi, Wrench } from "lucide-react";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import {
   CustomerCommandPalette,
@@ -38,7 +26,6 @@ import {
 } from "@/hooks/useCustomerDashboard";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import { useControllerDevices } from "@/hooks/useControllerDevices";
-import { LocationLivenessExplainer } from "@/components/customer/LocationLiveness";
 import {
   livenessTone,
   locationIsControllerManaged,
@@ -48,7 +35,7 @@ import {
 } from "@/lib/location-liveness";
 import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
 import { controllerDeviceMetricsReason } from "@/lib/router-vendors";
-import type { LocationLiveness, LivenessTone } from "@/lib/location-liveness";
+import type { LocationLiveness } from "@/lib/location-liveness";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { formatUptimePercent } from "@/lib/uptime-format";
@@ -57,9 +44,11 @@ import type { DashboardRange } from "@/lib/dashboard-range";
 import {
   ChartEmptyState,
   BandwidthUtilizationCard,
-  NeedsAttentionCard,
+  NeedsAttentionCardView,
+  useNeedsAttention,
   useWanSummary,
 } from "@/components/customer/dashboard";
+import { useVenueIssuesStore } from "@/components/customer/venueIssues";
 import { WanStatusCardView } from "@/components/customer/dashboard/WanStatusCard";
 import { DeviceStatusCardView } from "@/components/customer/dashboard/DeviceStatusCard";
 import {
@@ -111,14 +100,6 @@ const OS_COLORS = [
   "var(--wy-series-5)",
   "var(--wy-series-6)",
 ];
-
-/** Verdict line colours. Green is earned by the verdict, never default. */
-const VERDICT: Record<LivenessTone, { status: OverviewStatus; title: string }> = {
-  live: { status: "ok", title: "All core systems operational" },
-  warn: { status: "warn", title: "Some systems need attention" },
-  down: { status: "crit", title: "Your network is not reachable" },
-  neutral: { status: "unknown", title: "System status unavailable" },
-};
 
 function ChartSkeleton() {
   return (
@@ -235,6 +216,17 @@ export function CustomerDashboardPage() {
     controllerVenue && networkView === "map" ? locationId : undefined,
   );
 
+  // THE venue issue list, computed once from reads this page already makes
+  // (the WAN read above is handed in, not repeated). The Needs-attention card
+  // renders it, and it is published for the top bar's health pill and bell,
+  // so all three show the same issues and the same count. This replaced the
+  // status bar's own verdict sentence, which was a fourth, router-only answer.
+  const attention = useNeedsAttention(locationId, { wan });
+  const publishIssues = useVenueIssuesStore((st) => st.publish);
+  useEffect(() => {
+    publishIssues(locationId, attention);
+  }, [publishIssues, locationId, attention]);
+
   const s = series.data;
   // Mid-sentence form ("Unique guests, last 24 hours"); its own key because
   // Hindi has no lowercase to derive it from the menu label.
@@ -281,9 +273,7 @@ export function CustomerDashboardPage() {
     ],
   );
 
-  // Range and venue stats for the activity panel's header rail. "Currently
-  // online" is not here: it leads the health strip instead.
-  const verdict = VERDICT[isLoading ? "neutral" : tone];
+  // Range and venue stats for the activity panel's header rail.
   const kpis = [
     {
       label: t("kpi.guests", "Guests"),
@@ -337,12 +327,10 @@ export function CustomerDashboardPage() {
       icon: <Activity className="h-3.5 w-3.5" />,
       value: d?.kpis.slaUptime != null ? formatUptimePercent(d.kpis.slaUptime) : null,
       loading: isLoading,
-      footer: d ? (
-        <span className="inline-flex items-center gap-1.5">
-          <StatusDot status={verdict.status} />
-          {tone === "live" ? t("kpi.allHealthy", "All systems healthy") : liveness.label}
-        </span>
-      ) : null,
+      // What the number measures, not a verdict: the health verdict is the
+      // top bar's pill alone (it used to be repeated here as "All systems
+      // healthy", beside an open critical alert).
+      footer: d ? <span>{t("kpi.uptimeFooter", "Main internet line, last 24 hours")}</span> : null,
     },
   ];
 
@@ -384,89 +372,10 @@ export function CustomerDashboardPage() {
         />
 
         <main className="mx-auto w-full max-w-[1480px] flex-1 space-y-4 px-3 py-4 text-[var(--wy-text)] sm:px-5 lg:px-6">
-          {/* 1. System status bar -- FIRST on the page.
-           *
-           * Moved to the top at the owner's request: "All core systems
-           * operational" answers the question a venue opens this console to
-           * ask -- is my WiFi actually up right now? A status you have to
-           * scroll to is not a status, it is a footnote. The Internet
-           * Connection and Devices cards at the bottom are the evidence. */}
-          <div
-            className={cn(
-              PANEL,
-              "flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between",
-            )}
-            data-testid="status-bar"
-          >
-            <div className="flex flex-wrap items-center gap-2.5">
-              <StatusDot status={verdict.status} live={!isLoading && tone === "live"} />
-              <span className="text-sm font-semibold">
-                {/* `liveness.summary` is server copy and stays as sent. */}
-                {isLoading
-                  ? t("status.checking", "Checking systems…")
-                  : tone === "live"
-                    ? t("status.live", VERDICT.live.title)
-                    : liveness.summary || t(`status.${tone}`, VERDICT[tone].title)}
-              </span>
-              {/* A not-live verdict with no way forward leaves the owner
-                  stuck; this goes straight to Fix a Problem. Hidden when
-                  live and while still checking. */}
-              {!isLoading && tone !== "live" && (
-                <button
-                  type="button"
-                  onClick={() => handleNav("debugging")}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-2.5 py-1 text-xs font-semibold text-[var(--wy-accent-fg)] transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2"
-                >
-                  <Wrench aria-hidden className="h-3.5 w-3.5" />
-                  {t("status.fixProblem", "Fix a problem")}
-                </button>
-              )}
-            </div>
-            {d && (
-              <dl className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs">
-                {(
-                  [
-                    [
-                      "devices",
-                      <Gauge key="i" />,
-                      t("status.system", "System"),
-                      d.health.systemHealth,
-                      verdict.status,
-                    ],
-                    [
-                      "devices",
-                      <RouterIcon key="i" />,
-                      t("status.routers", "Routers"),
-                      d.health.routersOnline,
-                      verdict.status,
-                    ],
-                    // Names the active uplink; not a health measurement --
-                    // the Internet Connection card carries that.
-                    ["isp-details", <Globe key="i" />, t("status.isp", "ISP"), d.health.isp, null],
-                  ] as const
-                ).map(([target, icon, label, value, st]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => handleNav(target)}
-                    className="inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] px-2 py-1 transition-colors duration-150 hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
-                  >
-                    <span
-                      aria-hidden
-                      className="text-[var(--wy-text-faint)] [&_svg]:h-3.5 [&_svg]:w-3.5"
-                    >
-                      {icon}
-                    </span>
-                    <dt className="text-[var(--wy-text-muted)]">{label}</dt>
-                    <dd className="font-semibold tabular-nums">{value}</dd>
-                    {st && <StatusDot status={st} />}
-                  </button>
-                ))}
-              </dl>
-            )}
-          </div>
-
-          {/* 2. Page header */}
+          {/* 1. Page header. There is no status bar above it any more: the
+              venue's one health verdict is the top bar's pill, and what is
+              wrong is the Needs-attention list below (which also names the
+              silent routers -- it replaced the "Partly live" explainer). */}
           <div className="flex flex-col gap-3 border-b border-[var(--wy-border)] pb-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--wy-accent)]">
@@ -482,6 +391,19 @@ export function CustomerDashboardPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {/* A not-live venue with no way forward leaves the owner stuck:
+                  this goes straight to Fix a Problem. Hidden when live and
+                  while still checking. */}
+              {!isLoading && tone !== "live" && (
+                <button
+                  type="button"
+                  onClick={() => handleNav("debugging")}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-2.5 py-1 text-xs font-semibold text-[var(--wy-accent-fg)] transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2"
+                >
+                  <Wrench aria-hidden className="h-3.5 w-3.5" />
+                  {t("status.fixProblem", "Fix a problem")}
+                </button>
+              )}
               {d?.kpis.failedLogins != null && d.kpis.failedLogins > 0 && (
                 <button
                   type="button"
@@ -510,14 +432,11 @@ export function CustomerDashboardPage() {
             </div>
           </div>
 
-          {/* Why the venue is not live, and what to do. Nothing when it is. */}
-          {d && <LocationLivenessExplainer liveness={d.liveness} />}
-
-          {/* 3. What to do right now, one row per problem with the page that
+          {/* 2. What to do right now, one row per problem with the page that
               fixes it -- ahead of the KPIs because an owner opening this
               screen with something broken should not have to read charts
-              first. Every row is a real read; see NeedsAttentionCard. */}
-          <NeedsAttentionCard locationId={locationId} />
+              first. Every row is a real read; see useNeedsAttention. */}
+          <NeedsAttentionCardView state={attention} />
 
           {isError && !d && (
             <div className={cn(PANEL, "flex flex-col items-center gap-3 py-8 text-center")}>
@@ -804,7 +723,7 @@ export function CustomerDashboardPage() {
                         <button
                           type="button"
                           onClick={() => handleNav("alerts")}
-                          className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--wy-surface-2)] focus-visible:bg-[var(--wy-surface-2)] focus-visible:outline-none"
+                          className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--wy-surface-2)] focus-visible:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--wy-accent)]"
                         >
                           <StatusDot
                             status={st}
