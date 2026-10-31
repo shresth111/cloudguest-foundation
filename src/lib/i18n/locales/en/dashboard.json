@@ -50,9 +50,7 @@
     "acrossSessions_one": "Across {{formatted}} session",
     "acrossSessions_other": "Across {{formatted}} sessions",
     "uptime": "Uptime",
-    "allHealthy": "All systems healthy",
-    "uptimeNone": "No health checks yet",
-    "uptimeFooter": "Primary ISP, last 24 hours"
+    "allHealthy": "All systems healthy"
   },
   "guestsOnline": {
     "title": "Guests Online",
@@ -61,7 +59,8 @@
     "empty": "No guest activity {{range}}.",
     "tooltipValue_one": "{{count}} guest",
     "tooltipValue_other": "{{count}} guests",
-    "tooltipLabel": "Online"
+    "tooltipLabel": "Online",
+    "srSummary": "Guests online, {{range}}. Peak {{peak}}. Use the arrow keys to read each bucket."
   },
   "devicesByOs": {
     "title": "Devices by OS",
@@ -72,7 +71,8 @@
     "titleDaily": "Sessions by Day",
     "subtitle": "New guest sessions",
     "empty": "No sessions {{range}}.",
-    "tooltipLabel": "Sessions"
+    "tooltipLabel": "Sessions",
+    "srSummary": "New guest sessions, {{range}}: {{total}} in total. Use the arrow keys to read each bucket."
   },
   "bandwidth": {
     "title": "Bandwidth"
@@ -86,8 +86,7 @@
     "colStatus": "Status",
     "statusOnline": "online",
     "statusOffline": "offline",
-    "statusIdle": "idle",
-    "meta": "Last 24 hours · click a row to open Guests"
+    "statusIdle": "idle"
   },
   "recentAlerts": {
     "title": "Recent Alerts",
@@ -108,24 +107,6 @@
   "sectionError": {
     "title": "This section couldn't be shown",
     "body": "The rest of the page still works. Try refreshing."
-  },
-  "health": {
-    "title": "Site health",
-    "internet": "Internet",
-    "router": "Router",
-    "aps": "Access points",
-    "noIsp": "No ISP added yet",
-    "notChecked": "Not checked yet",
-    "ispsDown_one": "{{count}} ISP down",
-    "ispsDown_other": "{{count}} ISPs down",
-    "apsUnmeasured": "Managed in your vendor's app",
-    "controllerDown": "Controller not answering",
-    "noAps": "None added yet",
-    "devicesDown_one": "{{count}} down",
-    "devicesDown_other": "{{count}} down",
-    "devicesWarn": "{{count}} need a look",
-    "allUp": "All up",
-    "notMeasured": "{{count}} not measured here"
   },
   "topology": {
     "title": "Network map",
@@ -205,18 +186,15 @@
     "srDownstream": "{{up}} of {{total}} up"
   },
   "activity": {
-    "title": "Guest activity",
-    "online": "Guests online",
-    "arrivals": "New sessions",
-    "legend": "Series",
     "hint": "Click a bar to pin it",
-    "srSummary": "Guest activity, {{range}}. Peak {{peak}} guests online at {{when}}. {{sessions}} new sessions in total. Use the arrow keys to read each bucket.",
     "peak": "Peak",
     "clear": "Clear",
-    "peakLine": "Peak {{peak}} online at {{when}}",
-    "totalSessions_one": "{{formatted}} new session",
-    "totalSessions_other": "{{formatted}} new sessions"
+    "peakAt": "Peak {{value}} at {{when}}"
   },
-  "insightsHeading": "Guest insights",
-  "insightsMeta": "Last 28 days, independent of the range above"
+  "network": {
+    "heading": "Network",
+    "viewLabel": "Network view",
+    "cards": "Cards",
+    "map": "Map"
+  }
 }

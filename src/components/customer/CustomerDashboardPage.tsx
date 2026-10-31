@@ -1,7 +1,19 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertTriangle, Laptop, Network, Users, Wrench } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Clock,
+  Gauge,
+  Globe,
+  Laptop,
+  Network,
+  Router as RouterIcon,
+  Users,
+  Wifi,
+  Wrench,
+} from "lucide-react";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import {
   CustomerCommandPalette,
@@ -56,7 +68,7 @@ import {
   LoginFunnelCard,
   LocationComparisonCard,
 } from "@/components/customer/dashboard/insights";
-import { EmptyState, Panel, SegmentedControl } from "@/components/customer/console";
+import { EmptyState, Panel, SegmentedControl, StatTile } from "@/components/customer/console";
 import {
   PANEL,
   PanelLink,
@@ -68,9 +80,8 @@ import {
 } from "@/components/customer/dashboard/overview/console-ui";
 import { buildTopology } from "@/components/customer/dashboard/overview/topology-model";
 import { TopologyMap } from "@/components/customer/dashboard/overview/TopologyMap";
-import { SiteHealthStrip } from "@/components/customer/dashboard/overview/SiteHealthStrip";
 import {
-  ActivityChart,
+  SeriesChart,
   toActivityPoints,
 } from "@/components/customer/dashboard/overview/ActivityChart";
 import { RecentGuestsTable } from "@/components/customer/dashboard/overview/RecentGuestsTable";
@@ -214,10 +225,15 @@ export function CustomerDashboardPage() {
   const hardware = useMonitoredHardware(nasOnlyVenue ? "" : locationId);
   // An Omada venue's access points live in its controller, not in the
   // monitored-hardware list. Asked only at a controller venue (a MikroTik
-  // venue makes no request), and never at a NAS-only one -- same gate as
-  // the Devices page.
+  // venue makes no request), never at a NAS-only one -- same gate as the
+  // Devices page.
   const controllerVenue = locationIsControllerManaged(liveness) && !nasOnlyVenue;
-  const controller = useControllerDevices(controllerVenue ? locationId : undefined);
+  // The map sits behind a toggle; its one extra read (a controller venue's
+  // AP inventory) waits until the map is actually opened.
+  const [networkView, setNetworkView] = useState<"cards" | "map">("cards");
+  const controller = useControllerDevices(
+    controllerVenue && networkView === "map" ? locationId : undefined,
+  );
 
   const s = series.data;
   // Mid-sentence form ("Unique guests, last 24 hours"); its own key because
@@ -267,44 +283,85 @@ export function CustomerDashboardPage() {
 
   // Range and venue stats for the activity panel's header rail. "Currently
   // online" is not here: it leads the health strip instead.
+  const verdict = VERDICT[isLoading ? "neutral" : tone];
   const kpis = [
     {
       label: t("kpi.guests", "Guests"),
+      icon: <Users className="h-3.5 w-3.5" />,
       value: s ? s.guests.toLocaleString() : null,
       loading: series.isLoading,
-      footer: series.isError
-        ? t("couldNotLoad", "Couldn't load")
-        : t("kpi.guestsFooter", "Unique guests, {{range}}", { range: rangeLabel }),
+      footer: series.isError ? (
+        <span>{t("couldNotLoad", "Couldn't load")}</span>
+      ) : (
+        <span>{t("kpi.guestsFooter", "Unique guests, {{range}}", { range: rangeLabel })}</span>
+      ),
+    },
+    {
+      label: t("kpi.online", "Currently online"),
+      icon: <Wifi className="h-3.5 w-3.5" />,
+      value: d ? d.kpis.onlineUsers.toLocaleString() : null,
+      loading: isLoading,
+      live: !!d && d.kpis.onlineUsers > 0,
+      footer: s ? (
+        <span>
+          {t("kpi.onlineFooter", "Peak {{range}}: {{peak}}", {
+            range: rangeLabel,
+            peak: s.peakOnline.toLocaleString(),
+          })}
+        </span>
+      ) : isError ? (
+        <span>{t("couldNotLoad", "Couldn't load")}</span>
+      ) : null,
     },
     {
       label: t("kpi.avgSession", "Avg. session time"),
+      icon: <Clock className="h-3.5 w-3.5" />,
       value:
         s?.avgSessionMinutes != null
           ? t("kpi.avgSessionValue", "{{minutes}} min", { minutes: s.avgSessionMinutes })
           : null,
       loading: series.isLoading,
-      footer: s
-        ? s.avgSessionMinutes == null
-          ? t("kpi.noSessions", "No sessions {{range}}", { range: rangeLabel })
-          : t("kpi.acrossSessions", "Across {{formatted}} sessions", {
-              count: s.sessions,
-              formatted: s.sessions.toLocaleString(),
-            })
-        : null,
+      footer: s ? (
+        <span>
+          {s.avgSessionMinutes == null
+            ? t("kpi.noSessions", "No sessions {{range}}", { range: rangeLabel })
+            : t("kpi.acrossSessions", "Across {{formatted}} sessions", {
+                count: s.sessions,
+                formatted: s.sessions.toLocaleString(),
+              })}
+        </span>
+      ) : null,
     },
     {
       label: t("kpi.uptime", "Uptime"),
+      icon: <Activity className="h-3.5 w-3.5" />,
       value: d?.kpis.slaUptime != null ? formatUptimePercent(d.kpis.slaUptime) : null,
       loading: isLoading,
-      footer: d
-        ? d.kpis.slaUptime == null
-          ? t("kpi.uptimeNone", "No health checks yet")
-          : t("kpi.uptimeFooter", "Primary ISP, last 24 hours")
-        : null,
+      footer: d ? (
+        <span className="inline-flex items-center gap-1.5">
+          <StatusDot status={verdict.status} />
+          {tone === "live" ? t("kpi.allHealthy", "All systems healthy") : liveness.label}
+        </span>
+      ) : null,
     },
   ];
 
-  const verdict = VERDICT[isLoading ? "neutral" : tone];
+  const sectionFallback = (
+    <SectionFailed
+      title={t("sectionError.title", "This section couldn't be shown")}
+      body={t("sectionError.body", "The rest of the page still works. Try refreshing.")}
+    />
+  );
+  const chartBody = (empty: string, chart: ReactNode) =>
+    series.isLoading ? (
+      <ChartSkeleton />
+    ) : series.isError ? (
+      <SeriesError onRetry={() => series.refetch()} />
+    ) : noGuestActivity ? (
+      <ChartEmptyState label={empty} />
+    ) : (
+      chart
+    );
 
   return (
     <SidebarProvider className="wy-console bg-[var(--wy-bg)]">
@@ -327,16 +384,98 @@ export function CustomerDashboardPage() {
         />
 
         <main className="mx-auto w-full max-w-[1480px] flex-1 space-y-4 px-3 py-4 text-[var(--wy-text)] sm:px-5 lg:px-6">
-          {/* 1. Page header: what venue, and the page's ONE range control. */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          {/* 1. System status bar -- FIRST on the page.
+           *
+           * Moved to the top at the owner's request: "All core systems
+           * operational" answers the question a venue opens this console to
+           * ask -- is my WiFi actually up right now? A status you have to
+           * scroll to is not a status, it is a footnote. The Internet
+           * Connection and Devices cards at the bottom are the evidence. */}
+          <div
+            className={cn(
+              PANEL,
+              "flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between",
+            )}
+            data-testid="status-bar"
+          >
+            <div className="flex flex-wrap items-center gap-2.5">
+              <StatusDot status={verdict.status} live={!isLoading && tone === "live"} />
+              <span className="text-sm font-semibold">
+                {/* `liveness.summary` is server copy and stays as sent. */}
+                {isLoading
+                  ? t("status.checking", "Checking systems…")
+                  : tone === "live"
+                    ? t("status.live", VERDICT.live.title)
+                    : liveness.summary || t(`status.${tone}`, VERDICT[tone].title)}
+              </span>
+              {/* A not-live verdict with no way forward leaves the owner
+                  stuck; this goes straight to Fix a Problem. Hidden when
+                  live and while still checking. */}
+              {!isLoading && tone !== "live" && (
+                <button
+                  type="button"
+                  onClick={() => handleNav("debugging")}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-2.5 py-1 text-xs font-semibold text-[var(--wy-accent-fg)] transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2"
+                >
+                  <Wrench aria-hidden className="h-3.5 w-3.5" />
+                  {t("status.fixProblem", "Fix a problem")}
+                </button>
+              )}
+            </div>
+            {d && (
+              <dl className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs">
+                {(
+                  [
+                    [
+                      "devices",
+                      <Gauge key="i" />,
+                      t("status.system", "System"),
+                      d.health.systemHealth,
+                      verdict.status,
+                    ],
+                    [
+                      "devices",
+                      <RouterIcon key="i" />,
+                      t("status.routers", "Routers"),
+                      d.health.routersOnline,
+                      verdict.status,
+                    ],
+                    // Names the active uplink; not a health measurement --
+                    // the Internet Connection card carries that.
+                    ["isp-details", <Globe key="i" />, t("status.isp", "ISP"), d.health.isp, null],
+                  ] as const
+                ).map(([target, icon, label, value, st]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => handleNav(target)}
+                    className="inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] px-2 py-1 transition-colors duration-150 hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                  >
+                    <span
+                      aria-hidden
+                      className="text-[var(--wy-text-faint)] [&_svg]:h-3.5 [&_svg]:w-3.5"
+                    >
+                      {icon}
+                    </span>
+                    <dt className="text-[var(--wy-text-muted)]">{label}</dt>
+                    <dd className="font-semibold tabular-nums">{value}</dd>
+                    {st && <StatusDot status={st} />}
+                  </button>
+                ))}
+              </dl>
+            )}
+          </div>
+
+          {/* 2. Page header */}
+          <div className="flex flex-col gap-3 border-b border-[var(--wy-border)] pb-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--wy-text-faint)]">
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--wy-accent)]">
                 {t("header.eyebrow", "Location overview")}
               </p>
-              <h1 className="truncate text-xl font-semibold tracking-[-0.02em]">
-                {activeLocation?.name ?? t("header.title", "Dashboard")}
+              <h1 className="text-xl font-semibold tracking-[-0.02em]">
+                {t("header.title", "Dashboard")}
               </h1>
-              <p className="sr-only">
+              <p className="text-sm text-[var(--wy-text-muted)]">
                 {t("header.subtitle", "Here's what's happening at {{name}}.", {
                   name: activeLocation?.name ?? t("header.yourVenue", "your venue"),
                 })}
@@ -347,9 +486,9 @@ export function CustomerDashboardPage() {
                 <button
                   type="button"
                   onClick={() => handleNav("admin-logs")}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-[var(--wy-crit-soft)] px-2.5 py-1 text-[11px] font-semibold text-[var(--wy-crit)] transition-opacity duration-150 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-2.5 py-1 text-xs font-medium transition-colors duration-150 hover:bg-[var(--wy-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
                 >
-                  <AlertTriangle className="h-3 w-3" aria-hidden />
+                  <StatusDot status="crit" />
                   {t("header.failedLogins", "{{count}} failed logins today", {
                     count: d.kpis.failedLogins,
                   })}
@@ -361,9 +500,9 @@ export function CustomerDashboardPage() {
                     "header.loginCheckUnavailableHint",
                     "The failed-login check could not read this venue's login audit log.",
                   )}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-[var(--wy-warn-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--wy-warn)]"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-2.5 py-1 text-xs text-[var(--wy-text-muted)]"
                 >
-                  <AlertTriangle className="h-3 w-3" aria-hidden />
+                  <StatusDot status="warn" />
                   {t("header.loginCheckUnavailable", "Login check unavailable")}
                 </span>
               )}
@@ -371,87 +510,14 @@ export function CustomerDashboardPage() {
             </div>
           </div>
 
-          {/* 2. Site health: the verdict, then one number per layer of the
-           * network. This is the answer to "is my WiFi up right now?", so it
-           * reads first; the topology and detail cards below are the
-           * evidence. */}
-          <SectionBoundary
-            name="health"
-            fallback={
-              <SectionFailed
-                title={t("sectionError.title", "This section couldn't be shown")}
-                body={t("sectionError.body", "The rest of the page still works. Try refreshing.")}
-              />
-            }
-          >
-            <section className={PANEL} aria-label={t("health.title", "Site health")}>
-              <div className="flex flex-col gap-2 border-b border-[var(--wy-border)] px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <StatusDot status={verdict.status} live={!isLoading && tone === "live"} />
-                  <span className="text-sm font-semibold">
-                    {/* `liveness.summary` is server copy and stays as sent. */}
-                    {isLoading
-                      ? t("status.checking", "Checking systems…")
-                      : tone === "live"
-                        ? t("status.live", VERDICT.live.title)
-                        : liveness.summary || t(`status.${tone}`, VERDICT[tone].title)}
-                  </span>
-                  {/* A not-live verdict with no way forward leaves the owner
-                      stuck; this goes straight to Fix a Problem. Hidden when
-                      live and while still checking. */}
-                  {!isLoading && tone !== "live" && (
-                    <button
-                      type="button"
-                      onClick={() => handleNav("debugging")}
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-2.5 py-1 text-xs font-semibold text-[var(--wy-accent-fg)] transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2"
-                    >
-                      <Wrench aria-hidden className="h-3.5 w-3.5" />
-                      {t("status.fixProblem", "Fix a problem")}
-                    </button>
-                  )}
-                </div>
-                {d && (
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--wy-text-muted)]">
-                    <span>
-                      {t("status.system", "System")}{" "}
-                      <span className="font-semibold text-[var(--wy-text)]">
-                        {d.health.systemHealth}
-                      </span>
-                    </span>
-                    {/* Names the active uplink; not a health measurement --
-                        the Internet cell below carries that. */}
-                    <span>
-                      {t("status.isp", "ISP")}{" "}
-                      <span className="font-semibold text-[var(--wy-text)]">{d.health.isp}</span>
-                    </span>
-                  </div>
-                )}
-              </div>
-              <SiteHealthStrip
-                wan={wan}
-                liveness={liveness}
-                tone={tone}
-                livenessLoading={isLoading && !d}
-                topology={topology}
-                onlineUsers={d ? d.kpis.onlineUsers : null}
-                onlineLoading={isLoading}
-                onlineFoot={
-                  s
-                    ? t("kpi.onlineFooter", "Peak {{range}}: {{peak}}", {
-                        range: rangeLabel,
-                        peak: s.peakOnline.toLocaleString(),
-                      })
-                    : isError
-                      ? t("couldNotLoad", "Couldn't load")
-                      : null
-                }
-                onOpen={handleNav}
-              />
-            </section>
-          </SectionBoundary>
-
           {/* Why the venue is not live, and what to do. Nothing when it is. */}
           {d && <LocationLivenessExplainer liveness={d.liveness} />}
+
+          {/* 3. What to do right now, one row per problem with the page that
+              fixes it -- ahead of the KPIs because an owner opening this
+              screen with something broken should not have to read charts
+              first. Every row is a real read; see NeedsAttentionCard. */}
+          <NeedsAttentionCard locationId={locationId} />
 
           {isError && !d && (
             <div className={cn(PANEL, "flex flex-col items-center gap-3 py-8 text-center")}>
@@ -470,215 +536,198 @@ export function CustomerDashboardPage() {
             </div>
           )}
 
-          {/* 3. What to do right now, one row per problem with the page that
-              fixes it -- ahead of the map and charts, because an owner
-              opening this screen with something broken should not have to
-              read them first. Every row is a real read; see
-              NeedsAttentionCard. Full width so its rows lay out side by side
-              and it costs one short band, not a column. */}
-          <NeedsAttentionCard locationId={locationId} />
-
-          {/* 4. The venue's chain, ISP to guests, full width so device names
-              fit on their nodes. */}
-          <div>
-            <SectionBoundary
-              name="topology"
-              fallback={
-                <div>
-                  <SectionFailed
-                    title={t("sectionError.title", "This section couldn't be shown")}
-                    body={t(
-                      "sectionError.body",
-                      "The rest of the page still works. Try refreshing.",
-                    )}
-                  />
-                </div>
-              }
-            >
-              <div data-testid="topology-panel" className="min-w-0">
-                <Panel
-                  title={
-                    <PanelTitle icon={<Network />}>{t("topology.title", "Network map")}</PanelTitle>
-                  }
-                  description={
-                    topology.downstreamSource === "controller"
-                      ? t(
-                          "topology.metaController",
-                          "Access points as your controller reports them",
-                        )
-                      : t("topology.meta", "Live status · hover for details, click to open")
-                  }
-                  actions={
-                    <PanelLink onClick={() => handleNav("devices")}>
-                      {t("topology.openDevices", "Devices →")}
-                    </PanelLink>
-                  }
-                >
-                  <TopologyMap model={topology} onOpen={(target) => handleNav(target)} />
-                </Panel>
-              </div>
-            </SectionBoundary>
+          {/* 4. KPI row */}
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            {kpis.map((k) => (
+              <StatTile
+                key={k.label}
+                label={k.label}
+                leading={
+                  <span aria-hidden className="text-[var(--wy-text-faint)]">
+                    {k.icon}
+                  </span>
+                }
+                value={k.value}
+                loading={k.loading}
+                sparkline={
+                  !k.loading && k.footer ? (
+                    <p className="flex h-full items-end gap-1.5 truncate text-xs text-[var(--wy-text-muted)]">
+                      {"live" in k && k.live && <StatusDot status="ok" live />}
+                      {k.footer}
+                    </p>
+                  ) : undefined
+                }
+              />
+            ))}
           </div>
 
-          {/* 5. Guest activity for the selected range, with the range's
-              headline numbers on the panel's own rail. */}
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-            <SectionBoundary
-              name="activity"
-              fallback={
-                <div className="xl:col-span-8">
-                  <SectionFailed
-                    title={t("sectionError.title", "This section couldn't be shown")}
-                    body={t(
-                      "sectionError.body",
-                      "The rest of the page still works. Try refreshing.",
-                    )}
-                  />
+          {/* 5. Guests online · Devices by OS · Sessions by hour */}
+          <SectionBoundary name="charts" fallback={sectionFallback}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <Panel
+                className="md:col-span-2"
+                title={
+                  <PanelTitle icon={<Users />}>
+                    {t("guestsOnline.title", "Guests Online")}
+                  </PanelTitle>
+                }
+                description={
+                  byHour
+                    ? t("guestsOnline.subtitleHourly", "Guests connected each hour, {{range}}", {
+                        range: rangeLabel,
+                      })
+                    : t("guestsOnline.subtitleDaily", "Guests connected each day, {{range}}", {
+                        range: rangeLabel,
+                      })
+                }
+              >
+                <div className="h-64" data-testid="activity-panel">
+                  {chartBody(
+                    t("guestsOnline.empty", "No guest activity {{range}}.", { range: rangeLabel }),
+                    <SeriesChart
+                      testId="activity-chart"
+                      points={points}
+                      field="online"
+                      kind="area"
+                      byHour={byHour}
+                      color="var(--wy-series-1)"
+                      seriesLabel={t("guestsOnline.tooltipLabel", "Online")}
+                      summary={t("guestsOnline.srSummary", {
+                        range: rangeLabel,
+                        peak: s?.peakOnline ?? 0,
+                        defaultValue:
+                          "Guests online, {{range}}. Peak {{peak}}. Use the arrow keys to read each bucket.",
+                      })}
+                    />,
+                  )}
                 </div>
-              }
-            >
-              <div data-testid="activity-panel" className="min-w-0 xl:col-span-8">
-                <Panel
-                  flush
-                  className="h-full"
-                  title={
-                    <PanelTitle icon={<Activity />}>
-                      {t("activity.title", "Guest activity")}
-                    </PanelTitle>
-                  }
-                  description={
-                    byHour
-                      ? t("guestsOnline.subtitleHourly", "Guests connected each hour, {{range}}", {
-                          range: rangeLabel,
-                        })
-                      : t("guestsOnline.subtitleDaily", "Guests connected each day, {{range}}", {
-                          range: rangeLabel,
-                        })
-                  }
-                >
-                  <dl className="grid grid-cols-3 divide-x divide-[var(--wy-border)] border-b border-[var(--wy-border)]">
-                    {kpis.map((k) => (
-                      <div key={k.label} className="min-w-0 px-4 py-2.5">
-                        <dt className="truncate text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--wy-text-muted)]">
-                          {k.label}
-                        </dt>
-                        <dd className="mt-0.5">
-                          {k.loading ? (
-                            <span className="block h-6 w-16 animate-pulse rounded bg-[var(--wy-surface-2)]" />
-                          ) : (
-                            <span
-                              className={cn(
-                                "text-lg font-semibold tabular-nums tracking-[-0.02em]",
-                                k.value == null && "text-[var(--wy-text-faint)]",
-                              )}
-                            >
-                              {k.value ?? "—"}
-                            </span>
-                          )}
-                          <span className="block truncate text-[11px] text-[var(--wy-text-faint)]">
-                            {!k.loading && k.footer}
-                          </span>
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <div className="p-4">
-                    {series.isLoading ? (
-                      <div className="h-72">
-                        <ChartSkeleton />
-                      </div>
-                    ) : series.isError ? (
-                      <div className="h-72">
-                        <SeriesError onRetry={() => series.refetch()} />
-                      </div>
-                    ) : noGuestActivity ? (
-                      <div className="h-72">
-                        <ChartEmptyState
-                          label={t("guestsOnline.empty", "No guest activity {{range}}.", {
-                            range: rangeLabel,
-                          })}
+              </Panel>
+
+              <Panel
+                title={
+                  <PanelTitle icon={<Laptop />}>
+                    {t("devicesByOs.title", "Devices by OS")}
+                  </PanelTitle>
+                }
+                description={rangeLabel}
+              >
+                <div className="flex h-64 flex-col justify-center">
+                  {series.isLoading ? (
+                    <div className="space-y-4">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-3 animate-pulse rounded-full bg-[var(--wy-surface-2)]"
                         />
-                      </div>
-                    ) : (
-                      <ActivityChart points={points} byHour={byHour} rangeLabel={rangeLabel} />
-                    )}
-                  </div>
-                </Panel>
-              </div>
-            </SectionBoundary>
-
-            <Panel
-              className="xl:col-span-4"
-              title={
-                <PanelTitle icon={<Laptop />}>{t("devicesByOs.title", "Devices by OS")}</PanelTitle>
-              }
-              description={rangeLabel}
-            >
-              <div className="flex flex-col">
-                {series.isLoading ? (
-                  <div className="space-y-4">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="h-3 animate-pulse rounded-full bg-[var(--wy-surface-2)]"
-                      />
-                    ))}
-                  </div>
-                ) : series.isError ? (
-                  <SeriesError onRetry={() => series.refetch()} />
-                ) : !s || s.osBreakdown.length === 0 ? (
-                  <ChartEmptyState
-                    label={t("devicesByOs.empty", "No devices {{range}}.", { range: rangeLabel })}
-                  />
-                ) : (
-                  <ul className="space-y-3">
-                    {s.osBreakdown.map((o, i) => (
-                      <li key={o.name} className="group">
-                        <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                          <span className="flex min-w-0 items-center gap-1.5 font-medium">
-                            <span
-                              className="h-2 w-2 shrink-0 rounded-[2px]"
-                              style={{ background: OS_COLORS[i % OS_COLORS.length] }}
-                            />
-                            <span className="truncate">{o.name}</span>
-                          </span>
-                          <span className="tabular-nums text-[var(--wy-text-muted)]">
-                            <span className="font-semibold text-[var(--wy-text)]">
-                              {o.value.toLocaleString()}
+                      ))}
+                    </div>
+                  ) : series.isError ? (
+                    <SeriesError onRetry={() => series.refetch()} />
+                  ) : !s || s.osBreakdown.length === 0 ? (
+                    <ChartEmptyState
+                      label={t("devicesByOs.empty", "No devices {{range}}.", { range: rangeLabel })}
+                    />
+                  ) : (
+                    <ul className="space-y-3">
+                      {s.osBreakdown.map((o, i) => (
+                        <li
+                          key={o.name}
+                          title={`${o.name}: ${o.value.toLocaleString()}${osTotal ? ` (${Math.round((o.value / osTotal) * 100)}%)` : ""}`}
+                          className="rounded-[var(--wy-radius)] px-1 py-0.5 transition-colors duration-150 hover:bg-[var(--wy-surface-2)]"
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                            <span className="flex min-w-0 items-center gap-1.5 font-medium">
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-[2px]"
+                                style={{ background: OS_COLORS[i % OS_COLORS.length] }}
+                              />
+                              <span className="truncate">{o.name}</span>
                             </span>
-                            {osTotal > 0 && (
-                              <span className="ml-1.5 inline-block w-9 text-right text-[var(--wy-text-faint)]">
-                                {Math.round((o.value / osTotal) * 100)}%
+                            <span className="tabular-nums text-[var(--wy-text-muted)]">
+                              <span className="font-semibold text-[var(--wy-text)]">
+                                {o.value.toLocaleString()}
                               </span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-[var(--wy-surface-2)]">
-                          <div
-                            className="h-full rounded-full transition-[width] duration-200"
-                            style={{
-                              width: `${(o.value / osMax) * 100}%`,
-                              backgroundColor: OS_COLORS[i % OS_COLORS.length],
-                            }}
-                          />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </Panel>
-          </div>
+                              {osTotal > 0 && (
+                                <span className="ml-1.5 inline-block w-9 text-right text-[var(--wy-text-faint)]">
+                                  {Math.round((o.value / osTotal) * 100)}%
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--wy-surface-2)]">
+                            <div
+                              className="h-full rounded-full transition-[width] duration-200"
+                              style={{
+                                width: `${(o.value / osMax) * 100}%`,
+                                backgroundColor: OS_COLORS[i % OS_COLORS.length],
+                              }}
+                            />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </Panel>
 
-          {/* 6. Recent guests and recent alerts. */}
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+              <Panel
+                title={
+                  <PanelTitle icon={<Activity />}>
+                    {byHour
+                      ? t("sessions.titleHourly", "Sessions by Hour")
+                      : t("sessions.titleDaily", "Sessions by Day")}
+                  </PanelTitle>
+                }
+                description={t("sessions.subtitle", "New guest sessions")}
+              >
+                <div className="h-64">
+                  {chartBody(
+                    t("sessions.empty", "No sessions {{range}}.", { range: rangeLabel }),
+                    <SeriesChart
+                      testId="sessions-chart"
+                      points={points}
+                      field="arrivals"
+                      kind="bar"
+                      byHour={byHour}
+                      color="var(--wy-series-2)"
+                      seriesLabel={t("sessions.tooltipLabel", "Sessions")}
+                      summary={t("sessions.srSummary", {
+                        range: rangeLabel,
+                        total: s?.sessions ?? 0,
+                        defaultValue:
+                          "New guest sessions, {{range}}: {{total}} in total. Use the arrow keys to read each bucket.",
+                      })}
+                    />,
+                  )}
+                </div>
+              </Panel>
+            </div>
+          </SectionBoundary>
+
+          {/* 6. Bandwidth · 7. Recent users · Recent alerts */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-12">
+            <div className="min-w-0 lg:col-span-2 2xl:col-span-5 [&>*]:h-full">
+              {nasOnlyVenue ? (
+                <div className={cn(PANEL, "p-4")} data-testid="aruba-traffic-unsupported">
+                  <p className="text-sm font-semibold">{t("bandwidth.title", "Bandwidth")}</p>
+                  <p className="mt-2 text-xs text-[var(--wy-text-muted)]">
+                    {controllerDeviceMetricsReason("aruba_instant_on")}
+                  </p>
+                </div>
+              ) : (
+                <BandwidthUtilizationCard
+                  locationId={locationId}
+                  onManage={() => handleNav("isp-details")}
+                />
+              )}
+            </div>
+
             <Panel
               flush
-              className="overflow-hidden xl:col-span-8"
+              className="overflow-hidden 2xl:col-span-4"
               title={
                 <PanelTitle icon={<Users />}>{t("recentUsers.title", "Recent Users")}</PanelTitle>
               }
-              description={t("recentUsers.meta", "Last 24 hours · click a row to open Guests")}
               actions={
                 <PanelLink onClick={() => handleNav("users")}>
                   {t("viewAll", "View all →")}
@@ -705,13 +754,14 @@ export function CustomerDashboardPage() {
                   rows={d.recentUsers}
                   maskEmail={(e) => (masked ? maskEmail(e) : e)}
                   onOpenRow={() => handleNav("users")}
+                  limit={5}
                 />
               )}
             </Panel>
 
             <Panel
               flush
-              className="xl:col-span-4"
+              className="2xl:col-span-3"
               title={
                 <PanelTitle icon={<AlertTriangle />}>
                   {t("recentAlerts.title", "Recent Alerts")}
@@ -750,18 +800,24 @@ export function CustomerDashboardPage() {
                             ? "ok"
                             : "info";
                     return (
-                      <li key={i} className="flex items-start gap-2.5 px-4 py-2.5">
-                        <StatusDot
-                          status={st}
-                          className="mt-1"
-                          label={t(`recentAlerts.type.${a.type}`, a.type)}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-xs font-medium">{a.msg}</p>
-                        </div>
-                        <span className="shrink-0 whitespace-nowrap text-[11px] tabular-nums text-[var(--wy-text-faint)]">
-                          {a.time}
-                        </span>
+                      <li key={i}>
+                        <button
+                          type="button"
+                          onClick={() => handleNav("alerts")}
+                          className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-[var(--wy-surface-2)] focus-visible:bg-[var(--wy-surface-2)] focus-visible:outline-none"
+                        >
+                          <StatusDot
+                            status={st}
+                            className="mt-1"
+                            label={t(`recentAlerts.type.${a.type}`, a.type)}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="line-clamp-2 text-xs font-medium">{a.msg}</span>
+                            <span className="text-[11px] tabular-nums text-[var(--wy-text-faint)]">
+                              {a.time}
+                            </span>
+                          </span>
+                        </button>
                       </li>
                     );
                   })}
@@ -770,59 +826,12 @@ export function CustomerDashboardPage() {
             </Panel>
           </div>
 
-          {/* 7. The detail behind the health strip: live traffic, each ISP,
-              and the hardware list. */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-12">
-            <div className="min-w-0 lg:col-span-2 2xl:col-span-5">
-              {nasOnlyVenue ? (
-                <div className={cn(PANEL, "h-full p-4")} data-testid="aruba-traffic-unsupported">
-                  <p className="text-sm font-semibold">{t("bandwidth.title", "Bandwidth")}</p>
-                  <p className="mt-2 text-xs text-[var(--wy-text-muted)]">
-                    {controllerDeviceMetricsReason("aruba_instant_on")}
-                  </p>
-                </div>
-              ) : (
-                <BandwidthUtilizationCard
-                  locationId={locationId}
-                  onManage={() => handleNav("isp-details")}
-                />
-              )}
-            </div>
-            <div className="min-w-0 2xl:col-span-4">
-              <WanStatusCardView wan={wan} onManage={() => handleNav("isp-details")} />
-            </div>
-            <div className="min-w-0 2xl:col-span-3">
-              {nasOnlyVenue ? (
-                <ArubaInstantOnVenueCard locationId={locationId} />
-              ) : (
-                <DeviceStatusCardView
-                  devices={hardware.devices}
-                  onManage={() => handleNav("devices")}
-                />
-              )}
-            </div>
-          </div>
-
           {/* 8. Guest insights -- when guests come, who comes back, where
               sign-in drops off, and (multi-venue orgs only) how this venue
               compares. Each card reads its own fixed window (last 28 days by
               default), not the page's range picker: a weekly pattern needs
               weeks, and "today" would make the heatmap mostly empty. */}
-          <div className="flex items-baseline justify-between pt-2">
-            <h2 className="text-[13px] font-semibold">{t("insightsHeading", "Guest insights")}</h2>
-            <span className="text-xs text-[var(--wy-text-faint)]">
-              {t("insightsMeta", "Last 28 days, independent of the range above")}
-            </span>
-          </div>
-          <SectionBoundary
-            name="insights"
-            fallback={
-              <SectionFailed
-                title={t("sectionError.title", "This section couldn't be shown")}
-                body={t("sectionError.body", "The rest of the page still works. Try refreshing.")}
-              />
-            }
-          >
+          <SectionBoundary name="insights" fallback={sectionFallback}>
             <div className="grid gap-4 lg:grid-cols-2">
               <PeakHoursHeatmapCard locationId={locationId} className="lg:col-span-2" />
               <GuestMixCard locationId={locationId} />
@@ -833,6 +842,61 @@ export function CustomerDashboardPage() {
               <LocationComparisonCard />
             </div>
           </SectionBoundary>
+
+          {/* 9. Real uplink health and hardware -- the detail behind the status
+              bar's ISP and router figures at the top of this page. The
+              network map is the same rows drawn as a chain, behind a toggle
+              so it never moves the cards. */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <h2 className="text-[13px] font-semibold">{t("network.heading", "Network")}</h2>
+            <SegmentedControl
+              value={networkView}
+              onChange={setNetworkView}
+              ariaLabel={t("network.viewLabel", "Network view")}
+              options={[
+                { value: "cards", label: t("network.cards", "Cards") },
+                { value: "map", label: t("network.map", "Map") },
+              ]}
+            />
+          </div>
+          {networkView === "map" ? (
+            <SectionBoundary name="topology" fallback={sectionFallback}>
+              <div data-testid="topology-panel" className="min-w-0">
+                <Panel
+                  title={
+                    <PanelTitle icon={<Network />}>{t("topology.title", "Network map")}</PanelTitle>
+                  }
+                  description={
+                    topology.downstreamSource === "controller"
+                      ? t(
+                          "topology.metaController",
+                          "Access points as your controller reports them",
+                        )
+                      : t("topology.meta", "Live status · hover for details, click to open")
+                  }
+                  actions={
+                    <PanelLink onClick={() => handleNav("devices")}>
+                      {t("topology.openDevices", "Devices →")}
+                    </PanelLink>
+                  }
+                >
+                  <TopologyMap model={topology} onOpen={(target) => handleNav(target)} />
+                </Panel>
+              </div>
+            </SectionBoundary>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <WanStatusCardView wan={wan} onManage={() => handleNav("isp-details")} />
+              {nasOnlyVenue ? (
+                <ArubaInstantOnVenueCard locationId={locationId} />
+              ) : (
+                <DeviceStatusCardView
+                  devices={hardware.devices}
+                  onManage={() => handleNav("devices")}
+                />
+              )}
+            </div>
+          )}
         </main>
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />

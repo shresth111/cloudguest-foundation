@@ -50,9 +50,7 @@
     "acrossSessions_one": "{{formatted}} सेशन के हिसाब से",
     "acrossSessions_other": "{{formatted}} सेशन के हिसाब से",
     "uptime": "अपटाइम",
-    "allHealthy": "सब सिस्टम ठीक हैं",
-    "uptimeNone": "अभी कोई जाँच नहीं हुई",
-    "uptimeFooter": "मुख्य ISP, पिछले 24 घंटे"
+    "allHealthy": "सब सिस्टम ठीक हैं"
   },
   "guestsOnline": {
     "title": "ऑनलाइन मेहमान",
@@ -61,7 +59,8 @@
     "empty": "{{range}} में कोई मेहमान नहीं जुड़ा।",
     "tooltipValue_one": "{{count}} मेहमान",
     "tooltipValue_other": "{{count}} मेहमान",
-    "tooltipLabel": "ऑनलाइन"
+    "tooltipLabel": "ऑनलाइन",
+    "srSummary": "ऑनलाइन मेहमान, {{range}}। सबसे ज़्यादा {{peak}}। हर हिस्सा पढ़ने के लिए तीर वाली कुंजियाँ दबाएँ।"
   },
   "devicesByOs": {
     "title": "डिवाइस (OS के हिसाब से)",
@@ -72,7 +71,8 @@
     "titleDaily": "हर दिन के सेशन",
     "subtitle": "मेहमानों के नए सेशन",
     "empty": "{{range}} में कोई सेशन नहीं।",
-    "tooltipLabel": "सेशन"
+    "tooltipLabel": "सेशन",
+    "srSummary": "नए मेहमान सेशन, {{range}}: कुल {{total}}। हर हिस्सा पढ़ने के लिए तीर वाली कुंजियाँ दबाएँ।"
   },
   "bandwidth": {
     "title": "बैंडविड्थ"
@@ -86,8 +86,7 @@
     "colStatus": "स्थिति",
     "statusOnline": "ऑनलाइन",
     "statusOffline": "ऑफ़लाइन",
-    "statusIdle": "रुका हुआ",
-    "meta": "पिछले 24 घंटे · मेहमान पेज खोलने के लिए लाइन पर क्लिक करें"
+    "statusIdle": "रुका हुआ"
   },
   "recentAlerts": {
     "title": "हाल के अलर्ट",
@@ -108,24 +107,6 @@
   "sectionError": {
     "title": "यह हिस्सा नहीं दिख पाया",
     "body": "बाकी पेज ठीक चल रहा है। पेज रिफ़्रेश करके देखें।"
-  },
-  "health": {
-    "title": "साइट की हालत",
-    "internet": "इंटरनेट",
-    "router": "router",
-    "aps": "एक्सेस पॉइंट",
-    "noIsp": "अभी कोई ISP नहीं जोड़ा",
-    "notChecked": "अभी जाँच नहीं हुई",
-    "ispsDown_one": "{{count}} ISP बंद है",
-    "ispsDown_other": "{{count}} ISP बंद हैं",
-    "apsUnmeasured": "आपकी कंपनी के ऐप से चलते हैं",
-    "controllerDown": "कंट्रोलर जवाब नहीं दे रहा",
-    "noAps": "अभी कोई नहीं जोड़ा",
-    "devicesDown_one": "{{count}} बंद",
-    "devicesDown_other": "{{count}} बंद",
-    "devicesWarn": "{{count}} को देखना है",
-    "allUp": "सब चालू",
-    "notMeasured": "{{count}} की जाँच यहाँ नहीं होती"
   },
   "topology": {
     "title": "नेटवर्क नक्शा",
@@ -205,18 +186,15 @@
     "srDownstream": "{{total}} में से {{up}} चालू"
   },
   "activity": {
-    "title": "मेहमानों की गतिविधि",
-    "online": "ऑनलाइन मेहमान",
-    "arrivals": "नए सेशन",
-    "legend": "सीरीज़",
     "hint": "किसी बार पर क्लिक करके उसे रोकें",
-    "srSummary": "मेहमानों की गतिविधि, {{range}}। सबसे ज़्यादा {{peak}} मेहमान {{when}} पर ऑनलाइन थे। कुल {{sessions}} नए सेशन। हर हिस्सा पढ़ने के लिए तीर वाली कुंजियाँ दबाएँ।",
     "peak": "सबसे ज़्यादा",
     "clear": "हटाएँ",
-    "peakLine": "सबसे ज़्यादा {{peak}} ऑनलाइन, {{when}} पर",
-    "totalSessions_one": "{{formatted}} नया सेशन",
-    "totalSessions_other": "{{formatted}} नए सेशन"
+    "peakAt": "सबसे ज़्यादा {{value}}, {{when}} पर"
   },
-  "insightsHeading": "मेहमानों की जानकारी",
-  "insightsMeta": "पिछले 28 दिन, ऊपर की समय सीमा से अलग"
+  "network": {
+    "heading": "नेटवर्क",
+    "viewLabel": "नेटवर्क व्यू",
+    "cards": "कार्ड",
+    "map": "नक्शा"
+  }
 }
