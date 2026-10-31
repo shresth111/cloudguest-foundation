@@ -24,6 +24,7 @@ import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { STATUS_TEXT, STATUS_VAR, StatusDot, type OverviewStatus } from "./console-ui";
 import type { TopoFact, TopoKind, TopoNode, TopologyModel } from "./topology-model";
+import { formatRelative } from "@/lib/format";
 
 const NODE_W = 236;
 const NODE_H = 46;
@@ -57,16 +58,11 @@ const KIND_ICON: Record<TopoKind, typeof Globe> = {
   more: MoreHorizontal,
 };
 
+/** "2 min ago" / "2 मिनट पहले" -- the console's shared formatter. An
+ * unparseable value is shown as-is rather than as a dash. */
 export function relativeTime(iso: string, lang: string, now = Date.now()): string {
-  const ms = new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return iso;
-  const sec = Math.round((ms - now) / 1000);
-  const abs = Math.abs(sec);
-  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
-  if (abs < 60) return rtf.format(sec, "second");
-  if (abs < 3600) return rtf.format(Math.round(sec / 60), "minute");
-  if (abs < 86400) return rtf.format(Math.round(sec / 3600), "hour");
-  return rtf.format(Math.round(sec / 86400), "day");
+  if (!Number.isFinite(new Date(iso).getTime())) return iso;
+  return formatRelative(iso, lang, { now, style: "short" });
 }
 
 function useWidth<T extends HTMLElement>() {
@@ -408,7 +404,11 @@ export function TopologyMap({
           </span>
         </div>
         {c.statusText && c.statusText.toLowerCase() !== statusWord(c.status).toLowerCase() && (
-          <p className="mt-0.5 text-[11px] text-[var(--wy-text-muted)]">{c.statusText}</p>
+          <p className="mt-0.5 text-[11px] text-[var(--wy-text-muted)]">
+            {c.statusText === "Not measured"
+              ? t("topology.notMeasured", "Not measured")
+              : c.statusText}
+          </p>
         )}
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
           {c.facts.map((f) => (

@@ -15,13 +15,61 @@ import type {
   AttentionSeverity,
 } from "@/components/customer/dashboard/needsAttentionModel";
 import { customerFeatureHref } from "@/lib/customerNav";
-import { formatAgo, lastContactLabel, livenessTone } from "@/lib/location-liveness";
+import { stateIsControllerManaged, livenessTone } from "@/lib/location-liveness";
+import { formatRelative } from "@/lib/format";
 import type { LocationLiveness, RouterLiveness } from "@/lib/location-liveness";
 
 function routerStatus(r: RouterLiveness): ConsoleStatus {
   if (r.status === "pass") return "ok";
   if (r.status === "unknown") return "offline";
   return r.state === "heartbeat-late" ? "warn" : "crit";
+}
+
+/** The router's short badge word. `@/lib/location-liveness` writes it in
+ * English for every console; the customer shell looks it up by its English
+ * text, so an unknown future label still renders (in English) rather than a
+ * raw key. */
+const ROUTER_LABEL_KEY: Record<string, string> = {
+  Online: "online",
+  "Gone quiet": "goneQuiet",
+  "Can't confirm": "cantConfirm",
+  "Never checked in": "neverCheckedIn",
+  "Waiting for setup": "waitingForSetup",
+  "Setup not started": "setupNotStarted",
+  Suspended: "suspended",
+  Retired: "retired",
+  "Controller down": "controllerDown",
+  "Managed by controller": "managedByController",
+};
+function routerLabel(r: RouterLiveness, t: TFunction): string {
+  const k = ROUTER_LABEL_KEY[r.shortLabel];
+  return k ? t(`consoleShell.health.router.${k}`, r.shortLabel) : r.shortLabel;
+}
+
+/** `lastContactLabel` from `@/lib/location-liveness`, in the dashboard
+ * language, with the shared relative-time formatter. */
+function lastContact(r: RouterLiveness, t: TFunction, lang: string, now: Date): string {
+  if (stateIsControllerManaged(r.state))
+    return t("consoleShell.health.contact.notMeasured", "Not measured here");
+  if (r.lastContactKind === "none")
+    return t("consoleShell.health.contact.never", "Never heard from this router");
+  if (!r.lastContactIso || !Number.isFinite(new Date(r.lastContactIso).getTime()))
+    return t("consoleShell.health.contact.unknown", "Last contact time unknown");
+  const ago = formatRelative(r.lastContactIso, lang, { now: now.getTime() });
+  switch (r.lastContactKind) {
+    case "heartbeat":
+      return t("consoleShell.health.contact.heartbeat", {
+        ago,
+        defaultValue: "Last check-in {{ago}}",
+      });
+    case "enrolment":
+      return t("consoleShell.health.contact.enrolment", {
+        ago,
+        defaultValue: "Setup started {{ago}} — no check-in since",
+      });
+    default:
+      return t("consoleShell.health.contact.other", { ago, defaultValue: "Last contact {{ago}}" });
+  }
 }
 
 /** Re-render once a minute so "checked 2 min ago" does not freeze. */
@@ -163,7 +211,7 @@ export function ConsoleHealthPill({ locationId }: { locationId: string }) {
   const checked =
     issues.checkedAt != null
       ? t("consoleShell.health.checkedAgo", {
-          ago: formatAgo(new Date(issues.checkedAt).toISOString(), now) ?? "",
+          ago: formatRelative(issues.checkedAt, lang, { now: now.getTime() }),
           defaultValue: "Live · checked {{ago}}",
         })
       : t(
@@ -265,16 +313,16 @@ export function ConsoleHealthPill({ locationId }: { locationId: string }) {
                   const rs = routerStatus(r);
                   return (
                     <li key={r.key} className="flex gap-2.5 px-4 py-2">
-                      <StatusDot status={rs} label={r.shortLabel} className="mt-1.5" />
+                      <StatusDot status={rs} label={routerLabel(r, t)} className="mt-1.5" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
                           <span className="truncate text-[13px] font-medium">{r.label}</span>
                           <span className="shrink-0 text-[11px] font-medium text-[var(--wy-text-muted)]">
-                            {r.shortLabel}
+                            {routerLabel(r, t)}
                           </span>
                         </div>
                         <p className="text-[11px] text-[var(--wy-text-faint)]">
-                          {lastContactLabel(r, now)}
+                          {lastContact(r, t, lang, now)}
                         </p>
                         {r.nextStep && r.status !== "pass" && (
                           <p className="mt-1 text-xs leading-relaxed text-[var(--wy-text-muted)]">

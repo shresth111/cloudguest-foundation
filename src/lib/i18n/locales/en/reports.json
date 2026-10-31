@@ -1,0 +1,203 @@
+{
+  "type": {
+    "user-data": {
+      "label": "Guest Data Usage By Date Range",
+      "desc": "How much data each user pulled over a chosen period."
+    },
+    "user-sessions": {
+      "label": "Guest Dwell Time By Date Range",
+      "desc": "Every login session with start, end and duration."
+    },
+    "user-presence": {
+      "label": "Hourly Guest Traffic (Single-Day Snapshot)",
+      "desc": "Hour-by-hour presence for a single day."
+    },
+    "top-users": {
+      "label": "Heaviest Data Users (This Month)",
+      "desc": "The heaviest data users this month."
+    },
+    "daywise-data": {
+      "label": "Daily Guest Data Trend",
+      "desc": "Daily data totals across the period."
+    },
+    "daywise-unique": {
+      "label": "Daily Guest & Device Footfall",
+      "desc": "Distinct users and devices seen each day."
+    },
+    "team-report": {
+      "label": "Team Usage Breakdown",
+      "desc": "Usage rolled up by group or team."
+    },
+    "voucher-usage": {
+      "label": "Voucher Redemption Log By Date Range",
+      "desc": "Every voucher redeemed, by whom and when."
+    },
+    "voucher-batch": {
+      "label": "Voucher Batch Redemption Rate",
+      "desc": "Redemption rate for each generated batch."
+    },
+    "top-vouchers": {
+      "label": "Most Redeemed Vouchers (This Month)",
+      "desc": "The most-used vouchers this month."
+    },
+    "campaign-performance": {
+      "label": "Campaign Engagement By Type",
+      "desc": "Impressions, survey responses, skips and clicks per campaign."
+    },
+    "campaign-daywise": {
+      "label": "Daily Campaign Engagement Trend",
+      "desc": "Daily send/deliver/open totals across the period."
+    },
+    "top-campaigns": {
+      "label": "Top Campaigns By Impressions",
+      "desc": "Best-performing campaigns by impressions and click rate."
+    },
+    "data-consumption": {
+      "label": "Bandwidth Usage & Cost By Date Range",
+      "desc": "Upload/download totals and peak throughput per day."
+    },
+    "data-by-location": {
+      "label": "Bandwidth Usage By Location",
+      "desc": "Total and average data usage broken down by location."
+    },
+    "otp-delivery": {
+      "label": "OTP Requests & Verification By Date Range",
+      "desc": "Every OTP request, its channel and whether it was verified."
+    },
+    "sms-daywise": {
+      "label": "Daily SMS OTP Consumption By Location",
+      "desc": "Actual SMS OTP requests per location, grouped by each location's local day."
+    },
+    "guest-session-log": {
+      "label": "Guest Session Log",
+      "desc": "Every guest connection: identity, device, IP, auth method, duration and data used."
+    },
+    "login-access-log": {
+      "label": "Login/Access Attempt Log",
+      "desc": "Every login attempt — success or failure — with identifier, IP and reason."
+    }
+  },
+  "col": {
+    "name": "Name",
+    "mobileNumber": "Mobile Number",
+    "email": "Email",
+    "devices": "Devices",
+    "dataUsed": "Data Used",
+    "lastSeen": "Last Seen",
+    "device": "Device",
+    "sessionStart": "Session Start",
+    "sessionEnd": "Session End",
+    "duration": "Duration",
+    "firstSeen": "First Seen",
+    "totalPresence": "Total Presence",
+    "sessions": "Sessions",
+    "rank": "Rank",
+    "date": "Date",
+    "totalData": "Total Data",
+    "guests": "Guests",
+    "avgPerGuest": "Avg Per Guest",
+    "uniqueUsers": "Unique Users",
+    "uniqueDevices": "Unique Devices",
+    "newUsers": "New Users",
+    "team": "Team",
+    "members": "Members",
+    "avgPerMember": "Avg Per Member",
+    "voucherCode": "Voucher Code",
+    "batch": "Batch",
+    "value": "Value",
+    "redeemedBy": "Redeemed By",
+    "redeemedAt": "Redeemed At",
+    "generated": "Generated",
+    "redeemed": "Redeemed",
+    "expired": "Expired",
+    "redemptionRate": "Redemption Rate",
+    "campaign": "Campaign",
+    "type": "Type",
+    "impressions": "Impressions",
+    "responses": "Responses",
+    "skipped": "Skipped",
+    "clicked": "Clicked",
+    "ctr": "CTR",
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "opened": "Opened",
+    "upload": "Upload",
+    "download": "Download",
+    "total": "Total",
+    "peakThroughput": "Peak Throughput",
+    "estCost": "Est. Cost",
+    "businessUnit": "Business Unit",
+    "avgPerSession": "Avg Per Session",
+    "peakHour": "Peak Hour",
+    "identifier": "Identifier",
+    "channel": "Channel",
+    "requestedAt": "Requested At",
+    "verified": "Verified",
+    "location": "Location",
+    "smsOtpRequests": "SMS OTP Requests",
+    "privateIp": "Private IP",
+    "venuePublicIp": "Venue public IP",
+    "deviceMac": "Device MAC",
+    "authMethod": "Auth Method",
+    "uploaded": "Uploaded",
+    "downloaded": "Downloaded",
+    "disconnectReason": "Disconnect Reason",
+    "ipAddress": "IP Address",
+    "status": "Status",
+    "failureReason": "Failure Reason",
+    "attemptedAt": "Attempted At"
+  },
+  "category": {
+    "guestActivityReport": "Guest Activity Report",
+    "voucherRedemptionReport": "Voucher Redemption Report",
+    "campaignEngagementReport": "Campaign Engagement Report",
+    "bandwidthCostReport": "Bandwidth & Cost Report",
+    "otpSmsDeliveryReport": "OTP & SMS Delivery Report"
+  },
+  "r": {
+    "chooseBusinessUnit": "Choose business unit",
+    "chooseReportType": "Choose report type",
+    "filterReports": "Filter reports…",
+    "noReportMatchesThat": "No report matches that.",
+    "chooseTeam": "Choose team",
+    "team": "Team",
+    "loadingThisVenueSTeams": "Loading this venue's teams…",
+    "chooseCampaignType": "Choose campaign type",
+    "optional": "(optional, ₹)",
+    "quick": "Quick:",
+    "thisMonth": "This month",
+    "thisReportAlwaysCoversThe": "This report always covers the current month.",
+    "engagementCountsAreLifetimeTotals": "Engagement counts are lifetime totals per campaign (impressions, responses, skips and clicks recorded to date), not limited to a date range.",
+    "running": "Running…",
+    "search": "Search",
+    "noReportRunYet": "No report run yet",
+    "chooseAReportTypeAnd": "Choose a report type and press Search to see results.",
+    "notAvailableYet": "Not available yet",
+    "noDataForThisReport": "No data for this report",
+    "tryAWiderDateRange": "Try a wider date range or a different location.",
+    "to": "{{from}} to {{to}}",
+    "currentMonth": "Current month",
+    "privateIpVenuePublicIp": "Private IP, venue public IP, phone, MAC…",
+    "identifierOrIp": "Identifier or IP…",
+    "filter": "Filter…",
+    "filterRows": "Filter rows",
+    "deviceEvents": "Device events",
+    "sessionStarted": "Session started {{sessionStart}}",
+    "whatTheVenueSRouter": "What the venue's router logged about this session's device.",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "reports": "Reports",
+    "runAndExportUsageVoucher": "Run and export usage, voucher, campaign, data, and SMS reports.",
+    "reportType": "Report type",
+    "businessUnit": "Location",
+    "campaignType": "Campaign type",
+    "ratePerGb": "Rate per GB",
+    "date": "Date",
+    "from": "From",
+    "toLabel": "To",
+    "print": "Print",
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "rows_one": "{{count}} row",
+    "rows_other": "{{count}} rows"
+  }
+}

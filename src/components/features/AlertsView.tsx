@@ -22,17 +22,17 @@ import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { demoAllAlerts } from "@/lib/demo-world";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
-
-function timeAgo(d: string): string {
-  const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-  return m < 1 ? "Just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)}h ago`;
-}
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
+import { useFormat } from "@/lib/useFormat";
 
 interface AlertRow {
   sev: string;
   title: string;
-  src: string;
-  t: string;
+  /** `null`: a system alert with no router -- rendered as the translated "System". */
+  src: string | null;
+  /** When it fired, as an instant; formatted relative at render, in the active language. */
+  at: number;
   status: string;
 }
 
@@ -40,13 +40,12 @@ interface AlertRow {
  * demo world (`@/lib/demo-world`) -- the same alerts the dashboard's Needs
  * attention counts and the venue screens show. */
 function demoAlertRows(): AlertRow[] {
-  const ago = (m: number) =>
-    m < 60 ? `${Math.max(1, m)} min ago` : `${Math.round(m / 60)} hour${m < 90 ? "" : "s"} ago`;
+  const now = Date.now();
   return demoAllAlerts().map((a) => ({
     sev: a.severity === "critical" ? "error" : "warning",
     title: a.title,
     src: `${a.source} · ${a.venueName}`,
-    t: ago(a.minutesAgo),
+    at: now - Math.max(1, a.minutesAgo) * 60_000,
     status: "open",
   }));
 }
@@ -69,6 +68,8 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
   // real "Hydration failed" (#418), not just a cosmetic flash. The demo
   // seed (or the real fetch) is applied from the effect below instead,
   // strictly post-mount.
+  const { t } = useTranslation("alerts", { i18n });
+  const fmt = useFormat();
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -103,8 +104,8 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
             // (monitoring/service.py's get_router_names_for_alerts), never a
             // raw ID left for a customer to see.
             title: a.message,
-            src: a.router_name ?? "System",
-            t: timeAgo(a.triggered_at),
+            src: a.router_name,
+            at: new Date(a.triggered_at).getTime(),
             status: a.status,
           })),
         );
@@ -140,32 +141,39 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
        * wired to an unverified endpoint. Under the customer shell this is
        * the page's only header: the shell passes the tab name and venue. */}
       <PageHeader
-        title={scope?.title ?? "Alerts"}
+        title={scope?.title ?? t("title", "Alerts")}
         venue={scope?.venue}
-        description="Live operational alerts across routers, ISPs and the captive portal."
+        description={t(
+          "description",
+          "Problems we've spotted with your routers, internet lines and WiFi login page, as they happen.",
+        )}
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
-          label="Open"
-          value={String(active)}
+          label={t("tiles.open", "Open")}
+          value={fmt.integer(active)}
           loading={loading}
-          leading={<StatusDot status="crit" label="Open" size="sm" />}
+          leading={<StatusDot status="crit" label={t("tiles.open", "Open")} size="sm" />}
         />
         <StatTile
-          label="Warnings"
-          value={String(warnings)}
+          label={t("tiles.warnings", "Warnings")}
+          value={fmt.integer(warnings)}
           loading={loading}
-          leading={<StatusDot status="warn" label="Warnings" size="sm" />}
+          leading={<StatusDot status="warn" label={t("tiles.warnings", "Warnings")} size="sm" />}
         />
         <StatTile
-          label="Resolved"
-          value={String(resolved)}
+          label={t("tiles.resolved", "Resolved")}
+          value={fmt.integer(resolved)}
           loading={loading}
-          leading={<StatusDot status="ok" label="Resolved" size="sm" />}
+          leading={<StatusDot status="ok" label={t("tiles.resolved", "Resolved")} size="sm" />}
         />
-        <StatTile label="Total" value={String(alerts.length)} loading={loading} />
+        <StatTile
+          label={t("tiles.total", "Total")}
+          value={fmt.integer(alerts.length)}
+          loading={loading}
+        />
       </div>
-      <Panel flush title="Recent alerts">
+      <Panel flush title={t("recent", "Recent alerts")}>
         {loading ? (
           <div className="px-4 py-4">
             <LoadingSkeleton rows={4} />
@@ -173,8 +181,11 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
         ) : alerts.length === 0 ? (
           <ConsoleEmptyState
             icon={Bell}
-            title="All clear"
-            description="No issues right now. We'll flag anything across your routers, ISPs, or captive portal here the moment it happens."
+            title={t("empty.title", "All clear")}
+            description={t(
+              "empty.body",
+              "Nothing needs you right now. If a router, internet line or the WiFi login page has a problem, it shows up here straight away.",
+            )}
           />
         ) : (
           <ul className="divide-y divide-[var(--wy-border)]">
@@ -188,13 +199,17 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium text-[var(--wy-text)]">{a.title}</p>
-                    <p className="text-xs text-[var(--wy-text-muted)]">{a.src}</p>
+                    <p className="text-xs text-[var(--wy-text-muted)]">
+                      {a.src ?? t("system", "System")}
+                    </p>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <StatusBadge status={statusTone(a.status)} className="capitalize">
-                      {a.status}
+                    <StatusBadge status={statusTone(a.status)}>
+                      {t(`status.${a.status}`, a.status)}
                     </StatusBadge>
-                    <span className="text-xs tabular-nums text-[var(--wy-text-faint)]">{a.t}</span>
+                    <span className="text-xs tabular-nums text-[var(--wy-text-faint)]">
+                      {fmt.relative(a.at, { style: "short" })}
+                    </span>
                   </div>
                 </li>
               );

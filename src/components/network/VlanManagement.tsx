@@ -1,3 +1,5 @@
+import i18n from "@/lib/i18n";
+import { Trans, useTranslation } from "react-i18next";
 import { useId, useState } from "react";
 import { Plus } from "lucide-react";
 import { z } from "zod";
@@ -83,9 +85,9 @@ const PAGE_SIZE = 25;
  * onto `interface`. */
 const vlanSchema = z
   .object({
-    routerId: z.string().min(1, "Select a router"),
+    routerId: z.string().min(1, "common.selectRouter"),
     vlanId: z.coerce.number().int().min(1, "1-4094").max(4094, "1-4094"),
-    name: z.string().trim().min(2, "Required").max(48),
+    name: z.string().trim().min(2, "common.required").max(48),
     gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
     cidr: z.string().trim().optional().or(z.literal("")),
     portMode: z.enum(["trunk", "access"]),
@@ -101,14 +103,14 @@ const vlanSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["trunkInterface"],
-        message: "Pick the interface this zone runs on — the router can't create it without one",
+        message: "vlan.errTrunk",
       });
     }
     if (v.portMode === "access" && !v.accessPort) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["accessPort"],
-        message: "Pick the port to hand over to this zone",
+        message: "vlan.errAccess",
       });
     }
   });
@@ -131,11 +133,12 @@ const BLANK_VLAN_FORM: VlanFormValues = {
   isEnabled: true,
 };
 
+/** i18n keys (network namespace), rendered through `t`. */
 const DEVICE_PUSH_LABEL: Record<VlanDevicePushStatus, string> = {
-  active: "Applied",
-  provisioning: "Applying…",
-  pending: "Not yet applied",
-  failed: "Couldn't apply",
+  active: "common.push.applied",
+  provisioning: "common.push.applying",
+  pending: "common.push.pending",
+  failed: "common.push.failed",
 };
 
 /** The name this VLAN ends up carrying on the router.
@@ -181,12 +184,13 @@ function interfacesForMode(interfaces: VlanDeviceInterface[], mode: VlanPortMode
  * operator more than any summary of it would.
  */
 function DevicePushBadge({ vlan }: { vlan: Vlan }) {
+  const { t } = useTranslation("network", { i18n });
   return (
     <PushStatusBadge
       status={vlan.devicePushStatus}
-      label={DEVICE_PUSH_LABEL[vlan.devicePushStatus]}
+      label={t(DEVICE_PUSH_LABEL[vlan.devicePushStatus])}
       error={vlan.devicePushError}
-      errorPrefix="Couldn't apply this VLAN to your router:"
+      errorPrefix={t("vlan.couldnTApplyThisVlan")}
     />
   );
 }
@@ -199,6 +203,7 @@ export function VlanManagement({
   /** Title + venue from the customer shell, which then draws no header of its own. */
   scope?: PageScope;
 } = {}) {
+  const { t } = useTranslation("network", { i18n });
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -224,11 +229,11 @@ export function VlanManagement({
    * this catch is reachable. */
   function handlePush(vlan: Vlan) {
     push.mutate(vlan.id, {
-      onSuccess: () => toast.success(`VLAN ${vlan.vlanId} applied to the router`),
+      onSuccess: () => toast.success(t("vlan.vlanAppliedToTheRouter", { vlanId: vlan.vlanId })),
       onError: (err) =>
         toast.error(
           (err as unknown as AppError)?.message ||
-            `Couldn't apply VLAN ${vlan.vlanId} to the router`,
+            t("vlan.couldnTApplyVlanTo", { vlanId: vlan.vlanId }),
         ),
     });
   }
@@ -282,7 +287,7 @@ export function VlanManagement({
   const columns: DataTableColumn<Vlan>[] = [
     {
       id: "name",
-      header: plain ? "Zone" : "VLAN",
+      header: plain ? t("vlan.zone") : "VLAN",
       mobile: "title",
       cell: (v) => (
         <div className="flex items-center gap-2.5">
@@ -293,22 +298,22 @@ export function VlanManagement({
         </div>
       ),
     },
-    { id: "router", header: "Router", cell: (v) => routerName(v.routerId) },
+    { id: "router", header: t("dhcp.router"), cell: (v) => routerName(v.routerId) },
     {
       id: "location",
-      header: "Location",
+      header: t("vlan.location"),
       className: "text-[var(--wy-text-muted)]",
       cell: (v) => locationName(v.locationId),
     },
     {
       id: "network",
-      header: "Network",
+      header: t("vlan.network"),
       mono: true,
       cell: (v) => `${v.gatewayIpAddress ?? "—"}${v.cidr ? ` / ${v.cidr}` : ""}`,
     },
     {
       id: "interface",
-      header: "Interface",
+      header: t("vlan.interface"),
       cell: (v) => (
         <div className="space-y-0.5">
           <div className="font-[family-name:var(--wy-font-mono)] text-xs">
@@ -320,24 +325,24 @@ export function VlanManagement({
             </span>
             {v.portMode === "trunk"
               ? v.interface
-                ? `on ${v.interface}`
-                : "no parent set"
-              : "dedicated port"}
+                ? t("vlan.on", { interface: v.interface })
+                : t("vlan.noParentSet")
+              : t("vlan.dedicatedPort")}
           </div>
         </div>
       ),
     },
     {
       id: "portal",
-      header: "Portal",
+      header: t("vlan.portal"),
       cell: (v) => (
         <StatusBadge status={v.enableHotspot ? "info" : "offline"} dot={false}>
-          {v.enableHotspot ? "On" : "Off"}
+          {v.enableHotspot ? t("vlan.on2") : t("vlan.off")}
         </StatusBadge>
       ),
     },
-    { id: "status", header: "Status", cell: (v) => <EnabledBadge enabled={v.isEnabled} /> },
-    { id: "push", header: "On router", cell: (v) => <DevicePushBadge vlan={v} /> },
+    { id: "status", header: t("dhcp.status"), cell: (v) => <EnabledBadge enabled={v.isEnabled} /> },
+    { id: "push", header: t("dhcp.onRouter"), cell: (v) => <DevicePushBadge vlan={v} /> },
   ];
 
   return (
@@ -349,39 +354,38 @@ export function VlanManagement({
        * VlansView) gets the friendlier name. Same id/route/data either way.
        * Under the customer shell this is the page's only header (`scope`). */}
       <PageHeader
-        title={scope?.title ?? (plain ? "Network Zones" : "VLAN Management")}
+        title={scope?.title ?? (plain ? t("vlan.networkZones") : t("vlan.vlanManagement"))}
         venue={scope?.venue}
         description={
-          plain
-            ? "Split your network into separate zones — e.g. guest Wi-Fi kept apart from staff or office devices — each with its own address range."
-            : "Per-router VLAN inventory — a real 802.1Q tag, gateway, and CIDR record. Apply pushes a VLAN to the router; each row's badge shows what the device is holding."
+          plain ? t("vlan.splitYourNetworkIntoSeparate") : t("vlan.perRouterVlanInventoryA")
         }
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus aria-hidden className="mr-1.5 h-4 w-4" /> {plain ? "New zone" : "New VLAN"}
+            <Plus aria-hidden className="mr-1.5 h-4 w-4" />{" "}
+            {plain ? t("vlan.newZone") : t("vlan.newVlan")}
           </Button>
         }
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="Total VLANs" value={data?.total ?? 0} loading={isLoading} />
+        <StatTile label={t("vlan.totalVlans")} value={data?.total ?? 0} loading={isLoading} />
         <StatTile
-          label="Enabled"
+          label={t("dhcp.enabled")}
           value={enabledCount}
           hint={statHint}
           loading={isLoading}
-          leading={<StatusDot status="ok" label="Enabled" size="sm" />}
+          leading={<StatusDot status="ok" label={t("dhcp.enabled")} size="sm" />}
         />
         <StatTile
-          label="Disabled"
+          label={t("dhcp.disabled")}
           value={rows.length - enabledCount}
           hint={statHint}
           loading={isLoading}
-          leading={<StatusDot status="offline" label="Disabled" size="sm" />}
+          leading={<StatusDot status="offline" label={t("dhcp.disabled")} size="sm" />}
         />
       </div>
 
-      <Panel flush title={plain ? "All zones" : "All VLANs"}>
+      <Panel flush title={plain ? t("vlan.allZones") : t("vlan.allVlans")}>
         <Toolbar divided>
           <Select
             value={routerFilter}
@@ -390,11 +394,11 @@ export function VlanManagement({
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-full sm:w-48" aria-label="Router">
-              <SelectValue placeholder="All routers" />
+            <SelectTrigger className="w-full sm:w-48" aria-label={t("dhcp.router")}>
+              <SelectValue placeholder={t("dhcp.allRouters")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All routers</SelectItem>
+              <SelectItem value="all">{t("dhcp.allRouters")}</SelectItem>
               {/* Contract §11.5: the two kinds of device are listed
                   apart, and only the ones this platform configures are
                   selectable. See RouterPickerItems. */}
@@ -405,18 +409,18 @@ export function VlanManagement({
             value={search}
             onValueChange={setSearch}
             placeholder={
-              plain ? "Search name, address range, router…" : "Search name, tag, CIDR, router…"
+              plain ? t("vlan.searchNameAddressRangeRouter") : t("vlan.searchNameTagCidrRouter")
             }
           />
         </Toolbar>
         <DataTable
-          ariaLabel={plain ? "All zones" : "All VLANs"}
+          ariaLabel={plain ? t("vlan.allZones") : t("vlan.allVlans")}
           columns={columns}
           rows={rows}
           rowKey={(v) => v.id}
           loading={isLoading}
-          loadingLabel="Loading…"
-          empty={plain ? "No zones match your filters." : "No VLANs match your filters."}
+          loadingLabel={t("dhcp.loading")}
+          empty={plain ? t("vlan.noZonesMatchYourFilters") : t("vlan.noVlansMatchYourFilters")}
           maxHeight="70vh"
           rowActions={(v) => {
             const pushing =
@@ -431,10 +435,10 @@ export function VlanManagement({
                 apply={{
                   label:
                     v.devicePushStatus === "provisioning"
-                      ? "Applying…"
+                      ? t("vlan.applying")
                       : v.devicePushStatus === "active"
-                        ? "Re-apply"
-                        : "Apply",
+                        ? t("dhcp.reApply")
+                        : t("dhcp.apply"),
                   pending: pushing,
                   quiet: v.devicePushStatus === "active",
                   onClick: () => handlePush(v),
@@ -447,9 +451,13 @@ export function VlanManagement({
           footer={
             data && data.totalPages > 1 ? (
               <TablePager
-                summary={`Page ${page} of ${data.totalPages} · ${data.total} VLANs`}
-                previousLabel="Previous"
-                nextLabel="Next"
+                summary={t("vlan.pageOfVlans", {
+                  page,
+                  totalPages: data.totalPages,
+                  total: data.total,
+                })}
+                previousLabel={t("common.previous")}
+                nextLabel={t("common.next")}
                 hasPrevious={data.hasPrevious}
                 hasNext={data.hasNext}
                 onPrevious={() => setPage((p) => p - 1)}
@@ -475,28 +483,32 @@ export function VlanManagement({
         <AlertDialogContent className={DIALOG_CONSOLE}>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {locationId ? "Delete zone" : "Delete VLAN"} {confirmDelete?.vlanId}?
+              {locationId
+                ? t("vlan.deleteZoneTitle", { id: confirmDelete?.vlanId })
+                : t("vlan.deleteVlanTitle", { id: confirmDelete?.vlanId })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes "{confirmDelete?.name}" from{" "}
-              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
+              {t("vlan.removeBody", {
+                name: confirmDelete?.name,
+                router: confirmDelete ? routerName(confirmDelete.routerId) : "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dhcp.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
                   await del.mutateAsync(confirmDelete.id);
-                  toast.success(`VLAN ${confirmDelete.name} deleted`);
+                  toast.success(t("vlan.vlanDeleted", { name: confirmDelete.name }));
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failed to delete VLAN");
+                  toast.error((err as AppError).message || t("vlan.failedToDeleteVlan"));
                 }
                 setConfirmDelete(null);
               }}
             >
-              {locationId ? "Delete zone" : "Delete VLAN"}
+              {locationId ? t("vlan.deleteZone") : t("vlan.deleteVlan")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -528,6 +540,7 @@ function VlanDialog({
   plain: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("network", { i18n });
   const create = useCreateVlan();
   const update = useUpdateVlan();
 
@@ -622,15 +635,16 @@ function VlanDialog({
     try {
       if (vlan) {
         await update.mutateAsync({ id: vlan.id, payload: shared });
-        toast.success(plain ? "Zone updated" : "VLAN updated");
+        toast.success(plain ? t("vlan.zoneUpdated") : t("vlan.vlanUpdated"));
       } else {
         await create.mutateAsync({ routerId: v.routerId, ...shared });
-        toast.success(plain ? "Zone created" : "VLAN created");
+        toast.success(plain ? t("vlan.zoneCreated") : t("vlan.vlanCreated"));
       }
       close();
     } catch (err) {
       toast.error(
-        (err as AppError).message || (plain ? "Couldn't save that zone" : "Failed to save VLAN"),
+        (err as AppError).message ||
+          (plain ? t("vlan.couldnTSaveThatZone") : t("vlan.failedToSaveVlan")),
       );
     }
   }
@@ -649,12 +663,16 @@ function VlanDialog({
       <DialogContent className={`${DIALOG_CONSOLE} max-w-lg`}>
         <DialogHeader>
           <DialogTitle>
-            {plain ? (vlan ? "Edit zone" : "New zone") : vlan ? "Edit VLAN" : "New VLAN"}
+            {plain
+              ? vlan
+                ? t("vlan.editZone")
+                : t("vlan.newZone")
+              : vlan
+                ? t("vlan.editVlan")
+                : t("vlan.newVlan")}
           </DialogTitle>
           <DialogDescription>
-            {vlan
-              ? "The router this VLAN belongs to cannot be changed — delete and recreate to move it."
-              : "A VLAN belongs to exactly one router for its whole lifetime."}
+            {vlan ? t("vlan.theRouterThisVlanBelongs") : t("vlan.aVlanBelongsToExactly")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)}>
@@ -663,19 +681,19 @@ function VlanDialog({
             footer={
               <>
                 <Button type="button" variant="ghost" onClick={close}>
-                  Cancel
+                  {t("dhcp.cancel")}
                 </Button>
                 <Button type="submit" disabled={create.isPending || update.isPending}>
-                  {vlan ? "Save changes" : "Create VLAN"}
+                  {vlan ? t("dhcp.saveChanges") : t("vlan.createVlan")}
                 </Button>
               </>
             }
           >
             <FormField
               wide
-              label="Router"
+              label={t("dhcp.router")}
               htmlFor={`${id}-router`}
-              error={errors.routerId?.message}
+              error={errors.routerId?.message && t(errors.routerId.message)}
             >
               <Controller
                 control={form.control}
@@ -683,7 +701,7 @@ function VlanDialog({
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange} disabled={!!vlan}>
                     <SelectTrigger id={`${id}-router`}>
-                      <SelectValue placeholder="Select router" />
+                      <SelectValue placeholder={t("dhcp.selectRouter")} />
                     </SelectTrigger>
                     <SelectContent>
                       {/* Contract §11.5. A controller is listed here but not
@@ -699,13 +717,21 @@ function VlanDialog({
                   with no controller. */}
               <ControllerRoutersNote rows={routers} />
             </FormField>
-            <FormField label="Name" htmlFor={`${id}-name`} error={errors.name?.message}>
-              <Input id={`${id}-name`} {...form.register("name")} placeholder="Guest-WiFi" />
+            <FormField
+              label={t("dhcp.name")}
+              htmlFor={`${id}-name`}
+              error={errors.name?.message && t(errors.name.message)}
+            >
+              <Input
+                id={`${id}-name`}
+                {...form.register("name")}
+                placeholder={t("vlan.guestWifi")}
+              />
             </FormField>
             <FormField
-              label={plain ? "Zone ID" : "802.1Q Tag"}
+              label={plain ? t("vlan.zoneId") : t("vlan.8021qTag")}
               htmlFor={`${id}-tag`}
-              error={errors.vlanId?.message}
+              error={errors.vlanId?.message && t(errors.vlanId.message)}
             >
               <Input
                 id={`${id}-tag`}
@@ -716,7 +742,7 @@ function VlanDialog({
               />
             </FormField>
             <FormField
-              label={plain ? "Router address (optional)" : "Gateway IP (optional)"}
+              label={plain ? t("dhcp.routerAddressOptional") : t("dhcp.gatewayIpOptional")}
               htmlFor={`${id}-gateway`}
             >
               <Input
@@ -727,7 +753,7 @@ function VlanDialog({
               />
             </FormField>
             <FormField
-              label={plain ? "Address range (optional)" : "CIDR (optional)"}
+              label={plain ? t("vlan.addressRangeOptional") : t("vlan.cidrOptional")}
               htmlFor={`${id}-cidr`}
             >
               <Input
@@ -737,7 +763,7 @@ function VlanDialog({
                 className="font-mono"
               />
             </FormField>
-            <FormField label="Port mode" htmlFor={`${id}-mode`}>
+            <FormField label={t("vlan.portMode")} htmlFor={`${id}-mode`}>
               <Controller
                 control={form.control}
                 name="portMode"
@@ -753,12 +779,8 @@ function VlanDialog({
                         off the guest network. "Trunk" and "access port" are
                         correct RouterOS terms and meant nothing to them; the
                         stored values are unchanged, only these labels. */}
-                      <SelectItem value="trunk">
-                        Share the existing cable (tagged) — recommended
-                      </SelectItem>
-                      <SelectItem value="access">
-                        Take a whole port for this zone (untagged)
-                      </SelectItem>
+                      <SelectItem value="trunk">{t("vlan.shareTheExistingCableTagged")}</SelectItem>
+                      <SelectItem value="access">{t("vlan.takeAWholePortFor")}</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -769,62 +791,56 @@ function VlanDialog({
                 control={form.control}
                 name="trunkInterface"
                 inputId={`${id}-iface`}
-                label={plain ? "Which cable does it use?" : "Trunk interface"}
-                hint="Read live off your router. This zone rides the cable that is already there, tagged — nothing else on that cable is disturbed. Use this for several Wi-Fi networks from one access point; the AP must tag this zone's VLAN id."
+                label={plain ? t("vlan.whichCableDoesItUse") : t("vlan.trunkInterface")}
+                hint={t("vlan.readLiveOffYourRouter")}
                 manualPlaceholder="bridge"
                 emptyMessage={
-                  allInterfaces.length === 0
-                    ? unreadable
-                    : "Nothing on this router can carry a tagged zone. Type a name in if you know it."
+                  allInterfaces.length === 0 ? unreadable : t("vlan.nothingOnThisRouterCan")
                 }
                 options={trunkOptions}
                 routerSelected={!!selectedRouterId}
                 isLoading={interfacesLoading}
                 isError={interfacesErrored}
-                error={errors.trunkInterface?.message}
+                error={errors.trunkInterface?.message && t(errors.trunkInterface.message)}
               />
             ) : (
               <InterfacePicker
                 control={form.control}
                 name="accessPort"
                 inputId={`${id}-iface`}
-                label={plain ? "Which port does it take?" : "Access port"}
-                hint="Read live off your router. This port is handed entirely to this zone, untagged. Whatever is plugged into it leaves its current network — including an access point, which would stop serving the Wi-Fi it serves today."
+                label={plain ? t("vlan.whichPortDoesItTake") : t("vlan.accessPort")}
+                hint={t("vlan.readLiveOffYourRouter2")}
                 manualPlaceholder="ether3"
-                emptyMessage={
-                  allInterfaces.length === 0
-                    ? unreadable
-                    : "None of this router's ports belong to a bridge, and an access port has to. Add the port to the bridge on the router first, or use Trunk instead."
-                }
+                emptyMessage={allInterfaces.length === 0 ? unreadable : t("vlan.noneOfThisRouterS")}
                 options={accessOptions}
                 routerSelected={!!selectedRouterId}
                 isLoading={interfacesLoading}
                 isError={interfacesErrored}
-                error={errors.accessPort?.message}
+                error={errors.accessPort?.message && t(errors.accessPort.message)}
               />
             )}
             <FormSwitchRow
               wide
-              label={plain ? "Guests must sign in" : "Captive portal"}
+              label={plain ? t("vlan.guestsMustSignIn") : t("vlan.captivePortal")}
               description={
-                plain
-                  ? "Anyone joining this zone sees your sign-in screen before they get online."
-                  : "Guests on this VLAN must log in through a hotspot page."
+                plain ? t("vlan.anyoneJoiningThisZoneSees") : t("vlan.guestsOnThisVlanMust")
               }
               control={switchControl("enableHotspot")}
             />
             <FormSwitchRow
               wide
-              label="Internet access (NAT)"
-              description="Let devices in this zone out to the internet. Turn it off for a zone that should only see your own network — cameras or card readers, say."
+              label={t("vlan.internetAccessNat")}
+              description={t("vlan.letDevicesInThisZone")}
               control={switchControl("natEnabled")}
             />
-            {vlan && <FormSwitchRow wide label="Enabled" control={switchControl("isEnabled")} />}
+            {vlan && (
+              <FormSwitchRow wide label={t("dhcp.enabled")} control={switchControl("isEnabled")} />
+            )}
             {accessPortBridge && (
               <Callout
                 tone="warn"
                 className="sm:col-span-2"
-                title={`${watchedInterface} will be removed from ${accessPortBridge}.`}
+                title={t("vlan.willBeRemovedFrom", { watchedInterface, accessPortBridge })}
                 action={
                   <Controller
                     control={form.control}
@@ -838,40 +854,49 @@ function VlanDialog({
                           className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--wy-warn)]"
                         />
                         <span>
-                          Yes, take {watchedInterface} out of {accessPortBridge}. Without this the
-                          router refuses the change.
+                          <Trans
+                            t={t}
+                            i18nKey="vlan.takePortConfirm"
+                            values={{ port: watchedInterface, bridge: accessPortBridge }}
+                            components={{ b: <span /> }}
+                          />
                         </span>
                       </label>
                     )}
                   />
                 }
               >
-                Anything plugged into that port loses the network it is on today. If an access point
-                is on it, the Wi-Fi it serves stops working until the port is put back. Choose{" "}
-                <span className="font-medium">Share the existing cable</span> instead to add this
-                zone without taking the port.
+                <Trans
+                  t={t}
+                  i18nKey="vlan.takePortWarning"
+                  values={{ trunk: t("vlan.shareTheExistingCable") }}
+                  components={{ b: <span className="font-medium" /> }}
+                />
               </Callout>
             )}
             <Callout tone="info" className="sm:col-span-2">
               {watchedHotspot ? (
-                <>
-                  The sign-in page also creates this zone&apos;s{" "}
-                  <span className="font-medium">IP address pool and DHCP</span>, so devices get an
-                  address automatically.
-                </>
+                <Trans
+                  t={t}
+                  i18nKey="vlan.portalCreatesDhcp"
+                  values={{ what: t("vlan.ipAddressPoolAndDhcp") }}
+                  components={{ b: <span className="font-medium" /> }}
+                />
               ) : (
-                <>
-                  This creates the network only —{" "}
-                  <span className="font-medium">no addresses are handed out</span>, so devices will
-                  join and get nothing until you create an{" "}
-                  <span className="font-medium">IP address pool</span> with Interface set to{" "}
-                  <code className="rounded bg-[var(--wy-surface)] px-1 py-0.5 font-[family-name:var(--wy-font-mono)] text-xs">
-                    {portMode === "access"
-                      ? watchedInterface || "the port you pick above"
-                      : `vlan${watchedVlanId || "<tag>"}`}
-                  </code>
-                  .
-                </>
+                <Trans
+                  t={t}
+                  i18nKey="vlan.networkOnly"
+                  values={{
+                    what: t("vlan.noAddressesAreHandedOut"),
+                    pool: t("vlan.ipAddressPool"),
+                    iface:
+                      portMode === "access"
+                        ? watchedInterface || t("vlan.thePortYouPickAbove")
+                        : // ‹tag›, not <tag>: Trans would read an angle-bracket value as markup.
+                          t("vlan.vlan", { tag: watchedVlanId || "‹tag›" }),
+                  }}
+                  components={{ b: <span className="font-medium" /> }}
+                />
               )}
             </Callout>
           </FormSection>
@@ -921,6 +946,7 @@ function InterfacePicker({
   isError: boolean;
   error?: string;
 }) {
+  const { t } = useTranslation("network", { i18n });
   const [manual, setManual] = useState(false);
   const nothingToOffer = routerSelected && !isLoading && (isError || options.length === 0);
 
@@ -929,13 +955,7 @@ function InterfacePicker({
       label={label}
       htmlFor={inputId}
       error={error}
-      hint={
-        manual
-          ? "Typed by hand — if this doesn't match the router exactly, applying the zone will fail."
-          : nothingToOffer
-            ? emptyMessage
-            : hint
-      }
+      hint={manual ? t("vlan.typedByHandIfThis") : nothingToOffer ? emptyMessage : hint}
       hintTone={manual ? "warn" : "muted"}
       labelAction={
         <button
@@ -943,7 +963,7 @@ function InterfacePicker({
           className="rounded text-xs text-[var(--wy-text-muted)] underline underline-offset-2 hover:text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
           onClick={() => setManual((m) => !m)}
         >
-          {manual ? "Pick from the router" : "Type manually"}
+          {manual ? t("vlan.pickFromTheRouter") : t("dhcp.typeManually")}
         </button>
       }
     >
@@ -969,12 +989,12 @@ function InterfacePicker({
                 <SelectValue
                   placeholder={
                     !routerSelected
-                      ? "Choose a router first"
+                      ? t("vlan.chooseARouterFirst")
                       : isLoading
-                        ? "Reading your router…"
+                        ? t("vlan.readingYourRouter")
                         : options.length === 0
-                          ? "Nothing to choose from"
-                          : "Select one"
+                          ? t("vlan.nothingToChooseFrom")
+                          : t("vlan.selectOne")
                   }
                 />
               </SelectTrigger>
@@ -985,15 +1005,15 @@ function InterfacePicker({
                     from silently blanking a setting that works. */}
                 {field.value && !options.some((i) => i.name === field.value) && (
                   <SelectItem value={field.value}>
-                    {field.value} · not on this router right now
+                    {field.value} {t("vlan.notOnRouter")}
                   </SelectItem>
                 )}
                 {options.map((i) => (
                   <SelectItem key={i.name} value={i.name}>
                     {i.name}
                     {i.type ? ` · ${i.type}` : ""}
-                    {i.bridge ? ` · in ${i.bridge}` : ""}
-                    {i.running ? " · up" : " · down"}
+                    {i.bridge ? t("vlan.in", { bridge: i.bridge }) : ""}
+                    {i.running ? t("vlan.up") : t("vlan.down")}
                   </SelectItem>
                 ))}
               </SelectContent>

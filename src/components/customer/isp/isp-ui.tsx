@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, ShieldAlert, ShieldCheck } from "lucide-react";
 import i18n from "@/lib/i18n";
+import { formatDateTime, formatRelative, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { StatusDot, type ConsoleStatus } from "@/components/customer/console";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -84,32 +85,18 @@ export function fmtDuration(ms: number): string {
   return `${days}d ${hrs % 24}h`;
 }
 
-/** Clock time; adds the date when it is not today. */
+/** Clock time; adds the date when it is not today. 12-hour, Indian locale
+ * (see `@/lib/format`). */
 export function fmtClock(iso: string, lang: string): string {
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return "—";
   const sameDay = d.toDateString() === new Date().toDateString();
-  return sameDay
-    ? d.toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" })
-    : d.toLocaleString(lang, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
+  return sameDay ? formatTime(d, lang) : formatDateTime(d, lang);
 }
 
 export function fmtAgo(iso: string | null | undefined, lang: string): string | null {
-  if (!iso) return null;
-  const ms = new Date(iso).getTime();
-  if (!Number.isFinite(ms)) return null;
-  const sec = Math.round((ms - Date.now()) / 1000);
-  const abs = Math.abs(sec);
-  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto", style: "short" });
-  if (abs < 60) return rtf.format(0, "minute");
-  if (abs < 3600) return rtf.format(Math.round(sec / 60), "minute");
-  if (abs < 86400) return rtf.format(Math.round(sec / 3600), "hour");
-  return rtf.format(Math.round(sec / 86400), "day");
+  if (!iso || !Number.isFinite(new Date(iso).getTime())) return null;
+  return formatRelative(iso, lang, { style: "short" });
 }
 
 /* ---------- pieces ---------- */
@@ -333,7 +320,7 @@ export function CheckTicks({
               <PopoverContent align="center" className="wy-console w-60 space-y-1.5 p-3 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-[var(--wy-text)]">
-                    {new Date(c.checkedAt).toLocaleString(inst.language)}
+                    {formatDateTime(c.checkedAt, inst.language)}
                   </span>
                   <LinkStatus link={{ healthStatus: c.status, healthStatusSource: c.source }} />
                 </div>

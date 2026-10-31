@@ -388,25 +388,35 @@ function HardwareEmptyState({
   nasOnly?: boolean;
   onAdd: () => void;
 }) {
+  const { t } = useTranslation("devices", { i18n });
   return (
     <ConsoleEmptyState
       compact
       icon={HardDrive}
-      title="No hardware added yet"
+      title={t("hw.emptyTitle", "No hardware added yet")}
       description={
         nasOnly
-          ? "Add a device by MAC address to keep a record of it. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does."
+          ? t(
+              "hw.emptyAruba",
+              "Add a device by MAC address to keep a record of it. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does.",
+            )
           : controllerManaged
             ? // "start monitoring it" is a promise this venue cannot be
               // given: the liveness sweep only probes through an
               // agent-managed uplink, and this one has none.
-              "Add a device by MAC address to keep a record of it. Status for your access points comes from your controller, above."
-            : "Add an access point, printer or camera by MAC address to start monitoring it. Your router is already tracked above."
+              t(
+                "hw.emptyController",
+                "Add a device by MAC address to keep a record of it. Status for your access points comes from your controller, above.",
+              )
+            : t(
+                "hw.emptyBody",
+                "Add an access point, printer or camera by MAC address to start monitoring it. Your router is already tracked above.",
+              )
       }
       action={
         <Button size="sm" variant="outline" onClick={onAdd}>
           <Plus className="h-3.5 w-3.5" />
-          Add device
+          {t("add.button", "Add device")}
         </Button>
       }
     />
@@ -414,6 +424,15 @@ function HardwareEmptyState({
 }
 
 type HardwareRow = ReturnType<typeof useMonitoredHardware>["devices"][number];
+
+/** `hw.type.<key>` for each device type; the English value is the fallback. */
+const DEVICE_TYPE_KEY: Record<DeviceType, string> = {
+  "Access Point": "ap",
+  Printer: "printer",
+  Router: "router",
+  Camera: "camera",
+  Other: "other",
+};
 
 /**
  * The Devices page's hardware half: fleet strip, the controller / Aruba
@@ -485,18 +504,18 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!locationId) {
-      toast.error("Select a location first.");
+      toast.error(t("hw.selectLocation", "Select a location first."));
       return;
     }
     const normalizedMac = normalizeMac(form.mac);
     if (!normalizedMac || !STRICT_MAC_RE.test(normalizedMac)) {
-      const msg = "Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF";
+      const msg = t("hw.badMac", "Enter a valid MAC address, e.g. AA:BB:CC:DD:EE:FF");
       setMacError(msg);
       toast.error(msg);
       return;
     }
     if (devices.some((d) => d.mac.toUpperCase() === normalizedMac)) {
-      const msg = "A device with this MAC is already set up.";
+      const msg = t("hw.dupMac", "A device with this MAC is already set up.");
       setMacError(msg);
       toast.error(msg);
       return;
@@ -511,20 +530,30 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
         form.type,
         form.floor,
       );
-      toast.success(form.floor ? `${form.type} added on ${form.floor}` : `${form.type} added`);
+      const typeName = t(`hw.type.${DEVICE_TYPE_KEY[form.type]}`, form.type);
+      toast.success(
+        form.floor
+          ? t("hw.addedOn", "{{type}} added on {{floor}}", { type: typeName, floor: form.floor })
+          : t("hw.added", "{{type}} added", { type: typeName }),
+      );
       const binding = describeAddressBinding(created?.addressBinding);
       if (binding) toast[binding.tone](binding.message);
       // Registration succeeds either way; this only says up front why the
       // row may stay "Never observed" (prod had one AP added at 3 venues).
       if (created?.duplicateLocations?.length) {
         toast.warning(
-          `This MAC is also added at ${created.duplicateLocations.join(", ")}. ` +
-            "Only the location whose router it is plugged into can show its status.",
+          t(
+            "health.dupes",
+            "Also added at {{list}}. Only the location whose router it is plugged into can show its status.",
+            { list: created.duplicateLocations.join(", ") },
+          ),
         );
       } else if (created?.registeredElsewhere) {
         toast.warning(
-          "This MAC is also registered at another venue. If this location never sees it, " +
-            "check the MAC address.",
+          t(
+            "hw.elsewhereToast",
+            "This MAC is also registered at another venue. If this location never sees it, check the MAC address.",
+          ),
         );
       }
       setForm(emptyHardwareForm);
@@ -535,7 +564,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
       // only catches this location's own devices, so a genuine duplicate
       // at a different location of the same org still needs this real
       // error surfaced, not silently swallowed.
-      toast.error(requestErrorMessage(err, "Could not add this device."));
+      toast.error(requestErrorMessage(err, t("hw.addFailed", "Could not add this device.")));
     } finally {
       setSubmitting(false);
     }
@@ -544,10 +573,10 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   const handleRemove = async (id: string, name: string) => {
     try {
       await removeDevice(id);
-      toast.success(`${name} removed`);
+      toast.success(t("hw.removed", "{{name}} removed", { name }));
       setOpenKey(null);
     } catch (err) {
-      toast.error(requestErrorMessage(err, "Could not remove this device."));
+      toast.error(requestErrorMessage(err, t("hw.removeFailed", "Could not remove this device.")));
     }
   };
 
@@ -561,10 +590,19 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   // Device Monitoring can track them" -- was a promise the platform cannot
   // keep. The access points themselves are listed by the controller.
   const sourceNote = nasOnlyVenue
-    ? "Keep a record of other hardware at this location by MAC address and floor. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does."
+    ? t(
+        "hw.noteAruba",
+        "Keep a record of other hardware at this location by MAC address and floor. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does.",
+      )
     : controllerManaged
-      ? "Keep a record of other hardware at this location by MAC address and floor. Your access points are listed above, reported by your controller."
-      : "Routers report in on their own. Access points, printers and cameras you add by MAC address are checked through your router.";
+      ? t(
+          "hw.noteController",
+          "Keep a record of other hardware at this location by MAC address and floor. Your access points are listed above, reported by your controller.",
+        )
+      : t(
+          "hw.note",
+          "Routers report in on their own. Access points, printers and cameras you add by MAC address are checked through your router.",
+        );
 
   return (
     <div className="space-y-4">
@@ -672,35 +710,46 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
       >
         <DialogContent className="wy-console border-[var(--wy-border)] bg-[var(--wy-surface)] text-[var(--wy-text)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base">Add network hardware</DialogTitle>
+            <DialogTitle className="text-base">
+              {t("hw.dialogTitle", "Add network hardware")}
+            </DialogTitle>
             <DialogDescription className="text-[var(--wy-text-muted)]">
               {nasOnlyVenue
-                ? "Enter the device's MAC address, type, and the floor it's installed on. This keeps a record of it — Wyfy doesn't see the status of hardware at this venue."
+                ? t(
+                    "hw.dialogDescAruba",
+                    "Enter the device's MAC address, type, and the floor it's installed on. This keeps a record of it — Wyfy doesn't see the status of hardware at this venue.",
+                  )
                 : controllerManaged
-                  ? "Enter the device's MAC address, type, and the floor it's installed on. This keeps a record of it — status for this venue's hardware comes from your controller, not from this platform."
-                  : "Enter the device's MAC address, type, and the floor it's installed on."}
+                  ? t(
+                      "hw.dialogDescController",
+                      "Enter the device's MAC address, type, and the floor it's installed on. This keeps a record of it — status for this venue's hardware comes from your controller, not from this platform.",
+                    )
+                  : t(
+                      "hw.dialogDesc",
+                      "Enter the device's MAC address, type, and the floor it's installed on.",
+                    )}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
             <fieldset className="space-y-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-4">
               <legend className="flex items-center gap-1.5 px-1 text-[11px] font-medium uppercase tracking-wider text-[var(--wy-text-faint)]">
                 <Tag aria-hidden className="h-3 w-3" />
-                Identify the device
+                {t("hw.identify", "Identify the device")}
               </legend>
               <div className="space-y-1.5">
-                <Label htmlFor="hw-name">Device name</Label>
+                <Label htmlFor="hw-name">{t("hw.name", "Device name")}</Label>
                 <Input
                   id="hw-name"
-                  placeholder="e.g. AP Lobby North"
+                  placeholder={t("hw.namePlaceholder", "e.g. Lobby AP")}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
                 <p className="text-[11px] text-[var(--wy-text-faint)]">
-                  Shown across the dashboard instead of the raw MAC address.
+                  {t("hw.nameHint", "Shown across the dashboard instead of the raw MAC address.")}
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="hw-mac">MAC address</Label>
+                <Label htmlFor="hw-mac">{t("drawer.mac", "MAC address")}</Label>
                 <Input
                   id="hw-mac"
                   placeholder="AA:BB:CC:DD:EE:FF"
@@ -717,7 +766,10 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                   aria-describedby={macError ? "hw-mac-error" : "hw-mac-hint"}
                 />
                 <p id="hw-mac-hint" className="text-[11px] text-[var(--wy-text-faint)]">
-                  Dashes, spaces, or no separators are fine too -- e.g. AA-BB-CC-DD-EE-FF.
+                  {t(
+                    "hw.macHint",
+                    "Dashes, spaces or no separators are fine too — e.g. AA-BB-CC-DD-EE-FF.",
+                  )}
                 </p>
                 {macError && (
                   <p
@@ -734,11 +786,11 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
             <fieldset className="space-y-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-4">
               <legend className="flex items-center gap-1.5 px-1 text-[11px] font-medium uppercase tracking-wider text-[var(--wy-text-faint)]">
                 <MapPin aria-hidden className="h-3 w-3" />
-                Type &amp; location
+                {t("hw.typeAndPlace", "Type & location")}
               </legend>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="hw-type">Device type</Label>
+                  <Label htmlFor="hw-type">{t("hw.typeLabel", "Device type")}</Label>
                   <Select
                     value={form.type}
                     onValueChange={(v) => setForm({ ...form, type: v as DeviceType })}
@@ -753,7 +805,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                           <SelectItem key={dt} value={dt}>
                             <span className="inline-flex items-center gap-2">
                               <Icon className="h-3.5 w-3.5 text-[var(--wy-text-faint)]" />
-                              {dt}
+                              {t(`hw.type.${DEVICE_TYPE_KEY[dt]}`, dt)}
                             </span>
                           </SelectItem>
                         );
@@ -762,12 +814,12 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="hardware-floor">Floor</Label>
+                  <Label htmlFor="hardware-floor">{t("hw.floor", "Floor")}</Label>
                   <Input
                     id="hardware-floor"
                     list="hardware-floor-suggestions"
                     value={form.floor}
-                    placeholder="Optional — e.g. GF, 3F, B1"
+                    placeholder={t("hw.floorPlaceholder", "Optional — e.g. GF, 3F, B1")}
                     maxLength={50}
                     onChange={(e) => setForm({ ...form, floor: e.target.value })}
                     onBlur={(e) => setForm({ ...form, floor: normalizeFloor(e.target.value) })}
@@ -786,17 +838,19 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
                 what actually happened, in a toast, once it is added. */}
             {!controllerManaged && (
               <p className="rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] px-3 py-2 text-[11px] leading-relaxed text-[var(--wy-text-muted)]">
-                When you add it, the device's current IP address is made static on your router, so
-                it keeps the same address.
+                {t(
+                  "hw.staticNote",
+                  "When you add it, the device's current IP address is made static on your router, so it keeps the same address.",
+                )}
               </p>
             )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                {t("drawer.cancel", "Cancel")}
               </Button>
               <Button type="submit" disabled={submitting}>
-                {submitting ? "Adding…" : "Add device"}
+                {submitting ? t("hw.adding", "Adding…") : t("add.button", "Add device")}
               </Button>
             </DialogFooter>
           </form>

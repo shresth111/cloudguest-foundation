@@ -1,3 +1,5 @@
+import i18n from "@/lib/i18n";
+import { Trans, useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { Plus, Trash2, Download, Printer, Mail, Eye, Ticket } from "lucide-react";
@@ -128,6 +130,7 @@ function voucherStatus(status: string): ConsoleStatus {
 }
 
 export function VouchersPage({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
+  const { t } = useTranslation("vouchers", { i18n });
   const demo = useIsDemo();
   const [items, setItems] = useState<Voucher[]>(demo ? DEMO_SEED : []);
   const [batches, setBatches] = useState<BatchRow[]>([]);
@@ -189,9 +192,9 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
     try {
       const blob = await voucherService.exportCsv(b.id, b.organizationId);
       downloadBlob(blob, `voucher_batch_${b.id}.csv`);
-      toast.success("CSV exported");
+      toast.success(t("v.csvExported"));
     } catch {
-      toast.error("Could not export the CSV — check the connection and try again.");
+      toast.error(t("v.couldNotExportTheCsv"));
     } finally {
       setExporting(null);
     }
@@ -202,9 +205,9 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
     try {
       const blob = await voucherService.downloadPdf(b.id, b.organizationId);
       downloadBlob(blob, `voucher_batch_${b.id}.pdf`);
-      toast.success("PDF downloaded");
+      toast.success(t("v.pdfDownloaded"));
     } catch {
-      toast.error("Could not download the PDF — check the connection and try again.");
+      toast.error(t("v.couldNotDownloadThePdf"));
     } finally {
       setExporting(null);
     }
@@ -212,16 +215,16 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
 
   const emailBatch = async (b: BatchRow) => {
     if (!EMAIL_RE.test(emailTo.trim())) {
-      toast.error("Enter a valid email address.");
+      toast.error(t("v.enterAValidEmailAddress"));
       return;
     }
     setEmailing(true);
     try {
       await voucherService.emailPdf(b.id, b.organizationId, emailTo.trim());
-      toast.success(`Voucher batch queued for delivery to ${emailTo.trim()}`);
+      toast.success(t("v.voucherBatchQueuedForDelivery", { email: emailTo.trim() }));
       setEmailTo("");
     } catch {
-      toast.error("Could not send the email — check the connection and try again.");
+      toast.error(t("v.couldNotSendTheEmail"));
     } finally {
       setEmailing(false);
     }
@@ -248,7 +251,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
       const usedIds = vouchers.rows.filter((v) => v.useCount > 0).map((v) => v.id);
       setViewRedemptions(await voucherService.listRedemptions(usedIds, b.organizationId));
     } catch {
-      toast.error("Could not load this batch's vouchers.");
+      toast.error(t("v.couldNotLoadThisBatch"));
     } finally {
       setViewLoading(false);
     }
@@ -322,7 +325,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
       }
       setItems([...newItems, ...items]);
       setOpen(false);
-      toast.success(`${count} vouchers generated for ${form.businessUnit}`);
+      toast.success(t("v.vouchersGeneratedFor", { count, businessUnit: form.businessUnit }));
       return;
     }
     try {
@@ -352,16 +355,16 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
         ...batches,
       ]);
       setOpen(false);
-      toast.success(`Batch "${batch.name}" created (${batch.status})`);
+      toast.success(t("v.batchCreated", { name: batch.name, status: batch.status }));
     } catch {
-      toast.error("Could not generate the batch — check the connection and try again.");
+      toast.error(t("v.couldNotGenerateTheBatch"));
     }
   };
 
   const revoke = async (row: BatchRow | Voucher) => {
     if (demo) {
       setItems(items.filter((x) => x.code !== row.code));
-      toast.success("Revoked");
+      toast.success(t("v.revoked"));
       return;
     }
     const b = row as BatchRow;
@@ -369,10 +372,10 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
     setBatches(batches.filter((x) => x.id !== b.id));
     try {
       await voucherService.revokeBatch(b.id, b.organizationId);
-      toast.success("Batch revoked");
+      toast.success(t("v.batchRevoked"));
     } catch {
       setBatches(prev);
-      toast.error("Could not revoke on the server.");
+      toast.error(t("v.couldNotRevokeOnThe"));
     }
   };
 
@@ -383,13 +386,15 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
       {/* Under the customer shell this is the page's only header (the shell
           passes the tab name and venue); the agent view mounts it bare. */}
       <PageHeader
-        title={scope?.title ?? "Vouchers"}
+        title={scope?.title ?? t("v.vouchers")}
         venue={scope?.venue}
         description={
           <>
-            Codes a guest types at the login page instead of a phone number.{" "}
+            {t("v.intro", "Codes a guest types at the login page instead of a phone number.")}{" "}
             <span className="tabular-nums">
-              {rows.length} {demo ? "vouchers" : "batches"}
+              {demo
+                ? t("v.countVouchers", { count: rows.length })
+                : t("v.countBatches", { count: rows.length })}
             </span>
           </>
         }
@@ -398,32 +403,32 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
             <Button
               variant="outline"
               size="sm"
-              onClick={() => toast.success("Bulk import started")}
+              onClick={() => toast.success(t("v.bulkImportStarted"))}
             >
-              Import CSV
+              {t("v.importCsv")}
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="mr-1 h-4 w-4" />
-                  Generate
+                  {t("v.generate", "Generate")}
                 </Button>
               </DialogTrigger>
               <DialogContent className="wy-console sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Generate Voucher Batch</DialogTitle>
+                  <DialogTitle>{t("v.generateVoucherBatch")}</DialogTitle>
                 </DialogHeader>
                 <FormSection variant="plain" className="py-2">
-                  <FormField label="Batch Name" htmlFor="voucher-batch-name" wide>
+                  <FormField label={t("v.batchName")} htmlFor="voucher-batch-name" wide>
                     <Input
                       id="voucher-batch-name"
-                      placeholder="e.g. Summer Promo 2026"
+                      placeholder={t("v.eGSummerPromo2026")}
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                     />
                   </FormField>
                   {demo && (
-                    <FormField label="Business Unit" htmlFor="voucher-business-unit" wide>
+                    <FormField label={t("v.businessUnit")} htmlFor="voucher-business-unit" wide>
                       <Select
                         value={form.businessUnit}
                         onValueChange={(v) => setForm({ ...form, businessUnit: v })}
@@ -441,7 +446,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                       </Select>
                     </FormField>
                   )}
-                  <FormField label="Quantity" htmlFor="voucher-quantity">
+                  <FormField label={t("v.quantity")} htmlFor="voucher-quantity">
                     <Input
                       id="voucher-quantity"
                       type="number"
@@ -453,7 +458,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                       }
                     />
                   </FormField>
-                  <FormField label="Validity (min)" htmlFor="voucher-validity">
+                  <FormField label={t("v.validityMin")} htmlFor="voucher-validity">
                     <Input
                       id="voucher-validity"
                       type="number"
@@ -468,14 +473,14 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                       }
                     />
                   </FormField>
-                  <FormField label="Code Prefix" htmlFor="voucher-prefix">
+                  <FormField label={t("v.codePrefix")} htmlFor="voucher-prefix">
                     <Input
                       id="voucher-prefix"
                       value={form.prefix}
                       onChange={(e) => setForm({ ...form, prefix: e.target.value })}
                     />
                   </FormField>
-                  <FormField label="Code Length" htmlFor="voucher-code-length">
+                  <FormField label={t("v.codeLength")} htmlFor="voucher-code-length">
                     <Input
                       id="voucher-code-length"
                       type="number"
@@ -487,13 +492,13 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                       }
                     />
                   </FormField>
-                  <FormField label="Data Limit (MB)" htmlFor="voucher-data-limit">
+                  <FormField label={t("v.dataLimitMb")} htmlFor="voucher-data-limit">
                     <Input
                       id="voucher-data-limit"
                       type="number"
                       min={0}
                       max={102400}
-                      placeholder="0 = unlimited"
+                      placeholder={t("v.0Unlimited")}
                       value={form.dataLimit}
                       onChange={(e) =>
                         setForm({
@@ -503,7 +508,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                       }
                     />
                   </FormField>
-                  <FormField label="Max Uses" htmlFor="voucher-max-uses">
+                  <FormField label={t("v.maxUses")} htmlFor="voucher-max-uses">
                     <Input
                       id="voucher-max-uses"
                       type="number"
@@ -518,9 +523,11 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                 </FormSection>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setOpen(false)}>
-                    Cancel
+                    {t("v.cancel")}
                   </Button>
-                  <Button onClick={handleGenerate}>Generate {form.quantity} Vouchers</Button>
+                  <Button onClick={handleGenerate}>
+                    {t("v.generateN", { count: Number(form.quantity) || 0 })}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -535,21 +542,21 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
           </div>
         ) : (
           <DataTable<Voucher | BatchRow>
-            ariaLabel={demo ? "Vouchers" : "Voucher batches"}
+            ariaLabel={demo ? t("v.vouchers") : t("v.voucherBatches")}
             rows={rows}
             rowKey={(v) => (demo ? v.code : (v as BatchRow).id)}
             empty={
               <EmptyState
                 icon={Ticket}
-                title="No voucher batches"
-                description="Generate a batch above to issue guest access vouchers."
+                title={t("v.noVoucherBatches")}
+                description={t("v.generateABatchAboveTo")}
               />
             }
             actionsLabel="Actions"
             columns={[
               {
                 id: "code",
-                header: demo ? "Code" : "Batch Name",
+                header: demo ? t("v.code") : t("v.batchName"),
                 mono: true,
                 mobile: "title",
                 cell: (v) => v.code,
@@ -558,7 +565,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                 ? [
                     {
                       id: "unit",
-                      header: "Business Unit",
+                      header: t("v.businessUnit"),
                       className: "text-[var(--wy-text-muted)]",
                       cell: (v: Voucher | BatchRow) => v.businessUnit,
                     },
@@ -566,7 +573,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                 : []),
               {
                 id: "plan",
-                header: demo ? "Plan" : "Validity",
+                header: demo ? t("v.plan") : t("v.validity"),
                 cell: (v) =>
                   demo ? (
                     <Select
@@ -575,10 +582,13 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                         setItems((its) =>
                           its.map((it) => (it.code === v.code ? { ...it, plan: val } : it)),
                         );
-                        toast.success(`Plan updated to ${formatPlan(val)}`);
+                        toast.success(t("v.planUpdatedTo", { val: formatPlan(val) }));
                       }}
                     >
-                      <SelectTrigger className="h-8 w-24 text-xs" aria-label={`Plan for ${v.code}`}>
+                      <SelectTrigger
+                        className="h-8 w-24 text-xs"
+                        aria-label={t("v.planFor", { code: v.code })}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="wy-console">
@@ -595,7 +605,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
               },
               {
                 id: "status",
-                header: "Status",
+                header: t("v.status"),
                 cell: (v) => (
                   <StatusBadge status={voucherStatus(v.status)} className="capitalize">
                     {v.status.replace(/_/g, " ")}
@@ -604,7 +614,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
               },
               {
                 id: "used",
-                header: demo ? "Used" : "Quantity",
+                header: demo ? t("v.used") : t("v.quantity"),
                 align: "right",
                 className: "tabular-nums",
                 cell: (v) => v.used,
@@ -613,7 +623,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                 ? [
                     {
                       id: "redeemedAt",
-                      header: "Redeemed At",
+                      header: t("v.redeemedAt"),
                       className: "text-[var(--wy-text-muted)]",
                       cell: (v: Voucher | BatchRow) => v.redeemedAt ?? "—",
                     },
@@ -626,8 +636,8 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  title="View batch"
-                  aria-label={`View ${v.code}`}
+                  title={t("v.viewBatch")}
+                  aria-label={t("v.view", { code: v.code })}
                   onClick={() => openView(v)}
                 >
                   <Eye className="h-3.5 w-3.5" aria-hidden />
@@ -636,8 +646,8 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-[var(--wy-crit)]"
-                  title="Revoke"
-                  aria-label={`Revoke ${v.code}`}
+                  title={t("v.revoke")}
+                  aria-label={t("v.revoke2", { code: v.code })}
                   onClick={() => revoke(v)}
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -655,17 +665,17 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
         // dialog below, scoped to one real batch (voucher.export requires
         // a batch_id -- there's no page-wide "export everything" endpoint).
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => toast.success("CSV exported")}>
+          <Button variant="outline" size="sm" onClick={() => toast.success(t("v.csvExported"))}>
             <Download className="mr-1.5 h-3.5 w-3.5" />
             CSV
           </Button>
-          <Button variant="outline" size="sm" onClick={() => toast.success("Print job queued")}>
+          <Button variant="outline" size="sm" onClick={() => toast.success(t("v.printJobQueued"))}>
             <Printer className="mr-1.5 h-3.5 w-3.5" />
-            Print
+            {t("v.print", "Print")}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => toast.success("Email sent")}>
+          <Button variant="outline" size="sm" onClick={() => toast.success(t("v.emailSent"))}>
             <Mail className="mr-1.5 h-3.5 w-3.5" />
-            Email
+            {t("v.email", "Email")}
           </Button>
         </div>
       )}
@@ -679,66 +689,66 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
         <DialogContent className="wy-console sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {demo ? "Voucher" : "Batch"} — {viewBatch?.code}
+              {demo ? t("v.voucher") : t("v.batch")} — {viewBatch?.code}
             </DialogTitle>
           </DialogHeader>
           {demo && viewBatch ? (
             <div className="space-y-2 text-[13px]">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Plan</span>
+                <span className="text-muted-foreground">{t("v.plan")}</span>
                 <span>{formatPlan(viewBatch.plan)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Status</span>
+                <span className="text-muted-foreground">{t("v.status")}</span>
                 <StatusBadge status={voucherStatus(viewBatch.status)} className="capitalize">
                   {viewBatch.status}
                 </StatusBadge>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Used</span>
+                <span className="text-muted-foreground">{t("v.used")}</span>
                 <span>{viewBatch.used}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Business Unit</span>
+                <span className="text-muted-foreground">{t("v.businessUnit")}</span>
                 <span>{viewBatch.businessUnit}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Redeemed At</span>
+                <span className="text-muted-foreground">{t("v.redeemedAt")}</span>
                 <span>{viewBatch.redeemedAt ?? "—"}</span>
               </div>
             </div>
           ) : viewLoading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("v.loading")}</p>
           ) : (
             <div className="space-y-4">
               {viewStats && (
                 <div className="grid grid-cols-3 gap-2">
-                  <StatTile label="Total" value={String(viewStats.total)} />
-                  <StatTile label="Unused" value={String(viewStats.unused)} />
+                  <StatTile label={t("v.total")} value={String(viewStats.total)} />
+                  <StatTile label={t("v.unused")} value={String(viewStats.unused)} />
                   <StatTile
-                    label="Redeemed"
+                    label={t("v.redeemed")}
                     value={`${(viewStats.redemptionRate * 100).toFixed(0)}%`}
                   />
                 </div>
               )}
               <div className="overflow-hidden rounded-[var(--wy-radius)] border border-[var(--wy-border)]">
                 <DataTable
-                  ariaLabel="Vouchers in this batch"
+                  ariaLabel={t("v.vouchersInThisBatch")}
                   maxHeight="16rem"
                   rows={viewVouchers}
                   rowKey={(vch) => vch.id}
-                  empty="No vouchers in this batch."
+                  empty={t("v.noVouchersInThisBatch")}
                   columns={[
                     {
                       id: "code",
-                      header: "Code",
+                      header: t("v.code"),
                       mono: true,
                       mobile: "title",
                       cell: (vch) => vch.code,
                     },
                     {
                       id: "status",
-                      header: "Status",
+                      header: t("v.status"),
                       cell: (vch) => (
                         <StatusBadge status={voucherStatus(vch.status)} className="capitalize">
                           {vch.status.replace(/_/g, " ")}
@@ -747,7 +757,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                     },
                     {
                       id: "uses",
-                      header: "Uses",
+                      header: t("v.uses"),
                       align: "right",
                       className: "tabular-nums",
                       cell: (vch) => vch.useCount,
@@ -759,11 +769,15 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                     // resolve.
                     {
                       id: "mac",
-                      header: "Device MAC",
+                      header: t("v.deviceMac"),
                       cell: (vch) => {
                         const r = viewRedemptions.get(vch.id);
                         if (vch.useCount === 0)
-                          return <span className="text-[var(--wy-text-muted)]">Not redeemed</span>;
+                          return (
+                            <span className="text-[var(--wy-text-muted)]">
+                              {t("v.notRedeemed")}
+                            </span>
+                          );
                         return r?.deviceMac ? (
                           <span className={`flex items-center gap-1.5 ${MONO_CELL}`}>
                             {maskMac(r.deviceMac)}
@@ -771,7 +785,9 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                               <Badge
                                 variant="outline"
                                 className="rounded-full px-1.5 py-0 text-[11px] font-normal"
-                                title={`Used in ${r.sessionCount} sessions; this is the most recent.`}
+                                title={t("v.usedInSessionsThisIs", {
+                                  sessionCount: r.sessionCount,
+                                })}
                               >
                                 +{r.sessionCount - 1}
                               </Badge>
@@ -784,7 +800,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                     },
                     {
                       id: "ip",
-                      header: "IP Address",
+                      header: t("v.ipAddress"),
                       cell: (vch) => {
                         const r = viewRedemptions.get(vch.id);
                         if (vch.useCount === 0 || !r?.ipAddress)
@@ -803,10 +819,11 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                   implied by styling alone. */}
               <Callout tone="info" className="text-xs">
                 <p>
-                  Device MAC and IP are recorded by the network for the most recent session that
-                  used each code. A code used more than once shows a{" "}
-                  <span className="font-medium">+N</span> badge and may have run on other devices.
-                  Anything a guest typed at the portal is self-reported and is not shown here.
+                  <Trans
+                    t={t}
+                    i18nKey="v.provenance"
+                    components={{ b: <span className="font-medium" /> }}
+                  />
                 </p>
               </Callout>
               <div className="space-y-2 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-3">
@@ -814,7 +831,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                   id="voucher-export-heading"
                   className="text-xs font-medium text-[var(--wy-text)]"
                 >
-                  Export / send this batch
+                  {t("v.exportSendThisBatch")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -825,7 +842,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                     onClick={() => exportBatchCsv(viewBatch as BatchRow)}
                   >
                     <Download className="mr-1.5 h-3.5 w-3.5" />
-                    {exporting === "csv" ? "Exporting…" : "Export CSV"}
+                    {exporting === "csv" ? t("v.exporting") : t("v.exportCsv")}
                   </Button>
                   <Button
                     size="sm"
@@ -835,7 +852,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                     onClick={() => downloadBatchPdf(viewBatch as BatchRow)}
                   >
                     <Printer className="mr-1.5 h-3.5 w-3.5" />
-                    {exporting === "pdf" ? "Downloading…" : "Download PDF"}
+                    {exporting === "pdf" ? t("v.downloading") : t("v.downloadPdf")}
                   </Button>
                 </div>
                 <div className="flex gap-2">
@@ -844,7 +861,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                     placeholder="name@company.com"
                     value={emailTo}
                     onChange={(e) => setEmailTo(e.target.value)}
-                    aria-label="Email the batch PDF to"
+                    aria-label={t("v.emailTheBatchPdfTo")}
                     className="h-9 min-w-0 flex-1 rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-2.5 text-xs text-[var(--wy-text)] outline-none focus-visible:border-[var(--wy-accent)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--wy-accent)_35%,transparent)]"
                   />
                   <Button
@@ -854,7 +871,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                     onClick={() => emailBatch(viewBatch as BatchRow)}
                   >
                     <Mail className="mr-1.5 h-3.5 w-3.5" />
-                    {emailing ? "Sending…" : "Email PDF"}
+                    {emailing ? t("v.sending") : t("v.emailPdf")}
                   </Button>
                 </div>
               </div>
@@ -862,7 +879,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
           )}
           <DialogFooter>
             <Button variant="outline" onClick={closeView}>
-              Close
+              {t("v.close")}
             </Button>
           </DialogFooter>
         </DialogContent>

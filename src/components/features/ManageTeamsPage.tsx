@@ -4,6 +4,7 @@ import { Plus, Users, UserCog, Upload, UploadCloud, Download, FileSpreadsheet } 
 import { toast } from "sonner";
 import { Trans, useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -1039,7 +1040,7 @@ export default function ManageTeamsPage({
                           <p className="truncate text-xs text-[var(--wy-text-muted)]">
                             {m.displayName && m.identifier ? `${m.identifier} · ` : ""}
                             {tr("dialog.joined", "Joined {{date}}", {
-                              date: new Date(m.joinedAt).toLocaleDateString(),
+                              date: formatDate(m.joinedAt, i18n.language, { withYear: true }),
                             })}
                           </p>
                         </div>

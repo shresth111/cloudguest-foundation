@@ -75,7 +75,37 @@
     "srSummary": "New guest sessions, {{range}}: {{total}} in total. Use the arrow keys to read each bucket."
   },
   "bandwidth": {
-    "title": "Bandwidth"
+    "title": "Bandwidth",
+    "utilTitle": "Bandwidth utilization",
+    "cadence": "{{line}} · new reading about every 30 s",
+    "primaryLine": "Main line",
+    "ofPlanHint": "{{now}} of your {{plan}} Mbps plan (the speed your ISP advertises, not one we measured)",
+    "ofPlan": "{{pct}} of plan",
+    "manage": "Manage →",
+    "series": "Series",
+    "download": "Download",
+    "upload": "Upload",
+    "show": "Show {{series}}",
+    "hide": "Hide {{series}}",
+    "alsoHere": "Also here",
+    "health": {
+      "healthy": "Online",
+      "degraded": "Degraded",
+      "unhealthy": "Offline",
+      "unknown": "Unknown"
+    },
+    "rolePrimary": "Primary",
+    "roleBackup": "Backup",
+    "comfortable": "Comfortably under {{plan}} Mbps across the last {{total}} readings.",
+    "congested": "Hit 90%+ of your {{plan}} Mbps plan in {{count}} of the last {{total}} readings ({{pct}}%)",
+    "congestedAdvice": " — your guests are likely feeling this. Consider upgrading your plan.",
+    "fullStop": ".",
+    "emptyNoLine": "No internet line set up yet.",
+    "emptyNoSamples": "No readings yet — the next check runs within a minute.",
+    "noReading": "No reading",
+    "planLine": "{{plan}} Mbps plan",
+    "setPlan": "Set {{line}}'s plan speed to see usage as a %.",
+    "setIt": "Set it →"
   },
   "recentUsers": {
     "title": "Recent Users",
@@ -183,7 +213,8 @@
       "downstream": "Access points and devices",
       "clients": "Guests"
     },
-    "srDownstream": "{{up}} of {{total}} up"
+    "srDownstream": "{{up}} of {{total}} up",
+    "notMeasured": "Not measured"
   },
   "activity": {
     "hint": "Click a bar to pin it",

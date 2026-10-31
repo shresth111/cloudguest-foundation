@@ -74,6 +74,7 @@ import {
   toActivityPoints,
 } from "@/components/customer/dashboard/overview/ActivityChart";
 import { RecentGuestsTable } from "@/components/customer/dashboard/overview/RecentGuestsTable";
+import { formatRelative, intlLocale } from "@/lib/format";
 
 // This component lives in a plain component file, not a route file, on
 // purpose: routeTree.gen.ts statically imports every route file into the
@@ -278,7 +279,7 @@ export function CustomerDashboardPage() {
     {
       label: t("kpi.guests", "Guests"),
       icon: <Users className="h-3.5 w-3.5" />,
-      value: s ? s.guests.toLocaleString() : null,
+      value: s ? s.guests.toLocaleString(intlLocale()) : null,
       loading: series.isLoading,
       footer: series.isError ? (
         <span>{t("couldNotLoad", "Couldn't load")}</span>
@@ -289,14 +290,14 @@ export function CustomerDashboardPage() {
     {
       label: t("kpi.online", "Currently online"),
       icon: <Wifi className="h-3.5 w-3.5" />,
-      value: d ? d.kpis.onlineUsers.toLocaleString() : null,
+      value: d ? d.kpis.onlineUsers.toLocaleString(intlLocale()) : null,
       loading: isLoading,
       live: !!d && d.kpis.onlineUsers > 0,
       footer: s ? (
         <span>
           {t("kpi.onlineFooter", "Peak {{range}}: {{peak}}", {
             range: rangeLabel,
-            peak: s.peakOnline.toLocaleString(),
+            peak: s.peakOnline.toLocaleString(intlLocale()),
           })}
         </span>
       ) : isError ? (
@@ -317,7 +318,7 @@ export function CustomerDashboardPage() {
             ? t("kpi.noSessions", "No sessions {{range}}", { range: rangeLabel })
             : t("kpi.acrossSessions", "Across {{formatted}} sessions", {
                 count: s.sessions,
-                formatted: s.sessions.toLocaleString(),
+                formatted: s.sessions.toLocaleString(intlLocale()),
               })}
         </span>
       ) : null,
@@ -551,7 +552,7 @@ export function CustomerDashboardPage() {
                       {s.osBreakdown.map((o, i) => (
                         <li
                           key={o.name}
-                          title={`${o.name}: ${o.value.toLocaleString()}${osTotal ? ` (${Math.round((o.value / osTotal) * 100)}%)` : ""}`}
+                          title={`${o.name}: ${o.value.toLocaleString(intlLocale())}${osTotal ? ` (${Math.round((o.value / osTotal) * 100)}%)` : ""}`}
                           className="rounded-[var(--wy-radius)] px-1 py-0.5 transition-colors duration-150 hover:bg-[var(--wy-surface-2)]"
                         >
                           <div className="mb-1 flex items-center justify-between gap-2 text-xs">
@@ -564,7 +565,7 @@ export function CustomerDashboardPage() {
                             </span>
                             <span className="tabular-nums text-[var(--wy-text-muted)]">
                               <span className="font-semibold text-[var(--wy-text)]">
-                                {o.value.toLocaleString()}
+                                {o.value.toLocaleString(intlLocale())}
                               </span>
                               {osTotal > 0 && (
                                 <span className="ml-1.5 inline-block w-9 text-right text-[var(--wy-text-faint)]">
@@ -733,7 +734,9 @@ export function CustomerDashboardPage() {
                           <span className="min-w-0 flex-1">
                             <span className="line-clamp-2 text-xs font-medium">{a.msg}</span>
                             <span className="text-[11px] tabular-nums text-[var(--wy-text-faint)]">
-                              {a.time}
+                              {a.at != null
+                                ? formatRelative(a.at, i18n.language, { style: "short" })
+                                : a.time}
                             </span>
                           </span>
                         </button>

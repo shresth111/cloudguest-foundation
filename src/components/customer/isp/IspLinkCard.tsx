@@ -23,11 +23,11 @@ import {
   ispColor,
   useIspT,
 } from "./isp-ui";
-import { LINK_TYPES } from "./IspDialogs";
+import { linkTypeLabel } from "./IspDialogs";
 import type { Loadable } from "./useIspHistory";
 import type { IspRange } from "./isp.demo";
 
-const MODE_LABEL: Record<string, string> = { static: "Static IP", dhcp: "DHCP", pppoe: "PPPoE" };
+const MODE_LABEL: Record<string, string> = { static: "Static IP", dhcp: "DHCP", pppoe: "PPPoE" }; // i18n-ignore: English fallback for dialog.mode.*
 
 export function IspLinkCard({
   link,
@@ -67,8 +67,7 @@ export function IspLinkCard({
   const since = stateSince(link, rows);
   const up = summary?.status === "ready" ? uptimePercent(summary.data.buckets) : null;
   const st = linkStatus(link.healthStatus);
-  const typeLabel =
-    LINK_TYPES.find((x) => x.value === link.linkType)?.label ?? link.linkType.replace(/_/g, " ");
+  const typeLabel = linkTypeLabel(t, link.linkType);
 
   let sinceText: string | null = null;
   if (link.healthStatus === "unhealthy" && link.unhealthySince) {
@@ -240,7 +239,11 @@ export function IspLinkCard({
         <Detail label={t("card.type", "Type")} value={typeLabel} />
         <Detail
           label={t("card.connection", "Connection")}
-          value={MODE_LABEL[link.connectionMode] ?? link.connectionMode}
+          value={
+            link.connectionMode === "static"
+              ? t("dialog.mode.static", MODE_LABEL.static)
+              : (MODE_LABEL[link.connectionMode] ?? link.connectionMode)
+          }
         />
         <Detail
           label={t("card.dns", "DNS")}

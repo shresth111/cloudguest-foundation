@@ -3,7 +3,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { ChevronRight, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatAge, hardwareLivenessIsMeasured, isRouterUnreadable } from "@/lib/device-liveness";
+import { hardwareLivenessIsMeasured, isRouterUnreadable } from "@/lib/device-liveness";
+import { useFormat } from "@/lib/useFormat";
 import { customerFeatureHref } from "@/lib/customerNav";
 import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 import type { MonitoredDeviceRow } from "@/services/deviceHardware.service";
@@ -24,6 +25,7 @@ import {
   BucketDot,
   useBucketLabel,
   useDevicesT,
+  useRowWords,
 } from "@/components/customer/devices/ui";
 
 /**
@@ -74,6 +76,8 @@ export function DeviceStatusCardView({
   onManage: () => void;
 }) {
   const t = useDevicesT();
+  const words = useRowWords();
+  const fmt = useFormat();
   const bucketLabel = useBucketLabel();
   const navigate = useNavigate();
   const openFiltered = (b: FleetBucket) =>
@@ -229,7 +233,7 @@ export function DeviceStatusCardView({
                         )}
                       </span>
                       <span className={cn("shrink-0 text-xs font-medium", BUCKET_TEXT[r.bucket])}>
-                        {r.statusWord}
+                        {words.status(r.statusWord)}
                       </span>
                       <ChevronRight
                         aria-hidden
@@ -264,7 +268,7 @@ export function DeviceStatusCardView({
                    * honestly named -- unlike the same arithmetic beside the
                    * word "Up", which is the bug @/lib/device-liveness exists
                    * to prevent. */}
-                  {downCount} down
+                  {t("card.downCount", "{{count}} down", { count: downCount })}
                   {(() => {
                     // `last_seen_at` is nullable: "N down" alone is still true.
                     const oldest = devices
@@ -276,32 +280,45 @@ export function DeviceStatusCardView({
                         (a, b) =>
                           new Date(a.lastSeenAt).getTime() - new Date(b.lastSeenAt).getTime(),
                       )[0];
-                    return oldest ? ` · longest ${formatAge(oldest.lastSeenAt, Date.now())}` : "";
+                    return oldest
+                      ? t("card.longest", " · longest {{d}}", {
+                          d: fmt.duration(Date.now() - new Date(oldest.lastSeenAt).getTime()),
+                        })
+                      : "";
                   })()}
                 </span>
               ) : unreachableCount > 0 ? (
                 // The router could not be read, so these devices are not
                 // known to be missing or down -- say what actually failed.
                 <span className="font-medium text-[var(--wy-warn)]">
-                  Can't reach router · {unreachableCount} unconfirmed
+                  {t("card.unreachable", "Can't reach router · {{count}} unconfirmed", {
+                    count: unreachableCount,
+                  })}
                 </span>
               ) : degradedCount > 0 ? (
-                <span className="font-medium text-[var(--wy-warn)]">{degradedCount} degraded</span>
+                <span className="font-medium text-[var(--wy-warn)]">
+                  {t("card.degradedCount", "{{count}} degraded", { count: degradedCount })}
+                </span>
               ) : unknownCount > 0 ? (
                 // Never conflated with "up": a device just registered (or whose
                 // router hasn't synced yet) hasn't been confirmed reachable.
                 <span className="font-medium text-[var(--wy-text-muted)]">
-                  {unknownCount} not yet observed
+                  {t("card.notObserved", "{{count}} not checked yet", { count: unknownCount })}
                 </span>
               ) : unmeasuredCount > 0 ? (
                 <span
-                  title="This venue's network is run by a controller, so nothing here pings these devices. Your controller reports its own access points on the Devices page."
+                  title={t(
+                    "card.unmeasuredHint",
+                    "This venue's network is run by a controller, so nothing here pings these devices. Your controller reports its own access points on the Devices page.",
+                  )}
                   className="font-medium text-[var(--wy-text-muted)]"
                 >
-                  {unmeasuredCount} not measured here
+                  {t("card.unmeasured", "{{count}} not measured here", { count: unmeasuredCount })}
                 </span>
               ) : upCount === devices.length ? (
-                <span className="font-medium text-[var(--wy-ok)]">All devices up</span>
+                <span className="font-medium text-[var(--wy-ok)]">
+                  {t("card.allUp", "All devices up")}
+                </span>
               ) : null}
             </div>
           </div>

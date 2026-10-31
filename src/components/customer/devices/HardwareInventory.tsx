@@ -11,6 +11,8 @@
 import { Fragment, useMemo, useState, type KeyboardEvent } from "react";
 import { ChevronRight, MapPin, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import i18n from "@/lib/i18n";
+import { formatDateTime } from "@/lib/format";
 import { formatDuration } from "@/lib/device-liveness";
 import { sortFloors } from "@/lib/device-floors";
 import { DEVICE_TYPE_META } from "@/lib/device-presentation";
@@ -36,6 +38,7 @@ import {
   relTime,
   useBucketLabel,
   useDevicesT,
+  useRowWords,
   useKindLabel,
 } from "./ui";
 
@@ -65,6 +68,7 @@ export function HardwareInventory({
   now?: number;
 }) {
   const t = useDevicesT();
+  const words = useRowWords();
   const bucketLabel = useBucketLabel();
   const kindLabel = useKindLabel();
   const [sort, setSort] = useState<InventorySort>({ key: "status", dir: 1 });
@@ -307,7 +311,7 @@ export function HardwareInventory({
                           <div className="flex items-center gap-1.5">
                             <BucketDot bucket={r.bucket} label={bucketLabel(r.bucket)} />
                             <span className={cn("font-medium", BUCKET_TEXT[r.bucket])}>
-                              {r.statusWord}
+                              {words.status(r.statusWord)}
                             </span>
                           </div>
                           {r.detail && (
@@ -339,7 +343,7 @@ export function HardwareInventory({
                           )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 align-top text-[var(--wy-text-muted)]">
-                          {r.typeLabel}
+                          {words.type(r.typeLabel)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 align-top text-[var(--wy-text-muted)]">
                           {r.floor || <span className="text-[var(--wy-text-faint)]">—</span>}
@@ -351,7 +355,11 @@ export function HardwareInventory({
                         </td>
                         <td
                           className="whitespace-nowrap px-3 py-2 align-top text-xs tabular-nums text-[var(--wy-text-muted)]"
-                          title={r.lastSeenAt ? new Date(r.lastSeenAt).toLocaleString() : undefined}
+                          title={
+                            r.lastSeenAt
+                              ? formatDateTime(r.lastSeenAt, i18n.language, { withYear: true })
+                              : undefined
+                          }
                         >
                           {relTime(r.lastSeenAt, now)}
                         </td>
@@ -408,14 +416,14 @@ export function HardwareInventory({
                         </span>
                         <span className="mt-0.5 block truncate text-xs">
                           <span className={cn("font-medium", BUCKET_TEXT[r.bucket])}>
-                            {r.statusWord}
+                            {words.status(r.statusWord)}
                           </span>
                           {r.detail && (
                             <span className="text-[var(--wy-text-faint)]"> · {r.detail}</span>
                           )}
                         </span>
                         <span className="mt-0.5 block truncate text-[11px] text-[var(--wy-text-faint)]">
-                          {[r.typeLabel, r.floor].filter(Boolean).join(" · ")}
+                          {[words.type(r.typeLabel), r.floor].filter(Boolean).join(" · ")}
                           {r.mac && <span className={MONO}> · {r.mac}</span>}
                         </span>
                       </span>

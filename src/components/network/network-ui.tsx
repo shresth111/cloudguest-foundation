@@ -85,9 +85,10 @@ export function PushStatusBadge({
 
 /** Intent, not fact: the row's own on/off switch. Neutral when off. */
 export function EnabledBadge({ enabled }: { enabled: boolean }) {
+  const { t } = useTranslation("network", { i18n });
   return (
     <StatusBadge status={enabled ? "ok" : "offline"} dot={false}>
-      {enabled ? "Enabled" : "Disabled"}
+      {enabled ? t("common.enabled", "Enabled") : t("common.disabled", "Disabled")}
     </StatusBadge>
   );
 }

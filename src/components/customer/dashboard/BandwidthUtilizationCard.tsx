@@ -18,6 +18,9 @@ import { useBandwidthSeries } from "./useBandwidthSeries";
 import { Panel } from "@/components/customer/console";
 import { CONSOLE_TOOLTIP_STYLE, PanelLink, PanelTitle } from "./overview/console-ui";
 import { anchorAxisToPlan, formatMbps, utilizationLabel } from "./bandwidth-display";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
+import { formatTime } from "@/lib/format";
 
 /**
  * Bandwidth Utilization -- a live, rolling graph of this location's active
@@ -30,16 +33,14 @@ export function BandwidthUtilizationCard({
   locationId: string;
   onManage: () => void;
 }) {
+  const { t, i18n: inst } = useTranslation("dashboard", { i18n });
   const bw = useBandwidthSeries(locationId);
   // Legend toggles: hiding a series is a view choice, never a data change.
   const [hidden, setHidden] = useState({ download: false, upload: false });
   const ordered = bw.status === "ready" ? [...bw.checks].reverse() : [];
   const hasTraffic = ordered.some((c) => c.downloadMbps != null || c.uploadMbps != null);
   const chartData = ordered.map((c) => ({
-    label: new Date(c.checkedAt).toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+    label: formatTime(c.checkedAt, inst.language),
     download: c.downloadMbps,
     upload: c.uploadMbps,
   }));
@@ -77,8 +78,15 @@ export function BandwidthUtilizationCard({
     <Panel
       flush
       className="h-full"
-      title={<PanelTitle icon={<Gauge />}>Bandwidth Utilization</PanelTitle>}
-      description={`${bw.status === "ready" ? bw.link.providerName : "Primary uplink"} · new reading about every 30 s`}
+      title={
+        <PanelTitle icon={<Gauge />}>
+          {t("bandwidth.utilTitle", "Bandwidth utilization")}
+        </PanelTitle>
+      }
+      description={t("bandwidth.cadence", "{{line}} · new reading about every 30 s", {
+        line:
+          bw.status === "ready" ? bw.link.providerName : t("bandwidth.primaryLine", "Main line"),
+      })}
       actions={
         <>
           {utilizationPct != null && (
@@ -91,21 +99,40 @@ export function BandwidthUtilizationCard({
                     ? "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]"
                     : "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]",
               )}
-              title={`${formatMbps(latest?.downloadMbps ?? null)} of ${capacityDownload} Mbps plan (as advertised by your ISP, not independently measured)`}
+              title={t(
+                "bandwidth.ofPlanHint",
+                "{{now}} of your {{plan}} Mbps plan (the speed your ISP advertises, not one we measured)",
+                { now: formatMbps(latest?.downloadMbps ?? null), plan: capacityDownload },
+              )}
             >
-              {utilization?.label} of plan
+              {t("bandwidth.ofPlan", "{{pct}} of plan", { pct: utilization?.label })}
             </span>
           )}
-          <PanelLink onClick={onManage}>Manage →</PanelLink>
+          <PanelLink onClick={onManage}>{t("bandwidth.manage", "Manage →")}</PanelLink>
         </>
       }
     >
       {latest && (
-        <div className="flex flex-wrap items-center gap-2 px-4 pt-3" aria-label="Series">
+        <div
+          className="flex flex-wrap items-center gap-2 px-4 pt-3"
+          aria-label={t("bandwidth.series", "Series")}
+        >
           {(
             [
-              ["download", "Download", latest.downloadMbps, "var(--wy-series-2)", "↓"],
-              ["upload", "Upload", latest.uploadMbps, "var(--wy-series-1)", "↑"],
+              [
+                "download",
+                t("bandwidth.download", "Download"),
+                latest.downloadMbps,
+                "var(--wy-series-2)",
+                "↓",
+              ],
+              [
+                "upload",
+                t("bandwidth.upload", "Upload"),
+                latest.uploadMbps,
+                "var(--wy-series-1)",
+                "↑",
+              ],
             ] as const
           ).map(([key, label, value, color, arrow]) => (
             <button
@@ -113,7 +140,11 @@ export function BandwidthUtilizationCard({
               type="button"
               aria-pressed={!hidden[key]}
               onClick={() => toggle(key)}
-              title={hidden[key] ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}
+              title={
+                hidden[key]
+                  ? t("bandwidth.show", "Show {{series}}", { series: label })
+                  : t("bandwidth.hide", "Hide {{series}}", { series: label })
+              }
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-2 py-1 text-xs transition-opacity duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]",
                 hidden[key] && "opacity-45",
@@ -132,25 +163,31 @@ export function BandwidthUtilizationCard({
       {bw.status === "ready" && bw.otherLinks.length > 0 && (
         <div className="mx-4 mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Also here
+            {t("bandwidth.alsoHere", "Also here")}
           </span>
           {bw.otherLinks.map((l) => {
             const style = WAN_HEALTH_STYLE[l.healthStatus] ?? WAN_HEALTH_STYLE.unknown;
+            const health = t(
+              `bandwidth.health.${WAN_HEALTH_STYLE[l.healthStatus] ? l.healthStatus : "unknown"}`,
+              style.label,
+            );
+            const role =
+              l.role === "primary"
+                ? t("bandwidth.rolePrimary", "Primary")
+                : t("bandwidth.roleBackup", "Backup");
             return (
               <span
                 key={l.id}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-2 py-1 text-[11px]"
-                title={`${l.providerName} (${l.role === "primary" ? "Primary" : "Backup"}) — ${style.label}`}
+                title={`${l.providerName} (${role}) — ${health}`}
               >
                 <IspProviderIcon providerName={l.providerName} className="h-3.5 w-3.5 shrink-0" />
                 <span className="max-w-[8rem] truncate font-medium text-foreground">
                   {l.providerName}
                 </span>
-                <span className="text-muted-foreground">
-                  {l.role === "primary" ? "Primary" : "Backup"}
-                </span>
+                <span className="text-muted-foreground">{role}</span>
                 <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", style.dot)} />
-                <span className={cn("font-medium", style.text)}>{style.label}</span>
+                <span className={cn("font-medium", style.text)}>{health}</span>
                 {l.currentDownloadMbps != null && (
                   <span className="text-muted-foreground tabular-nums">
                     {formatMbps(l.currentDownloadMbps)}↓
@@ -177,17 +214,32 @@ export function BandwidthUtilizationCard({
           />
           <span>
             {congestionSummary.count === 0 ? (
-              <>
-                Comfortably under {capacityDownload} Mbps across the last {congestionSummary.total}{" "}
-                readings.
-              </>
+              t(
+                "bandwidth.comfortable",
+                "Comfortably under {{plan}} Mbps across the last {{total}} readings.",
+                {
+                  plan: capacityDownload,
+                  total: congestionSummary.total,
+                },
+              )
             ) : (
               <>
-                Hit 90%+ of your {capacityDownload} Mbps plan in {congestionSummary.count} of the
-                last {congestionSummary.total} readings ({congestionSummary.pct}%)
+                {t(
+                  "bandwidth.congested",
+                  "Hit 90%+ of your {{plan}} Mbps plan in {{count}} of the last {{total}} readings ({{pct}}%)",
+                  {
+                    plan: capacityDownload,
+                    count: congestionSummary.count,
+                    total: congestionSummary.total,
+                    pct: congestionSummary.pct,
+                  },
+                )}
                 {congestionSummary.pct >= 30
-                  ? " — your guests are likely feeling this. Consider upgrading your plan."
-                  : "."}
+                  ? t(
+                      "bandwidth.congestedAdvice",
+                      " — your guests are likely feeling this. Consider upgrading your plan.",
+                    )
+                  : t("bandwidth.fullStop", ".")}
               </>
             )}
           </span>
@@ -206,9 +258,14 @@ export function BandwidthUtilizationCard({
               ))}
             </div>
           ) : bw.status === "empty" ? (
-            <ChartEmptyState label="No internet connection configured yet." />
+            <ChartEmptyState label={t("bandwidth.emptyNoLine", "No internet line set up yet.")} />
           ) : !hasTraffic ? (
-            <ChartEmptyState label="No bandwidth samples yet — the next health-check sweep runs within 60 seconds." />
+            <ChartEmptyState
+              label={t(
+                "bandwidth.emptyNoSamples",
+                "No readings yet — the next check runs within a minute.",
+              )}
+            />
           ) : (
             // No BlurFade here. Its `inView` mode keeps the chart at opacity 0
             // until an IntersectionObserver fires, so anything that does not
@@ -256,8 +313,12 @@ export function BandwidthUtilizationCard({
                       value: number | string | Array<number | string> | undefined,
                       name: string | number,
                     ) => [
-                      typeof value !== "number" ? "No reading" : formatMbps(value),
-                      name === "download" ? "Download" : "Upload",
+                      typeof value !== "number"
+                        ? t("bandwidth.noReading", "No reading")
+                        : formatMbps(value),
+                      name === "download"
+                        ? t("bandwidth.download", "Download")
+                        : t("bandwidth.upload", "Upload"),
                     ]}
                   />
                   <Area
@@ -289,7 +350,9 @@ export function BandwidthUtilizationCard({
                       strokeDasharray="5 4"
                       strokeOpacity={0.7}
                       label={{
-                        value: `${capacityDownload} Mbps plan`,
+                        value: t("bandwidth.planLine", "{{plan}} Mbps plan", {
+                          plan: capacityDownload,
+                        }),
                         position: "insideTopRight",
                         fontSize: 10,
                         fill: "var(--wy-series-2)",
@@ -303,13 +366,15 @@ export function BandwidthUtilizationCard({
         </div>
         {bw.status === "ready" && capacityDownload == null && (
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
-            Set {bw.link.providerName}'s plan speed to see utilization as a %.{" "}
+            {t("bandwidth.setPlan", "Set {{line}}'s plan speed to see usage as a %.", {
+              line: bw.link.providerName,
+            })}{" "}
             <button
               type="button"
               onClick={onManage}
               className="font-medium text-primary hover:underline"
             >
-              Set it →
+              {t("bandwidth.setIt", "Set it →")}
             </button>
           </p>
         )}

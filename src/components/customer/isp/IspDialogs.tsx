@@ -7,6 +7,7 @@
  * docs/design/console-tokens.md).
  */
 import { useEffect, useState } from "react";
+import { useIspT } from "./isp-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +52,9 @@ import type {
  * the isp domain's own 60s Celery sweep (isp_health_checks). All CRUD goes
  * through ispService, which threads X-Organization-Id on every call. */
 
+/** `label` is the English fallback; render through `linkTypeLabel` so it
+ * follows the dashboard language. */
+// i18n-ignore-start: English fallbacks; rendered through `linkTypeLabel` (dialog.linkType.*)
 export const LINK_TYPES: { value: string; label: string }[] = [
   { value: "fiber", label: "Fiber" },
   { value: "dsl", label: "DSL" },
@@ -61,6 +65,18 @@ export const LINK_TYPES: { value: string; label: string }[] = [
   { value: "leased_line", label: "Leased Line" },
   { value: "other", label: "Other" },
 ];
+// i18n-ignore-end
+
+/** A link type's name in the active language (`dialog.linkType.<value>`). */
+export function linkTypeLabel(t: (k: string, d: string) => string, value: string): string {
+  const known = LINK_TYPES.find((x) => x.value === value);
+  return known ? t(`dialog.linkType.${value}`, known.label) : value.replace(/_/g, " ");
+}
+
+/** A routing-rule type's match-field label in the active language. */
+function ruleFieldLabel(t: (k: string, d: string) => string, type: IspRoutingRuleType): string {
+  return t(`ruleDialog.field.${type}`, matchFieldLabel(type));
+}
 
 // The router's own WAN-facing interface this link terminates on --
 // informational only (see backend IspLink.interface's own comment), same
@@ -69,6 +85,7 @@ export const LINK_TYPES: { value: string; label: string }[] = [
 // picking from a short, familiar list beats typing a slug from memory,
 // and this field was never validated against the router's real interface
 // list anyway (this view never contacts the router to fetch one).
+// i18n-ignore-start: port names; "Other" renders through dialog.linkType.other
 const INTERFACE_OPTIONS: { value: string; label: string }[] = [
   { value: "ether1", label: "ether1" },
   { value: "ether2", label: "ether2" },
@@ -80,6 +97,7 @@ const INTERFACE_OPTIONS: { value: string; label: string }[] = [
   { value: "lte1", label: "lte1 (4G/5G)" },
   { value: "other", label: "Other" },
 ];
+// i18n-ignore-end
 
 export interface IspLinkFormState {
   providerName: string;
@@ -123,6 +141,7 @@ export function IspLinkDialog({
   saving: boolean;
   onSave: (form: IspLinkFormState) => void;
 }) {
+  const { t } = useIspT();
   const [form, setForm] = useState<IspLinkFormState>(emptyLinkForm());
   useEffect(() => {
     if (!open) return;
@@ -154,26 +173,32 @@ export function IspLinkDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="wy-console sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit ISP Link" : "Add ISP Link"}</DialogTitle>
+          <DialogTitle>
+            {editing
+              ? t("dialog.editTitle", "Edit ISP line")
+              : t("dialog.addTitle", "Add ISP line")}
+          </DialogTitle>
           <DialogDescription>
             {editing
-              ? "Update this router's WAN uplink."
-              : "Add a new WAN uplink for the selected router."}
+              ? t("dialog.editDesc", "Change the details of this internet line.")
+              : t("dialog.addDesc", "Add an internet line that plugs into the selected router.")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-xs">Internet Provider *</Label>
+              <Label className="mb-1 block text-xs">
+                {t("dialog.provider", "Internet provider *")}
+              </Label>
               <Input
-                placeholder="e.g. Airtel"
+                placeholder={t("dialog.providerPlaceholder", "e.g. Airtel")}
                 value={form.providerName}
                 onChange={(e) => setForm({ ...form, providerName: e.target.value })}
                 className="h-9"
               />
             </div>
             <div>
-              <Label className="mb-1 block text-xs">Link Type</Label>
+              <Label className="mb-1 block text-xs">{t("dialog.linkTypeLabel", "Line type")}</Label>
               <Select
                 value={form.linkType}
                 onValueChange={(v) => setForm({ ...form, linkType: v })}
@@ -182,9 +207,9 @@ export function IspLinkDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {LINK_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
+                  {LINK_TYPES.map((lt) => (
+                    <SelectItem key={lt.value} value={lt.value}>
+                      {linkTypeLabel(t, lt.value)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -193,7 +218,7 @@ export function IspLinkDialog({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-xs">Role</Label>
+              <Label className="mb-1 block text-xs">{t("dialog.role", "Role")}</Label>
               <Select
                 value={form.role}
                 onValueChange={(v) => setForm({ ...form, role: v as IspLinkRole })}
@@ -202,13 +227,13 @@ export function IspLinkDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="primary">Primary</SelectItem>
-                  <SelectItem value="backup">Backup</SelectItem>
+                  <SelectItem value="primary">{t("role.primary", "Primary")}</SelectItem>
+                  <SelectItem value="backup">{t("role.backup", "Backup")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label className="mb-1 block text-xs">Priority</Label>
+              <Label className="mb-1 block text-xs">{t("card.priority", "Priority")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -219,7 +244,9 @@ export function IspLinkDialog({
             </div>
           </div>
           <div>
-            <Label className="mb-1 block text-xs">Connection Type</Label>
+            <Label className="mb-1 block text-xs">
+              {t("dialog.connectionType", "Connection type")}
+            </Label>
             <Select
               value={form.connectionMode}
               onValueChange={(v) => setForm({ ...form, connectionMode: v as IspConnectionMode })}
@@ -228,8 +255,8 @@ export function IspLinkDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="static">Static IP</SelectItem>
-                <SelectItem value="dhcp">DHCP Client</SelectItem>
+                <SelectItem value="static">{t("dialog.mode.static", "Static IP")}</SelectItem>
+                <SelectItem value="dhcp">{t("dialog.mode.dhcp", "DHCP (automatic)")}</SelectItem>
                 <SelectItem value="pppoe">PPPoE</SelectItem>
               </SelectContent>
             </Select>
@@ -237,32 +264,38 @@ export function IspLinkDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label className="mb-1 block text-xs">
-                Interface{form.connectionMode === "pppoe" && " *"}
+                {t("dialog.interface", "Router port")}
+                {form.connectionMode === "pppoe" && " *"}
               </Label>
               <Select
                 value={form.interfaceName}
                 onValueChange={(v) => setForm({ ...form, interfaceName: v })}
               >
                 <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Select interface" />
+                  <SelectValue placeholder={t("dialog.interfacePlaceholder", "Choose a port")} />
                 </SelectTrigger>
                 <SelectContent>
                   {INTERFACE_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
-                      {o.label}
+                      {o.value === "other" ? t("dialog.linkType.other", "Other") : o.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {form.connectionMode === "pppoe" && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  This interface's own connection state is the health signal for PPPoE.
+                  {t(
+                    "dialog.pppoeHint",
+                    "For PPPoE, we read this port's own connection state to tell if the line is up.",
+                  )}
                 </p>
               )}
             </div>
             {form.connectionMode === "static" ? (
               <div>
-                <Label className="mb-1 block text-xs">Gateway IP (optional)</Label>
+                <Label className="mb-1 block text-xs">
+                  {t("dialog.gatewayOptional", "Gateway IP (optional)")}
+                </Label>
                 <Input
                   placeholder="203.0.113.1"
                   value={form.gatewayIpAddress}
@@ -272,11 +305,14 @@ export function IspLinkDialog({
               </div>
             ) : (
               <div>
-                <Label className="mb-1 block text-xs">Gateway IP</Label>
+                <Label className="mb-1 block text-xs">{t("dialog.gateway", "Gateway IP")}</Label>
                 <div className="flex h-9 items-center rounded-md border border-dashed px-3 text-[11px] text-muted-foreground">
                   {form.connectionMode === "dhcp"
-                    ? "Detected automatically from the router's live DHCP lease"
-                    : "Not applicable for PPPoE"}
+                    ? t(
+                        "dialog.gatewayDhcp",
+                        "Picked up automatically from the router's DHCP lease",
+                      )
+                    : t("dialog.gatewayPppoe", "Not needed for PPPoE")}
                 </div>
               </div>
             )}
@@ -290,22 +326,26 @@ export function IspLinkDialog({
               landed here and found nothing to fill in). */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-xs">Plan Download Speed (Mbps, optional)</Label>
+              <Label className="mb-1 block text-xs">
+                {t("dialog.planDown", "Plan download speed (Mbps, optional)")}
+              </Label>
               <Input
                 type="number"
                 min={0}
-                placeholder="e.g. 100"
+                placeholder={t("dialog.egNumber", "e.g. {{n}}", { n: 100 })}
                 value={form.downloadBandwidthMbps}
                 onChange={(e) => setForm({ ...form, downloadBandwidthMbps: e.target.value })}
                 className="h-9"
               />
             </div>
             <div>
-              <Label className="mb-1 block text-xs">Plan Upload Speed (Mbps, optional)</Label>
+              <Label className="mb-1 block text-xs">
+                {t("dialog.planUp", "Plan upload speed (Mbps, optional)")}
+              </Label>
               <Input
                 type="number"
                 min={0}
-                placeholder="e.g. 20"
+                placeholder={t("dialog.egNumber", "e.g. {{n}}", { n: 20 })}
                 value={form.uploadBandwidthMbps}
                 onChange={(e) => setForm({ ...form, uploadBandwidthMbps: e.target.value })}
                 className="h-9"
@@ -313,12 +353,16 @@ export function IspLinkDialog({
             </div>
           </div>
           <p className="-mt-1 text-[11px] text-muted-foreground">
-            Whatever your ISP advertises for this plan — not independently measured, so utilization
-            % is only as accurate as this number.
+            {t(
+              "dialog.planHint",
+              "Use the speed your ISP sold you. We don't measure it ourselves, so the usage % is only as accurate as this number.",
+            )}
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-xs">Primary DNS (optional)</Label>
+              <Label className="mb-1 block text-xs">
+                {t("dialog.dnsPrimary", "Primary DNS (optional)")}
+              </Label>
               <Input
                 placeholder="1.1.1.1"
                 value={form.dnsPrimary}
@@ -327,7 +371,9 @@ export function IspLinkDialog({
               />
             </div>
             <div>
-              <Label className="mb-1 block text-xs">Secondary DNS (optional)</Label>
+              <Label className="mb-1 block text-xs">
+                {t("dialog.dnsSecondary", "Secondary DNS (optional)")}
+              </Label>
               <Input
                 placeholder="8.8.8.8"
                 value={form.dnsSecondary}
@@ -339,10 +385,14 @@ export function IspLinkDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("dialog.cancel", "Cancel")}
           </Button>
           <Button disabled={!valid || saving} onClick={() => onSave(form)}>
-            {saving ? "Saving…" : editing ? "Save Changes" : "Add Link"}
+            {saving
+              ? t("dialog.saving", "Saving…")
+              : editing
+                ? t("dialog.saveChanges", "Save changes")
+                : t("dialog.addLine", "Add line")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -391,6 +441,7 @@ export function IspRuleDialog({
   saving: boolean;
   onSave: (form: IspRuleFormState) => void;
 }) {
+  const { t } = useIspT();
   const [form, setForm] = useState<IspRuleFormState>(emptyRuleForm(links[0]?.id ?? ""));
   useEffect(() => {
     if (!open) return;
@@ -416,14 +467,20 @@ export function IspRuleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="wy-console sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit Routing Rule" : "New Routing Rule"}</DialogTitle>
-          <DialogDescription>Pin matching traffic to a specific uplink.</DialogDescription>
+          <DialogTitle>
+            {editing
+              ? t("ruleDialog.editTitle", "Edit routing rule")
+              : t("ruleDialog.newTitle", "New routing rule")}
+          </DialogTitle>
+          <DialogDescription>
+            {t("ruleDialog.desc", "Send matching traffic over one particular internet line.")}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label className="mb-1 block text-xs">Name</Label>
+            <Label className="mb-1 block text-xs">{t("rules.name", "Name")}</Label>
             <Input
-              placeholder="VLAN 20 via secondary uplink"
+              placeholder={t("ruleDialog.namePlaceholder", "VLAN 20 over the second line")}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="h-9"
@@ -431,13 +488,13 @@ export function IspRuleDialog({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-xs">Uplink</Label>
+              <Label className="mb-1 block text-xs">{t("rules.line", "Line")}</Label>
               <Select
                 value={form.ispLinkId}
                 onValueChange={(v) => setForm({ ...form, ispLinkId: v })}
               >
                 <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Select uplink" />
+                  <SelectValue placeholder={t("ruleDialog.linePlaceholder", "Choose a line")} />
                 </SelectTrigger>
                 <SelectContent>
                   {links.map((l) => (
@@ -449,7 +506,7 @@ export function IspRuleDialog({
               </Select>
             </div>
             <div>
-              <Label className="mb-1 block text-xs">Rule Type</Label>
+              <Label className="mb-1 block text-xs">{t("ruleDialog.ruleType", "Rule type")}</Label>
               <Select
                 value={form.ruleType}
                 onValueChange={(v) =>
@@ -460,9 +517,9 @@ export function IspRuleDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {RULE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="capitalize">
-                      {t}
+                  {RULE_TYPES.map((rt) => (
+                    <SelectItem key={rt} value={rt}>
+                      {t(`ruleDialog.type.${rt}`, rt)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -470,7 +527,7 @@ export function IspRuleDialog({
             </div>
           </div>
           <div>
-            <Label className="mb-1 block text-xs">{matchFieldLabel(form.ruleType)}</Label>
+            <Label className="mb-1 block text-xs">{ruleFieldLabel(t, form.ruleType)}</Label>
             <Input
               className="h-9 font-mono"
               value={form.matchValue}
@@ -479,7 +536,7 @@ export function IspRuleDialog({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label className="mb-1 block text-xs">Priority</Label>
+              <Label className="mb-1 block text-xs">{t("card.priority", "Priority")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -490,7 +547,7 @@ export function IspRuleDialog({
             </div>
             {editing && (
               <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
-                <div className="text-sm font-medium">Enabled</div>
+                <div className="text-sm font-medium">{t("rules.enabled", "Enabled")}</div>
                 <Switch
                   checked={form.isEnabled}
                   onCheckedChange={(v) => setForm({ ...form, isEnabled: v })}
@@ -499,9 +556,11 @@ export function IspRuleDialog({
             )}
           </div>
           <div>
-            <Label className="mb-1 block text-xs">Description (optional)</Label>
+            <Label className="mb-1 block text-xs">
+              {t("ruleDialog.description", "Description (optional)")}
+            </Label>
             <Input
-              placeholder="Notes…"
+              placeholder={t("ruleDialog.notesPlaceholder", "Notes…")}
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               className="h-9"
@@ -510,10 +569,14 @@ export function IspRuleDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("dialog.cancel", "Cancel")}
           </Button>
           <Button disabled={!valid || saving} onClick={() => onSave(form)}>
-            {saving ? "Saving…" : editing ? "Save Changes" : "Add Rule"}
+            {saving
+              ? t("dialog.saving", "Saving…")
+              : editing
+                ? t("dialog.saveChanges", "Save changes")
+                : t("ruleDialog.add", "Add rule")}
           </Button>
         </DialogFooter>
       </DialogContent>

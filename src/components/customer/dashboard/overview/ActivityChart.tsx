@@ -31,6 +31,7 @@ import i18n from "@/lib/i18n";
 import { bucketLabel } from "@/lib/dashboard-range";
 import type { DashboardSeries } from "@/services/customer.service";
 import { CONSOLE_TOOLTIP_STYLE } from "./console-ui";
+import { intlLocale } from "@/lib/format";
 
 export interface ActivityPoint {
   i: number;
@@ -141,7 +142,10 @@ export function SeriesChart({
           : { stroke: "var(--wy-border-strong)", strokeDasharray: "3 3" }
       }
       labelFormatter={(i: number) => labelOf(i)}
-      formatter={(v: unknown) => [typeof v === "number" ? v.toLocaleString() : "—", seriesLabel]}
+      formatter={(v: unknown) => [
+        typeof v === "number" ? v.toLocaleString(intlLocale()) : "—",
+        seriesLabel,
+      ]}
     />,
     pin ? <ReferenceLine key="pin" x={pin.i} stroke="var(--wy-accent)" strokeWidth={1.5} /> : null,
   ];
@@ -224,7 +228,7 @@ export function SeriesChart({
             />
             <span>{seriesLabel}</span>
             <span className="font-semibold tabular-nums text-[var(--wy-text)]">
-              {pin[field].toLocaleString()}
+              {pin[field].toLocaleString(intlLocale())}
             </span>
             <button
               type="button"
@@ -237,7 +241,7 @@ export function SeriesChart({
         ) : (
           <span className="truncate">
             {t("activity.peakAt", {
-              value: (points[peakIdx]?.[field] ?? 0).toLocaleString(),
+              value: (points[peakIdx]?.[field] ?? 0).toLocaleString(intlLocale()),
               when: labelOf(peakIdx),
               defaultValue: "Peak {{value}} at {{when}}",
             })}

@@ -325,14 +325,18 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
           <div className="px-4 pb-3 pt-1">
             <p
               className="flex items-start gap-1.5 text-[11px] leading-snug text-[var(--wy-text-faint)]"
-              title={`Hidden by your permissions: ${hiddenByPermissions
-                .map((i) => t(`customerItem.${i.id}`, i.label))
-                .join(", ")}`}
+              title={t("consoleShell.hiddenList", {
+                list: hiddenByPermissions.map((i) => t(`customerItem.${i.id}`, i.label)).join(", "),
+                defaultValue: "Hidden by your permissions: {{list}}",
+              })}
             >
               <Lock aria-hidden className="mt-[1px] h-3 w-3 shrink-0" />
               <span>
-                {hiddenByPermissions.length} screen
-                {hiddenByPermissions.length === 1 ? "" : "s"} hidden by your permissions
+                {t("consoleShell.hiddenCount", {
+                  count: hiddenByPermissions.length,
+                  defaultValue_one: "{{count}} screen hidden by your permissions",
+                  defaultValue_other: "{{count}} screens hidden by your permissions",
+                })}
               </span>
             </p>
           </div>
@@ -348,8 +352,14 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
               className={ROW_CLASS}
               tooltip={
                 dataMasking.masked
-                  ? "Guest details are hidden. Click to verify and show them."
-                  : "Guest details are visible. Click to hide them again."
+                  ? t(
+                      "consoleShell.privacyHiddenHint",
+                      "Guest details are hidden. Click to verify it's you and show them.",
+                    )
+                  : t(
+                      "consoleShell.privacyShownHint",
+                      "Guest details are visible. Click to hide them again.",
+                    )
               }
             >
               {dataMasking.sending ? (

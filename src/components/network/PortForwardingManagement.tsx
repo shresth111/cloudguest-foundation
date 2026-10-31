@@ -1,3 +1,5 @@
+import i18n from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
 import { useId, useState } from "react";
 import { Plus } from "lucide-react";
 import { z } from "zod";
@@ -73,23 +75,24 @@ const PAGE_SIZE = 25;
 const PROTOCOLS = ["tcp", "udp", "both"] as const;
 
 const ruleSchema = z.object({
-  routerId: z.string().min(1, "Select a router"),
-  name: z.string().trim().min(2, "Required").max(48),
+  routerId: z.string().min(1, "common.selectRouter"),
+  name: z.string().trim().min(2, "common.required").max(48),
   protocol: z.enum(PROTOCOLS),
   sourceAddress: z.string().trim().optional().or(z.literal("")),
   destinationAddress: z.string().trim().optional().or(z.literal("")),
   destinationPort: z.coerce.number().int().min(1).max(65535),
-  internalAddress: z.string().trim().min(1, "Required"),
+  internalAddress: z.string().trim().min(1, "common.required"),
   internalPort: z.coerce.number().int().min(1).max(65535),
   description: z.string().trim().max(240).optional().or(z.literal("")),
   isEnabled: z.boolean(),
 });
 type RuleFormValues = z.infer<typeof ruleSchema>;
 
+/** i18n keys (network namespace), rendered through `t`. */
 const DEVICE_PUSH_LABEL: Record<PortForwardingDevicePushStatus, string> = {
-  active: "Applied",
-  pending: "Not yet applied",
-  failed: "Couldn't apply",
+  active: "common.push.applied",
+  pending: "common.push.pending",
+  failed: "common.push.failed",
 };
 
 /** Whether this rule actually exists on the router.
@@ -105,12 +108,13 @@ const DEVICE_PUSH_LABEL: Record<PortForwardingDevicePushStatus, string> = {
  * what to do, and summarising device errors is how the silence started.
  */
 function DevicePushBadge({ rule }: { rule: PortForwardingRule }) {
+  const { t } = useTranslation("network", { i18n });
   return (
     <PushStatusBadge
       status={rule.devicePushStatus}
-      label={DEVICE_PUSH_LABEL[rule.devicePushStatus]}
+      label={t(DEVICE_PUSH_LABEL[rule.devicePushStatus])}
       error={rule.devicePushError}
-      errorPrefix="Couldn't apply this rule to your router:"
+      errorPrefix={t("portForwarding.couldnTApplyThisRule")}
     />
   );
 }
@@ -123,6 +127,7 @@ export function PortForwardingManagement({
   /** Title + venue from the customer shell, which then draws no header of its own. */
   scope?: PageScope;
 } = {}) {
+  const { t } = useTranslation("network", { i18n });
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -167,10 +172,11 @@ export function PortForwardingManagement({
     push.mutate(
       { id: rule.id },
       {
-        onSuccess: () => toast.success(`${rule.name} applied to the router`),
+        onSuccess: () => toast.success(t("dhcp.appliedToTheRouter", { name: rule.name })),
         onError: (err) =>
           toast.error(
-            (err as unknown as AppError)?.message || `Couldn't apply ${rule.name} to the router`,
+            (err as unknown as AppError)?.message ||
+              t("dhcp.couldnTApplyToThe", { name: rule.name }),
           ),
       },
     );
@@ -234,31 +240,31 @@ export function PortForwardingManagement({
   const columns: DataTableColumn<PortForwardingRule>[] = [
     {
       id: "name",
-      header: "Rule",
+      header: t("portForwarding.rule"),
       mobile: "title",
       cell: (r) => <NameCell name={r.name} sub={r.description} />,
     },
-    { id: "router", header: "Router", cell: (r) => routerName(r.routerId) },
+    { id: "router", header: t("dhcp.router"), cell: (r) => routerName(r.routerId) },
     {
       id: "protocol",
-      header: "Protocol",
+      header: t("portForwarding.protocol"),
       className: "text-xs uppercase text-[var(--wy-text-muted)]",
       cell: (r) => r.protocol,
     },
     {
       id: "destination",
-      header: "Destination",
+      header: t("portForwarding.destination"),
       mono: true,
       cell: (r) => `${r.destinationAddress ?? "any"}:${r.destinationPort}`,
     },
     {
       id: "internal",
-      header: "Internal target",
+      header: t("portForwarding.internalTarget"),
       mono: true,
       cell: (r) => `${r.internalAddress}:${r.internalPort}`,
     },
-    { id: "status", header: "Status", cell: (r) => <EnabledBadge enabled={r.isEnabled} /> },
-    { id: "push", header: "On router", cell: (r) => <DevicePushBadge rule={r} /> },
+    { id: "status", header: t("dhcp.status"), cell: (r) => <EnabledBadge enabled={r.isEnabled} /> },
+    { id: "push", header: t("dhcp.onRouter"), cell: (r) => <DevicePushBadge rule={r} /> },
   ];
 
   return (
@@ -266,35 +272,40 @@ export function PortForwardingManagement({
       {/* Under the customer shell this is the page's only header: the shell
        * hands over the tab name and venue (`scope`) and draws none itself. */}
       <PageHeader
-        title={scope?.title ?? "Port Forwarding"}
+        title={scope?.title ?? t("portForwarding.portForwarding")}
         venue={scope?.venue}
-        description="Per-router NAT rules mapping a public destination port to an internal address/port. Apply a rule to send it to the router."
+        description={t("portForwarding.perRouterNatRulesMapping")}
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus aria-hidden className="mr-1.5 h-4 w-4" /> New Rule
+            <Plus aria-hidden className="mr-1.5 h-4 w-4" /> {t("portForwarding.newRule")}
           </Button>
         }
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="Total Rules" value={statTotal} hint={totalHint} loading={isLoading} />
         <StatTile
-          label="Enabled"
+          label={t("portForwarding.totalRules")}
+          value={statTotal}
+          hint={totalHint}
+          loading={isLoading}
+        />
+        <StatTile
+          label={t("dhcp.enabled")}
           value={statEnabled}
           hint={statHint}
           loading={isLoading}
-          leading={<StatusDot status="ok" label="Enabled" size="sm" />}
+          leading={<StatusDot status="ok" label={t("dhcp.enabled")} size="sm" />}
         />
         <StatTile
-          label="Disabled"
+          label={t("dhcp.disabled")}
           value={statDisabled}
           hint={statHint}
           loading={isLoading}
-          leading={<StatusDot status="offline" label="Disabled" size="sm" />}
+          leading={<StatusDot status="offline" label={t("dhcp.disabled")} size="sm" />}
         />
       </div>
 
-      <Panel flush title="All Rules">
+      <Panel flush title={t("portForwarding.allRules")}>
         <Toolbar divided>
           <Select
             value={routerFilter}
@@ -303,11 +314,11 @@ export function PortForwardingManagement({
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-full sm:w-48" aria-label="Router">
-              <SelectValue placeholder="All routers" />
+            <SelectTrigger className="w-full sm:w-48" aria-label={t("dhcp.router")}>
+              <SelectValue placeholder={t("dhcp.allRouters")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All routers</SelectItem>
+              <SelectItem value="all">{t("dhcp.allRouters")}</SelectItem>
               {/* Contract §11.5: the two kinds of device are listed
                   apart, and only the ones this platform configures are
                   selectable. See RouterPickerItems. */}
@@ -317,17 +328,17 @@ export function PortForwardingManagement({
           <ToolbarSearch
             value={search}
             onValueChange={setSearch}
-            placeholder="Search name, port, address, router…"
+            placeholder={t("portForwarding.searchNamePortAddressRouter")}
           />
         </Toolbar>
         <DataTable
-          ariaLabel="All Rules"
+          ariaLabel={t("portForwarding.allRules")}
           columns={columns}
           rows={rows}
           rowKey={(r) => r.id}
           loading={isLoading}
-          loadingLabel="Loading…"
-          empty="No port forwarding rules match your filters."
+          loadingLabel={t("dhcp.loading")}
+          empty={t("portForwarding.noPortForwardingRulesMatch")}
           maxHeight="70vh"
           rowActions={(r) => (
             /* Apply is always visible, unlike the revealed edit/delete
@@ -343,7 +354,7 @@ export function PortForwardingManagement({
             <RowActions
               name={r.name}
               apply={{
-                label: r.devicePushStatus === "active" ? "Re-apply" : "Apply",
+                label: r.devicePushStatus === "active" ? t("dhcp.reApply") : t("dhcp.apply"),
                 pending: push.isPending && push.variables?.id === r.id,
                 quiet: r.devicePushStatus === "active",
                 onClick: () => handlePush(r),
@@ -355,9 +366,9 @@ export function PortForwardingManagement({
           footer={
             totalPages > 1 ? (
               <TablePager
-                summary={`Page ${page} of ${totalPages} · ${total} rules`}
-                previousLabel="Previous"
-                nextLabel="Next"
+                summary={t("portForwarding.pageOfRules", { page, totalPages, total })}
+                previousLabel={t("common.previous")}
+                nextLabel={t("common.next")}
                 hasPrevious={hasPrevious}
                 hasNext={hasNext}
                 onPrevious={() => setPage((p) => p - 1)}
@@ -381,27 +392,30 @@ export function PortForwardingManagement({
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent className={DIALOG_CONSOLE}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete rule "{confirmDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("portForwarding.deleteRuleTitle", { name: confirmDelete?.name })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes this port forwarding rule from{" "}
-              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
+              {t("portForwarding.removeBody", {
+                router: confirmDelete ? routerName(confirmDelete.routerId) : "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dhcp.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
                   await del.mutateAsync({ id: confirmDelete.id });
-                  toast.success(`Rule "${confirmDelete.name}" deleted`);
+                  toast.success(t("portForwarding.ruleDeleted", { name: confirmDelete.name }));
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failed to delete rule");
+                  toast.error((err as AppError).message || t("portForwarding.failedToDeleteRule"));
                 }
                 setConfirmDelete(null);
               }}
             >
-              Delete rule
+              {t("portForwarding.deleteRule")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -421,6 +435,7 @@ function RuleDialog({
   routers: { id: string; name: string }[];
   onClose: () => void;
 }) {
+  const { t } = useTranslation("network", { i18n });
   const create = useCreatePortForwardingRule();
   const update = useUpdatePortForwardingRule();
 
@@ -489,7 +504,7 @@ function RuleDialog({
             isEnabled: v.isEnabled,
           },
         });
-        toast.success("Rule updated");
+        toast.success(t("portForwarding.ruleUpdated"));
       } else {
         await create.mutateAsync({
           routerId: v.routerId,
@@ -503,11 +518,11 @@ function RuleDialog({
           description: v.description || null,
           isEnabled: v.isEnabled,
         });
-        toast.success("Rule created");
+        toast.success(t("portForwarding.ruleCreated"));
       }
       close();
     } catch (err) {
-      toast.error((err as AppError).message || "Failed to save rule");
+      toast.error((err as AppError).message || t("portForwarding.failedToSaveRule"));
     }
   }
 
@@ -517,11 +532,13 @@ function RuleDialog({
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className={`${DIALOG_CONSOLE} max-w-lg`}>
         <DialogHeader>
-          <DialogTitle>{rule ? "Edit rule" : "New rule"}</DialogTitle>
+          <DialogTitle>
+            {rule ? t("portForwarding.editRule") : t("portForwarding.newRule")}
+          </DialogTitle>
           <DialogDescription>
             {rule
-              ? "The router this rule belongs to cannot be changed — delete and recreate to move it."
-              : "A port forwarding rule belongs to exactly one router."}
+              ? t("portForwarding.theRouterThisRuleBelongs")
+              : t("portForwarding.aPortForwardingRuleBelongs")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(submit)}>
@@ -530,19 +547,19 @@ function RuleDialog({
             footer={
               <>
                 <Button type="button" variant="outline" onClick={close}>
-                  Cancel
+                  {t("dhcp.cancel")}
                 </Button>
                 <Button type="submit" disabled={create.isPending || update.isPending}>
-                  {rule ? "Save changes" : "Create rule"}
+                  {rule ? t("dhcp.saveChanges") : t("portForwarding.createRule")}
                 </Button>
               </>
             }
           >
             <FormField
               wide
-              label="Router"
+              label={t("dhcp.router")}
               htmlFor={`${id}-router`}
-              error={errors.routerId?.message}
+              error={errors.routerId?.message && t(errors.routerId.message)}
             >
               <Controller
                 control={form.control}
@@ -550,7 +567,7 @@ function RuleDialog({
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange} disabled={!!rule}>
                     <SelectTrigger id={`${id}-router`}>
-                      <SelectValue placeholder="Select router" />
+                      <SelectValue placeholder={t("dhcp.selectRouter")} />
                     </SelectTrigger>
                     <SelectContent>
                       {/* Contract §11.5. A controller is listed here but not
@@ -566,10 +583,19 @@ function RuleDialog({
                   with no controller. */}
               <ControllerRoutersNote rows={routers} />
             </FormField>
-            <FormField wide label="Name" htmlFor={`${id}-name`} error={errors.name?.message}>
-              <Input id={`${id}-name`} {...form.register("name")} placeholder="Web server" />
+            <FormField
+              wide
+              label={t("dhcp.name")}
+              htmlFor={`${id}-name`}
+              error={errors.name?.message && t(errors.name.message)}
+            >
+              <Input
+                id={`${id}-name`}
+                {...form.register("name")}
+                placeholder={t("portForwarding.webServer")}
+              />
             </FormField>
-            <FormField label="Protocol" htmlFor={`${id}-protocol`}>
+            <FormField label={t("portForwarding.protocol")} htmlFor={`${id}-protocol`}>
               <Controller
                 control={form.control}
                 name="protocol"
@@ -590,9 +616,9 @@ function RuleDialog({
               />
             </FormField>
             <FormField
-              label="Destination port"
+              label={t("portForwarding.destinationPort")}
               htmlFor={`${id}-dport`}
-              error={errors.destinationPort?.message}
+              error={errors.destinationPort?.message && t(errors.destinationPort.message)}
             >
               <Input
                 id={`${id}-dport`}
@@ -602,7 +628,7 @@ function RuleDialog({
                 {...form.register("destinationPort")}
               />
             </FormField>
-            <FormField label="Source address (optional)" htmlFor={`${id}-src`}>
+            <FormField label={t("portForwarding.sourceAddressOptional")} htmlFor={`${id}-src`}>
               <Input
                 id={`${id}-src`}
                 {...form.register("sourceAddress")}
@@ -610,7 +636,7 @@ function RuleDialog({
                 className="font-mono"
               />
             </FormField>
-            <FormField label="Destination address (optional)" htmlFor={`${id}-dst`}>
+            <FormField label={t("portForwarding.destinationAddressOptional")} htmlFor={`${id}-dst`}>
               <Input
                 id={`${id}-dst`}
                 {...form.register("destinationAddress")}
@@ -619,9 +645,9 @@ function RuleDialog({
               />
             </FormField>
             <FormField
-              label="Internal address"
+              label={t("portForwarding.internalAddress")}
               htmlFor={`${id}-iaddr`}
-              error={errors.internalAddress?.message}
+              error={errors.internalAddress?.message && t(errors.internalAddress.message)}
             >
               <Input
                 id={`${id}-iaddr`}
@@ -631,9 +657,9 @@ function RuleDialog({
               />
             </FormField>
             <FormField
-              label="Internal port"
+              label={t("portForwarding.internalPort")}
               htmlFor={`${id}-iport`}
-              error={errors.internalPort?.message}
+              error={errors.internalPort?.message && t(errors.internalPort.message)}
             >
               <Input
                 id={`${id}-iport`}
@@ -643,16 +669,16 @@ function RuleDialog({
                 {...form.register("internalPort")}
               />
             </FormField>
-            <FormField wide label="Description (optional)" htmlFor={`${id}-desc`}>
+            <FormField wide label={t("portForwarding.descriptionOptional")} htmlFor={`${id}-desc`}>
               <Input
                 id={`${id}-desc`}
                 {...form.register("description")}
-                placeholder="Internal purpose of this rule"
+                placeholder={t("portForwarding.internalPurposeOfThisRule")}
               />
             </FormField>
             <FormSwitchRow
               wide
-              label="Enabled"
+              label={t("dhcp.enabled")}
               control={
                 <Controller
                   control={form.control}

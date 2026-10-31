@@ -6,6 +6,7 @@
  * ending today, bucketed by day -- "last 7 days" on a Tuesday afternoon
  * should include all of last Wednesday, not start at 3pm on it.
  */
+import { formatDate, formatHour } from "./format";
 export type DashboardRange = "24h" | "7d" | "30d";
 
 export const DASHBOARD_RANGES: { value: DashboardRange; label: string }[] = [
@@ -41,10 +42,11 @@ export function dashboardRangeWindow(
   return { start, end: now, bucket: "day", tzOffsetMinutes };
 }
 
-/** Axis/tooltip label for one bucket of the series. */
+/** Axis/tooltip label for one bucket of the series: "4 pm" or "31 Oct", in
+ * the dashboard language (12-hour clock, Indian locale -- `@/lib/format`). */
 export function bucketLabel(bucketStartIso: string, bucket: "hour" | "day"): string {
   const d = new Date(bucketStartIso);
   if (Number.isNaN(d.getTime())) return "";
-  if (bucket === "hour") return `${String(d.getHours()).padStart(2, "0")}:00`;
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  if (bucket === "hour") return formatHour(d);
+  return formatDate(d, undefined, { withYear: false });
 }
