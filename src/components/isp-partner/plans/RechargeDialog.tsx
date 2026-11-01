@@ -19,6 +19,7 @@ import { saveBlob } from "@/lib/isp-partner/download";
 import { formatDate } from "@/lib/isp-partner/format";
 import { whatsappShareUrl } from "@/lib/isp-partner/invoices";
 import { rechargePreview } from "@/lib/isp-partner/plans";
+import { CyclesSelect } from "@/components/isp-partner/plans/CyclesSelect";
 import {
   PAYMENT_MODE_LABEL,
   formatRupees,
@@ -48,6 +49,7 @@ export function RechargeDialog({
   const [amount, setAmount] = useState("");
   const [po, setPo] = useState("");
   const [key, setKey] = useState(newIdempotencyKey);
+  const [cycles, setCycles] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<RechargeResult | null>(null);
   const run = useInvoiceMutation(
@@ -67,6 +69,7 @@ export function RechargeDialog({
       setKey(newIdempotencyKey());
       setError(null);
       setDone(null);
+      setCycles(1);
     }
   }, [subscriber, canTakePayment]);
 
@@ -75,8 +78,8 @@ export function RechargeDialog({
     [packages.data, packageId],
   );
   useEffect(() => {
-    if (pkg) setAmount(paiseToInput(pkg.price_paise));
-  }, [pkg]);
+    if (pkg) setAmount(paiseToInput(pkg.price_paise * cycles));
+  }, [pkg, cycles]);
   if (!subscriber) return null;
 
   const submit = async () => {
@@ -99,6 +102,7 @@ export function RechargeDialog({
           payment,
           po_number: po.trim() || null,
           idempotency_key: key,
+          ...(cycles > 1 ? { cycles } : {}),
         },
       });
       setDone(res);
@@ -205,12 +209,15 @@ export function RechargeDialog({
                 ))}
             </select>
           </label>
+          <CyclesSelect value={cycles} onChange={setCycles} validityDays={pkg?.validity_days} />
           {pkg && (
             <p className="rounded-lg bg-muted/50 p-2 text-xs">
-              {pkg.validity_days} days · new valid-until about{" "}
+              {pkg.validity_days * cycles} days
+              {cycles > 1 ? ` · ${formatRupees(pkg.price_paise * cycles)}` : ""} · new valid-until
+              about{" "}
               <strong>
                 {formatDate(
-                  rechargePreview(subscriber.valid_until, pkg.validity_days).toISOString(),
+                  rechargePreview(subscriber.valid_until, pkg.validity_days * cycles).toISOString(),
                 )}
               </strong>
               {!pkg.price_includes_gst && " · GST is added on top of the price"}
