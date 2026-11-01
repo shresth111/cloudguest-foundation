@@ -2242,7 +2242,9 @@ for (const [variant, opts] of VARIANTS) {
   );
   check(
     `${variant}: waits for NTP to step the clock before judging it`,
-    /:for clkTry from=1 to=\d+ do=\{ :if \(\[:tostr \[\/system clock get date\]\] = \$clkW0\)/.test(s),
+    /:for clkTry from=1 to=\d+ do=\{ :if \(\[:tostr \[\/system clock get date\]\] = \$clkW0\)/.test(
+      s,
+    ),
     "judged immediately after enabling NTP, the clock has not had a chance to move",
   );
   check(
