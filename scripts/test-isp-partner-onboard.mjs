@@ -32,6 +32,7 @@ const outfile = join(outdir, "onboard.mjs");
 await build({
   stdin: {
     contents: `export * from "@/lib/isp-partner/onboarding";
+               export { shouldScopeRequest } from "@/lib/isp-partner/zones";
                export { onboardingService } from "@/services/isp-partner/onboarding";
                export { calls } from "@/services/api";`,
     resolveDir: ROOT,
@@ -363,6 +364,12 @@ for (const word of [
     false,
   );
 }
+
+console.log("zone scope (ZONE-1 interceptor) vs onboarding");
+eq("options never zone-scoped", m.shouldScopeRequest("/isp/onboarding/options"), false);
+eq("options with /api/v1 prefix", m.shouldScopeRequest("/api/v1/isp/onboarding/options"), false);
+eq("/isp/me never zone-scoped", m.shouldScopeRequest("/isp/me"), false);
+eq("submit is zone-narrowed normally", m.shouldScopeRequest("/isp/onboarding"), true);
 
 console.log(`\n${checks - failures}/${checks} passed`);
 if (failures) process.exit(1);

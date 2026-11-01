@@ -97,6 +97,10 @@ export function shouldScopeRequest(url: string | undefined): boolean {
   if (path === "/isp/me" || path.startsWith("/isp/me?") || path.startsWith("/isp/me/"))
     return false;
   if (path.startsWith("/isp/zones")) return false;
+  // ONBOARD-1: the form's options (feature flags, next circuit id) are
+  // ISP-wide, never zone-narrowed. The submit itself is narrowed normally.
+  if (path === "/isp/onboarding/options" || path.startsWith("/isp/onboarding/options?"))
+    return false;
   return true;
 }
 
