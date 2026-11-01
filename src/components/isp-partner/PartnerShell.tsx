@@ -18,6 +18,7 @@ import {
   ScrollText,
   Send,
   Settings,
+  ShieldCheck,
   Ticket,
   Users,
   Wallet,
@@ -32,6 +33,7 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { roleLabel } from "@/lib/isp-partner/format";
 import { MEmptyState } from "@/components/master/MasterKit";
+import { NatFeedBanner } from "@/components/isp-partner/compliance/NatFeedBanner";
 
 interface NavItem {
   to: string;
@@ -62,6 +64,13 @@ const PARTNER_NAV: NavItem[] = [
   { to: "/partner/billing", label: "Billing", icon: Wallet, anyOf: ["isp_billing.read"] },
   { to: "/partner/messaging", label: "Messaging", icon: Send, anyOf: ["isp_engage.read"] },
   { to: "/partner/reports", label: "Reports", icon: FileBarChart, anyOf: ["isp_partner.read"] },
+  // JAZE-3: NAT feed, IP trace, KYC/CAF, TRAI/AGR (ADDENDUM_05).
+  {
+    to: "/partner/compliance",
+    label: "Compliance",
+    icon: ShieldCheck,
+    anyOf: ["isp_partner.read"],
+  },
   { to: "/partner/users", label: "Staff users", icon: Users, anyOf: ["isp_partner.assign"] },
   { to: "/partner/settings", label: "Settings", icon: Settings },
 ];
@@ -204,6 +213,7 @@ export function PartnerShell({ children }: { children: ReactNode }) {
           </header>
           <main className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">
             <div className="mx-auto w-full max-w-[1400px] space-y-6">
+              <NatFeedBanner />
               {denied ? (
                 <MEmptyState
                   icon={denied.icon}
