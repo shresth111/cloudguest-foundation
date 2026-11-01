@@ -52,6 +52,7 @@ import {
 } from "@/services/isp-partner/finance";
 import { plansService } from "@/services/isp-partner/plans";
 import { CommsHub } from "@/components/isp-partner/finance/CommsHub";
+import { FranchisePanel } from "@/components/isp-partner/finance/FranchisePanel";
 
 export type FinanceTab =
   | "template"
@@ -1681,7 +1682,13 @@ export function FinancePage({ tab, onTab }: { tab: FinanceTab; onTab: (t: Financ
         {active === "packages" && <PackagesTab />}
         {active === "leases" && <LeasesTab />}
         {active === "deposits" && <DepositsTab />}
-        {active === "zones" && <ZonesTab />}
+        {/* FRANCHISE-2: revenue share + wallets under the JAZE-4 ledger (flag-gated). */}
+        {active === "zones" && (
+          <div className="space-y-4">
+            <ZonesTab />
+            <FranchisePanel />
+          </div>
+        )}
         {active === "automation" && <AutomationTab />}
         {/* COMMS-2: unified log + templates + receipts; the JAZE-4 log while off. */}
         {active === "messages" && <CommsHub fallback={<MessagesTab />} />}
