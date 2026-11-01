@@ -39,6 +39,7 @@
     "test:isp-partner-sub360": "node scripts/test-isp-partner-sub360.mjs",
     "test:isp-partner-sub360-workbench": "node scripts/test-isp-partner-sub360-workbench.mjs",
     "test:isp-partner-zones": "node scripts/test-isp-partner-zones.mjs",
+    "test:isp-partner-unused-services": "node scripts/test-isp-partner-unused-services.mjs",
     "test:isp-master-list": "node scripts/test-isp-master-list.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",

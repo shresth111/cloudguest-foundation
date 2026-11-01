@@ -38,6 +38,7 @@ import { SubscriberNetworkPanel } from "@/components/isp-partner/network/Subscri
 import { InvoiceRowActions } from "@/components/isp-partner/subscribers/InvoiceRowActions";
 import { SubscriberKycPanel } from "@/components/isp-partner/compliance/SubscriberKycPanel";
 import { SubscriberPppoePanel } from "@/components/isp-partner/pppoe/SubscriberPppoePanel";
+import { BillingContactCard } from "@/components/isp-partner/finance/FinanceExtrasPanels";
 import { SubscriberFiberCard } from "@/components/isp-partner/fiber/SubscriberFiberCard";
 // SUB360-2 workbench: each piece renders nothing / its fallback while the flag is off.
 import {
@@ -344,6 +345,7 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
         }
       />
       <ContactCard s={s} />
+      <BillingContactCard kind="subscriber" id={s.id} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card

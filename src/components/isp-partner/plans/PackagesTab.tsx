@@ -43,6 +43,7 @@ import type { IspPackage, PackageBody, PackageType } from "@/services/isp-partne
 import { PackagePolicyDrawer } from "@/components/isp-partner/network/PackagePolicyDrawer";
 import { PolicyFields, type PolicyErrors } from "@/components/isp-partner/network/PolicyFields";
 import { GroupDrawer } from "@/components/isp-partner/plans/SpeedGroupsTab";
+import { PlanSettingsButton } from "@/components/isp-partner/plans/PlanSettingsButton";
 import { networkService } from "@/services/isp-partner/network";
 import { networkKeys } from "@/hooks/isp-partner/useNetwork";
 import { formToPolicyBody, policyToForm, type PolicyForm } from "@/lib/isp-partner/network";
@@ -663,8 +664,11 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
             </select>
           </>
         )}
+        <div className="ml-auto">
+          <PlanSettingsButton />
+        </div>
         {can("isp_plans.create") && (
-          <MButton className="ml-auto" onClick={() => setEditing("new")}>
+          <MButton onClick={() => setEditing("new")}>
             <Plus /> Add package
           </MButton>
         )}

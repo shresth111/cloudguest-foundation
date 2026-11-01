@@ -334,7 +334,7 @@ export const financeService = {
     id: string,
     body: {
       alternate_email?: string;
-      alternate_name?: string;
+      alternate_name?: string | null;
       exclude_from_reminders?: boolean;
       whatsapp_opt_in?: boolean;
     },

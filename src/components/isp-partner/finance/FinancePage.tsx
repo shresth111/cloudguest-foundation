@@ -53,6 +53,10 @@ import {
 import { plansService } from "@/services/isp-partner/plans";
 import { CommsHub } from "@/components/isp-partner/finance/CommsHub";
 import { FranchisePanel } from "@/components/isp-partner/finance/FranchisePanel";
+import {
+  DepositHistoryDialog,
+  LeasePricePreview,
+} from "@/components/isp-partner/finance/FinanceExtrasPanels";
 
 export type FinanceTab =
   | "template"
@@ -785,6 +789,7 @@ function LeasesTab() {
             />
             The rent already includes GST
           </label>
+          <LeasePricePreview amount={form.amount} incl={form.incl} />
           <TextField
             label="Notes"
             value={form.notes}
@@ -823,6 +828,11 @@ function DepositsTab() {
     reference: "",
     note: "",
   });
+  const [history, setHistory] = useState<{
+    isp_customer_id: string;
+    subscriber_id: string | null;
+    label: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const save = useMutation({
     mutationFn: () => {
@@ -890,26 +900,45 @@ function DepositsTab() {
             <MTd>{formatRupees(d.forfeited_paise)}</MTd>
             <MTd className="font-semibold">{formatRupees(d.held_paise)}</MTd>
             <MTd>
-              {can("isp_billing.execute") && d.held_paise > 0 && (
-                <div className="flex gap-1">
-                  <MButton
-                    variant="ghost"
-                    onClick={() => open("refund", d.isp_customer_id, d.subscriber_id ?? undefined)}
-                  >
-                    Refund
-                  </MButton>
-                  <MButton
-                    variant="ghost"
-                    onClick={() => open("forfeit", d.isp_customer_id, d.subscriber_id ?? undefined)}
-                  >
-                    Forfeit
-                  </MButton>
-                </div>
-              )}
+              <div className="flex gap-1">
+                <MButton
+                  variant="ghost"
+                  onClick={() =>
+                    setHistory({
+                      isp_customer_id: d.isp_customer_id,
+                      subscriber_id: d.subscriber_id ?? null,
+                      label: d.subscriber_name ?? d.customer_name ?? "deposit",
+                    })
+                  }
+                >
+                  History
+                </MButton>
+                {can("isp_billing.execute") && d.held_paise > 0 && (
+                  <div className="flex gap-1">
+                    <MButton
+                      variant="ghost"
+                      onClick={() =>
+                        open("refund", d.isp_customer_id, d.subscriber_id ?? undefined)
+                      }
+                    >
+                      Refund
+                    </MButton>
+                    <MButton
+                      variant="ghost"
+                      onClick={() =>
+                        open("forfeit", d.isp_customer_id, d.subscriber_id ?? undefined)
+                      }
+                    >
+                      Forfeit
+                    </MButton>
+                  </div>
+                )}
+              </div>
             </MTd>
           </MTr>
         ))}
       </MTable>
+      <DepositHistoryDialog target={history} onClose={() => setHistory(null)} />
       <MDialog
         open={entry !== null}
         onClose={() => setEntry(null)}
