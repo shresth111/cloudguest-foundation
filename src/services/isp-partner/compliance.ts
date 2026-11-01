@@ -27,7 +27,14 @@ export interface ComplianceCounters {
   as_of: string;
 }
 
-export type NatFeedState = "ok" | "stale" | "never_received" | "not_configured" | "router_offline";
+export type NatFeedState =
+  | "ok"
+  | "stale"
+  | "never_received"
+  | "not_configured"
+  | "router_offline"
+  // CI-INTEG: venue run through a vendor controller (Omada / Aruba); never alerting.
+  | "not_applicable";
 
 export interface NatFeedRouter {
   isp_router_id: string;

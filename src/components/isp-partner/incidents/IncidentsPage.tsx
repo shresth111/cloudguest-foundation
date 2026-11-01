@@ -95,7 +95,14 @@ export function IncidentsPage({
             label="Routers down"
             value={h?.routers_down ?? 0}
             delta={
-              h?.routers_not_reporting ? `${h.routers_not_reporting} not reporting yet` : undefined
+              [
+                h?.routers_not_reporting ? `${h.routers_not_reporting} not reporting yet` : null,
+                h?.routers_controller_managed
+                  ? `${h.routers_controller_managed} on a vendor controller (not counted)`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || undefined
             }
             icon={AlertTriangle}
             tone={h?.routers_down ? "danger" : "default"}

@@ -7,6 +7,7 @@ export const REASON_LABEL: Record<string, string> = {
   monitoring_off: "Monitoring off",
   poll_failed: "Last reading failed",
   no_data_yet: "No readings yet",
+  controller_managed: "Vendor controller",
 };
 
 /** Words the partner UI must never show (QA-023). */
