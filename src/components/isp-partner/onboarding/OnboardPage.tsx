@@ -235,7 +235,12 @@ function OnboardFormView({
     setErrors({});
     setTopError(null);
     const built = buildOnboarding(f, {
-      features: { pppoe: feat.pppoe, static_ip: feat.static_ip, kyc: canKyc },
+      features: {
+        pppoe: feat.pppoe,
+        static_ip: feat.static_ip,
+        kyc: canKyc,
+        install_task: !!feat.install_task,
+      },
       can: { kyc: canKyc, invoice: canInvoice, pay: canPay },
     });
     if ("error" in built) {
@@ -765,6 +770,13 @@ function OnboardFormView({
           checked={f.welcome_whatsapp}
           onChange={set("welcome_whatsapp")}
         />
+        {feat.install_task && (
+          <Check
+            label="Create installation task (unclaimed, for a field technician)"
+            checked={f.create_install_task}
+            onChange={set("create_install_task")}
+          />
+        )}
       </Section>
 
       <FormError message={topError} />

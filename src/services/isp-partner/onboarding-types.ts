@@ -34,6 +34,8 @@ export interface OnboardingOptions {
     kyc: boolean;
     /** JAZE-4 invoice email (`ISP_FINANCE_EXTRAS_ENABLED`). */
     invoice_email: boolean;
+    /** APPS-2: Apps is on, so an install task can be created. */
+    install_task?: boolean;
   };
   kyc: { id_types: string[]; document_kinds: string[] };
   payment_modes: string[];
@@ -47,7 +49,8 @@ export type OnboardStep =
   | "kyc"
   | "caf"
   | "invoice"
-  | "payment";
+  | "payment"
+  | "task";
 
 export interface OnboardingBody {
   /** JAZE-1 `OnboardBody` (identity, package, contact, zone, profile,
@@ -60,6 +63,8 @@ export interface OnboardingBody {
    * the last 4 digits only) and never echoed back. */
   kyc?: (Partial<Omit<KycRecord, "id_number">> & { id_number?: string; verified?: boolean }) | null;
   caf?: { mode: "auto" } | { mode: "number"; number: string } | null;
+  /** APPS-2: an unclaimed install task, same transaction (default on). */
+  create_install_task?: boolean;
   billing?: {
     issue_invoice: boolean;
     paid_now?: boolean;
@@ -78,6 +83,8 @@ export interface OnboardingResult {
   payment: { id: string; receipt_number: string; amount_paise: number } | null;
   /** A static queue was asked for while the push flag is off. */
   static_queue_recorded: boolean;
+  /** APPS-2: the install task created with the subscriber (null = none). */
+  task?: { id: string; status: string; title: string } | null;
   steps: { step: OnboardStep; status: "done" | "skipped"; detail: string | null }[];
 }
 

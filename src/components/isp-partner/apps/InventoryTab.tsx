@@ -43,10 +43,17 @@ import {
   UNIT_CSV_TEMPLATE,
   UNIT_STATE_LABEL,
   appsCan,
+  checkoutRoute,
   humanize,
   importProblem,
   unitNext,
 } from "@/lib/isp-partner/apps";
+import {
+  CheckoutsCard,
+  LocationsCard,
+  VendorsCard,
+} from "@/components/isp-partner/apps/InventoryAdmin";
+import { tr069Service } from "@/services/isp-partner/tr069";
 import { appsService } from "@/services/isp-partner/apps";
 import {
   ITEM_CATEGORIES,
@@ -57,9 +64,11 @@ import {
   type UnitQuery,
 } from "@/services/isp-partner/apps-types";
 
-type View = "units" | "items";
+type View = "units" | "items" | "checkouts" | "vendors" | "locations";
 
 export function InventoryTab() {
+  const { can } = usePartner();
+  const c = appsCan(can);
   const [view, setView] = useState<View>("units");
   const items = useQuery({
     queryKey: appsKeys.list("items"),
@@ -74,13 +83,16 @@ export function InventoryTab() {
         options={[
           { value: "units", label: "Units" },
           { value: "items", label: "Items" },
+          { value: "checkouts", label: "Checkout requests" },
+          { value: "vendors", label: "Vendors" },
+          { value: "locations", label: "Stock locations" },
         ]}
       />
-      {view === "units" ? (
-        <Units items={items.data ?? []} />
-      ) : (
-        <Items items={items.data} error={items.error} />
-      )}
+      {view === "units" && <Units items={items.data ?? []} />}
+      {view === "items" && <Items items={items.data} error={items.error} />}
+      {view === "checkouts" && <CheckoutsCard canDecide={c.manage} />}
+      {view === "vendors" && <VendorsCard canManage={c.manage} />}
+      {view === "locations" && <LocationsCard canManage={c.manage} />}
     </div>
   );
 }
@@ -216,7 +228,14 @@ function Units({ items }: { items: InventoryItem[] }) {
         </>
       )}
       {adding && <AddUnitDialog items={items} onClose={() => setAdding(false)} />}
-      {open && <UnitDialog unit={open} canMove={c.update} onClose={() => setOpen(null)} />}
+      {open && (
+        <UnitDialog
+          unit={open}
+          canMove={c.update}
+          canApprove={c.manage}
+          onClose={() => setOpen(null)}
+        />
+      )}
       {importing && <ImportDialog onClose={() => setImporting(false)} />}
     </div>
   );
@@ -290,10 +309,12 @@ function AddUnitDialog({ items, onClose }: { items: InventoryItem[]; onClose: ()
 function UnitDialog({
   unit,
   canMove,
+  canApprove,
   onClose,
 }: {
   unit: InventoryUnit;
   canMove: boolean;
+  canApprove: boolean;
   onClose: () => void;
 }) {
   const customers = useIspCustomerOptions();
@@ -307,12 +328,20 @@ function UnitDialog({
   const [customer, setCustomer] = useState(unit.isp_customer_id ?? "");
   const [note, setNote] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const move = useAppsMutation(() =>
-    appsService.moveUnit(unit.id, {
-      state: target,
-      isp_customer_id: target === "assigned" ? customer || null : null,
-      note: note.trim() || null,
-    }),
+  // APPS-2: checking out to a customer needs approval unless you approve
+  const viaRequest = target === "assigned" && checkoutRoute(canApprove) === "request";
+  const move = useAppsMutation(
+    (): Promise<unknown> =>
+      viaRequest
+        ? appsService.requestCheckout(unit.id, {
+            isp_customer_id: customer,
+            note: note.trim() || null,
+          })
+        : appsService.moveUnit(unit.id, {
+            state: target,
+            isp_customer_id: target === "assigned" ? customer || null : null,
+            note: note.trim() || null,
+          }),
   );
   return (
     <MDialog
@@ -326,7 +355,10 @@ function UnitDialog({
       }
     >
       <div className="space-y-3 text-sm">
-        {canMove && next.length > 0 && (
+        {unit.pending_checkout_id && (
+          <p className="text-xs text-amber-700">A checkout request is waiting for approval.</p>
+        )}
+        {canMove && next.length > 0 && !unit.pending_checkout_id && (
           <div className="space-y-2 rounded-lg border border-border p-3">
             <Select
               ariaLabel="Move to"
@@ -351,18 +383,21 @@ function UnitDialog({
                   return setErr("Pick the customer it goes to.");
                 try {
                   await move.mutateAsync(undefined);
-                  toast.success("Moved.");
+                  toast.success(
+                    viaRequest ? "Checkout requested; a manager approves it." : "Moved.",
+                  );
                   onClose();
                 } catch (e) {
                   setErr(ispErrorMessage(e));
                 }
               }}
             >
-              {move.isPending && <Spinner />} Move
+              {move.isPending && <Spinner />} {viaRequest ? "Request checkout" : "Move"}
             </MButton>
             <FormError message={err} />
           </div>
         )}
+        {canMove && <UnitLinks unit={unit} />}
         <h4 className="text-xs font-semibold">History</h4>
         {detail.error ? (
           <ErrorBlock error={detail.error} what="the history" />
@@ -544,5 +579,94 @@ function Items({ items, error }: { items: InventoryItem[] | undefined; error: un
       )}
       <FormError message={err} />
     </Card>
+  );
+}
+
+/** APPS-2: where the unit came from, where it sits, which TR-069 device it
+ * is. Saved separately from moves. */
+function UnitLinks({ unit }: { unit: InventoryUnit }) {
+  const vendors = useQuery({
+    queryKey: appsKeys.list("vendors"),
+    queryFn: () => appsService.vendors(),
+    retry: false,
+  });
+  const locations = useQuery({
+    queryKey: appsKeys.list("stock-locations"),
+    queryFn: () => appsService.locations(),
+    retry: false,
+  });
+  const devices = useQuery({
+    queryKey: ["isp", "apps", "tr069-for-unit", unit.isp_customer_id ?? ""],
+    queryFn: () =>
+      tr069Service.listDevices({
+        isp_customer_id: unit.isp_customer_id ?? undefined,
+        page: 1,
+        page_size: 100,
+      }),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const [vendor, setVendor] = useState(unit.vendor_id ?? "");
+  const [loc, setLoc] = useState(unit.location_id ?? "");
+  const [dev, setDev] = useState(unit.tr069_device_id ?? "");
+  const [err, setErr] = useState<string | null>(null);
+  const save = useAppsMutation(() =>
+    appsService.putUnitMeta(unit.id, {
+      vendor_id: vendor || null,
+      stock_location_id: loc || null,
+      tr069_device_id: dev || null,
+    }),
+  );
+  return (
+    <div className="space-y-2 rounded-lg border border-border p-3">
+      <h4 className="text-xs font-semibold">Links</h4>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Select
+          ariaLabel="Vendor"
+          value={vendor}
+          onChange={setVendor}
+          options={[
+            ["", "No vendor"],
+            ...(vendors.data ?? []).map((v) => [v.id, v.name] as [string, string]),
+          ]}
+        />
+        <Select
+          ariaLabel="Stock location"
+          value={loc}
+          onChange={setLoc}
+          options={[
+            ["", "No location"],
+            ...(locations.data ?? []).map((l) => [l.id, l.name] as [string, string]),
+          ]}
+        />
+        <Select
+          ariaLabel="TR-069 device"
+          value={dev}
+          onChange={setDev}
+          options={[
+            ["", "No TR-069 device"],
+            ...(devices.data?.items ?? []).map(
+              (d) => [d.id, d.serial_number || d.label || d.genieacs_device_id] as [string, string],
+            ),
+          ]}
+        />
+      </div>
+      <MButton
+        variant="outline"
+        disabled={save.isPending}
+        onClick={async () => {
+          setErr(null);
+          try {
+            await save.mutateAsync(undefined);
+            toast.success("Saved.");
+          } catch (e) {
+            setErr(ispErrorMessage(e));
+          }
+        }}
+      >
+        {save.isPending && <Spinner />} Save links
+      </MButton>
+      <FormError message={err} />
+    </div>
   );
 }

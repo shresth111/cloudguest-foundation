@@ -289,9 +289,9 @@ eq(
   "Awaiting parts",
 );
 
-console.log("every backend route is reached (apps_router.py on integ, 45 routes)");
+console.log("every backend route is reached (apps_router.py 45 + apps2_router.py 20)");
 const ROUTES =
-  `GET /ticket-types|POST /ticket-types|POST /ticket-types/defaults|PATCH /ticket-types/:id|GET /tickets|GET /tickets/stats|GET /tickets/export.csv|POST /tickets|GET /tickets/:id|PATCH /tickets/:id|POST /tickets/:id/comments|GET /tasks|GET /tasks/export.csv|POST /tasks|GET /tasks/:id|POST /tasks/:id/claim|PATCH /tasks/:id|GET /announcements|POST /announcements|GET /announcements/:id|PATCH /announcements/:id|DELETE /announcements/:id|POST /announcements/:id/send|GET /discounts|POST /discounts|POST /discounts/preview|PATCH /discounts/:id|GET /discounts/:id/redemptions|GET /inventory/items|POST /inventory/items|PATCH /inventory/items/:id|GET /inventory/units|GET /inventory/units/export.csv|POST /inventory/units|POST /inventory/units/import|GET /inventory/units/:id|POST /inventory/units/:id/move|GET /leads|GET /leads/export.csv|GET /leads/funnel|POST /leads|GET /leads/:id|PATCH /leads/:id|POST /leads/:id/install|POST /leads/:id/convert`.split(
+  `GET /ticket-types|POST /ticket-types|POST /ticket-types/defaults|PATCH /ticket-types/:id|GET /tickets|GET /tickets/stats|GET /tickets/export.csv|POST /tickets|GET /tickets/:id|PATCH /tickets/:id|POST /tickets/:id/comments|GET /tasks|GET /tasks/export.csv|POST /tasks|GET /tasks/:id|POST /tasks/:id/claim|PATCH /tasks/:id|GET /announcements|POST /announcements|GET /announcements/:id|PATCH /announcements/:id|DELETE /announcements/:id|POST /announcements/:id/send|GET /discounts|POST /discounts|POST /discounts/preview|PATCH /discounts/:id|GET /discounts/:id/redemptions|GET /inventory/items|POST /inventory/items|PATCH /inventory/items/:id|GET /inventory/units|GET /inventory/units/export.csv|POST /inventory/units|POST /inventory/units/import|GET /inventory/units/:id|POST /inventory/units/:id/move|GET /leads|GET /leads/export.csv|GET /leads/funnel|POST /leads|GET /leads/:id|PATCH /leads/:id|POST /leads/:id/install|POST /leads/:id/convert|GET /settings|PUT /settings|GET /escalation-rules|POST /escalation-rules|PATCH /escalation-rules/:id|DELETE /escalation-rules/:id|GET /escalations|POST /tasks/:id/approve|POST /tasks/:id/send-back|GET /inventory/vendors|POST /inventory/vendors|PATCH /inventory/vendors/:id|GET /inventory/locations|POST /inventory/locations|PATCH /inventory/locations/:id|PUT /inventory/units/:id/meta|POST /inventory/units/:id/checkout|GET /inventory/checkouts|POST /inventory/checkouts/:id/approve|POST /inventory/checkouts/:id/reject`.split(
     "|",
   );
 const s = m.appsService;
@@ -353,6 +353,30 @@ await s.lead(ID);
 await s.patchLead(ID, { status: "contacted" });
 await s.scheduleInstall(ID, {});
 await s.convertLead(ID, { identifier: "9876500000" });
+await s.settings();
+await s.saveSettings({ lead_contact_sla_minutes: 120 });
+const putCall = m.calls.at(-1);
+await s.escalationRules();
+await s.createEscalationRule({ name: "r", after_minutes: 60, escalate_to_role: "isp-noc" });
+await s.patchEscalationRule(ID, { active: false });
+await s.deleteEscalationRule(ID);
+await s.escalations();
+await s.approveTask(ID);
+await s.sendBackTask(ID, "redo");
+await s.vendors();
+await s.createVendor({ name: "v" });
+await s.patchVendor(ID, { active: false });
+await s.locations();
+await s.createLocation({ name: "w", kind: "warehouse" });
+await s.patchLocation(ID, { active: false });
+await s.putUnitMeta(ID, { stock_location_id: ID });
+const metaCall = m.calls.at(-1);
+await s.requestCheckout(ID, { isp_customer_id: ID });
+await s.checkouts("pending");
+await s.approveCheckout(ID);
+await s.rejectCheckout(ID, "no");
+await s.units({ stock_location_id: ID });
+const unitsByLoc = m.calls.at(-1);
 const seen = new Set(
   m.calls
     .filter((c) => c.url.startsWith("/isp/apps"))
@@ -361,7 +385,12 @@ const seen = new Set(
     ),
 );
 const missing = ROUTES.filter((r) => !seen.has(r));
-eq("all 45 routes reached", missing, []);
+eq("all 65 routes reached", missing, []);
+eq("settings is PUT", putCall.method, "put");
+eq("unit meta sends stock_location_id (location_id is a scope alias)", Object.keys(metaCall.body), [
+  "stock_location_id",
+]);
+eq("unit list filters by stock_location_id", Object.keys(unitsByLoc.params), ["stock_location_id"]);
 eq(
   "no call outside the 45",
   [...seen].filter((r) => !ROUTES.includes(r)),
@@ -383,6 +412,82 @@ eq(
   [importCall.body instanceof FormData, importCall.cfg.headers["Content-Type"]],
   [true, undefined],
 );
+
+console.log("APPS-2 helpers");
+eq(
+  "completed waits for approval",
+  [m.canDecideTask("completed"), m.canDecideTask("approved")],
+  [true, false],
+);
+eq("completed label", m.label(m.TASK_STATUS_LABEL, "completed"), "Awaiting approval");
+eq("approved is final", m.taskNext("approved"), []);
+eq("approval view query", m.taskQuery("approval"), { status: "completed" });
+eq(
+  "rule needs a target",
+  "error" in
+    m.escalationRuleBody({
+      name: "r",
+      hours: "2",
+      type_id: "",
+      priority: "",
+      role: "",
+      user: "",
+      telegram: true,
+    }),
+  true,
+);
+eq(
+  "rule role must be an ISP role",
+  "error" in
+    m.escalationRuleBody({
+      name: "r",
+      hours: "2",
+      type_id: "",
+      priority: "",
+      role: "root",
+      user: "",
+      telegram: true,
+    }),
+  true,
+);
+eq(
+  "rule body",
+  m.escalationRuleBody({
+    name: " Stuck ",
+    hours: "2",
+    type_id: "",
+    priority: "high",
+    role: "isp-noc",
+    user: "",
+    telegram: false,
+  }).body,
+  {
+    name: "Stuck",
+    after_minutes: 120,
+    type_id: null,
+    priority: "high",
+    escalate_to_role: "isp-noc",
+    escalate_to_user_id: null,
+    notify_telegram: false,
+  },
+);
+const due = new Date(Date.parse("2026-11-01T10:00:00Z") + 2 * 3600_000).toISOString();
+eq(
+  "lead contact due",
+  m.leadSlaText(
+    { contact_state: "pending", contact_due_at: due, convert_state: "pending" },
+    Date.parse("2026-11-01T10:00:00Z"),
+  ),
+  "Contact due in 2 h",
+);
+eq(
+  "lead contact overdue tone",
+  m.leadSlaTone({ contact_state: "breached", convert_state: "pending" }),
+  "failed",
+);
+eq("schedule in the past refused", m.scheduleIso("2020-01-01T10:00"), "past");
+eq("schedule empty = none", m.scheduleIso(""), null);
+eq("checkout route", [m.checkoutRoute(true), m.checkoutRoute(false)], ["direct", "request"]);
 
 console.log(`\n${checks - failures}/${checks} passed`);
 if (failures) process.exit(1);

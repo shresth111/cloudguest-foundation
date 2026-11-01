@@ -22,7 +22,8 @@ import { StatusTag, appsKeys, useAppsMutation } from "@/components/isp-partner/a
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDateTime } from "@/lib/isp-partner/format";
-import { announcementBody, appsCan } from "@/lib/isp-partner/apps";
+import { announcementBody, appsCan, scheduleIso } from "@/lib/isp-partner/apps";
+import { isoToLocalInput } from "@/lib/isp-partner/subscribers360";
 import { appsService } from "@/services/isp-partner/apps";
 import type { Announcement, AnnouncementBody } from "@/services/isp-partner/apps-types";
 
@@ -93,6 +94,11 @@ export function AnnouncementsTab() {
                   {a.sent_at && (
                     <p className="text-[11px] text-muted-foreground">{formatDateTime(a.sent_at)}</p>
                   )}
+                  {!a.sent_at && a.scheduled_at && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Scheduled for {formatDateTime(a.scheduled_at)}
+                    </p>
+                  )}
                 </MTd>
                 <MTd className="text-right">
                   {c.manage && a.status === "draft" && (
@@ -150,6 +156,8 @@ function AnnouncementDialog({ a, onClose }: { a: Announcement | null; onClose: (
     customer_ids: a?.customer_ids ?? [],
     send_email: a?.send_email ?? true,
   });
+  // APPS-2: optional send time (local input; sent by the backend's beat pass)
+  const [when, setWhen] = useState(a?.scheduled_at ? isoToLocalInput(a.scheduled_at) : "");
   const [err, setErr] = useState<string | null>(null);
   const save = useAppsMutation((body: AnnouncementBody) =>
     a ? appsService.patchAnnouncement(a.id, body) : appsService.createAnnouncement(body),
@@ -171,9 +179,15 @@ function AnnouncementDialog({ a, onClose }: { a: Announcement | null; onClose: (
               setErr(null);
               const r = announcementBody(d);
               if ("error" in r) return setErr(r.error);
+              const at = scheduleIso(when);
+              if (at === "past") return setErr("Pick a time in the future, or leave it empty.");
               try {
-                await save.mutateAsync(r.body);
-                toast.success("Saved as draft. Send it from the list.");
+                await save.mutateAsync({ ...r.body, scheduled_at: at });
+                toast.success(
+                  at
+                    ? `Scheduled for ${formatDateTime(at)}.`
+                    : "Saved as draft. Send it from the list.",
+                );
                 onClose();
               } catch (e) {
                 setErr(ispErrorMessage(e));
@@ -236,6 +250,17 @@ function AnnouncementDialog({ a, onClose }: { a: Announcement | null; onClose: (
             onChange={(e) => setD({ ...d, send_email: e.target.checked })}
           />
           Also email the customers' contacts when sent
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            Send automatically at (optional)
+          </span>
+          <input
+            type="datetime-local"
+            className={M_INPUT}
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+          />
         </label>
         <FormError message={err} />
       </div>

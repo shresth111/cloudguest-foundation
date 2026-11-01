@@ -14,6 +14,7 @@ import {
   MDrawer,
   MEmptyState,
   MTable,
+  MTag,
   MTd,
   MTh,
   MTr,
@@ -50,6 +51,8 @@ import {
   humanize,
   leadBody,
   leadPatchStatuses,
+  leadSlaText,
+  leadSlaTone,
   leadStatusBody,
 } from "@/lib/isp-partner/apps";
 import { appsService } from "@/services/isp-partner/apps";
@@ -99,6 +102,7 @@ export function LeadsTab() {
     };
   return (
     <div className="space-y-3">
+      {c.manage && <LeadSlaSettings />}
       {funnel.data && (
         <div className="flex flex-wrap gap-1.5 text-xs" role="group" aria-label="Lead funnel">
           {LEAD_STATUSES.map((s) => (
@@ -160,6 +164,7 @@ export function LeadsTab() {
                 <MTh>Customer</MTh>
                 <MTh>Status</MTh>
                 <MTh>Assignee</MTh>
+                <MTh>SLA</MTh>
               </>
             }
           >
@@ -185,6 +190,9 @@ export function LeadsTab() {
                   <StatusTag map={LEAD_STATUS_LABEL} value={l.status} />
                 </MTd>
                 <MTd className="text-xs">{l.assignee_name ?? "–"}</MTd>
+                <MTd>
+                  <MTag label={leadSlaText(l.sla)} tone={leadSlaTone(l.sla)} />
+                </MTd>
               </MTr>
             ))}
           </MTable>
@@ -343,6 +351,15 @@ function LeadBody({ l }: { l: LeadDetail }) {
         <dd>{[l.address, l.city].filter(Boolean).join(", ") || "–"}</dd>
         <dt className="text-muted-foreground">Customer</dt>
         <dd>{l.customer_name ?? "Not known yet"}</dd>
+        <dt className="text-muted-foreground">SLA</dt>
+        <dd>
+          <MTag label={leadSlaText(l.sla)} tone={leadSlaTone(l.sla)} />
+          {l.sla?.first_contacted_at && (
+            <span className="ml-2 text-[11px] text-muted-foreground">
+              first contact {formatDateTime(l.sla.first_contacted_at)}
+            </span>
+          )}
+        </dd>
         <dt className="text-muted-foreground">Source</dt>
         <dd>{humanize(l.source)}</dd>
         {l.dropped_reason && (
@@ -591,5 +608,65 @@ function ConvertDialog({ l, onClose }: { l: LeadDetail; onClose: () => void }) {
         <FormError message={err} />
       </div>
     </MDialog>
+  );
+}
+
+/** APPS-2: how fast a new lead must be contacted / converted. */
+function LeadSlaSettings() {
+  const q = useQuery({
+    queryKey: appsKeys.list("apps-settings"),
+    queryFn: () => appsService.settings(),
+    retry: false,
+  });
+  const [open, setOpen] = useState(false);
+  const [hours, setHours] = useState("");
+  const [days, setDays] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const save = useAppsMutation((body: object) => appsService.saveSettings(body));
+  if (!q.data) return null;
+  if (!open)
+    return (
+      <p className="text-xs text-muted-foreground">
+        New leads: contact within {q.data.lead_contact_sla_minutes / 60} h, convert within{" "}
+        {q.data.lead_convert_sla_days} days.{" "}
+        <button
+          type="button"
+          className="text-primary hover:underline"
+          onClick={() => {
+            setHours(String(q.data.lead_contact_sla_minutes / 60));
+            setDays(String(q.data.lead_convert_sla_days));
+            setOpen(true);
+          }}
+        >
+          Change
+        </button>
+      </p>
+    );
+  return (
+    <div className="flex flex-wrap items-end gap-2 text-xs">
+      <TextField label="Contact within (hours)" value={hours} onChange={setHours} />
+      <TextField label="Convert within (days)" value={days} onChange={setDays} />
+      <MButton
+        disabled={save.isPending}
+        onClick={async () => {
+          setErr(null);
+          const m = Math.round(Number(hours) * 60);
+          const dd = Number(days);
+          if (!Number.isFinite(m) || m < 5 || m > 43200)
+            return setErr("Contact: 0.1 to 720 hours.");
+          if (!Number.isInteger(dd) || dd < 1 || dd > 365) return setErr("Convert: 1 to 365 days.");
+          try {
+            await save.mutateAsync({ lead_contact_sla_minutes: m, lead_convert_sla_days: dd });
+            toast.success("Saved.");
+            setOpen(false);
+          } catch (e) {
+            setErr(ispErrorMessage(e));
+          }
+        }}
+      >
+        {save.isPending && <Spinner />} Save
+      </MButton>
+      <FormError message={err} />
+    </div>
   );
 }

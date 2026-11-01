@@ -6,6 +6,13 @@ import { cleanParams, downloadFile, type FileDownload } from "@/services/isp-par
 import type { IspPage } from "@/services/isp-partner/types";
 import { helpdeskService } from "@/services/isp-partner/workbench";
 import type {
+  AppsSettings,
+  Checkout,
+  Escalation,
+  EscalationRule,
+  EscalationRuleBody,
+  StockLocation,
+  Vendor,
   Announcement,
   AnnouncementBody,
   Discount,
@@ -157,6 +164,55 @@ export const appsService = {
   ) => post<LeadDetail>(`${A}/leads/${id}/convert`, body),
   leadsCsv: (q: LeadQuery) =>
     csv("/leads/export.csv", { ...q, page: undefined, page_size: undefined }, "leads.csv"),
+
+  // ---------------------------------------------------------------- APPS-2
+  settings: () => get<AppsSettings>(`${A}/settings`),
+  saveSettings: async (body: Partial<AppsSettings>) =>
+    (await api.put<AppsSettings>(`${A}/settings`, body)).data,
+  escalationRules: () => get<EscalationRule[]>(`${A}/escalation-rules`),
+  createEscalationRule: (body: EscalationRuleBody) =>
+    post<EscalationRule>(`${A}/escalation-rules`, body),
+  patchEscalationRule: (id: string, body: EscalationRuleBody) =>
+    patch<EscalationRule>(`${A}/escalation-rules/${id}`, body),
+  deleteEscalationRule: async (id: string) => {
+    await api.delete(`${A}/escalation-rules/${id}`);
+  },
+  escalations: (page = 1) => get<IspPage<Escalation>>(`${A}/escalations`, { page, page_size: 25 }),
+  approveTask: (id: string, note?: string | null) =>
+    post<TaskView>(`${A}/tasks/${id}/approve`, { note: note || null }),
+  sendBackTask: (id: string, note: string) =>
+    post<TaskView>(`${A}/tasks/${id}/send-back`, { note }),
+  vendors: () => get<Vendor[]>(`${A}/inventory/vendors`),
+  createVendor: (body: Partial<Vendor>) => post<Vendor>(`${A}/inventory/vendors`, body),
+  patchVendor: (id: string, body: Partial<Vendor>) =>
+    patch<Vendor>(`${A}/inventory/vendors/${id}`, body),
+  locations: () => get<StockLocation[]>(`${A}/inventory/locations`),
+  createLocation: (body: Partial<StockLocation>) =>
+    post<StockLocation>(`${A}/inventory/locations`, body),
+  patchLocation: (id: string, body: Partial<StockLocation>) =>
+    patch<StockLocation>(`${A}/inventory/locations/${id}`, body),
+  putUnitMeta: async (
+    id: string,
+    body: {
+      vendor_id?: string | null;
+      stock_location_id?: string | null;
+      tr069_device_id?: string | null;
+    },
+  ) => (await api.put<InventoryUnit>(`${A}/inventory/units/${id}/meta`, body)).data,
+  requestCheckout: (
+    id: string,
+    body: {
+      isp_customer_id: string;
+      subscriber_id?: string | null;
+      task_id?: string | null;
+      note?: string | null;
+    },
+  ) => post<Checkout>(`${A}/inventory/units/${id}/checkout`, body),
+  checkouts: (status?: string) => get<Checkout[]>(`${A}/inventory/checkouts`, { status }),
+  approveCheckout: (id: string, note?: string | null) =>
+    post<Checkout>(`${A}/inventory/checkouts/${id}/approve`, { note: note || null }),
+  rejectCheckout: (id: string, note?: string | null) =>
+    post<Checkout>(`${A}/inventory/checkouts/${id}/reject`, { note: note || null }),
 
   /** Is the CAF-2 workbench on? (its options route 404s while off) */
   cafOn: async (): Promise<boolean> => {
