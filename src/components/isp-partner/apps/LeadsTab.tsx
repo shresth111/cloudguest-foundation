@@ -431,6 +431,7 @@ function LeadBody({ l }: { l: LeadDetail }) {
           {c.manage &&
             l.status !== "dropped" &&
             caf.isSuccess &&
+            can("isp_subscribers.kyc") && // RBAC-FIX R3: the CAF tab needs it
             convertRoute(caf.data) === "caf" && (
               <Link to="/partner/compliance" search={{ tab: "caf" }} className="inline-flex">
                 <MButton>

@@ -23,7 +23,7 @@ export function PppoeSessionTable({
   loading?: boolean;
 }) {
   const { can } = usePartner();
-  const canKick = can("isp_subscribers.update");
+  const canKick = can("isp_subscribers.disconnect"); // RBAC-FIX R1
   const kick = usePppoeMutation((id: string) => pppoeService.disconnectSession(id));
   return (
     <MTable

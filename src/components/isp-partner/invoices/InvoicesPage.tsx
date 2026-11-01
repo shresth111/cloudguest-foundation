@@ -252,9 +252,9 @@ export function InvoicesPage({
         title="Invoices"
         description="Tax invoices and credit notes to your customers and subscribers, numbered per financial year. Coupon sign-ins show up as invoices within about a minute."
         actions={
-          (can("isp_invoices.create") || can("isp_invoices.export")) && (
+          (can("isp_invoices.create") || can("isp_billing.export")) && (
             <>
-              {can("isp_invoices.export") && (
+              {can("isp_billing.export") && (
                 <MButton variant="outline" onClick={() => setGstr1Open(true)}>
                   <FileSpreadsheet /> GSTR-1 export
                 </MButton>
