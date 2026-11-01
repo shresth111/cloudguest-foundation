@@ -119,5 +119,24 @@ console.log("SMALL-3 win-back save rate");
   has("ticket dialog reports the new id", tk, "onCreated?.(t.id);");
 }
 
+// ---------------------------------------------------------------- SMALL-4
+console.log("SMALL-4 MRR history + DSO");
+{
+  const types = src("src/services/isp-partner/revenue-types.ts");
+  has("trend row carries mrr_source", types, 'mrr_source?: "snapshot" | "live" | "billed_proxy";');
+  has("kpis carry dso_days", types, "dso_days?: number | null;");
+  const ov = src("src/components/isp-partner/revenue/RevenueOverview.tsx");
+  has("trend table has an MRR column", ov, "<MrrCell row={t} />");
+  has(
+    "billed stand-in is labelled",
+    src("src/lib/isp-partner/mrr-history.ts"),
+    'billed_proxy: "billed (no snapshot)"',
+  );
+  has("DSO line shows the BE number", ov, "formatDso(d.kpis.dso_days)");
+  has("DSO line hidden on an older BE", ov, "d.kpis.dso_days !== undefined &&");
+  has("DSO definition from the BE", ov, 'title={d.definitions.dso ?? ""}');
+  has("empty DSO is a dash", src("src/lib/isp-partner/mrr-history.ts"), '? "–"');
+}
+
 console.log(`\n${checks - failures}/${checks} checks passed`);
 if (failures) process.exit(1);
