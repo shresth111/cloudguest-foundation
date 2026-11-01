@@ -18,6 +18,15 @@ import type {
 } from "@/services/isp-partner/network-types";
 
 export const networkService = {
+  // ENFORCE-1: the usage-reporting step for the partner setup script. 404
+  // while the backend's enforcement flag is off (then nothing is appended).
+  async enforcementScript(ispRouterId: string): Promise<{ label: string; script: string }> {
+    const { data } = await api.get<{ label: string; script: string }>(
+      `/isp/routers/${ispRouterId}/enforcement-script`,
+    );
+    return data;
+  },
+
   // package policy (J3)
   async getPolicy(packageId: string): Promise<PackagePolicy> {
     const { data } = await api.get<PackagePolicy>(`/isp/packages/${packageId}/policy`);

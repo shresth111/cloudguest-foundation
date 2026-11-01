@@ -252,6 +252,72 @@ check(
   JSON.stringify(wrapped.buildRouterSetupScriptChunks(OPTS)) === JSON.stringify(a),
 );
 
+// ENFORCE-1: the usage-reporting step sits BEFORE TR-069 (TR-069 may reboot).
+const ACC = {
+  label: "Usage reporting every 5 minutes (for data limits)",
+  script:
+    "# Wyfy Guest: report usage to RADIUS every 5 minutes (needed for data limits)\n/ip hotspot profile set [find use-radius=yes] radius-interim-update=5m\n",
+};
+wrapped.setPartnerSetupExtraChunks([ACC], "accounting");
+const acc = wrapped.buildRouterSetupScriptChunks(OPTS);
+check(
+  "accounting alone: appended last",
+  acc.length === a.length + 1 && acc[acc.length - 1].script === ACC.script,
+);
+wrapped.setPartnerSetupExtraChunks([{ label: wrapped.TR069_CHUNK_LABEL, script: TR }]);
+const both = wrapped.buildRouterSetupScriptChunks(OPTS);
+check(
+  "accounting + TR-069: accounting first, TR-069 still LAST",
+  both.length === a.length + 2 &&
+    both[a.length].script === ACC.script &&
+    both[a.length + 1].label === wrapped.TR069_CHUNK_LABEL,
+);
+check(
+  "accounting + TR-069: main chunks unchanged",
+  JSON.stringify(both.slice(0, a.length)) === JSON.stringify(a),
+);
+const accIssues = wrapped
+  .validateSetupScriptChunks([both[a.length]])
+  .flatMap((x) => x.issues)
+  .filter((i) => i.severity === "error");
+check(
+  "accounting chunk passes the panel validator",
+  accIssues.length === 0,
+  JSON.stringify(accIssues).slice(0, 300),
+);
+wrapped.setPartnerSetupExtraChunks([]);
+check(
+  "clearing TR-069 keeps the accounting step",
+  wrapped.buildRouterSetupScriptChunks(OPTS).length === a.length + 1,
+);
+wrapped.setPartnerSetupExtraChunks([], "accounting");
+check(
+  "both cleared: identical again",
+  JSON.stringify(wrapped.buildRouterSetupScriptChunks(OPTS)) === JSON.stringify(a),
+);
+const accStep = readFileSync(
+  join(ROOT, "src/components/isp-partner/routers/PartnerAccountingSetupStep.tsx"),
+  "utf8",
+);
+check(
+  "accounting step registers in its own slot and clears on unmount",
+  /setPartnerSetupExtraChunks\(chunk \? \[chunk\] : \[\], "accounting"\)/.test(accStep) &&
+    /return \(\) => setPartnerSetupExtraChunks\(\[\], "accounting"\)/.test(accStep),
+);
+const net = readFileSync(join(ROOT, "src/hooks/isp-partner/useNetwork.ts"), "utf8");
+check("flag off (404) registers nothing", /ispErrorStatus\(e\) === 404\) return null/.test(net));
+check(
+  "accounting step mounted before the TR-069 step",
+  (() => {
+    const pg = readFileSync(
+      join(ROOT, "src/components/isp-partner/routers/RouterDetailPage.tsx"),
+      "utf8",
+    );
+    const i = pg.indexOf("<PartnerAccountingSetupStep routerId={routerId} />");
+    return i > 0 && i < pg.indexOf("<PartnerTr069SetupStep ");
+  })(),
+);
+
 // 4. Wiring.
 const step = readFileSync(
   join(ROOT, "src/components/isp-partner/routers/PartnerTr069SetupStep.tsx"),

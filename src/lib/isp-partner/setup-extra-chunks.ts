@@ -11,6 +11,11 @@
  * appended unless the partner router page registered a chunk on the partner
  * host. With nothing registered, the very same array comes back, so the
  * script, the copy text and the .rsc are byte-identical to today's.
+ *
+ * ENFORCE-1: more than one step can be registered, each under its own slot,
+ * and they are appended in slot order: the usage-reporting step (only while
+ * the backend's enforcement flag is on) comes BEFORE TR-069, because the
+ * TR-069 step may reboot the router as the very last thing.
  */
 import { isNetworkHost } from "./network-host";
 
@@ -22,12 +27,21 @@ export interface ExtraSetupChunk {
 export const TR069_CHUNK_LABEL =
   "TR-069 management (installs tr069-client if missing; the router may reboot at the end)";
 
+/** Append order, first to last. TR-069 stays last (it may reboot). */
+export const SETUP_CHUNK_SLOTS = ["accounting", "tr069"] as const;
+export type SetupChunkSlot = (typeof SETUP_CHUNK_SLOTS)[number];
+
+const slots: Record<SetupChunkSlot, readonly ExtraSetupChunk[]> = { accounting: [], tr069: [] };
 let registered: readonly ExtraSetupChunk[] = [];
 
-/** Called by the partner router page; [] clears it (on unmount, or when the
- * location's TR-069 is off). */
-export function setPartnerSetupExtraChunks(chunks: readonly ExtraSetupChunk[]): void {
-  registered = chunks.filter((c) => c.script.trim().length > 0);
+/** Called by the partner router page; [] clears that slot (on unmount, or
+ * when the step does not apply). Without a slot it is the TR-069 step. */
+export function setPartnerSetupExtraChunks(
+  chunks: readonly ExtraSetupChunk[],
+  slot: SetupChunkSlot = "tr069",
+): void {
+  slots[slot] = chunks.filter((c) => c.script.trim().length > 0);
+  registered = SETUP_CHUNK_SLOTS.flatMap((s) => slots[s]);
 }
 
 export function partnerSetupExtraChunks(): readonly ExtraSetupChunk[] {

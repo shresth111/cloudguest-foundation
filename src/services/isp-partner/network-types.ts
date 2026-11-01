@@ -101,7 +101,8 @@ export type EnforcementEventKind =
 export interface EnforcementEvent {
   id: string;
   kind: EnforcementEventKind | string;
-  detail: Record<string, unknown> | null;
+  /** a short string from the backend; PPPoE refusals start with "pppoe: " */
+  detail: Record<string, unknown> | string | null;
   session_id: string | null;
   occurred_at: string;
 }
