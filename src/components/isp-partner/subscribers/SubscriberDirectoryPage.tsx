@@ -4,6 +4,7 @@
  * customer and zone; typeahead on name, mobile, login id or circuit id.
  * A row opens the Subscriber 360 page.
  */
+import { SyncNowButton } from "@/components/isp-partner/subscribers/SyncNowButton";
 import {
   DirectoryBulkBar,
   DirectoryExportButtons,
@@ -151,6 +152,7 @@ export function SubscriberDirectoryPage() {
         actions={
           can("isp_subscribers.update") ? (
             <>
+              <SyncNowButton />
               <MButton variant="outline" onClick={() => setAdding(true)}>
                 Quick add
               </MButton>
