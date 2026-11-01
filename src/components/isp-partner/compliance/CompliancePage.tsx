@@ -7,6 +7,7 @@ import { Card, ErrorBlock, FormError } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { CgnatLookupView } from "@/components/isp-partner/compliance/CgnatLookupView";
 import { CafWorkbench } from "@/components/isp-partner/compliance/caf/CafWorkbench";
+import { LeaTraceView, RetentionView } from "@/components/isp-partner/compliance/LeaTraceView";
 import { ComplianceReportsView } from "@/components/isp-partner/compliance/ComplianceReportsView";
 import { FilingsView } from "@/components/isp-partner/compliance/FilingsView";
 import { NatFeedView } from "@/components/isp-partner/compliance/NatFeedView";
@@ -17,10 +18,22 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { complianceService, type ComplianceSettings } from "@/services/isp-partner/compliance";
 
-export type ComplianceTab = "nat" | "trace" | "kyc" | "caf" | "filings" | "reports" | "settings";
+export type ComplianceTab =
+  | "nat"
+  | "trace"
+  | "lea"
+  | "retention"
+  | "kyc"
+  | "caf"
+  | "filings"
+  | "reports"
+  | "settings";
 const TABS: { value: ComplianceTab; label: string; perm?: string }[] = [
   { value: "nat", label: "NAT log feed" },
   { value: "trace", label: "Trace an IP", perm: "isp_ipdr.read" },
+  // IPDR-2 (own flag; "not switched on" while off). LEA trace: owner/admin key.
+  { value: "lea", label: "LEA trace", perm: "isp_ipdr.export" },
+  { value: "retention", label: "Retention", perm: "isp_ipdr.read" },
   { value: "kyc", label: "KYC & CAF" },
   // CAF-2: the CAF workbench (its own flag; says "not switched on" while off).
   { value: "caf", label: "CAF workbench" },
@@ -50,6 +63,8 @@ export function CompliancePage() {
       <div className="mt-4">
         {tab === "nat" && <NatFeedView />}
         {tab === "trace" && <CgnatLookupView />}
+        {tab === "lea" && <LeaTraceView />}
+        {tab === "retention" && <RetentionView />}
         {tab === "kyc" && <KycTab />}
         {tab === "caf" && <CafWorkbench />}
         {tab === "filings" && <FilingsView />}
