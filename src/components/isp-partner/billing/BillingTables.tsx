@@ -4,7 +4,11 @@
 import { Link } from "@tanstack/react-router";
 import { Ban } from "lucide-react";
 import { MButton, MTable, MTag, MTd, MTh, MTr } from "@/components/master/MasterKit";
-import { InvoicePdfButton, ReceiptButton } from "@/components/isp-partner/billing/BillingDialogs";
+import {
+  InvoicePdfButton,
+  ReceiptButton,
+  ThermalReceiptButton,
+} from "@/components/isp-partner/billing/BillingDialogs";
 import { formatDate, formatDateTime } from "@/lib/isp-partner/format";
 import {
   INVOICE_STATUS_LABEL,
@@ -171,6 +175,7 @@ export function PaymentsTable({
           <MTd className="text-right">
             <div className="flex justify-end gap-0.5">
               <ReceiptButton payment={p} />
+              {p.status !== "voided" && <ThermalReceiptButton payment={p} />}
               {canVoid && p.status !== "voided" && (
                 <MButton
                   variant="ghost"

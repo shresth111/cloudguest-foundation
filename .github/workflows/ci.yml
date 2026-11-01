@@ -2821,6 +2821,9 @@ jobs:
       - name: ISP partner zones (ZONE-1)
         if: hashFiles('scripts/test-isp-partner-zones.mjs') != ''
         run: bun run test:isp-partner-zones
+      - name: ISP partner leftovers (lead prefill, payment slip)
+        if: hashFiles('scripts/test-isp-partner-leftovers.mjs') != ''
+        run: bun run test:isp-partner-leftovers
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list

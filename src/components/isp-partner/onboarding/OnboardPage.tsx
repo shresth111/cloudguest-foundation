@@ -9,7 +9,7 @@
  * is created, and the form points at the section to fix. Files go up in
  * step 2, after the subscriber exists (see OnboardResult).
  */
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Paperclip, Trash2, UserPlus } from "lucide-react";
@@ -38,12 +38,14 @@ import {
   documentProblem,
   emptyOnboardForm,
   expiryPreview,
+  formFromLead,
   gstinValid,
   stepLabel,
   type FormSection,
   type OnboardForm,
 } from "@/lib/isp-partner/onboarding";
 import { onboardingService } from "@/services/isp-partner/onboarding";
+import { appsService } from "@/services/isp-partner/apps";
 import type { OnboardingResult, PendingDocument } from "@/services/isp-partner/onboarding-types";
 
 const ID_LABEL: Record<string, string> = {
@@ -73,6 +75,7 @@ const STEP_SECTION: Record<string, FormSection> = {
   caf: "kyc",
   invoice: "invoice",
   payment: "invoice",
+  lead: "plan",
 };
 
 function Section({
@@ -147,7 +150,7 @@ function Check({
   );
 }
 
-export function OnboardPage() {
+export function OnboardPage({ leadId }: { leadId?: string } = {}) {
   const { can } = usePartner();
   const options = useQuery({
     queryKey: ["isp", "onboarding", "options"],
@@ -188,6 +191,7 @@ export function OnboardPage() {
   return (
     <OnboardFormView
       key={formKey}
+      leadId={formKey === 0 ? leadId : undefined}
       options={options.data}
       onDone={(r, docs) => setResult({ result: r, documents: docs })}
     />
@@ -197,7 +201,9 @@ export function OnboardPage() {
 function OnboardFormView({
   options,
   onDone,
+  leadId,
 }: {
+  leadId?: string;
   options: NonNullable<Awaited<ReturnType<typeof onboardingService.options>>>;
   onDone: (r: OnboardingResult, docs: PendingDocument[]) => void;
 }) {
@@ -212,6 +218,18 @@ function OnboardFormView({
   const [topError, setTopError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  // LEFTOVERS (APPS-2 #4): prefill from the Apps lead, once.
+  const lead = useQuery({
+    queryKey: ["isp", "apps", "lead", leadId],
+    queryFn: () => appsService.lead(leadId as string),
+    enabled: !!leadId && !!options.features.install_task,
+    retry: false,
+  });
+  const leadUsable =
+    lead.data && lead.data.status !== "converted" && lead.data.status !== "dropped";
+  useEffect(() => {
+    if (lead.data && leadUsable) setF((x) => ({ ...x, ...formFromLead(lead.data) }));
+  }, [lead.data, leadUsable]);
 
   const feat = options.features;
   const canKyc = feat.kyc && can("isp_partner.update");
@@ -280,6 +298,13 @@ function OnboardFormView({
         title="Add subscriber"
         description={`Circuit ID ${options.next_circuit_id} is the next free one (given out when you save). Everything below is saved together; files upload right after.`}
       />
+      {lead.data && (
+        <p className="rounded-lg border border-border bg-muted/40 p-2.5 text-xs text-muted-foreground">
+          {leadUsable
+            ? `Filled in from lead #${lead.data.number} (${lead.data.name}). Saving marks the lead converted.`
+            : `Lead #${lead.data.number} is already ${lead.data.status}; nothing was filled in.`}
+        </p>
+      )}
 
       <Section id="plan" title="Plan" error={errors.plan}>
         <div className="grid gap-3 sm:grid-cols-2">

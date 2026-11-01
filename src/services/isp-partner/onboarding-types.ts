@@ -65,6 +65,7 @@ export interface OnboardingBody {
   caf?: { mode: "auto" } | { mode: "number"; number: string } | null;
   /** APPS-2: an unclaimed install task, same transaction (default on). */
   create_install_task?: boolean;
+  lead_id?: string;
   billing?: {
     issue_invoice: boolean;
     paid_now?: boolean;

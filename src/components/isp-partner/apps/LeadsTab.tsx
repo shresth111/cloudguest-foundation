@@ -439,6 +439,13 @@ function LeadBody({ l }: { l: LeadDetail }) {
                 </MButton>
               </Link>
             )}
+          {l.status !== "dropped" && can("isp_subscribers.update") && (
+            <Link to="/partner/subscribers/new" search={{ lead_id: l.id }} className="inline-flex">
+              <MButton variant="outline">
+                <UserPlus /> Add subscriber from this lead
+              </MButton>
+            </Link>
+          )}
           {c.manage &&
             l.status !== "dropped" &&
             caf.isSuccess &&

@@ -40,6 +40,7 @@
     "test:isp-partner-sub360-workbench": "node scripts/test-isp-partner-sub360-workbench.mjs",
     "test:isp-partner-zones": "node scripts/test-isp-partner-zones.mjs",
     "test:isp-master-list": "node scripts/test-isp-master-list.mjs",
+    "test:isp-partner-leftovers": "node scripts/test-isp-partner-leftovers.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",
     "test:ap-inventory-honesty": "node scripts/test-ap-inventory-honesty.mjs",

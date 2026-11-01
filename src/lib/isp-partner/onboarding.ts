@@ -172,6 +172,8 @@ export interface OnboardForm {
   welcome_whatsapp: boolean;
   // APPS-2
   create_install_task: boolean;
+  /** LEFTOVERS (APPS-2 #4): the Apps lead this comes from (marked converted). */
+  lead_id: string;
 }
 
 export function emptyOnboardForm(): OnboardForm {
@@ -231,6 +233,7 @@ export function emptyOnboardForm(): OnboardForm {
     payment_reference: "",
     welcome_whatsapp: true,
     create_install_task: true,
+    lead_id: "",
   };
 }
 
@@ -416,6 +419,7 @@ export function buildOnboarding(f: OnboardForm, ctx: BuildContext): Built {
   // APPS-2 install task: only sent while Apps is on (the API skips it then
   // anyway); explicit false when the box is unticked
   if (ctx.features.install_task) body.create_install_task = f.create_install_task;
+  if (f.lead_id) body.lead_id = f.lead_id;
 
   // first invoice
   if (ctx.can.invoice && f.issue_invoice) {
@@ -484,4 +488,38 @@ export const STEP_LABEL: Record<string, string> = {
 
 export function stepLabel(step: unknown): string {
   return typeof step === "string" ? (STEP_LABEL[step] ?? step) : "Saving";
+}
+
+/** LEFTOVERS (APPS-2 #4): what an Apps lead already knows, so nothing is
+ * typed twice. Only filled fields are returned; the rest keep their value. */
+export function formFromLead(lead: {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isp_customer_id: string | null;
+  interested_package_id: string | null;
+}): Partial<OnboardForm> {
+  const [first, ...rest] = lead.name.trim().split(/\s+/);
+  const out: Partial<OnboardForm> = { lead_id: lead.id, first_name: first ?? "" };
+  if (rest.length) out.last_name = rest.join(" ");
+  if (lead.phone) out.phone = lead.phone;
+  if (lead.email) out.email = lead.email;
+  if (lead.address) {
+    out.address = lead.address;
+    out.install_address = lead.address;
+  }
+  if (lead.city) {
+    out.billing_city = lead.city;
+    out.install_city = lead.city;
+  }
+  if (lead.latitude != null) out.latitude = String(lead.latitude);
+  if (lead.longitude != null) out.longitude = String(lead.longitude);
+  if (lead.isp_customer_id) out.isp_customer_id = lead.isp_customer_id;
+  if (lead.interested_package_id) out.package_id = lead.interested_package_id;
+  return out;
 }
