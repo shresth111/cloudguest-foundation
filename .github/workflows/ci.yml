@@ -2856,6 +2856,9 @@ jobs:
       - name: ISP partner audit log (AUDIT-LOG)
         if: hashFiles('scripts/test-isp-partner-audit-log.mjs') != ''
         run: bun run test:isp-partner-audit-log
+      - name: ISP partner small follow-ups (SMALL-n)
+        if: hashFiles('scripts/test-isp-partner-small.mjs') != ''
+        run: bun run test:isp-partner-small
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list
