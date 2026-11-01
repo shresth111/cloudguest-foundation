@@ -23,6 +23,7 @@ import {
   useSubscriberNetworkMutation,
 } from "@/hooks/isp-partner/useNetwork";
 import { networkService } from "@/services/isp-partner/network";
+import { disconnectRemovedMac } from "@/services/isp-partner/workbench";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatBytes, formatDate, formatDateTime } from "@/lib/isp-partner/format";
 import {
@@ -53,7 +54,7 @@ function Block({
   );
 }
 
-function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canEdit: boolean }) {
+export function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canEdit: boolean }) {
   const q = useFupStatus(subscriberId);
   const [topup, setTopup] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -246,7 +247,18 @@ function MacBlock({ subscriberId, canEdit }: { subscriberId: string; canEdit: bo
                     setError(null);
                     try {
                       await remove.mutateAsync(b.id);
-                      toast.success(`${b.mac} removed.`);
+                      // SUB360-2: offer to end that device's live session now.
+                      toast.success(`${b.mac} removed.`, {
+                        action: {
+                          label: "Disconnect now",
+                          onClick: () => {
+                            disconnectRemovedMac(subscriberId, b.mac).then(
+                              (msg) => toast.success(msg),
+                              (err) => toast.error(ispErrorMessage(err)),
+                            );
+                          },
+                        },
+                      });
                     } catch (err) {
                       setError(ispErrorMessage(err));
                     }
