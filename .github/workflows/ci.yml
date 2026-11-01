@@ -2827,6 +2827,9 @@ jobs:
       - name: ISP partner unused services (LEFTOVERS #8)
         if: hashFiles('scripts/test-isp-partner-unused-services.mjs') != ''
         run: bun run test:isp-partner-unused-services
+      - name: ISP partner revenue hub + churn risk (REVENUE-HUB)
+        if: hashFiles('scripts/test-isp-partner-revenue.mjs') != ''
+        run: bun run test:isp-partner-revenue
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list

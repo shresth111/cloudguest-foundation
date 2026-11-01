@@ -28,6 +28,7 @@ import {
   Cable,
   Network,
   Blocks as AppsIcon,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,6 +41,7 @@ import { roleLabel } from "@/lib/isp-partner/format";
 import { MEmptyState } from "@/components/master/MasterKit";
 import { NatFeedBanner } from "@/components/isp-partner/compliance/NatFeedBanner";
 import { useAppsEnabled } from "@/hooks/isp-partner/useApps";
+import { useRevenueEnabled } from "@/hooks/isp-partner/useRevenue";
 import { ZoneSwitcher } from "@/components/isp-partner/zones/ZoneSwitcher";
 
 interface NavItem {
@@ -79,6 +81,8 @@ const PARTNER_NAV: NavItem[] = [
   },
   { to: "/partner/invoices", label: "Invoices", icon: Receipt, anyOf: ["isp_invoices.read"] },
   { to: "/partner/billing", label: "Billing", icon: Wallet, anyOf: ["isp_billing.read"] },
+  // REVENUE-HUB: hidden while ISP_REVENUE_HUB_ENABLED is off (probe 404s).
+  { to: "/partner/revenue", label: "Revenue", icon: TrendingUp, anyOf: ["isp_billing.read"] },
   // JAZE-4: finance tools (every tab answers "not switched on" until its flag is on).
   {
     to: "/partner/finance",
@@ -111,8 +115,12 @@ export function PartnerShell({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState(false);
 
   const apps = useAppsEnabled();
+  const revenue = useRevenueEnabled();
   const nav = PARTNER_NAV.filter(
-    (n) => (!n.anyOf || n.anyOf.some((p) => can(p))) && (n.to !== "/partner/apps" || apps.enabled),
+    (n) =>
+      (!n.anyOf || n.anyOf.some((p) => can(p))) &&
+      (n.to !== "/partner/apps" || apps.enabled) &&
+      (n.to !== "/partner/revenue" || revenue.enabled),
   );
   // QA-017: a page whose nav item this role cannot see is not mounted on a
   // direct URL either, so it never fires a request that can only 403 (and

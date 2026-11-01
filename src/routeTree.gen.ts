@@ -78,6 +78,7 @@ import { Route as PortalClosedRouteImport } from './routes/portal.closed'
 import { Route as PortalAuthRouteImport } from './routes/portal.auth'
 import { Route as PartnerUsersRouteImport } from './routes/partner.users'
 import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
+import { Route as PartnerRevenueRouteImport } from './routes/partner.revenue'
 import { Route as PartnerResetPasswordRouteImport } from './routes/partner.reset-password'
 import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
 import { Route as PartnerPppoeRouteImport } from './routes/partner.pppoe'
@@ -580,6 +581,11 @@ const PartnerUsersRoute = PartnerUsersRouteImport.update({
 const PartnerSettingsRoute = PartnerSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerRevenueRoute = PartnerRevenueRouteImport.update({
+  id: '/revenue',
+  path: '/revenue',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerResetPasswordRoute = PartnerResetPasswordRouteImport.update({
@@ -1561,6 +1567,7 @@ export interface FileRoutesByFullPath {
   '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
+  '/partner/revenue': typeof PartnerRevenueRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
@@ -1785,6 +1792,7 @@ export interface FileRoutesByTo {
   '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
+  '/partner/revenue': typeof PartnerRevenueRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
   '/portal/closed': typeof PortalClosedRoute
@@ -2014,6 +2022,7 @@ export interface FileRoutesById {
   '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
+  '/partner/revenue': typeof PartnerRevenueRoute
   '/partner/settings': typeof PartnerSettingsRoute
   '/partner/users': typeof PartnerUsersRoute
   '/portal/auth': typeof PortalAuthRouteWithChildren
@@ -2245,6 +2254,7 @@ export interface FileRouteTypes {
     | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
+    | '/partner/revenue'
     | '/partner/settings'
     | '/partner/users'
     | '/portal/auth'
@@ -2469,6 +2479,7 @@ export interface FileRouteTypes {
     | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
+    | '/partner/revenue'
     | '/partner/settings'
     | '/partner/users'
     | '/portal/closed'
@@ -2697,6 +2708,7 @@ export interface FileRouteTypes {
     | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
+    | '/partner/revenue'
     | '/partner/settings'
     | '/partner/users'
     | '/portal/auth'
@@ -3381,6 +3393,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/partner/settings'
       preLoaderRoute: typeof PartnerSettingsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/revenue': {
+      id: '/partner/revenue'
+      path: '/revenue'
+      fullPath: '/partner/revenue'
+      preLoaderRoute: typeof PartnerRevenueRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/reset-password': {
@@ -4837,6 +4856,7 @@ interface PartnerRouteChildren {
   PartnerPppoeRoute: typeof PartnerPppoeRoute
   PartnerReportsRoute: typeof PartnerReportsRoute
   PartnerResetPasswordRoute: typeof PartnerResetPasswordRoute
+  PartnerRevenueRoute: typeof PartnerRevenueRoute
   PartnerSettingsRoute: typeof PartnerSettingsRoute
   PartnerUsersRoute: typeof PartnerUsersRoute
   PartnerIndexRoute: typeof PartnerIndexRoute
@@ -4872,6 +4892,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerPppoeRoute: PartnerPppoeRoute,
   PartnerReportsRoute: PartnerReportsRoute,
   PartnerResetPasswordRoute: PartnerResetPasswordRoute,
+  PartnerRevenueRoute: PartnerRevenueRoute,
   PartnerSettingsRoute: PartnerSettingsRoute,
   PartnerUsersRoute: PartnerUsersRoute,
   PartnerIndexRoute: PartnerIndexRoute,
