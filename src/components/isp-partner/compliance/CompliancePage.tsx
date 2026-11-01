@@ -6,6 +6,7 @@ import { MButton, MSectionHeader, MSeg, M_INPUT } from "@/components/master/Mast
 import { Card, ErrorBlock, FormError } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { CgnatLookupView } from "@/components/isp-partner/compliance/CgnatLookupView";
+import { CafWorkbench } from "@/components/isp-partner/compliance/caf/CafWorkbench";
 import { ComplianceReportsView } from "@/components/isp-partner/compliance/ComplianceReportsView";
 import { FilingsView } from "@/components/isp-partner/compliance/FilingsView";
 import { NatFeedView } from "@/components/isp-partner/compliance/NatFeedView";
@@ -16,11 +17,13 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { complianceService, type ComplianceSettings } from "@/services/isp-partner/compliance";
 
-export type ComplianceTab = "nat" | "trace" | "kyc" | "filings" | "reports" | "settings";
+export type ComplianceTab = "nat" | "trace" | "kyc" | "caf" | "filings" | "reports" | "settings";
 const TABS: { value: ComplianceTab; label: string; perm?: string }[] = [
   { value: "nat", label: "NAT log feed" },
   { value: "trace", label: "Trace an IP", perm: "isp_ipdr.read" },
   { value: "kyc", label: "KYC & CAF" },
+  // CAF-2: the CAF workbench (its own flag; says "not switched on" while off).
+  { value: "caf", label: "CAF workbench" },
   { value: "filings", label: "TRAI & AGR" },
   { value: "reports", label: "Reports" },
   { value: "settings", label: "Settings" },
@@ -48,6 +51,7 @@ export function CompliancePage() {
         {tab === "nat" && <NatFeedView />}
         {tab === "trace" && <CgnatLookupView />}
         {tab === "kyc" && <KycTab />}
+        {tab === "caf" && <CafWorkbench />}
         {tab === "filings" && <FilingsView />}
         {tab === "reports" && <ComplianceReportsView />}
         {tab === "settings" && <SettingsTab />}
