@@ -29,6 +29,7 @@ import {
   INVOICE_KIND_LABEL,
   INVOICE_STATUS_LABEL_X,
   billToName,
+  billingPeriod,
   invoiceStatusTone,
   whatsappShareUrl,
 } from "@/lib/isp-partner/invoices";
@@ -48,6 +49,7 @@ export function InvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
   const inv = q.data;
   const live = inv.status !== "cancelled" && inv.status !== "void";
   const intraState = inv.cgst_paise > 0 || inv.sgst_paise > 0;
+  const period = billingPeriod(inv);
 
   return (
     <>
@@ -59,7 +61,7 @@ export function InvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
       <MSectionHeader
         eyebrow={inv.doc_type === "credit_note" ? "Credit note" : "Tax invoice"}
         title={inv.number}
-        description={`#${inv.display_id} · ${formatDate(inv.invoice_date)}${inv.due_date ? ` · due ${formatDate(inv.due_date)}` : ""} · ${INVOICE_KIND_LABEL[inv.invoice_kind] ?? inv.invoice_kind}`}
+        description={`#${inv.display_id} · ${formatDate(inv.invoice_date)}${inv.due_date ? ` · due ${formatDate(inv.due_date)}` : ""}${period ? ` · period ${formatDate(period[0])} – ${formatDate(period[1])}` : ""} · ${INVOICE_KIND_LABEL[inv.invoice_kind] ?? inv.invoice_kind}`}
         actions={
           <>
             <MTag

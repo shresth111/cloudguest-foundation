@@ -108,3 +108,11 @@ export function billToName(i: Pick<InvoiceRow, "subscriber" | "customer">): stri
     return [i.subscriber.first_name, i.subscriber.last_name].filter(Boolean).join(" ") || "–";
   return i.customer?.name ?? "–";
 }
+
+/** QA #16: the invoice's billing period as `[start, end]`, or null when the
+ * invoice has none (one-off manual invoices, older rows). */
+export function billingPeriod(
+  inv: Pick<InvoiceRow, "period_start" | "period_end">,
+): [string, string] | null {
+  return inv.period_start && inv.period_end ? [inv.period_start, inv.period_end] : null;
+}
