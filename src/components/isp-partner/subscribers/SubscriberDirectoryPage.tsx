@@ -4,9 +4,13 @@
  * customer and zone; typeahead on name, mobile, login id or circuit id.
  * A row opens the Subscriber 360 page.
  */
-import { DirectoryBulkBar } from "@/components/isp-partner/subscribers/DirectoryBulkBar";
+import {
+  DirectoryBulkBar,
+  DirectoryExportButtons,
+} from "@/components/isp-partner/subscribers/DirectoryBulkBar";
+import { bulkBarVisible } from "@/lib/isp-partner/bulkbar";
 import { useDir2Available } from "@/hooks/isp-partner/useDir2";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus, Search, Users } from "lucide-react";
 import {
@@ -122,6 +126,20 @@ export function SubscriberDirectoryPage() {
       else if (next.size < dir2.max) next.add(id);
       return next;
     });
+  // BULKBAR: a filter change starts the selection over (ticked rows may no
+  // longer be in the list, and "all matching" would mean something else).
+  const dirFilter = {
+    state: state || undefined,
+    isp_customer_id: customerId || undefined,
+    package_id: packageId || undefined,
+    zone_id: zoneId || undefined,
+    search: debounced || undefined,
+  };
+  const filterKey = JSON.stringify(dirFilter);
+  useEffect(() => {
+    setSelected(new Set());
+  }, [filterKey]);
+  const barOpen = dir2.available && bulkBarVisible(selected.size);
   const counts = data?.state_counts;
   const total = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : undefined;
 
@@ -244,15 +262,20 @@ export function SubscriberDirectoryPage() {
       ) : (
         <>
           {dir2.available && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                {selected.size === 0 && "Tick subscribers to renew, block, freeze or move them."}
+              </p>
+              <DirectoryExportButtons filter={dirFilter} />
+            </div>
+          )}
+          {barOpen && (
             <DirectoryBulkBar
+              key={filterKey}
               selectedIds={[...selected]}
-              filter={{
-                state: state || undefined,
-                isp_customer_id: customerId || undefined,
-                package_id: packageId || undefined,
-                zone_id: zoneId || undefined,
-                search: debounced || undefined,
-              }}
+              filter={dirFilter}
+              allOnPage={allOnPage}
+              total={data?.total}
               onClear={() => setSelected(new Set())}
             />
           )}
@@ -340,6 +363,8 @@ export function SubscriberDirectoryPage() {
           {data && (
             <Pager page={data.page} pages={data.pages} total={data.total} onPage={setPage} />
           )}
+          {/* Room for the bulk bar's bottom sheet on a phone, so it never covers the last rows. */}
+          {barOpen && <div aria-hidden className="h-28 sm:hidden" />}
         </>
       )}
       <OnboardDrawer open={adding} onClose={() => setAdding(false)} />
