@@ -22,6 +22,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { isNotFound } from "@/lib/isp-partner/errors";
 import { cafService, type CafHit, type CafSource } from "@/services/isp-partner/caf";
 
+// eslint-disable-next-line react-refresh/only-export-components -- shared query keys; moving it would touch every importer (CI-INTEG warning ratchet)
 export const cafKeys = {
   all: ["isp", "caf"] as const,
   options: ["isp", "caf", "options"] as const,

@@ -6,7 +6,7 @@ import { useNatFeed } from "@/hooks/isp-partner/useCompliance";
 import { formatAgo, formatDateTime, formatIst } from "@/lib/isp-partner/format";
 import type { NatFeedState } from "@/services/isp-partner/compliance";
 
-export const FEED_LABEL: Record<NatFeedState, string> = {
+const FEED_LABEL: Record<NatFeedState, string> = {
   ok: "Receiving",
   stale: "Stopped",
   never_received: "Never received",
