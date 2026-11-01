@@ -4,13 +4,14 @@
  * README instead. */
 import { useState } from "react";
 import { Archive, X } from "lucide-react";
-import { MButton, MSeg, M_INPUT } from "@/components/master/MasterKit";
+import { MButton, MSeg } from "@/components/master/MasterKit";
 import { Card, FormError, Spinner } from "@/components/isp-partner/kit";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { isoDay } from "@/lib/isp-partner/format";
 import { exportBody } from "@/lib/isp-partner/caf";
 import { cafService } from "@/services/isp-partner/caf";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 export function CafExportCard({
   picked,
@@ -67,14 +68,14 @@ export function CafExportCard({
             <input
               type="date"
               aria-label="From"
-              className={`${M_INPUT} w-auto`}
+              className={`${M_FILTER}`}
               value={since}
               onChange={(e) => setSince(e.target.value)}
             />
             <input
               type="date"
               aria-label="To"
-              className={`${M_INPUT} w-auto`}
+              className={`${M_FILTER}`}
               value={until}
               onChange={(e) => setUntil(e.target.value)}
             />

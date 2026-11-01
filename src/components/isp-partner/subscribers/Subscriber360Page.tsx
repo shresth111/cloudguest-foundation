@@ -63,7 +63,9 @@ function Check({ on, label }: { on: boolean | null; label: string }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
-        on ? "border-emerald-300 text-emerald-700" : "border-border text-muted-foreground"
+        on
+          ? "border-emerald-300 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+          : "border-border text-muted-foreground"
       }`}
       title={on === null ? "Not tracked yet" : undefined}
     >
@@ -136,11 +138,13 @@ function Ledger({ id, phone, name }: { id: string; phone?: string | null; name?:
       <div className="flex flex-wrap gap-4 text-xs">
         <span>Billed {formatRupees(l.billed_paise)}</span>
         <span>Paid {formatRupees(l.paid_paise)}</span>
-        <span className={l.due_paise ? "font-semibold text-rose-600" : ""}>
+        <span className={l.due_paise ? "font-semibold text-rose-600 dark:text-rose-400" : ""}>
           Due {formatRupees(l.due_paise)}
         </span>
         {l.overdue_paise > 0 && (
-          <span className="text-rose-600">Overdue {formatRupees(l.overdue_paise)}</span>
+          <span className="text-rose-600 dark:text-rose-400">
+            Overdue {formatRupees(l.overdue_paise)}
+          </span>
         )}
       </div>
       {l.invoices.length === 0 ? (
@@ -243,20 +247,20 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
             {formatDateTime(s.valid_until)} ({relativeValidity(s.valid_until)})
           </p>
           {s.hold.block_kind && (
-            <p className="mt-1 text-xs text-rose-600">
+            <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">
               {s.hold.block_kind === "permanent" ? "Permanently blocked" : "Blocked"}
               {s.hold.blocked_reason ? `: ${s.hold.blocked_reason}` : ""} (
               {formatDateTime(s.hold.blocked_at)})
             </p>
           )}
           {s.hold.frozen_at && (
-            <p className="mt-1 text-xs text-amber-700">
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
               Frozen since {formatDateTime(s.hold.frozen_at)} with{" "}
               {formatDuration(s.hold.frozen_remaining_seconds)} of validity kept.
             </p>
           )}
           {s.display_state === "grace" && (
-            <p className="mt-1 text-xs text-amber-700">
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
               Grace until {formatDateTime(s.hold.grace_until)} (no payment recorded).
             </p>
           )}

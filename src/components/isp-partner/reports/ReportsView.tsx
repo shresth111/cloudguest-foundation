@@ -6,16 +6,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Download, FileBarChart } from "lucide-react";
-import {
-  MButton,
-  MEmptyState,
-  MStat,
-  MTable,
-  MTd,
-  MTh,
-  MTr,
-  M_INPUT,
-} from "@/components/master/MasterKit";
+import { MButton, MEmptyState, MStat, MTable, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import {
   Card,
   CustomerSelect,
@@ -35,6 +26,7 @@ import type {
   IspReportSection,
   IspReportSummary,
 } from "@/services/isp-partner/types";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const MAX_DAYS = 92;
 const DAY = 86_400_000;
@@ -82,7 +74,7 @@ function DailyLoginsChart({ rows }: { rows: IspReportSummary["guest_activity"]["
           </div>
         ))}
       </div>
-      <div className="flex justify-between text-[10px] text-muted-foreground">
+      <div className="flex justify-between text-xs text-muted-foreground">
         <span>{rows[0].day}</span>
         <span>{rows[rows.length - 1].day}</span>
       </div>
@@ -145,7 +137,7 @@ export function ReportsView({ fixedCustomerId }: { fixedCustomerId?: string }) {
           <span className="block text-xs font-medium text-muted-foreground">From</span>
           <input
             type="date"
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={from}
             max={today}
             onChange={(e) => setFrom(e.target.value)}
@@ -155,7 +147,7 @@ export function ReportsView({ fixedCustomerId }: { fixedCustomerId?: string }) {
           <span className="block text-xs font-medium text-muted-foreground">To</span>
           <input
             type="date"
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={to}
             max={today}
             onChange={(e) => setTo(e.target.value)}

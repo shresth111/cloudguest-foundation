@@ -52,8 +52,10 @@ const STEP_LABEL: Record<string, string> = {
 };
 
 function StepIcon({ status }: { status: string }) {
-  if (status === "done") return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />;
-  if (status === "failed") return <XCircle className="h-3.5 w-3.5 text-rose-600" />;
+  if (status === "done")
+    return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />;
+  if (status === "failed")
+    return <XCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />;
   if (status === "skipped")
     return <span className="h-3.5 w-3.5 text-center text-[10px] text-muted-foreground">–</span>;
   return <Clock className="h-3.5 w-3.5 text-amber-500" />;
@@ -69,7 +71,9 @@ function StepRow({ step }: { step: ServiceStep }) {
         {step.attempts > 1 && ` · ${step.attempts} attempts`}
       </span>
       {step.detail && <span className="text-muted-foreground">· {step.detail}</span>}
-      {step.last_error && <span className="basis-full pl-5 text-rose-600">{step.last_error}</span>}
+      {step.last_error && (
+        <span className="basis-full pl-5 text-rose-600 dark:text-rose-400">{step.last_error}</span>
+      )}
     </li>
   );
 }

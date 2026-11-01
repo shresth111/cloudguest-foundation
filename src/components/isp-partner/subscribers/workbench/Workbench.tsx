@@ -411,7 +411,9 @@ function Chip({ on, label, title }: { on: boolean | null; label: string; title?:
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]",
-        on ? "border-emerald-300 text-emerald-700" : "border-border text-muted-foreground",
+        on
+          ? "border-emerald-300 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+          : "border-border text-muted-foreground",
       )}
       title={title}
     >

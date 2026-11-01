@@ -14,6 +14,7 @@ import { saveBlob } from "@/lib/isp-partner/download";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import { complianceService, type KycRecord } from "@/services/isp-partner/compliance";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const ID_LABEL: Record<string, string> = {
   aadhaar: "Aadhaar",
@@ -240,7 +241,7 @@ export function SubscriberKycPanel({ subscriberId }: { subscriberId: string }) {
           )}
         </div>
         <FormError message={err} />
-        {notice && <p className="mt-2 text-xs text-emerald-600">{notice}</p>}
+        {notice && <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>}
         {editable && (
           <div className="mt-3 flex flex-wrap gap-2">
             <MButton onClick={() => onSave()} disabled={save.isPending}>
@@ -310,7 +311,7 @@ export function SubscriberKycPanel({ subscriberId }: { subscriberId: string }) {
         {editable && (
           <div className="mt-3 flex flex-wrap items-end gap-2">
             <select
-              className={`${M_INPUT} w-auto`}
+              className={`${M_FILTER}`}
               aria-label="Document type"
               value={kind}
               onChange={(e) => setKind(e.target.value)}

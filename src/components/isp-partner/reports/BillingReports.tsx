@@ -6,13 +6,14 @@
  * gap, a per-bar hover readout, and the same numbers in a table.
  */
 import { useMemo, useState } from "react";
-import { MSeg, MStat, MTable, MTd, MTh, MTr, M_INPUT } from "@/components/master/MasterKit";
+import { MSeg, MStat, MTable, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import { Card, ErrorBlock, Spinner } from "@/components/isp-partner/kit";
 import { useCollections, useOutstanding, useZones } from "@/hooks/isp-partner/useInvoices";
 import { isoDay } from "@/lib/isp-partner/format";
 import { PAYMENT_MODE_LABEL, formatRupees } from "@/lib/isp-partner/money";
 import { indianFy } from "@/lib/isp-partner/invoices";
 import type { CollectionsReport } from "@/services/isp-partner/invoices-types";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 type GroupBy = "month" | "zone" | "package";
 
@@ -61,7 +62,7 @@ function CollectionsChart({ rows }: { rows: CollectionsReport["rows"] }) {
           </div>
         ))}
       </div>
-      <div className="flex gap-3 overflow-hidden text-[10px] text-muted-foreground">
+      <div className="flex gap-3 overflow-hidden text-xs text-muted-foreground">
         {rows.map((r) => (
           <span key={r.key} className="min-w-[28px] flex-1 truncate text-center" title={r.key}>
             {r.key}
@@ -112,14 +113,14 @@ export function BillingReports() {
           <input
             type="date"
             aria-label="From"
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={from}
             onChange={(e) => setFrom(e.target.value)}
           />
           <input
             type="date"
             aria-label="To"
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={to}
             onChange={(e) => setTo(e.target.value)}
           />
@@ -180,7 +181,7 @@ export function BillingReports() {
         title="Outstanding dues"
         actions={
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={zoneId}
             onChange={(e) => setZoneId(e.target.value)}
             aria-label="Zone"

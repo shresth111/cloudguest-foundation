@@ -32,6 +32,7 @@ import {
   type CgnatQuery,
   type CgnatVerdict,
 } from "@/services/isp-partner/compliance";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const VERDICT: Record<CgnatVerdict, { label: string; tone: string; help: string }> = {
   unique_match: {
@@ -327,14 +328,14 @@ function SessionDumpCard({
         <input
           type="date"
           aria-label="From"
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={from}
           onChange={(e) => setFrom(e.target.value)}
         />
         <input
           type="date"
           aria-label="To"
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={to}
           onChange={(e) => setTo(e.target.value)}
         />

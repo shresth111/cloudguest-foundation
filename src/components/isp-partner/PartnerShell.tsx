@@ -178,7 +178,7 @@ export function PartnerShell({ children }: { children: ReactNode }) {
                   to={item.to}
                   onClick={() => setMobile(false)}
                   className={cn(
-                    "group flex items-center gap-3 rounded-lg border-l-[3px] px-2.5 py-2.5 text-[13px] font-medium transition-all",
+                    "group flex items-center gap-3 rounded-lg border-l-[3px] px-2.5 py-2.5 text-[13px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
                     active
                       ? "border-[#6C4EFF] bg-gradient-to-r from-[#6C4EFF]/25 via-[#6C4EFF]/10 to-transparent text-white"
                       : "border-transparent text-white/60 hover:bg-white/[0.06] hover:text-white",
@@ -204,7 +204,10 @@ export function PartnerShell({ children }: { children: ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
+          {/* UX-PASS: no backdrop-blur here. A backdrop-filter makes the header the
+              containing block for `position: fixed`, so the inline Switch zone
+              dialog (ZoneSwitcher) was squeezed into this 64 px bar. */}
+          <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background px-4 sm:px-6">
             <button className="lg:hidden" onClick={() => setMobile(true)} aria-label="Open menu">
               <Menu className="h-5 w-5" />
             </button>

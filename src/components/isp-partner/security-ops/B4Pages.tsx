@@ -39,6 +39,7 @@ import {
   type ContentFilterRuleCreate,
   type FirewallRuleCreate,
 } from "@/services/isp-partner/venue-security";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 // QA-013: router-level refusals are correct but were shown raw -- a router
 // UUID and internal credential wording. Say it in ISP terms instead.
@@ -217,7 +218,7 @@ function ContentRules({ routerId }: { routerId: string }) {
           }}
         >
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={form.type}
             onChange={(e) => setForm({ ...form, type: e.target.value as "domain" | "ip_cidr" })}
             aria-label="Type"
@@ -379,7 +380,7 @@ function DnsCategories({ routerId, locationId }: { routerId: string; locationId:
             <span>
               {c.name}
               {c.is_security && (
-                <span className="ml-1 text-[10px] text-muted-foreground">security</span>
+                <span className="ml-1 text-xs text-muted-foreground">security</span>
               )}
             </span>
           </label>
@@ -668,7 +669,7 @@ function RouterProtections({ routerId }: { routerId: string }) {
         ) : (
           <div className="space-y-2">
             <select
-              className={`${M_INPUT} w-auto`}
+              className={`${M_FILTER}`}
               disabled={!exec || setFlood.isPending || flood.data.band_state !== "ready"}
               value={flood.data.preset ?? ""}
               onChange={(e) => setFlood.mutate(e.target.value)}
@@ -755,7 +756,7 @@ function Diagnostics({ routerId }: { routerId: string }) {
           }}
         >
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={kind}
             onChange={(e) => setKind(e.target.value as "ping" | "traceroute")}
             aria-label="Test"
@@ -955,7 +956,7 @@ function Hardware({ locationId }: { locationId: string }) {
             aria-label="MAC address"
           />
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={form.device_type}
             onChange={(e) => setForm({ ...form, device_type: e.target.value })}
             aria-label="Type"

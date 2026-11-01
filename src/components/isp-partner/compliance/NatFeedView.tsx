@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { MEmptyState, MTable, MTag, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import { Card, ErrorBlock } from "@/components/isp-partner/kit";
 import { useNatFeed } from "@/hooks/isp-partner/useCompliance";
-import { formatAgo, formatDateTime } from "@/lib/isp-partner/format";
+import { formatAgo, formatDateTime, formatIst } from "@/lib/isp-partner/format";
 import type { NatFeedState } from "@/services/isp-partner/compliance";
 
 export const FEED_LABEL: Record<NatFeedState, string> = {
@@ -81,19 +81,33 @@ export function NatFeedView() {
               </MTd>
               <MTd>
                 <span title={formatDateTime(r.last_nat_record_at)}>
-                  {r.last_nat_record_at ? formatAgo(r.last_nat_record_at) : "—"}
+                  {r.last_nat_record_at ? (
+                    <span title={formatIst(r.last_nat_record_at)}>
+                      {formatAgo(r.last_nat_record_at)}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </span>
               </MTd>
               <MTd>
                 <span title={formatDateTime(r.last_flow_record_at)}>
-                  {r.last_flow_record_at ? formatAgo(r.last_flow_record_at) : "—"}
+                  {r.last_flow_record_at ? (
+                    <span title={formatIst(r.last_flow_record_at)}>
+                      {formatAgo(r.last_flow_record_at)}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </span>
               </MTd>
               <MTd>
                 {r.export_last_verified_at ? (
                   <span title={r.export_last_verdict_detail ?? ""}>
                     {r.export_last_verdict_ok ? "OK" : "Failed"} ·{" "}
-                    {formatAgo(r.export_last_verified_at)}
+                    <span title={formatIst(r.export_last_verified_at)}>
+                      {formatAgo(r.export_last_verified_at)}
+                    </span>
                   </span>
                 ) : (
                   "—"

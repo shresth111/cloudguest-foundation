@@ -176,7 +176,9 @@ export function TasksTab() {
                     </MButton>
                   )}
                   {t.approval?.decision === "rejected" && t.status !== "completed" && (
-                    <p className="text-[11px] text-rose-600">Sent back: {t.rejected_reason}</p>
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400">
+                      Sent back: {t.rejected_reason}
+                    </p>
                   )}
                 </MTd>
               </MTr>

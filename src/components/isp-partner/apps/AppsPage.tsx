@@ -13,6 +13,7 @@ import { LeadsTab } from "@/components/isp-partner/apps/LeadsTab";
 import { TasksTab } from "@/components/isp-partner/apps/TasksTab";
 import { useAppsEnabled } from "@/hooks/isp-partner/useApps";
 import { isNotFound } from "@/lib/isp-partner/errors";
+import { PAGE_TABS } from "@/components/isp-partner/ui/classes";
 
 export const APPS_TABS = [
   "helpdesk",
@@ -54,6 +55,7 @@ export function AppsPage({ tab, onTab }: { tab: AppsTab; onTab: (t: AppsTab) => 
         description="Support tickets, field work and sales, for the zone you are viewing."
       />
       <MSeg<AppsTab>
+        className={PAGE_TABS}
         value={tab}
         onChange={onTab}
         options={APPS_TABS.map((t) => ({ value: t, label: LABEL[t] }))}

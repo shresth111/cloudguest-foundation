@@ -35,6 +35,7 @@ import { formatRupees } from "@/lib/isp-partner/money";
 import { relativeValidity } from "@/lib/isp-partner/plans";
 import { STATE_LABEL, stateLabel, stateTone } from "@/lib/isp-partner/subscribers360";
 import { DISPLAY_STATES, type DisplayState } from "@/services/isp-partner/subscribers360-types";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 function Typeahead() {
   const navigate = useNavigate();
@@ -205,7 +206,7 @@ export function SubscriberDirectoryPage() {
         </div>
         {can("isp_zones.read") && (
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={zoneId}
             onChange={(e) => {
               setZoneId(e.target.value);
@@ -224,6 +225,7 @@ export function SubscriberDirectoryPage() {
         <input
           className={`${M_INPUT} w-full max-w-[220px]`}
           placeholder="Filter the list"
+          aria-label="Filter the list"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);

@@ -7,6 +7,7 @@ import { SpeedGroupsTab } from "@/components/isp-partner/plans/SpeedGroupsTab";
 import { PackagesTab } from "@/components/isp-partner/plans/PackagesTab";
 import { CouponsTab } from "@/components/isp-partner/plans/CouponsTab";
 import { SubscribersTab } from "@/components/isp-partner/plans/SubscribersTab";
+import { PAGE_TABS } from "@/components/isp-partner/ui/classes";
 
 export type PlansTab = "groups" | "packages" | "coupons" | "subscribers";
 
@@ -30,7 +31,7 @@ export function PlansPage({ tab, onTab }: { tab: PlansTab; onTab: (t: PlansTab) 
         title="Plans and coupons"
         description="Speed groups set the rate, packages put a validity and price on it, and coupons sell a package at a customer's venue."
       />
-      <MSeg<PlansTab> value={active} onChange={onTab} options={tabs} />
+      <MSeg<PlansTab> className={PAGE_TABS} value={active} onChange={onTab} options={tabs} />
       {active === "groups" && (
         <SpeedGroupsTab
           onShowSubscribers={(id) => {

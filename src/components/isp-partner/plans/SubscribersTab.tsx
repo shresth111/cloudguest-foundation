@@ -48,10 +48,12 @@ import {
   formatDate,
   formatDateTime,
   isoDay,
+  formatIst,
 } from "@/lib/isp-partner/format";
 import { relativeValidity } from "@/lib/isp-partner/plans";
 import type { Subscriber } from "@/services/isp-partner/plans-types";
 import { SubscriberNetworkPanel } from "@/components/isp-partner/network/SubscriberNetworkPanel";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const customers = useIspCustomerOptions(open);
@@ -376,7 +378,7 @@ export function SubscribersTab({ groupFilter }: { groupFilter?: string }) {
           />
         </div>
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={groupId}
           onChange={(e) => {
             setGroupId(e.target.value);
@@ -392,7 +394,7 @@ export function SubscribersTab({ groupFilter }: { groupFilter?: string }) {
           ))}
         </select>
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -408,6 +410,7 @@ export function SubscribersTab({ groupFilter }: { groupFilter?: string }) {
         <input
           className={`${M_INPUT} w-full max-w-[200px]`}
           placeholder="Search"
+          aria-label="Search subscribers"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -474,7 +477,9 @@ export function SubscribersTab({ groupFilter }: { groupFilter?: string }) {
                     }
                   />
                 </MTd>
-                <MTd className="text-xs text-muted-foreground">{formatAgo(s.last_seen_at)}</MTd>
+                <MTd className="text-xs text-muted-foreground">
+                  <span title={formatIst(s.last_seen_at)}>{formatAgo(s.last_seen_at)}</span>
+                </MTd>
               </MTr>
             ))}
           </MTable>

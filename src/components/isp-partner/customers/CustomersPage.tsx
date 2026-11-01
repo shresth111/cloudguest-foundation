@@ -59,6 +59,7 @@ export function CustomersPage() {
           <input
             className={`${M_INPUT} pl-8`}
             placeholder="Search name, slug or account no."
+            aria-label="Search customers"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);

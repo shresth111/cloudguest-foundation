@@ -37,6 +37,7 @@ import { saveBlob } from "@/lib/isp-partner/download";
 import { formatDate } from "@/lib/isp-partner/format";
 import { LAYOUT_LABEL, formatKbps } from "@/lib/isp-partner/plans";
 import type { CouponBatch, CouponLayout } from "@/services/isp-partner/plans-types";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 export function BatchDownloads({ batchId }: { batchId: string }) {
   const [layout, setLayout] = useState<CouponLayout>("a4-24");
@@ -62,7 +63,7 @@ export function BatchDownloads({ batchId }: { batchId: string }) {
         {busy === "csv" ? <Spinner /> : <Download />} Download CSV
       </MButton>
       <select
-        className={`${M_INPUT} w-auto`}
+        className={`${M_FILTER}`}
         value={layout}
         onChange={(e) => setLayout(e.target.value as CouponLayout)}
         aria-label="Print layout"

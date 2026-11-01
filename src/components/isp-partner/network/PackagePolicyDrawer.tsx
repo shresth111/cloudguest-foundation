@@ -99,7 +99,7 @@ export function PackagePolicyDrawer({
               role="note"
               className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5 text-xs"
             >
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
                 Enforcement is switched off for your account. These rules are saved and shown, but
                 speeds, device limits and timeouts are not applied yet.

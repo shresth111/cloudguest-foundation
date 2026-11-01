@@ -356,7 +356,9 @@ function UnitDialog({
     >
       <div className="space-y-3 text-sm">
         {unit.pending_checkout_id && (
-          <p className="text-xs text-amber-700">A checkout request is waiting for approval.</p>
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            A checkout request is waiting for approval.
+          </p>
         )}
         {canMove && next.length > 0 && !unit.pending_checkout_id && (
           <div className="space-y-2 rounded-lg border border-border p-3">

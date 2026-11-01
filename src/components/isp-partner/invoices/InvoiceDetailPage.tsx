@@ -199,7 +199,7 @@ export function InvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
             )}
             <dt className="font-semibold">Balance</dt>
             <dd
-              className={`text-right font-semibold ${inv.balance_paise > 0 ? "text-rose-600" : ""}`}
+              className={`text-right font-semibold ${inv.balance_paise > 0 ? "text-rose-600 dark:text-rose-400" : ""}`}
             >
               {formatRupees(inv.balance_paise)}
             </dd>

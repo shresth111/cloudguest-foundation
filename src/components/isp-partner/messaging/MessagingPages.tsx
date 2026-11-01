@@ -34,6 +34,7 @@ import {
   messagingService as svc,
   type ProviderChannel,
 } from "@/services/isp-partner/messaging";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const K = ["isp-messaging"];
 
@@ -129,7 +130,7 @@ function ProviderForm({ channel, row }: { channel: Channel; row: ProviderChannel
       }}
     >
       <select
-        className={`${M_INPUT} w-auto`}
+        className={`${M_FILTER}`}
         value={type}
         onChange={(e) => {
           setType(e.target.value);

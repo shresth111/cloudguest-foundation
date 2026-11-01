@@ -10,7 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Download } from "lucide-react";
-import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
+import { MButton, MDialog } from "@/components/master/MasterKit";
 import { CustomerSelect, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { CyclesSelect } from "@/components/isp-partner/plans/CyclesSelect";
@@ -26,6 +26,7 @@ import {
   type BulkStatusAction,
   type DirFilter,
 } from "@/services/isp-partner/dir2";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 type Action = "renew" | BulkStatusAction | "move";
 
@@ -186,7 +187,7 @@ export function DirectoryBulkBar({
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-2 text-xs">
       <select
-        className={`${M_INPUT} w-auto`}
+        className={`${M_FILTER}`}
         value={useSelected ? "selected" : "filter"}
         onChange={(e) => setScope(e.target.value as "selected" | "filter")}
         aria-label="Apply to"

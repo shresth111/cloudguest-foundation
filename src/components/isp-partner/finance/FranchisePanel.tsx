@@ -10,17 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Download, Play, Plus } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  MButton,
-  MDialog,
-  MSeg,
-  MTable,
-  MTag,
-  MTd,
-  MTh,
-  MTr,
-  M_INPUT,
-} from "@/components/master/MasterKit";
+import { MButton, MDialog, MSeg, MTable, MTag, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import {
   Card,
   ErrorBlock,
@@ -42,6 +32,7 @@ import {
   type ZoneWallet,
 } from "@/services/isp-partner/franchise";
 import { billingService } from "@/services/isp-partner/billing";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const fk = (...k: unknown[]) => ["isp", "franchise", ...k] as const;
 
@@ -145,14 +136,14 @@ function RevenueDialog({ z, onClose }: { z: ZoneWallet; onClose: () => void }) {
         <div className="flex gap-2">
           <input
             type="date"
-            className={`${M_INPUT} w-auto py-1`}
+            className={`${M_FILTER} py-1`}
             aria-label="From"
             value={from}
             onChange={(e) => setRange([e.target.value, to])}
           />
           <input
             type="date"
-            className={`${M_INPUT} w-auto py-1`}
+            className={`${M_FILTER} py-1`}
             aria-label="To"
             value={to}
             onChange={(e) => setRange([from, e.target.value])}
@@ -381,14 +372,14 @@ function ChargesSettlementsDialog({ z, onClose }: { z: ZoneWallet; onClose: () =
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <input
                 type="date"
-                className={`${M_INPUT} w-auto py-1`}
+                className={`${M_FILTER} py-1`}
                 aria-label="From"
                 value={from}
                 onChange={(e) => setRange([e.target.value, to])}
               />
               <input
                 type="date"
-                className={`${M_INPUT} w-auto py-1`}
+                className={`${M_FILTER} py-1`}
                 aria-label="To"
                 value={to}
                 onChange={(e) => setRange([from, e.target.value])}
@@ -534,7 +525,7 @@ export function FranchisePanel() {
             <MTd className="text-xs font-medium">{z.name}</MTd>
             <MTd className="text-right text-xs tabular-nums">
               {formatRupees(z.balance_paise)}
-              <span className="block text-[10px] text-muted-foreground">
+              <span className="block text-xs text-muted-foreground">
                 min {formatRupees(z.min_balance_paise)} · credit{" "}
                 {formatRupees(z.credit_limit_paise)}
               </span>
@@ -545,7 +536,9 @@ export function FranchisePanel() {
                 tone={z.standing === "paid" ? "paid" : "overdue"}
               />
               {z.below_minimum && (
-                <span className="block text-[10px] text-rose-600">Below minimum</span>
+                <span className="block text-xs text-rose-600 dark:text-rose-400">
+                  Below minimum
+                </span>
               )}
             </MTd>
             <MTd className="text-xs">

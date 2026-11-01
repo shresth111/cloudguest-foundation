@@ -143,7 +143,11 @@ export function CopyField({
             }
           }}
         >
-          {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+          {copied ? (
+            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
         </button>
       </div>
     </div>

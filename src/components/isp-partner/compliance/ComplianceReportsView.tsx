@@ -1,16 +1,7 @@
 /** J18: the compliance/operations report catalogue. Reports whose data
  * belongs to another lane show "data source pending", never zeros. */
 import { useState } from "react";
-import {
-  MButton,
-  MEmptyState,
-  MTable,
-  MTag,
-  MTd,
-  MTh,
-  MTr,
-  M_INPUT,
-} from "@/components/master/MasterKit";
+import { MButton, MEmptyState, MTable, MTag, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import { Card, ErrorBlock, FormError } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useComplianceReport, useReportCatalogue } from "@/hooks/isp-partner/useCompliance";
@@ -18,6 +9,7 @@ import { saveBlob } from "@/lib/isp-partner/download";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { isoDay } from "@/lib/isp-partner/format";
 import { complianceService } from "@/services/isp-partner/compliance";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 export function ComplianceReportsView() {
   const { can } = usePartner();
@@ -53,7 +45,7 @@ export function ComplianceReportsView() {
                       onClick={() => setKey(i.key)}
                     >
                       {i.title}
-                      {!i.available && <span className="ml-1 text-[10px]">(soon)</span>}
+                      {!i.available && <span className="ml-1 text-xs">(soon)</span>}
                     </button>
                   </li>
                 ))}
@@ -70,14 +62,14 @@ export function ComplianceReportsView() {
               <input
                 type="date"
                 aria-label="From"
-                className={`${M_INPUT} w-auto`}
+                className={`${M_FILTER}`}
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
               />
               <input
                 type="date"
                 aria-label="To"
-                className={`${M_INPUT} w-auto`}
+                className={`${M_FILTER}`}
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
               />

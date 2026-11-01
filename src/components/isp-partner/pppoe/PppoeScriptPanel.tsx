@@ -140,7 +140,7 @@ export function PppoeScriptPanel({
           ) : q.data ? (
             <div className="space-y-2">
               <CopyField label="Script (contains a secret, do not share)" value={q.data} />
-              <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[10px] leading-snug">
+              <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[11px] leading-snug">
                 <code>{q.data}</code>
               </pre>
             </div>

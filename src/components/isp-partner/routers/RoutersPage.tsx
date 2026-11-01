@@ -1,11 +1,12 @@
 /** `/partner/routers`: every router across the ISP's customers. */
 import { useState } from "react";
-import { MSectionHeader, M_INPUT } from "@/components/master/MasterKit";
+import { MSectionHeader } from "@/components/master/MasterKit";
 import { CustomerSelect } from "@/components/isp-partner/kit";
 import { RoutersTable } from "@/components/isp-partner/routers/RoutersTable";
 import { NetmonTabs } from "@/components/isp-partner/routers/NetmonTabs";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { ROUTER_STATUS_LABEL } from "@/lib/isp-partner/format";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 export function RoutersPage() {
   const [customerId, setCustomerId] = useState("");
@@ -31,7 +32,7 @@ export function RoutersPage() {
                 />
               </div>
               <select
-                className={`${M_INPUT} w-auto`}
+                className={`${M_FILTER}`}
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 aria-label="Status"

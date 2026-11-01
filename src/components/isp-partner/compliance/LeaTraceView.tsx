@@ -54,7 +54,7 @@ function Times({ t }: { t: TimePair }) {
       <MTd className="text-xs">
         {t.receipt_time_ist ?? "–"}
         {t.receipt_basis === "collector_window" && (
-          <span className="block text-[10px] text-muted-foreground">collector window</span>
+          <span className="block text-xs text-muted-foreground">collector window</span>
         )}
       </MTd>
       <MTd className="text-xs tabular-nums">

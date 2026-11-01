@@ -10,6 +10,7 @@ import {
   ROUTER_STATUS_LABEL,
   formatAgo,
   routerStatusTone,
+  formatIst,
 } from "@/lib/isp-partner/format";
 
 export function RoutersTable({
@@ -96,7 +97,9 @@ export function RoutersTable({
                 }
               />
             </MTd>
-            <MTd className="text-xs text-muted-foreground">{formatAgo(r.last_seen_at)}</MTd>
+            <MTd className="text-xs text-muted-foreground">
+              <span title={formatIst(r.last_seen_at)}>{formatAgo(r.last_seen_at)}</span>
+            </MTd>
             <MTd className="text-xs">{r.tr069.enabled ? "On" : "Off"}</MTd>
           </MTr>
         ))}

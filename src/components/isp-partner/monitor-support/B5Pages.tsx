@@ -38,6 +38,7 @@ import type { PartnerSlotProps } from "@/components/isp-partner/customer-shell/s
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDate } from "@/lib/isp-partner/format";
 import { monitorSupportService as svc } from "@/services/isp-partner/monitor-support";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const k = (...parts: (string | number | null | undefined)[]) => ["isp-b5", ...parts];
 
@@ -153,7 +154,7 @@ function IspAlertFeed() {
       title="Alerts across my customers"
       actions={
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -345,7 +346,7 @@ export function SupportTicketsPage({ customer }: PartnerSlotProps) {
             />
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <select
-                className={`${M_INPUT} w-auto`}
+                className={`${M_FILTER}`}
                 value={form.priority}
                 onChange={(e) => setForm({ ...form, priority: e.target.value })}
                 aria-label="Priority"

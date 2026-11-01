@@ -18,8 +18,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { M_INPUT } from "@/components/master/MasterKit";
 import type { RouterHistory } from "@/services/isp-partner/network-types";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const AXIS_TICK = { fontSize: 10, fill: "var(--muted-foreground)" } as const;
 const H = 180;
@@ -117,7 +117,7 @@ export default function RouterHistoryCharts({ history }: { history: RouterHistor
           </figcaption>
           {names.length > 0 && (
             <select
-              className={`${M_INPUT} w-auto py-1`}
+              className={`${M_FILTER} py-1`}
               value={iface}
               aria-label="Interface"
               onChange={(e) => setIface(e.target.value)}

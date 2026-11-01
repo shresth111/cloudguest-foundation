@@ -16,7 +16,13 @@ import { Card, ErrorBlock } from "@/components/isp-partner/kit";
 import { CountersCard } from "@/components/isp-partner/compliance/CountersCard";
 import { SubscriberOpsCard } from "@/components/isp-partner/dashboard/SubscriberOpsCard";
 import { useIspOverview } from "@/hooks/isp-partner/useIsp";
-import { formatAgo, formatBytes, formatDateTime, formatNumber } from "@/lib/isp-partner/format";
+import {
+  formatAgo,
+  formatBytes,
+  formatDateTime,
+  formatNumber,
+  formatIst,
+} from "@/lib/isp-partner/format";
 import type { IspAttentionItem } from "@/services/isp-partner/types";
 
 const ATTENTION_LABEL: Record<string, string> = {
@@ -164,7 +170,7 @@ export function OverviewPage() {
                             {a.customer_name}
                           </Link>
                           <span className="ml-auto text-xs text-muted-foreground">
-                            since {formatAgo(a.since)}
+                            <span title={formatIst(a.since)}>since {formatAgo(a.since)}</span>
                           </span>
                         </li>
                       ))}

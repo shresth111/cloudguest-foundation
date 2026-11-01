@@ -26,8 +26,8 @@ import {
   CLOUD_LINK_LABEL,
   ROUTER_STATUS_LABEL,
   formatAgo,
-  formatDateTime,
   routerStatusTone,
+  formatIst,
 } from "@/lib/isp-partner/format";
 
 function SetupScript({ routerId }: { routerId: string }) {
@@ -119,7 +119,7 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
               />
             </dd>
             <dt className="text-muted-foreground">Last seen</dt>
-            <dd title={formatDateTime(r.last_seen_at)}>{formatAgo(r.last_seen_at)}</dd>
+            <dd title={formatIst(r.last_seen_at)}>{formatAgo(r.last_seen_at)}</dd>
             <dt className="text-muted-foreground">RouterOS</dt>
             <dd>{r.routeros_version ?? "–"}</dd>
           </dl>
