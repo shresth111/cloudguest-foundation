@@ -84,6 +84,7 @@ import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
 import { Route as PartnerForgotPasswordRouteImport } from './routes/partner.forgot-password'
+import { Route as PartnerFinanceRouteImport } from './routes/partner.finance'
 import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
@@ -164,6 +165,7 @@ import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.po
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as PartnerTr069CpeIdRouteImport } from './routes/partner.tr069.$cpeId'
 import { Route as PartnerRoutersIspRouterIdRouteImport } from './routes/partner.routers.$ispRouterId'
+import { Route as PartnerPayTokenRouteImport } from './routes/partner.pay.$token'
 import { Route as PartnerLocationsIspLocationIdRouteImport } from './routes/partner.locations.$ispLocationId'
 import { Route as PartnerInvoicesInvoiceIdRouteImport } from './routes/partner.invoices.$invoiceId'
 import { Route as PartnerCustomersIspCustomerIdRouteImport } from './routes/partner.customers.$ispCustomerId'
@@ -602,6 +604,11 @@ const PartnerForgotPasswordRoute = PartnerForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => PartnerRoute,
 } as any)
+const PartnerFinanceRoute = PartnerFinanceRouteImport.update({
+  id: '/finance',
+  path: '/finance',
+  getParentRoute: () => PartnerRoute,
+} as any)
 const PartnerBillingRoute = PartnerBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
@@ -1035,6 +1042,11 @@ const PartnerRoutersIspRouterIdRoute =
     path: '/routers/$ispRouterId',
     getParentRoute: () => PartnerRoute,
   } as any)
+const PartnerPayTokenRoute = PartnerPayTokenRouteImport.update({
+  id: '/pay/$token',
+  path: '/pay/$token',
+  getParentRoute: () => PartnerRoute,
+} as any)
 const PartnerLocationsIspLocationIdRoute =
   PartnerLocationsIspLocationIdRouteImport.update({
     id: '/locations/$ispLocationId',
@@ -1488,6 +1500,7 @@ export interface FileRoutesByFullPath {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -1574,6 +1587,7 @@ export interface FileRoutesByFullPath {
   '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
   '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
+  '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
@@ -1702,6 +1716,7 @@ export interface FileRoutesByTo {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -1786,6 +1801,7 @@ export interface FileRoutesByTo {
   '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
   '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
+  '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
@@ -1921,6 +1937,7 @@ export interface FileRoutesById {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -2007,6 +2024,7 @@ export interface FileRoutesById {
   '/partner/customers/$ispCustomerId': typeof PartnerCustomersIspCustomerIdRoute
   '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
+  '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
@@ -2142,6 +2160,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/finance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -2228,6 +2247,7 @@ export interface FileRouteTypes {
     | '/partner/customers/$ispCustomerId'
     | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
+    | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
@@ -2356,6 +2376,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/finance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -2440,6 +2461,7 @@ export interface FileRouteTypes {
     | '/partner/customers/$ispCustomerId'
     | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
+    | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
@@ -2574,6 +2596,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/finance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -2660,6 +2683,7 @@ export interface FileRouteTypes {
     | '/partner/customers/$ispCustomerId'
     | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
+    | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
@@ -3303,6 +3327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerForgotPasswordRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/finance': {
+      id: '/partner/finance'
+      path: '/finance'
+      fullPath: '/partner/finance'
+      preLoaderRoute: typeof PartnerFinanceRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/partner/billing': {
       id: '/partner/billing'
       path: '/billing'
@@ -3861,6 +3892,13 @@ declare module '@tanstack/react-router' {
       path: '/routers/$ispRouterId'
       fullPath: '/partner/routers/$ispRouterId'
       preLoaderRoute: typeof PartnerRoutersIspRouterIdRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/pay/$token': {
+      id: '/partner/pay/$token'
+      path: '/pay/$token'
+      fullPath: '/partner/pay/$token'
+      preLoaderRoute: typeof PartnerPayTokenRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/locations/$ispLocationId': {
@@ -4634,6 +4672,7 @@ const MasterRouteWithChildren =
 
 interface PartnerRouteChildren {
   PartnerBillingRoute: typeof PartnerBillingRoute
+  PartnerFinanceRoute: typeof PartnerFinanceRoute
   PartnerForgotPasswordRoute: typeof PartnerForgotPasswordRoute
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
@@ -4646,6 +4685,7 @@ interface PartnerRouteChildren {
   PartnerCustomersIspCustomerIdRoute: typeof PartnerCustomersIspCustomerIdRoute
   PartnerInvoicesInvoiceIdRoute: typeof PartnerInvoicesInvoiceIdRoute
   PartnerLocationsIspLocationIdRoute: typeof PartnerLocationsIspLocationIdRoute
+  PartnerPayTokenRoute: typeof PartnerPayTokenRoute
   PartnerRoutersIspRouterIdRoute: typeof PartnerRoutersIspRouterIdRoute
   PartnerTr069CpeIdRoute: typeof PartnerTr069CpeIdRoute
   PartnerCustomersIndexRoute: typeof PartnerCustomersIndexRoute
@@ -4659,6 +4699,7 @@ interface PartnerRouteChildren {
 
 const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerBillingRoute: PartnerBillingRoute,
+  PartnerFinanceRoute: PartnerFinanceRoute,
   PartnerForgotPasswordRoute: PartnerForgotPasswordRoute,
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
@@ -4671,6 +4712,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerCustomersIspCustomerIdRoute: PartnerCustomersIspCustomerIdRoute,
   PartnerInvoicesInvoiceIdRoute: PartnerInvoicesInvoiceIdRoute,
   PartnerLocationsIspLocationIdRoute: PartnerLocationsIspLocationIdRoute,
+  PartnerPayTokenRoute: PartnerPayTokenRoute,
   PartnerRoutersIspRouterIdRoute: PartnerRoutersIspRouterIdRoute,
   PartnerTr069CpeIdRoute: PartnerTr069CpeIdRoute,
   PartnerCustomersIndexRoute: PartnerCustomersIndexRoute,

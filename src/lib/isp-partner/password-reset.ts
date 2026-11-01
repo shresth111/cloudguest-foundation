@@ -20,7 +20,10 @@ export const PARTNER_PUBLIC_PATHS = [
 
 export function isPartnerPublicPath(pathname: string): boolean {
   const p = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-  return (PARTNER_PUBLIC_PATHS as readonly string[]).includes(p);
+  if ((PARTNER_PUBLIC_PATHS as readonly string[]).includes(p)) return true;
+  // JAZE-4: the pay-link page (`/partner/pay/<token>`, route id
+  // `/partner/pay/$token`) is opened by end customers from WhatsApp.
+  return /^\/partner\/pay\/[^/]+$/.test(p);
 }
 
 export async function requestPartnerPasswordReset(email: string): Promise<void> {
