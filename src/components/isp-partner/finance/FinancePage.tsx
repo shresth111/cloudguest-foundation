@@ -8,6 +8,8 @@
  * behind its own backend flag; a 404 shows a "not switched on yet" state.
  */
 import { ZoneBrandingCard } from "@/components/isp-partner/finance/ZoneBrandingCard";
+import { StaticIpLedger } from "@/components/isp-partner/finance/StaticIpLedger";
+import { staticIpKeys, useStaticIpLedgerAvailable } from "@/hooks/isp-partner/useStaticIp";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -621,7 +623,12 @@ function LeasesTab() {
     notes: "",
   });
   const [error, setError] = useState<string | null>(null);
-  const done = () => qc.invalidateQueries({ queryKey: fk("leases") });
+  // STATICIP-2: the full ledger replaces the plain table when its API is on.
+  const ledgerOn = useStaticIpLedgerAvailable();
+  const done = () => {
+    qc.invalidateQueries({ queryKey: fk("leases") });
+    qc.invalidateQueries({ queryKey: staticIpKeys.all });
+  };
   const create = useMutation({
     mutationFn: () => {
       const paise = parseRupeesToPaise(form.amount);
@@ -663,14 +670,16 @@ function LeasesTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <MSeg
-          value={status}
-          onChange={setStatus}
-          options={[
-            { value: "active", label: "Active" },
-            { value: "ended", label: "Ended" },
-          ]}
-        />
+        {!ledgerOn && (
+          <MSeg
+            value={status}
+            onChange={setStatus}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "ended", label: "Ended" },
+            ]}
+          />
+        )}
         {can("isp_billing.manage") && (
           <MButton
             onClick={() => {
@@ -687,38 +696,42 @@ function LeasesTab() {
           </MButton>
         )}
       </div>
-      <MTable
-        head={
-          <>
-            <MTh>IP</MTh>
-            <MTh>Customer</MTh>
-            <MTh>Subscriber</MTh>
-            <MTh>Monthly</MTh>
-            <MTh>Since</MTh>
-            <MTh>Billed through</MTh>
-            <MTh />
-          </>
-        }
-      >
-        {(q.data ?? []).map((l) => (
-          <MTr key={l.id}>
-            <MTd className="font-mono">{l.ip_address}</MTd>
-            <MTd>{l.customer_name ?? "–"}</MTd>
-            <MTd>{l.subscriber_name ?? "–"}</MTd>
-            <MTd>{formatRupees(l.monthly_amount_paise)}</MTd>
-            <MTd>{l.active_since}</MTd>
-            <MTd>{l.billed_through ?? "not yet"}</MTd>
-            <MTd>
-              {l.status === "active" && can("isp_billing.manage") && (
-                <MButton variant="ghost" onClick={() => end.mutate(l.id)}>
-                  End today
-                </MButton>
-              )}
-              {l.status === "ended" && <span className="text-xs">until {l.active_until}</span>}
-            </MTd>
-          </MTr>
-        ))}
-      </MTable>
+      {ledgerOn ? (
+        <StaticIpLedger />
+      ) : (
+        <MTable
+          head={
+            <>
+              <MTh>IP</MTh>
+              <MTh>Customer</MTh>
+              <MTh>Subscriber</MTh>
+              <MTh>Monthly</MTh>
+              <MTh>Since</MTh>
+              <MTh>Billed through</MTh>
+              <MTh />
+            </>
+          }
+        >
+          {(q.data ?? []).map((l) => (
+            <MTr key={l.id}>
+              <MTd className="font-mono">{l.ip_address}</MTd>
+              <MTd>{l.customer_name ?? "–"}</MTd>
+              <MTd>{l.subscriber_name ?? "–"}</MTd>
+              <MTd>{formatRupees(l.monthly_amount_paise)}</MTd>
+              <MTd>{l.active_since}</MTd>
+              <MTd>{l.billed_through ?? "not yet"}</MTd>
+              <MTd>
+                {l.status === "active" && can("isp_billing.manage") && (
+                  <MButton variant="ghost" onClick={() => end.mutate(l.id)}>
+                    End today
+                  </MButton>
+                )}
+                {l.status === "ended" && <span className="text-xs">until {l.active_until}</span>}
+              </MTd>
+            </MTr>
+          ))}
+        </MTable>
+      )}
       <p className="text-[11px] text-muted-foreground">
         One invoice per lease per month, issued by the daily billing run (or the button above). A
         month is never billed twice.
