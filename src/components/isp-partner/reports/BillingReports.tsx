@@ -82,8 +82,9 @@ export function BillingReports() {
   const q = useMemo(
     () => ({
       group_by: groupBy,
-      since: new Date(`${from}T00:00:00`).toISOString(),
-      until: new Date(new Date(`${to}T00:00:00`).getTime() + 86_400_000).toISOString(),
+      // Calendar dates, `until` inclusive (the API's `date` params).
+      since: from,
+      until: to,
     }),
     [groupBy, from, to],
   );

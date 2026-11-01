@@ -37,6 +37,7 @@ import { ispErrorCode, ispErrorMessage } from "@/lib/isp-partner/errors";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { INVOICE_STATUS_LABEL } from "@/lib/isp-partner/money";
 import type { BillingSettings } from "@/services/isp-partner/billing-types";
+import { isoDay } from "@/lib/isp-partner/format";
 
 export type BillingTab = "dues" | "invoices" | "payments" | "settings";
 
@@ -55,8 +56,8 @@ function ExportButton({ kind }: { kind: "invoices" | "payments" | "dues" }) {
           const since = new Date(until.getTime() - 365 * DAY);
           const { blob, filename } = await billingService.exportCsv(
             kind,
-            since.toISOString(),
-            until.toISOString(),
+            isoDay(since),
+            isoDay(until),
           );
           saveBlob(blob, filename);
         } catch (err) {
