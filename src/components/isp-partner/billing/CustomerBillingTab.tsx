@@ -31,6 +31,7 @@ import { ispErrorCode, ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDate } from "@/lib/isp-partner/format";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
 import type { BillingCycle, CustomerBillingPlan } from "@/services/isp-partner/billing-types";
+import { BillingContactCard } from "@/components/isp-partner/finance/FinanceExtrasPanels";
 
 const CYCLE_LABEL: Record<BillingCycle, string> = {
   monthly: "Monthly",
@@ -376,6 +377,7 @@ export function CustomerBillingTab({
           <FormError message={duesError} />
         </div>
       </MDialog>
+      <BillingContactCard kind="customer" id={customerId} />
     </div>
   );
 }

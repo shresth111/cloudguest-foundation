@@ -2824,6 +2824,9 @@ jobs:
       - name: ISP partner leftovers (lead prefill, payment slip)
         if: hashFiles('scripts/test-isp-partner-leftovers.mjs') != ''
         run: bun run test:isp-partner-leftovers
+      - name: ISP partner unused services (LEFTOVERS #8)
+        if: hashFiles('scripts/test-isp-partner-unused-services.mjs') != ''
+        run: bun run test:isp-partner-unused-services
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list
