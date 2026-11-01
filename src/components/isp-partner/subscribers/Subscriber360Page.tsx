@@ -38,6 +38,15 @@ import { SubscriberNetworkPanel } from "@/components/isp-partner/network/Subscri
 import { SubscriberKycPanel } from "@/components/isp-partner/compliance/SubscriberKycPanel";
 import { SubscriberPppoePanel } from "@/components/isp-partner/pppoe/SubscriberPppoePanel";
 import { SubscriberFiberCard } from "@/components/isp-partner/fiber/SubscriberFiberCard";
+// SUB360-2 workbench: each piece renders nothing / its fallback while the flag is off.
+import {
+  AuthSlot,
+  ContactCard,
+  LiveBarSlot,
+  WorkbenchAccordions,
+  WorkbenchBreadcrumb,
+  WorkbenchHeaderActions,
+} from "@/components/isp-partner/subscribers/workbench/Workbench";
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -210,6 +219,7 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
       >
         <ArrowLeft className="size-3" /> Subscribers
       </Link>
+      <WorkbenchBreadcrumb s={s} />
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -273,48 +283,62 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
           )}
           {manage && btn("move", "Move", allow.move)}
           {update && btn("note", "Log complaint", true)}
+          <WorkbenchHeaderActions s={s} onEdit={() => setAction("profile")} />
         </div>
       </div>
 
-      <LiveBar s={s} canAct={update} />
+      <LiveBarSlot
+        s={s}
+        fallback={
+          <>
+            <LiveBar s={s} canAct={update} />
 
-      {s.live_sessions.length > 0 && (
-        <MTable
-          head={
-            <>
-              <MTh>Since</MTh>
-              <MTh>Uptime</MTh>
-              <MTh>IP</MTh>
-              <MTh>MAC</MTh>
-              <MTh>Router / venue</MTh>
-              <MTh className="text-right">Down / up</MTh>
-            </>
-          }
-        >
-          {s.live_sessions.map((x) => (
-            <MTr key={x.id}>
-              <MTd className="text-xs">{formatDateTime(x.started_at)}</MTd>
-              <MTd className="text-xs">{formatDuration(x.uptime_seconds)}</MTd>
-              <MTd className="font-mono text-xs">{x.ip_address ?? "–"}</MTd>
-              <MTd className="font-mono text-xs">{x.mac_address ?? "–"}</MTd>
-              <MTd className="text-xs">
-                {x.router_name ?? "–"}
-                <p className="text-muted-foreground">{x.location_name}</p>
-              </MTd>
-              <MTd className="text-right text-xs tabular-nums">
-                {formatBytes(x.bytes_downloaded)} / {formatBytes(x.bytes_uploaded)}
-              </MTd>
-            </MTr>
-          ))}
-        </MTable>
-      )}
+            {s.live_sessions.length > 0 && (
+              <MTable
+                head={
+                  <>
+                    <MTh>Since</MTh>
+                    <MTh>Uptime</MTh>
+                    <MTh>IP</MTh>
+                    <MTh>MAC</MTh>
+                    <MTh>Router / venue</MTh>
+                    <MTh className="text-right">Down / up</MTh>
+                  </>
+                }
+              >
+                {s.live_sessions.map((x) => (
+                  <MTr key={x.id}>
+                    <MTd className="text-xs">{formatDateTime(x.started_at)}</MTd>
+                    <MTd className="text-xs">{formatDuration(x.uptime_seconds)}</MTd>
+                    <MTd className="font-mono text-xs">{x.ip_address ?? "–"}</MTd>
+                    <MTd className="font-mono text-xs">{x.mac_address ?? "–"}</MTd>
+                    <MTd className="text-xs">
+                      {x.router_name ?? "–"}
+                      <p className="text-muted-foreground">{x.location_name}</p>
+                    </MTd>
+                    <MTd className="text-right text-xs tabular-nums">
+                      {formatBytes(x.bytes_downloaded)} / {formatBytes(x.bytes_uploaded)}
+                    </MTd>
+                  </MTr>
+                ))}
+              </MTable>
+            )}
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap gap-1.5">
-        <Check on={s.auth.hotspot} label="Hotspot" />
-        <Check on={s.auth.pppoe} label="PPPoE" />
-        <Check on={s.auth.mac_bound} label="MAC bound" />
-        <Check on={s.auth.static_ip ? true : null} label={s.auth.static_ip ?? "Static IP"} />
-      </div>
+      <AuthSlot
+        s={s}
+        fallback={
+          <div className="flex flex-wrap gap-1.5">
+            <Check on={s.auth.hotspot} label="Hotspot" />
+            <Check on={s.auth.pppoe} label="PPPoE" />
+            <Check on={s.auth.mac_bound} label="MAC bound" />
+            <Check on={s.auth.static_ip ? true : null} label={s.auth.static_ip ?? "Static IP"} />
+          </div>
+        }
+      />
+      <ContactCard s={s} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card
@@ -399,6 +423,8 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
           <Ledger id={s.id} />
         </Card>
       </div>
+
+      <WorkbenchAccordions s={s} />
 
       {/* Other lanes' panels (JAZE-2 network, JAZE-3 KYC, JAZE-6 PPPoE/fiber). */}
       <SubscriberNetworkPanel subscriber={s} />
