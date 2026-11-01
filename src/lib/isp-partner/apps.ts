@@ -205,7 +205,9 @@ export function taskStatusBody(
   target: string,
   note: string,
   reason: string,
-): { body: { status: string; completion_note?: string; rejected_reason?: string } } | { error: string } {
+):
+  | { body: { status: string; completion_note?: string; rejected_reason?: string } }
+  | { error: string } {
   if (target === "rejected" && !reason.trim()) return { error: "Say why the task is rejected." };
   const body: { status: string; completion_note?: string; rejected_reason?: string } = {
     status: target,
@@ -281,17 +283,20 @@ export function dayEndIso(day: string): string | null {
 
 /** Create body (code/kind/value only on create; the PATCH model has no
  * code/kind/value). */
-export function discountBody(d: DiscountDraft, create: boolean): { body: DiscountBody } | { error: string } {
+export function discountBody(
+  d: DiscountDraft,
+  create: boolean,
+): { body: DiscountBody } | { error: string } {
   const body: DiscountBody = {};
   if (create) {
     const code = d.code.trim().toUpperCase();
-    if (!/^[A-Z0-9_-]{3,32}$/.test(code))
-      return { error: "Code: 3-32 letters, digits, - or _." };
+    if (!/^[A-Z0-9_-]{3,32}$/.test(code)) return { error: "Code: 3-32 letters, digits, - or _." };
     body.code = code;
     body.kind = d.kind;
     if (d.kind === "percent") {
       const v = Number(d.value);
-      if (!Number.isInteger(v) || v < 1 || v > 100) return { error: "Percent off: a whole number 1-100." };
+      if (!Number.isInteger(v) || v < 1 || v > 100)
+        return { error: "Percent off: a whole number 1-100." };
       body.value = v;
     } else {
       const v = parseRupeesToPaise(d.value);
@@ -301,13 +306,15 @@ export function discountBody(d: DiscountDraft, create: boolean): { body: Discoun
   }
   body.description = d.description.trim() || null;
   const cap = d.max_discount.trim() ? parseRupeesToPaise(d.max_discount) : null;
-  if (d.max_discount.trim() && (cap === null || cap <= 0)) return { error: "Maximum discount: a rupee amount." };
+  if (d.max_discount.trim() && (cap === null || cap <= 0))
+    return { error: "Maximum discount: a rupee amount." };
   body.max_discount_paise = cap;
   const min = d.min_amount.trim() ? parseRupeesToPaise(d.min_amount) : null;
   if (d.min_amount.trim() && min === null) return { error: "Minimum bill: a rupee amount." };
   body.min_amount_paise = min;
   const uses = d.max_uses.trim() ? Number(d.max_uses) : null;
-  if (uses !== null && (!Number.isInteger(uses) || uses < 1)) return { error: "Uses: a whole number, 1 or more." };
+  if (uses !== null && (!Number.isInteger(uses) || uses < 1))
+    return { error: "Uses: a whole number, 1 or more." };
   body.max_uses = uses;
   body.valid_from = d.valid_from ? dayStartIso(d.valid_from) : null;
   body.valid_until = d.valid_until ? dayEndIso(d.valid_until) : null;
@@ -361,7 +368,8 @@ export function leadBody(d: {
   const name = d.name.trim();
   if (!name) return { error: "Name is required." };
   const email = d.email.trim();
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "The email looks wrong." };
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+    return { error: "The email looks wrong." };
   const nz = (v: string) => v.trim() || null;
   return {
     body: {
@@ -381,9 +389,15 @@ export function leadBody(d: {
 /** Statuses a plain PATCH may set (`converted` only via convert). */
 export function leadPatchStatuses(current: string): string[] {
   if (current === "converted") return [];
-  return ["new", "contacted", "feasibility_pending", "feasible", "not_feasible", "install_scheduled", "dropped"].filter(
-    (s) => s !== current,
-  );
+  return [
+    "new",
+    "contacted",
+    "feasibility_pending",
+    "feasible",
+    "not_feasible",
+    "install_scheduled",
+    "dropped",
+  ].filter((s) => s !== current);
 }
 
 /** Where to convert a lead: the CAF workbench when it is on (the CAF fields

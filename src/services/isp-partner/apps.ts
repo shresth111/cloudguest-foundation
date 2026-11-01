@@ -55,7 +55,8 @@ export const appsService = {
   patchTicket: (id: string, body: TicketPatch) => patch<TicketView>(`${A}/tickets/${id}`, body),
   ticketStats: (q: { isp_customer_id?: string; since?: string; until?: string }) =>
     get<TicketStats>(`${A}/tickets/stats`, q),
-  ticketsCsv: (q: TicketQuery) => csv("/tickets/export.csv", { ...q, page: undefined, page_size: undefined }, "tickets.csv"),
+  ticketsCsv: (q: TicketQuery) =>
+    csv("/tickets/export.csv", { ...q, page: undefined, page_size: undefined }, "tickets.csv"),
   ticketTypes: () => get<TicketTypeFull[]>(`${A}/ticket-types`),
   createTicketType: (body: TicketTypeBody) => post<TicketTypeFull>(`${A}/ticket-types`, body),
   patchTicketType: (id: string, body: TicketTypeBody) =>
@@ -69,10 +70,16 @@ export const appsService = {
   patchTask: (id: string, body: TaskBody) => patch<TaskView>(`${A}/tasks/${id}`, body),
   claimTask: (id: string) => post<TaskView>(`${A}/tasks/${id}/claim`),
   tasksCsv: (q: TaskQuery) =>
-    csv("/tasks/export.csv", { ...q, mine: undefined, page: undefined, page_size: undefined }, "tasks.csv"),
+    csv(
+      "/tasks/export.csv",
+      { ...q, mine: undefined, page: undefined, page_size: undefined },
+      "tasks.csv",
+    ),
 
   // announcements
-  announcements: (page = 1) => get<IspPage<Announcement>>(`${A}/announcements`, { page, page_size: 25 }),
+  announcements: (page = 1) =>
+    get<IspPage<Announcement>>(`${A}/announcements`, { page, page_size: 25 }),
+  announcement: (id: string) => get<Announcement>(`${A}/announcements/${id}`),
   createAnnouncement: (body: AnnouncementBody) => post<Announcement>(`${A}/announcements`, body),
   patchAnnouncement: (id: string, body: AnnouncementBody) =>
     patch<Announcement>(`${A}/announcements/${id}`, body),
@@ -94,15 +101,22 @@ export const appsService = {
   items: () => get<InventoryItem[]>(`${A}/inventory/items`),
   createItem: (body: { name: string; sku: string; category: string; notes?: string | null }) =>
     post<InventoryItem>(`${A}/inventory/items`, body),
-  patchItem: (id: string, body: { name?: string; sku?: string; category?: string; notes?: string | null }) =>
-    patch<InventoryItem>(`${A}/inventory/items/${id}`, body),
+  patchItem: (
+    id: string,
+    body: { name?: string; sku?: string; category?: string; notes?: string | null },
+  ) => patch<InventoryItem>(`${A}/inventory/items/${id}`, body),
   units: (q: UnitQuery) => get<IspPage<InventoryUnit>>(`${A}/inventory/units`, q),
   unit: (id: string) => get<InventoryUnitDetail>(`${A}/inventory/units/${id}`),
   addUnit: (body: { item_id: string; serial: string; mac?: string | null; note?: string | null }) =>
     post<InventoryUnit>(`${A}/inventory/units`, body),
   moveUnit: (
     id: string,
-    body: { state: string; isp_customer_id?: string | null; subscriber_id?: string | null; note?: string | null },
+    body: {
+      state: string;
+      isp_customer_id?: string | null;
+      subscriber_id?: string | null;
+      note?: string | null;
+    },
   ) => post<InventoryUnit>(`${A}/inventory/units/${id}/move`, body),
   importUnits: async (file: File): Promise<ImportResult> => {
     const form = new FormData();
@@ -114,7 +128,11 @@ export const appsService = {
     ).data;
   },
   unitsCsv: (q: UnitQuery) =>
-    csv("/inventory/units/export.csv", { ...q, page: undefined, page_size: undefined }, "units.csv"),
+    csv(
+      "/inventory/units/export.csv",
+      { ...q, page: undefined, page_size: undefined },
+      "units.csv",
+    ),
 
   // leads
   leads: (q: LeadQuery) => get<IspPage<Lead>>(`${A}/leads`, q),
@@ -124,12 +142,19 @@ export const appsService = {
   patchLead: (id: string, body: LeadBody) => patch<Lead>(`${A}/leads/${id}`, body),
   scheduleInstall: (
     id: string,
-    body: { title?: string | null; notes?: string | null; scheduled_at?: string | null; assignee_user_id?: string | null },
+    body: {
+      title?: string | null;
+      notes?: string | null;
+      scheduled_at?: string | null;
+      assignee_user_id?: string | null;
+    },
   ) => post<LeadDetail>(`${A}/leads/${id}/install`, body),
   /** JAZE-5's own convert; used only while the CAF workbench is off (with it
    * on, conversion happens there so the CAF fields follow the lead). */
-  convertLead: (id: string, body: { identifier: string; package_id?: string | null; isp_customer_id?: string | null }) =>
-    post<LeadDetail>(`${A}/leads/${id}/convert`, body),
+  convertLead: (
+    id: string,
+    body: { identifier: string; package_id?: string | null; isp_customer_id?: string | null },
+  ) => post<LeadDetail>(`${A}/leads/${id}/convert`, body),
   leadsCsv: (q: LeadQuery) =>
     csv("/leads/export.csv", { ...q, page: undefined, page_size: undefined }, "leads.csv"),
 

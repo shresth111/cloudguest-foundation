@@ -12,7 +12,13 @@ import type {
 
 export type { RfoReason, TicketPriority, TicketSource, TicketStatus, TicketType, TicketView };
 
-export const TICKET_STATUSES: TicketStatus[] = ["open", "in_progress", "on_hold", "resolved", "closed"];
+export const TICKET_STATUSES: TicketStatus[] = [
+  "open",
+  "in_progress",
+  "on_hold",
+  "resolved",
+  "closed",
+];
 export const TICKET_SOURCES: TicketSource[] = [
   "phone",
   "whatsapp",
@@ -23,7 +29,13 @@ export const TICKET_SOURCES: TicketSource[] = [
   "other",
 ];
 export const TICKET_PRIORITIES: TicketPriority[] = ["low", "normal", "high", "urgent"];
-export const RFO_REASONS: RfoReason[] = ["fiber_cut", "power_olt", "cpe_fault", "upstream", "other"];
+export const RFO_REASONS: RfoReason[] = [
+  "fiber_cut",
+  "power_olt",
+  "cpe_fault",
+  "upstream",
+  "other",
+];
 export type SlaState = "within" | "breached" | "no_sla";
 
 /** `type_view` (adds sort_order to SUB360-2's TicketType). */
