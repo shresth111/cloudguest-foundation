@@ -35,7 +35,6 @@ import {
 } from "@/lib/location-liveness";
 import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
 import { ArubaAccessPointsCard } from "@/components/customer/ArubaAccessPointsCard";
-import { controllerDeviceMetricsReason } from "@/lib/router-vendors";
 import type { LocationLiveness } from "@/lib/location-liveness";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { customerFeatureHref } from "@/lib/customerNav";
@@ -626,13 +625,11 @@ export function CustomerDashboardPage() {
           {/* 6. Bandwidth · 7. Recent users · Recent alerts */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-12">
             <div className="min-w-0 lg:col-span-2 2xl:col-span-5 [&>*]:h-full">
+              {/* Aruba Instant On (#397/#408): the access points take the
+                  Bandwidth card's slot -- nothing measures that venue's
+                  uplink, so a "Bandwidth" card there was a dead card. */}
               {nasOnlyVenue ? (
-                <div className={cn(PANEL, "p-4")} data-testid="aruba-traffic-unsupported">
-                  <p className="text-sm font-semibold">{t("bandwidth.title", "Bandwidth")}</p>
-                  <p className="mt-2 text-xs text-[var(--wy-text-muted)]">
-                    {controllerDeviceMetricsReason("aruba_instant_on")}
-                  </p>
-                </div>
+                <ArubaAccessPointsCard locationId={locationId} />
               ) : (
                 <BandwidthUtilizationCard
                   locationId={locationId}
@@ -807,12 +804,10 @@ export function CustomerDashboardPage() {
             </SectionBoundary>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
-              {/* Aruba Instant On (#397/#399): no WAN/ISP figures -- nothing
-                  here measures that venue's uplink -- so its two cards are the
-                  venue summary and the access points, read from Instant On. */}
-              {nasOnlyVenue ? (
-                <ArubaAccessPointsCard locationId={locationId} />
-              ) : (
+              {/* Aruba Instant On (#399): no WAN/ISP figures -- nothing here
+                  measures that venue's uplink -- so the row is the venue
+                  summary alone. */}
+              {!nasOnlyVenue && (
                 <WanStatusCardView wan={wan} onManage={() => handleNav("isp-details")} />
               )}
               {nasOnlyVenue ? (

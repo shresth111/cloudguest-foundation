@@ -178,7 +178,6 @@ for (const [entry, out] of [
   ["src/lib/omada-client-controls.ts", "cc.mjs"],
   ["src/lib/aruba-speed-gateway.ts", "gw.mjs"],
   ["src/lib/aruba-guest-speed.ts", "gs.mjs"],
-  ["src/lib/access-rules-tabs.ts", "tabs.mjs"],
   ["src/lib/block-outcome.ts", "bo.mjs"],
 ]) {
   await build({
@@ -195,27 +194,28 @@ for (const [entry, out] of [
 const CC = await import(pathToFileURL(join(work, "cc.mjs")).href);
 const GW = await import(pathToFileURL(join(work, "gw.mjs")).href);
 const GS = await import(pathToFileURL(join(work, "gs.mjs")).href);
-const TABS = await import(pathToFileURL(join(work, "tabs.mjs")).href);
 const BO = await import(pathToFileURL(join(work, "bo.mjs")).href);
 
 console.log("\n1d. Access Rules tabs at Aruba: no Access Tiers (owner, 2026-10-05)");
-deq("Aruba: Guest WiFi Limits + Guests & devices", TABS.accessRulesTabsForVenue(["*"], true), [
-  "location",
-  "guests",
-]);
-deq("MikroTik/Omada: unchanged", TABS.accessRulesTabsForVenue(["*"], false), [
-  "location",
-  "group",
-  "guests",
-]);
-deq("Aruba, policy keys only: never empty", TABS.accessRulesTabsForVenue(["policy.read"], true), [
-  "location",
-]);
-eq(
-  "Aruba: ?tab=group falls back",
-  TABS.initialAccessRulesTab("group", TABS.accessRulesTabsForVenue(null, true)),
-  "location",
-);
+// On main the page's tabs live in PoliciesHub (lib/access-rules-tabs.ts
+// left with blocked guests, which moved back to Security -> Blocking).
+{
+  const hub = src("src/components/features/PoliciesHub.tsx");
+  check(
+    "Aruba: the Access Tiers tab is filtered out at a NAS-only venue",
+    /nasOnlyVenue \? ACCESS_TABS\.filter\(\(item\) => item\.id !== "group"\) : ACCESS_TABS/.test(
+      hub,
+    ),
+  );
+  check(
+    "Aruba: a remembered Access Tiers tab falls back to Guest WiFi Limits",
+    /nasOnlyVenue && tab === "group" \? "location" : tab/.test(hub),
+  );
+  check(
+    "MikroTik/Omada: both tabs, unchanged",
+    /const tabs = nasOnlyVenue \?/.test(hub) && /id: "group"/.test(hub),
+  );
+}
 
 console.log(
   "\n1e. Guests & devices: a device rule's outcome at Aruba names Instant On, not a router",
@@ -951,135 +951,13 @@ console.log("\n2a-cloud. Aruba venue WITH Instant On cloud control: guest networ
   await page.close();
 }
 
-// ---------------------------------------------------------------------------
-console.log("\n2a-nolist. The scoped venue missing from the account list still has its row");
-// ---------------------------------------------------------------------------
-{
-  const page = await open(ARUBA, { nolist: true });
-  const root = () => page.locator("#root").innerText();
-  check("not 'No policies yet'", !(await root()).includes("No policies yet"));
-  check(
-    "the saved Office policy is listed (scoped venue counts as a location)",
-    (await page.getByRole("button", { name: "Delete Office" }).count()) === 1,
-  );
-  const calls = await editAndSave(page);
-  check(
-    "save assigns the policy to the scoped venue",
-    calls.some((c) => c.method === "MAP" && c.body?.locationId === "loc-1"),
-    JSON.stringify(calls.filter((c) => c.method === "MAP")),
-  );
-  check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
-  await page.close();
-}
-
-// ---------------------------------------------------------------------------
-console.log("\n2a-listfail. A failed policy-list read never turns the next save into a duplicate");
-// ---------------------------------------------------------------------------
-{
-  const page = await open(ARUBA, { listfail: true, wait: false });
-  await page.getByText("Couldn't load the saved limits").waitFor({ timeout: 10_000 });
-  check(
-    "not 'No policies yet'",
-    !(await page.locator("#root").innerText()).includes("No policies yet"),
-  );
-  await page.evaluate(() => (window.__calls = []));
-  await page
-    .getByRole("button", { name: /Update policies|Save changes/ })
-    .first()
-    .evaluate((b) => b.click());
-  await page.getByText(/nothing was saved/).waitFor({ timeout: 5_000 });
-  const writes = (await page.evaluate(() => window.__calls)).filter(
-    (c) => !c.method.startsWith("GET"),
-  );
-  deq("save refused: no policy was created or written", writes, []);
-  await page.close();
-}
-
-// ---------------------------------------------------------------------------
-console.log("\n2a'. Aruba venue with nothing saved yet: defaults, not 'No policies yet'");
-// ---------------------------------------------------------------------------
-{
-  const page = await open(ARUBA, { empty: true });
-  const root = () => page.locator("#root").innerText();
-  check("the table is not empty", !(await root()).includes("No policies yet"));
-  check(
-    "the location's row is marked Default",
-    (await page.getByRole("row", { name: /Office\s*Default/ }).count()) === 1,
-  );
-  check(
-    "the default row shows what guests really get (4 hr / 30 min / 3)",
-    /4 hr\s+30 min\s+No Limit\s+3/.test(
-      await page.getByRole("row", { name: /Office/ }).innerText(),
-    ),
-  );
-  check(
-    "a default row has nothing to delete",
-    (await page.getByRole("button", { name: "Delete Office" }).count()) === 0,
-  );
-  eq(
-    "session timeout opens on the 4 hr default, not 'Choose…'",
-    await page.locator("#st").inputValue(),
-    "4 hr",
-  );
-  eq(
-    "devices per user opens on the default 3, not 'Choose…'",
-    await page.locator("#dp").inputValue(),
-    "3",
-  );
-  eq("idle timeout opens on 30 min", await page.locator("#it").inputValue(), "30 min");
-
-  // A stale cross-field error clears when the field that caused it changes.
-  await page.selectOption("#st", "30 min");
-  await page.selectOption("#it", "1 hr");
-  await page.getByRole("button", { name: "Update policies" }).evaluate((b) => b.click());
-  await page.getByText("Must not be longer than the session timeout.").waitFor({ timeout: 5_000 });
-  await page.selectOption("#st", "2 hr");
-  check(
-    "the idle-vs-session error clears when the session length is changed",
-    (await page.getByText("Must not be longer than the session timeout.").count()) === 0,
-  );
-
-  // Save straight away: every required field already holds a real value.
-  await page.selectOption("#st", "4 hr");
-  await page.selectOption("#it", "30 min");
-  await page.evaluate(() => (window.__calls = []));
-  await page.getByRole("button", { name: "Update policies" }).evaluate((b) => b.click());
-  await page.getByText(/Limits saved for Office/).waitFor({ timeout: 10_000 });
-  const calls = await page.evaluate(() => window.__calls);
-  const created = (type) =>
-    calls.find(
-      (c) => c.method === "POST" && c.path === "/policies" && c.body?.policy_type === type,
-    );
-  check("save creates the DEVICE policy", !!created("device"));
-  check("save creates the SESSION policy", !!created("session"));
-  const sessionVersion = calls.find(
-    (c) => c.method === "POST" && c.path === "/policies/new-session/versions",
-  )?.body?.rules;
-  eq("the session policy holds 240 min", sessionVersion?.session_timeout_minutes, 240);
-  eq(
-    "the device policy holds 3",
-    calls.find((c) => c.method === "POST" && c.path === "/policies/new-device/versions")?.body
-      ?.rules?.max_devices_per_guest,
-    3,
-  );
-  check(
-    "save assigns to the location",
-    calls.some((c) => c.method === "MAP" && c.body.locationId === "loc-1"),
-  );
-  await page
-    .getByRole("button", { name: "Delete Office" })
-    .waitFor({ timeout: 5_000 })
-    .catch(() => {});
-  check(
-    "after the save the row is the saved one, no longer Default",
-    (await page.getByRole("row", { name: /Office\s*Default/ }).count()) === 0 &&
-      (await page.getByRole("button", { name: "Delete Office" }).count()) === 1,
-    (await page.getByRole("table").innerText()).replace(/\s+/g, " "),
-  );
-  check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
-  await page.close();
-}
-
+// 2a-nolist / 2a-listfail (staging #412: the scoped venue missing from the
+// account list, and a failed policy-list read) are NOT carried to main: they
+// exercised staging's own location-list fallback, which main's prefill
+// rewrite (#432) replaced. Tracked as a follow-up on the Aruba-to-main PR.
+// 2a' (staging #390: a location with nothing saved gets a "Default" row) is a
+// change to every venue's table, not an Aruba one, and is not on main yet --
+// follow-up on the Aruba-to-main PR.
 // ---------------------------------------------------------------------------
 console.log("\n2b. The same screen at a MikroTik venue: unchanged");
 // ---------------------------------------------------------------------------
@@ -1107,7 +985,8 @@ console.log("\n2b. The same screen at a MikroTik venue: unchanged");
   eq("save keeps the cap the open panel shows", fupRulesWritten(calls)?.daily_data_limit_mb, 2048);
   check(
     "the pre-existing data-limit toast",
-    (await root()).includes("the data limit applies to guests online now"),
+    // Main's copy (speed is re-applied to guests online now, #432).
+    (await root()).includes("speed and the data limit reach guests online now"),
   );
   check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
   await page.close();
@@ -1142,7 +1021,7 @@ console.log("\n3. Wiring of the screens not rendered here");
 const tiers = src("src/components/features/CreateGroup.tsx");
 check(
   "Access Tiers: a NAS-only venue saves the held/picked rate via heldKbpsFromLabel (picker label = the choice, off-picker rate kept); every other vendor keeps the table lookup",
-  /nasOnlyVenue\s*\?\s*heldKbpsFromLabel\(bw, BANDWIDTH_KBPS\)\s*:\s*\(BANDWIDTH_KBPS\[bw\] \?\? 0\)/.test(
+  /nasOnlyVenue(?:\s*&&\s*!tierSpeedUsable)?\s*\?\s*heldKbpsFromLabel\(bw, BANDWIDTH_KBPS\)\s*:\s*\(BANDWIDTH_KBPS\[bw\] \?\? 0\)/.test(
     tiers,
   ),
 );

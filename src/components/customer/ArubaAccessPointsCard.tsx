@@ -37,7 +37,7 @@ function AccessPointGlyph({ active }: { active: boolean }) {
   return (
     <div
       aria-hidden
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#6C4EFF]/15 to-[#8B5CF6]/5 text-[#6C4EFF] ring-1 ring-inset ring-[#6C4EFF]/15 dark:from-[#6C4EFF]/30 dark:to-[#8B5CF6]/10 dark:text-indigo-300 dark:ring-indigo-400/20"
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--wy-radius-lg)] bg-[var(--wy-accent-soft)] text-[var(--wy-accent)]"
     >
       <svg viewBox="0 0 40 40" className="h-9 w-9" fill="none">
         <path
@@ -76,7 +76,7 @@ function AccessPointGlyph({ active }: { active: boolean }) {
           cx="26.5"
           cy="25.5"
           r="1.9"
-          className={active ? "fill-emerald-500 dark:fill-emerald-400" : "fill-slate-400"}
+          className={active ? "fill-[var(--wy-ok)]" : "fill-[var(--wy-offline)]"}
         />
       </svg>
     </div>
@@ -91,18 +91,18 @@ function ApStatusPill({ active, label }: { active: boolean; label: string }) {
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
         active
-          ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/25"
-          : "bg-muted text-muted-foreground ring-border",
+          ? "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)] ring-[var(--wy-ok)]/20"
+          : "bg-[var(--wy-offline-soft)] text-[var(--wy-offline)] ring-[var(--wy-border)]",
       )}
     >
       <span aria-hidden className="relative flex h-1.5 w-1.5">
         {active && (
-          <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60 motion-safe:animate-ping" />
+          <span className="absolute inline-flex h-full w-full rounded-full bg-[var(--wy-ok)] opacity-60 motion-safe:animate-ping" />
         )}
         <span
           className={cn(
             "relative inline-flex h-1.5 w-1.5 rounded-full",
-            active ? "bg-emerald-500" : "bg-slate-400",
+            active ? "bg-[var(--wy-ok)]" : "bg-[var(--wy-offline)]",
           )}
         />
       </span>
@@ -116,7 +116,7 @@ function StatTile({ icon, value, label }: { icon: ReactNode; value: string; labe
     <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-border/60 bg-muted/30 px-3 py-2">
       <span
         aria-hidden
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background text-[#6C4EFF] shadow-sm ring-1 ring-border/60 dark:text-indigo-300"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--wy-radius)] bg-[var(--wy-surface)] text-[var(--wy-accent)] ring-1 ring-[var(--wy-border)]"
       >
         {icon}
       </span>
@@ -147,7 +147,7 @@ function InstantOnManagedNote() {
           <Info aria-hidden className="h-3.5 w-3.5 shrink-0" />
           <span>{ARUBA_AP_MANAGE_NOTE}</span>
         </span>
-        <span className="inline-flex shrink-0 items-center gap-1 font-medium text-[#6C4EFF] dark:text-indigo-300">
+        <span className="inline-flex shrink-0 items-center gap-1 font-medium text-[var(--wy-accent)]">
           What's managed where
           <ChevronDown
             aria-hidden
@@ -183,11 +183,11 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
     // Same shell and header as the Recent Users / Recent Alerts cards beside
     // it (CustomerDashboardPage's CARD + CardHead), so the row reads as one.
     <div
-      className="flex h-full flex-col rounded-2xl border border-border/70 bg-card p-5 text-card-foreground shadow-sm transition-shadow hover:shadow-md"
+      className="flex h-full flex-col rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-5 text-[var(--wy-text)]"
       data-testid="aruba-access-points-card"
     >
       <div className="mb-4 flex min-w-0 items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#6C4EFF]/10 text-[#6C4EFF] dark:bg-[#6C4EFF]/20 dark:text-indigo-300">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--wy-radius)] bg-[var(--wy-accent-soft)] text-[var(--wy-accent)]">
           <Radio aria-hidden className="h-4 w-4" />
         </div>
         <div className="min-w-0">

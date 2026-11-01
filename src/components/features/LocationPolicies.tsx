@@ -1651,7 +1651,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs font-medium">Location</TableHead>
-                    <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                    {showBandwidth && (
+                      <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                    )}
                     <TableHead className="text-xs font-medium">
                       {t("venueSpeed.column", "Venue speed")}
                     </TableHead>
@@ -1681,18 +1683,20 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                           this cell would still promise it. `—` with the reason
                           on hover is the same posture `lastContactLabel` takes
                           for a measurement we do not have. */}
-                      <TableCell>
-                        {speedUsable ? (
-                          p.bandwidth
-                        ) : (
-                          <span
-                            className="text-[var(--wy-text-faint)]"
-                            title={speedVerdict.reason ?? undefined}
-                          >
-                            Not applied here
-                          </span>
-                        )}
-                      </TableCell>
+                      {showBandwidth && (
+                        <TableCell>
+                          {speedUsable ? (
+                            p.bandwidth
+                          ) : (
+                            <span
+                              className="text-[var(--wy-text-faint)]"
+                              title={speedVerdict.reason ?? undefined}
+                            >
+                              Not applied here
+                            </span>
+                          )}
+                        </TableCell>
+                      )}
                       {/* Same posture as the Bandwidth cell beside it: where
                           this venue cannot apply a total, the stored number
                           is not restated as if something enforced it. "No

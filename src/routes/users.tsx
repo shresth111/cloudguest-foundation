@@ -701,6 +701,7 @@ function CustomerUsersPage() {
                             variant="secondary"
                             className="h-4 px-1.5 text-[11px] font-normal"
                             title={t("reconnectsTooltip", { count: u.mergedSessionCount })}
+                            data-testid="guest-session-count"
                           >
                             ×{u.mergedSessionCount}
                           </Badge>
@@ -831,13 +832,14 @@ function CustomerUsersPage() {
                       );
                     })()}
                     {u.status !== "offline" && extendGate.greyed && (
-                      <span title={extendGate.reason ?? undefined} data-testid="extend-greyed">
+                      <span title={extendGate.reason ?? undefined}>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
+                          className="h-8 w-8 disabled:text-[var(--wy-text-faint)]"
                           disabled
-                          aria-label={t("extend")}
+                          aria-label={extendGate.reason ?? t("extend")}
+                          data-testid="extend-unsupported-icon"
                         >
                           <Clock className="h-3.5 w-3.5" aria-hidden />
                         </Button>
@@ -1083,13 +1085,27 @@ function CustomerUsersPage() {
                 <GuestDeviceControls mac={detailUser.mac} guestName={detailUser.name} />
               </div>
               <div className="space-y-2 border-t border-[var(--wy-border)] bg-[var(--wy-surface)] p-4">
-                {detailUser.status !== "offline" && (
+                {detailUser.status !== "offline" && extendGate.greyed && (
+                  <div className="space-y-1" data-testid="extend-unsupported">
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1" disabled>
+                        <Clock className="mr-2 h-4 w-4" />
+                        {t("extend30")}
+                      </Button>
+                      <Button variant="outline" className="flex-1" disabled>
+                        <Clock className="mr-2 h-4 w-4" />
+                        {t("extend60")}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{extendGate.reason}</p>
+                  </div>
+                )}
+                {detailUser.status !== "offline" && !extendGate.greyed && (
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       className="flex-1"
-                      disabled={extend.isPending || extendGate.greyed}
-                      title={extendGate.reason ?? undefined}
+                      disabled={extend.isPending}
                       onClick={() => handleExtend(detailUser.id, 30)}
                     >
                       <Clock className="mr-2 h-4 w-4" />
@@ -1098,8 +1114,7 @@ function CustomerUsersPage() {
                     <Button
                       variant="outline"
                       className="flex-1"
-                      disabled={extend.isPending || extendGate.greyed}
-                      title={extendGate.reason ?? undefined}
+                      disabled={extend.isPending}
                       onClick={() => handleExtend(detailUser.id, 60)}
                     >
                       <Clock className="mr-2 h-4 w-4" />

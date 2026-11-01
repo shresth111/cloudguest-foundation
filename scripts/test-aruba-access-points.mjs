@@ -552,7 +552,7 @@ for (const venue of ["mikrotik", "omada"]) {
     );
     if (which === "users") {
       const heads = await r.page.$$eval("thead th", (ths) => ths.length);
-      eq(`${venue} users: eleven columns, as before`, heads, 11);
+      eq(`${venue} users: nine columns, as before (console Guests table)`, heads, 9);
     }
     if (which === "users") {
       const csv = await exportCsv(r.page);
@@ -658,7 +658,7 @@ console.log("\nB3. Aruba Guests page: column and filter");
 {
   const r = await render(ROOT, "aruba", "users");
   const heads = await r.page.$$eval("thead th", (ths) => ths.map((t) => t.textContent.trim()));
-  eq("twelve columns", heads.length, 12);
+  eq("ten columns (one more: Access point)", heads.length, 10);
   check("an Access point column", heads.includes("Access point"), heads.join("|"));
   const cells = await r.page.$$eval('[data-testid="aruba-ap-cell"]', (els) =>
     els.map((e) => e.textContent),

@@ -643,7 +643,9 @@ console.log("\nC. Aruba: Extend and Reset greyed like Disconnect");
     "table: no live Extend menu",
     (await r.page.locator('table button[title="Extend session"]').count()) === 0,
   );
-  const icons = r.page.locator('[data-testid="extend-unsupported-icon"]');
+  // The console DataTable renders each row twice (table + mobile card); count
+  // the table's.
+  const icons = r.page.locator('table [data-testid="extend-unsupported-icon"]');
   eq("table: one greyed Extend per online guest", await icons.count(), 2);
   check("table: greyed Extend is disabled", await icons.first().isDisabled());
   eq(
@@ -875,7 +877,9 @@ for (const venue of ["mikrotik", "omada", "aruba"]) {
     `${venue}: the two-session guest links to the history`,
     (await r.page.locator('[data-testid="guest-session-count"]').count()) >= 1 &&
       (await r.page.locator('[data-testid="guest-session-count"]').first().innerText()) ===
-        "2 sessions",
+        // Main's Guests table: the row's "×N" badge; the full list is the
+        // drawer's "Full history".
+        "×2",
   );
   check(
     `${venue}: "Signing out" only at Aruba`,

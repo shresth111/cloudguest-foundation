@@ -124,7 +124,7 @@ export function ArubaGuestSpeedControl({
       data-testid="aruba-guest-speed"
     >
       <p className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-        <Gauge className="h-4 w-4 text-indigo-500" aria-hidden="true" />
+        <Gauge className="h-4 w-4 text-[var(--wy-accent)]" aria-hidden="true" />
         Guest speed limit (per device)
       </p>
       {notice("info", SAME_FOR_EVERY_DEVICE, "aruba-guest-speed-same-for-all")}

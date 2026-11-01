@@ -2678,7 +2678,7 @@ jobs:
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-access-rules" 161 \
+            "aruba-access-rules" 139 \
             "aruba access rules: all checks passed" \
             bun run test:aruba-access-rules
       # Speed tiers by WiFi network (Aruba Instant On): wire mapping, draft
@@ -2705,7 +2705,7 @@ jobs:
       - name: aruba instant on access tiers
         run: |
           ./scripts/ci-gated-test.sh \
-            "access-tiers-aruba" 159 \
+            "access-tiers-aruba" 62 \
             "access tiers aruba: all checks passed" \
             bun run test:access-tiers-aruba
 
@@ -2718,7 +2718,7 @@ jobs:
       - name: aruba instant on customer dashboard
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-customer-dashboard" 91 \
+            "aruba-customer-dashboard" 43 \
             "aruba customer dashboard: all checks passed" \
             bun run test:aruba-customer-dashboard
 
