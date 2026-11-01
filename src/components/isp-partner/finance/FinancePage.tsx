@@ -7,6 +7,7 @@
  * the ISP's own sender, Telegram alerts) and the message log. Each group is
  * behind its own backend flag; a 404 shows a "not switched on yet" state.
  */
+import { ZoneBrandingCard } from "@/components/isp-partner/finance/ZoneBrandingCard";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -1121,6 +1122,7 @@ function ZoneDialog({ zone, onClose }: { zone: ZoneLedger; onClose: () => void }
             </div>
           </Card>
         )}
+        <ZoneBrandingCard zoneId={zone.zone_id} editable={editable} />
         <Card title="Ledger (newest first)">
           {q.isLoading ? (
             <Spinner />

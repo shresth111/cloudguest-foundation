@@ -175,6 +175,8 @@ export interface RenewBody {
   paid_now?: boolean;
   payment?: { mode: string; reference?: string | null; received_at?: string | null } | null;
   idempotency_key?: string;
+  /** BILL-2: renew for N cycles (sent only when > 1). */
+  cycles?: number;
 }
 
 export interface PlanSyncBody {

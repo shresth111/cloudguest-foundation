@@ -184,6 +184,8 @@ export interface RechargeBody {
   } | null;
   po_number: string | null;
   idempotency_key: string;
+  /** BILL-2: renew for N cycles (sent only when > 1). */
+  cycles?: number;
 }
 
 export interface RechargeResult {

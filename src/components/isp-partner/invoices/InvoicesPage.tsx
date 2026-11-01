@@ -15,10 +15,12 @@ import {
   MessageCircle,
   MoreHorizontal,
   Receipt,
+  FileSpreadsheet,
   RefreshCw,
   Search,
   Wallet,
 } from "lucide-react";
+import { Gstr1Dialog } from "@/components/isp-partner/invoices/Gstr1Dialog";
 import {
   MButton,
   MEmptyState,
@@ -239,38 +241,49 @@ export function InvoicesPage({
     }
   };
   const generate = useInvoiceMutation(() => billingService.generateDue());
+  const [gstr1Open, setGstr1Open] = useState(false);
   const remindBulk = useInvoiceMutation((ids: string[]) => invoicesService.bulkRemind(ids));
 
   return (
     <>
+      <Gstr1Dialog open={gstr1Open} onClose={() => setGstr1Open(false)} />
       <MSectionHeader
         eyebrow="Invoices"
         title="Invoices"
         description="Tax invoices and credit notes to your customers and subscribers, numbered per financial year. Coupon sign-ins show up as invoices within about a minute."
         actions={
-          can("isp_invoices.create") && (
+          (can("isp_invoices.create") || can("isp_invoices.export")) && (
             <>
-              <MButton
-                variant="outline"
-                disabled={generate.isPending}
-                onClick={async () => {
-                  try {
-                    const res = await generate.mutateAsync(undefined);
-                    toast.success(
-                      res.created.length === 0
-                        ? "Nothing is due today; no invoice was created."
-                        : `${res.created.length} invoice(s) created.`,
-                    );
-                  } catch (err) {
-                    toast.error(ispErrorMessage(err));
-                  }
-                }}
-              >
-                {generate.isPending ? <Spinner /> : <RefreshCw />} Generate due invoices
-              </MButton>
-              <MButton onClick={() => setCreating(true)}>
-                <FilePlus2 /> New invoice
-              </MButton>
+              {can("isp_invoices.export") && (
+                <MButton variant="outline" onClick={() => setGstr1Open(true)}>
+                  <FileSpreadsheet /> GSTR-1 export
+                </MButton>
+              )}
+              {can("isp_invoices.create") && (
+                <MButton
+                  variant="outline"
+                  disabled={generate.isPending}
+                  onClick={async () => {
+                    try {
+                      const res = await generate.mutateAsync(undefined);
+                      toast.success(
+                        res.created.length === 0
+                          ? "Nothing is due today; no invoice was created."
+                          : `${res.created.length} invoice(s) created.`,
+                      );
+                    } catch (err) {
+                      toast.error(ispErrorMessage(err));
+                    }
+                  }}
+                >
+                  {generate.isPending ? <Spinner /> : <RefreshCw />} Generate due invoices
+                </MButton>
+              )}
+              {can("isp_invoices.create") && (
+                <MButton onClick={() => setCreating(true)}>
+                  <FilePlus2 /> New invoice
+                </MButton>
+              )}
             </>
           )
         }

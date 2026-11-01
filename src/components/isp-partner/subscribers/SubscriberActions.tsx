@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
 import { CustomerSelect, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { ProfileFields, emptyDraft } from "@/components/isp-partner/subscribers/ProfileFields";
+import { CyclesSelect } from "@/components/isp-partner/plans/CyclesSelect";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { usePackages } from "@/hooks/isp-partner/usePlans";
 import { useSub360Mutation } from "@/hooks/isp-partner/useSubscriber360";
@@ -80,12 +81,14 @@ function RenewDialog({ s, onClose, canPay }: Props) {
   const [mode, setMode] = useState("cash");
   const [reference, setReference] = useState("");
   const [key] = useState(idempotencyKey);
+  const [cycles, setCycles] = useState(1);
   const m = useSub360Mutation(() =>
     svc.renew(s.id, {
       package_id: pkg || undefined,
       paid_now: paid,
       payment: paid ? { mode, reference: reference.trim() || null } : null,
       idempotency_key: key,
+      ...(cycles > 1 ? { cycles } : {}),
     }),
   );
   const { error, run } = useRun(onClose);
@@ -123,8 +126,10 @@ function RenewDialog({ s, onClose, canPay }: Props) {
             : chosen
               ? formatRupees(chosen.price_paise)
               : "–"}
-          . Validity extends from today or the current end date, whichever is later.
+          {cycles > 1 ? ` x ${cycles} cycles` : ""}. Validity extends from today or the current end
+          date, whichever is later.
         </p>
+        <CyclesSelect value={cycles} onChange={setCycles} validityDays={chosen?.validity_days} />
         {canPay && (
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
