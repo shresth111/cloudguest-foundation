@@ -23,6 +23,7 @@ import {
   Wallet,
   X,
   Cable,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -49,6 +50,7 @@ const PARTNER_NAV: NavItem[] = [
   { to: "/partner/tr069", label: "TR-069 devices", icon: Cpu, anyOf: ["tr069.read"] },
   // JAZE-6 Phase 2b: PPPoE sessions / logins / router step (404 page while off).
   { to: "/partner/pppoe", label: "PPPoE", icon: Cable, anyOf: ["isp_subscribers.read"] },
+  { to: "/partner/fiber", label: "Fiber plant", icon: Network, anyOf: ["isp_partner.read"] },
   {
     to: "/partner/logs",
     label: "Logs",

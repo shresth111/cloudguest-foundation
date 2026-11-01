@@ -6,6 +6,10 @@
  * (`PppoeCredentialBody` is extra=forbid; the script is text/plain).
  * `@/services/api` is replaced with a recorder; nothing goes on the network.
  *
+ * Also J22 fiber (same lane): `src/lib/isp-partner/fiber.ts` node bodies
+ * against `fiber_router.py` (extra=forbid, lat/long together) and the
+ * `/isp/fiber/*` paths.
+ *
  * Run: node scripts/test-isp-partner-pppoe.mjs
  */
 import { build } from "esbuild";
@@ -24,13 +28,15 @@ writeFileSync(
      calls.push({ method, url, params: cfg?.params ?? {}, body: method === "get" ? undefined : a, cfg });
      return { data: { items: [], results: [] }, headers: {} };
    };
-   export default { get: rec("get"), post: rec("post"), put: rec("put"), delete: rec("delete") };`,
+   export default { get: rec("get"), post: rec("post"), put: rec("put"), patch: rec("patch"), delete: rec("delete") };`,
 );
 const outfile = join(outdir, "pppoe.mjs");
 await build({
   stdin: {
     contents: `export * from "@/lib/isp-partner/pppoe";
+               export * as fiber from "@/lib/isp-partner/fiber";
                export { pppoeService } from "@/services/isp-partner/pppoe";
+               export { fiberService } from "@/services/isp-partner/fiber";
                export { calls } from "@/services/api";`,
     resolveDir: ROOT,
     loader: "ts",
@@ -234,6 +240,145 @@ eq(
   ["/isp/pppoe/routers/r1/script", { interface: "vlan20" }],
 );
 eq("script fetched as text", last().cfg.responseType, "text");
+
+console.log("fiber nodeBody (fiber_router.py: extra=forbid, lat/long together)");
+const F = m.fiber;
+const FKEYS = new Set([
+  "kind",
+  "name",
+  "code",
+  "address",
+  "parent_id",
+  "parent_port",
+  "port_count",
+  "spec",
+  "status",
+  "isp_customer_id",
+  "notes",
+  "latitude",
+  "longitude",
+]);
+const nd = {
+  ...F.nodeDraft(null),
+  kind: "splitter",
+  name: "SPL-1",
+  port_count: "8",
+  parent_id: "olt-1",
+  parent_port: "3",
+};
+const created = F.nodeBody(nd, null);
+eq("create: only filled keys", created.body, {
+  kind: "splitter",
+  name: "SPL-1",
+  status: "active",
+  parent_id: "olt-1",
+  parent_port: 3,
+  port_count: 8,
+});
+eq(
+  "create: keys are request keys",
+  Object.keys(created.body).every((k) => FKEYS.has(k)),
+  true,
+);
+eq("name required", "error" in F.nodeBody({ ...nd, name: " " }, null), true);
+eq("ONT with ports refused", "error" in F.nodeBody({ ...nd, kind: "ont" }, null), true);
+eq("port 0 refused", "error" in F.nodeBody({ ...nd, port_count: "0" }, null), true);
+eq("port 1025 refused", "error" in F.nodeBody({ ...nd, port_count: "1025" }, null), true);
+eq(
+  "upstream port without upstream refused",
+  "error" in F.nodeBody({ ...nd, parent_id: "" }, null),
+  true,
+);
+eq("lat without long refused", "error" in F.nodeBody({ ...nd, latitude: "28.6" }, null), true);
+eq(
+  "lat out of range refused",
+  "error" in F.nodeBody({ ...nd, latitude: "91", longitude: "77" }, null),
+  true,
+);
+const fcur = {
+  id: "spl-1",
+  kind: "splitter",
+  name: "SPL-1",
+  code: null,
+  status: "active",
+  latitude: null,
+  longitude: null,
+  maps_url: null,
+  address: null,
+  parent_id: "olt-1",
+  parent_port: 3,
+  port_count: 8,
+  spec: null,
+  isp_customer_id: null,
+  notes: null,
+  created_at: null,
+};
+eq("patch: nothing changed -> {}", F.nodeBody(F.nodeDraft(fcur), fcur).body, {});
+eq("patch: changed name only", F.nodeBody({ ...F.nodeDraft(fcur), name: "SPL-1A" }, fcur).body, {
+  name: "SPL-1A",
+});
+eq(
+  "patch: lat/long sent as a pair",
+  F.nodeBody({ ...F.nodeDraft(fcur), latitude: "28.6", longitude: "77.2" }, fcur).body,
+  { latitude: 28.6, longitude: 77.2 },
+);
+eq(
+  "patch: clearing upstream sends nulls",
+  F.nodeBody({ ...F.nodeDraft(fcur), parent_id: "", parent_port: "" }, fcur).body,
+  { parent_id: null, parent_port: null },
+);
+eq(
+  "patch: self as upstream refused",
+  "error" in F.nodeBody({ ...F.nodeDraft(fcur), parent_id: "spl-1", parent_port: "" }, fcur),
+  true,
+);
+eq(
+  "port summary",
+  F.portSummary([
+    { port_no: 1, state: "free" },
+    { port_no: 2, state: "subscriber", subscriber: null },
+    { port_no: 3, state: "node", node: { id: "x", kind: "ont", name: "y" } },
+  ]),
+  { total: 3, free: 1, subscribers: 1, nodes: 1 },
+);
+eq(
+  "route text",
+  F.routeText([
+    { name: "OLT", parent_port: null },
+    { name: "SPL", parent_port: 3 },
+  ]),
+  "OLT › SPL (port 3)",
+);
+eq("kind label fallback", F.kindLabel("weird"), "weird");
+
+console.log("fiber request shapes");
+const fs = m.fiberService;
+await fs.nodes({ roots_only: false, search: "", page: 1, page_size: 50 });
+eq(
+  "nodes: roots_only=false + blanks dropped",
+  [last().url, last().params],
+  ["/isp/fiber/nodes", { page: "1", page_size: "50" }],
+);
+await fs.nodes({ roots_only: true });
+eq("nodes: roots_only=true sent", last().params, { roots_only: "true" });
+await fs.update("n1", { name: "x" });
+eq(
+  "update is PATCH",
+  [last().method, last().url, last().body],
+  ["patch", "/isp/fiber/nodes/n1", { name: "x" }],
+);
+await fs.assignPort("n1", 4, "s1", "");
+eq(
+  "assign: PUT port, notes blank -> null",
+  [last().method, last().url, last().body],
+  ["put", "/isp/fiber/nodes/n1/ports/4", { subscriber_id: "s1", notes: null }],
+);
+await fs.releasePort("n1", 4);
+eq("release: DELETE port", [last().method, last().url], ["delete", "/isp/fiber/nodes/n1/ports/4"]);
+await fs.downstream("n1");
+eq("downstream path", last().url, "/isp/fiber/nodes/n1/downstream");
+await fs.subscriberLocation("s1");
+eq("subscriber location path", last().url, "/isp/fiber/subscribers/s1");
 
 console.log(`\n${checks - failures}/${checks} passed`);
 if (failures) process.exit(1);

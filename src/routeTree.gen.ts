@@ -85,6 +85,7 @@ import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
 import { Route as PartnerForgotPasswordRouteImport } from './routes/partner.forgot-password'
+import { Route as PartnerFiberRouteImport } from './routes/partner.fiber'
 import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
@@ -606,6 +607,11 @@ const PartnerLoginRoute = PartnerLoginRouteImport.update({
 const PartnerForgotPasswordRoute = PartnerForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerFiberRoute = PartnerFiberRouteImport.update({
+  id: '/fiber',
+  path: '/fiber',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerBillingRoute = PartnerBillingRouteImport.update({
@@ -1494,6 +1500,7 @@ export interface FileRoutesByFullPath {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/fiber': typeof PartnerFiberRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -1709,6 +1716,7 @@ export interface FileRoutesByTo {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/fiber': typeof PartnerFiberRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -1929,6 +1937,7 @@ export interface FileRoutesById {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/fiber': typeof PartnerFiberRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -2151,6 +2160,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/fiber'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -2366,6 +2376,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/fiber'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -2585,6 +2596,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/fiber'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -3320,6 +3332,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/partner/forgot-password'
       preLoaderRoute: typeof PartnerForgotPasswordRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/fiber': {
+      id: '/partner/fiber'
+      path: '/fiber'
+      fullPath: '/partner/fiber'
+      preLoaderRoute: typeof PartnerFiberRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/billing': {
@@ -4653,6 +4672,7 @@ const MasterRouteWithChildren =
 
 interface PartnerRouteChildren {
   PartnerBillingRoute: typeof PartnerBillingRoute
+  PartnerFiberRoute: typeof PartnerFiberRoute
   PartnerForgotPasswordRoute: typeof PartnerForgotPasswordRoute
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
@@ -4679,6 +4699,7 @@ interface PartnerRouteChildren {
 
 const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerBillingRoute: PartnerBillingRoute,
+  PartnerFiberRoute: PartnerFiberRoute,
   PartnerForgotPasswordRoute: PartnerForgotPasswordRoute,
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
