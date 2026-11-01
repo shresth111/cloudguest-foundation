@@ -25,8 +25,9 @@ import {
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import { STOCK_KIND_LABEL, humanize } from "@/lib/isp-partner/apps";
+import { EditLocationDialog } from "@/components/isp-partner/apps/InventoryEdit";
 import { appsService } from "@/services/isp-partner/apps";
-import { STOCK_LOCATION_KINDS } from "@/services/isp-partner/apps-types";
+import { STOCK_LOCATION_KINDS, type StockLocation } from "@/services/isp-partner/apps-types";
 import { ClipboardCheck } from "lucide-react";
 
 export function VendorsCard({ canManage }: { canManage: boolean }) {
@@ -141,6 +142,7 @@ export function LocationsCard({ canManage }: { canManage: boolean }) {
   });
   const [f, setF] = useState({ name: "", kind: "warehouse", holder: "", address: "" });
   const [err, setErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<StockLocation | null>(null);
   const create = useAppsMutation(() =>
     appsService.createLocation({
       name: f.name.trim(),
@@ -159,6 +161,7 @@ export function LocationsCard({ canManage }: { canManage: boolean }) {
             <MTh>Location</MTh>
             <MTh>Kind</MTh>
             <MTh>Carried by</MTh>
+            {canManage && <MTh />}
           </>
         }
       >
@@ -166,10 +169,22 @@ export function LocationsCard({ canManage }: { canManage: boolean }) {
           <MTr key={l.id}>
             <MTd>
               {l.name}
+              {!l.active && (
+                <span className="ml-2">
+                  <MTag label="Not in use" tone="normal" />
+                </span>
+              )}
               {l.address && <p className="text-[11px] text-muted-foreground">{l.address}</p>}
             </MTd>
             <MTd className="text-xs">{STOCK_KIND_LABEL[l.kind] ?? humanize(l.kind)}</MTd>
             <MTd className="text-xs">{l.holder_name ?? "–"}</MTd>
+            {canManage && (
+              <MTd className="text-right">
+                <MButton variant="ghost" onClick={() => setEditing(l)} aria-label={`Edit ${l.name}`}>
+                  Edit
+                </MButton>
+              </MTd>
+            )}
           </MTr>
         ))}
       </MTable>
@@ -224,6 +239,7 @@ export function LocationsCard({ canManage }: { canManage: boolean }) {
         </div>
       )}
       <FormError message={err} />
+      {editing && <EditLocationDialog location={editing} onClose={() => setEditing(null)} />}
     </Card>
   );
 }
