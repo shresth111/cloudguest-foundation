@@ -5,6 +5,7 @@
  * Disabling a hotspot subscriber removes their package speed; it does not
  * block sign-in (§8 note). To stop a code, revoke the coupon.
  */
+import { SyncNowButton } from "@/components/isp-partner/subscribers/SyncNowButton";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Users, Wallet } from "lucide-react";
@@ -417,8 +418,10 @@ export function SubscribersTab({ groupFilter }: { groupFilter?: string }) {
             reset();
           }}
         />
+        <span className="ml-auto" />
+        <SyncNowButton />
         {can("isp_subscribers.update") && (
-          <MButton className="ml-auto" onClick={() => setAssigning(true)}>
+          <MButton onClick={() => setAssigning(true)}>
             <Plus /> Assign by hand
           </MButton>
         )}

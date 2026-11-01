@@ -24,6 +24,12 @@ import type {
 type Q = Record<string, string | number | boolean | undefined | null>;
 
 export const plansService = {
+  /** BE-HARDEN: apply coupon redemptions now (isp_subscribers.update).
+   * `applied` is 0 while another sync for this ISP is running. */
+  async syncSubscribers(): Promise<{ applied: number }> {
+    const { data } = await api.post<{ applied: number }>("/isp/subscribers/sync");
+    return data;
+  },
   // speed groups
   async listGroups(q: Q): Promise<IspPage<SpeedGroup>> {
     const { data } = await api.get<IspPage<SpeedGroup>>("/isp/speed-groups", {

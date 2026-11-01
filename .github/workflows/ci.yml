@@ -2835,6 +2835,9 @@ jobs:
       - name: ISP partner revenue hub + churn risk (REVENUE-HUB)
         if: hashFiles('scripts/test-isp-partner-revenue.mjs') != ''
         run: bun run test:isp-partner-revenue
+      - name: ISP partner coupon sync now (BE-HARDEN)
+        if: hashFiles('scripts/test-isp-partner-sync-now.mjs') != ''
+        run: bun run test:isp-partner-sync-now
       - name: ISP partner incidents (INCIDENTS-1)
         if: hashFiles('scripts/test-isp-partner-incidents.mjs') != ''
         run: bun run test:isp-partner-incidents
