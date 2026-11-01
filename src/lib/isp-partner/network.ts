@@ -236,8 +236,7 @@ export const OPTICAL_BAND_LABEL: Record<OpticalBand, string> = {
 
 export const ROUTER_UNREACHABLE_LABEL: Record<string, string> = {
   not_mikrotik: "Live health is available for MikroTik routers only.",
-  not_set_up:
-    "This router has no management login yet. Run the setup script, then read again.",
+  not_set_up: "This router has no management login yet. Run the setup script, then read again.",
   unreachable: "The router did not answer. Check that it is powered and its cloud link is up.",
 };
 

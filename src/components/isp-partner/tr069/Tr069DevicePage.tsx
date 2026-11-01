@@ -36,6 +36,7 @@ import {
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatAgo, formatDateTime, formatDuration } from "@/lib/isp-partner/format";
 import type { Tr069DeviceDetail } from "@/services/isp-partner/types";
+import { Tr069OpticalCard } from "@/components/isp-partner/network/Tr069Tiles";
 
 const TASK_LABEL: Record<string, string> = {
   refresh_params: "Refresh parameters",
@@ -257,6 +258,8 @@ export function Tr069DevicePage({ cpeId }: { cpeId: string }) {
           </Card>
         )}
       </div>
+
+      <Tr069OpticalCard cpeId={cpeId} />
 
       <Card title="Task history">
         {tasks.isLoading ? (

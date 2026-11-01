@@ -51,6 +51,7 @@ import {
 } from "@/lib/isp-partner/format";
 import { relativeValidity } from "@/lib/isp-partner/plans";
 import type { Subscriber } from "@/services/isp-partner/plans-types";
+import { SubscriberNetworkPanel } from "@/components/isp-partner/network/SubscriberNetworkPanel";
 
 function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const customers = useIspCustomerOptions(open);
@@ -294,6 +295,7 @@ function SubscriberDrawer({ id, onClose }: { id: string | null; onClose: () => v
               <FormError message={error} />
             </div>
           )}
+          <SubscriberNetworkPanel subscriber={s} />
           <div>
             <p className="mb-1 text-xs font-semibold text-muted-foreground">Coupon history</p>
             {(s.coupon_history ?? []).length === 0 ? (
