@@ -11,6 +11,12 @@ import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { financeService } from "@/services/isp-partner/finance";
+import {
+  effectiveSender,
+  emailResultMessage,
+  showSenderChoice,
+  type EmailSenderKey,
+} from "@/lib/isp-partner/comms2b";
 
 export function InvoiceFinanceActions({ invoiceId, live }: { invoiceId: string; live: boolean }) {
   const { can } = usePartner();
@@ -30,13 +36,33 @@ export function InvoiceFinanceActions({ invoiceId, live }: { invoiceId: string; 
   const [emailing, setEmailing] = useState(false);
   const [sendTo, setSendTo] = useState<"primary" | "alternate" | "both">("primary");
   const [message, setMessage] = useState("");
+  const [sender, setSender] = useState<EmailSenderKey>("platform");
+  // COMMS-2b: the sender picker appears only with more than one sender.
+  const senders = useQuery({
+    queryKey: ["isp", "finance", "email-senders"],
+    queryFn: financeService.emailSenders,
+    retry: false,
+    staleTime: 60_000,
+    enabled: emailing,
+  });
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
   const email = useMutation({
-    mutationFn: () => financeService.emailInvoice(invoiceId, sendTo, message),
+    mutationFn: () =>
+      financeService.emailInvoice(
+        invoiceId,
+        sendTo,
+        message,
+        effectiveSender(sender, senders.data),
+      ),
     onSuccess: (r) => {
-      toast.success(`Invoice emailed to ${r.queued.join(", ")}.`);
-      setEmailing(false);
+      const m = emailResultMessage(r);
+      if (m.ok) {
+        toast.success(m.text);
+        setEmailing(false);
+      } else {
+        setError(m.text);
+      }
     },
     onError: (e) => setError(ispErrorMessage(e, "Could not send the email.")),
   });
@@ -112,6 +138,16 @@ export function InvoiceFinanceActions({ invoiceId, live }: { invoiceId: string; 
             The alternate email (for example an accounts team) is set on the customer&apos;s or
             subscriber&apos;s billing contact.
           </p>
+          {showSenderChoice(senders.data) && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-foreground">Send from</p>
+              <MSeg
+                value={effectiveSender(sender, senders.data)}
+                onChange={setSender}
+                options={senders.data!.senders.map((s) => ({ value: s.key, label: s.label }))}
+              />
+            </div>
+          )}
           <TextField label="Message (optional)" value={message} onChange={setMessage} />
           <FormError message={error} />
         </div>

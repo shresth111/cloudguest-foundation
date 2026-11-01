@@ -1345,6 +1345,15 @@ const TRIGGER_LABEL: Record<Trigger, { title: string; params: string }> = {
     params: "{{1}} name · {{2}} receipt no. · {{3}} amount · {{4}} date",
   },
   renewal: { title: "Renewed", params: "{{1}} name · {{2}} invoice no. · {{3}} valid until" },
+  // COMMS-2b: sent only once a template is mapped here (daily / once each).
+  overdue: {
+    title: "Overdue (daily, once per invoice per day)",
+    params: "{{1}} name · {{2}} invoice no. · {{3}} balance · {{4}} pay link",
+  },
+  welcome: {
+    title: "Welcome (new subscriber, once)",
+    params: "{{1}} name · {{2}} username · {{3}} plan",
+  },
 };
 
 function AutomationTab() {
