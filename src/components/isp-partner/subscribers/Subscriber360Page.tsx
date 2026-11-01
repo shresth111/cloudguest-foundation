@@ -40,6 +40,10 @@ import { SubscriberKycPanel } from "@/components/isp-partner/compliance/Subscrib
 import { SubscriberPppoePanel } from "@/components/isp-partner/pppoe/SubscriberPppoePanel";
 import { BillingContactCard } from "@/components/isp-partner/finance/FinanceExtrasPanels";
 import { QueuedRenewalCard } from "@/components/isp-partner/queued/QueuedRenewalCard";
+import {
+  SubscriberCollectionsCard,
+  SubscriberReferralsCard,
+} from "@/components/isp-partner/subscribers/Sub360ExtraCards";
 import { SubscriberFiberCard } from "@/components/isp-partner/fiber/SubscriberFiberCard";
 // SUB360-2 workbench: each piece renders nothing / its fallback while the flag is off.
 import {
@@ -449,6 +453,9 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
       <SubscriberFiberCard subscriberId={s.id} />
       {/* QUEUED-RENEWAL: hidden while its flag is off. */}
       <QueuedRenewalCard subscriberId={s.id} />
+      {/* P3-SWEEP: read-only, each hidden while its flag is off or without its key. */}
+      <SubscriberCollectionsCard subscriberId={s.id} />
+      <SubscriberReferralsCard subscriberId={s.id} />
 
       <Card title="Timeline">
         {s.timeline.length === 0 ? (

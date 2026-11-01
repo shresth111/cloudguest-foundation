@@ -152,6 +152,8 @@ export interface Timeline {
   promises: CollectionPromise[];
   open_promise: CollectionPromise | null;
   overdue_paise: number;
+  /** P3-SWEEP: everything still owed, due or not (absent on older backends). */
+  open_paise?: number;
 }
 
 /** The billing payment row (`IspBillingService.payment_row`). */
