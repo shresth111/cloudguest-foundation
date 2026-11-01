@@ -5,7 +5,9 @@
  * null when there is nothing to divide by.
  */
 
-export type RevState = "active" | "expired" | "churned" | "other";
+/** The Overview's (DASH-1) buckets: active/pending/expired/churned; other =
+ * suspended, frozen, blocked or off (ACTIVE-ALIGN). */
+export type RevState = "active" | "pending" | "expired" | "churned" | "other";
 export type AgeingBucket = "not_due" | "d0_30" | "d31_60" | "d61_90" | "d90_plus";
 export type SubscriberMetric = RevState | "unpriced" | "new" | "lost";
 export type InvoiceMetric = `dues_${AgeingBucket}` | "uncollected";
@@ -79,6 +81,7 @@ export interface RevenueSummary {
     mrr_paise: number;
     arpu_paise: number | null;
     active: number;
+    pending: number;
     expired: number;
     churned: number;
     other: number;

@@ -70,6 +70,7 @@ export const AGEING_ORDER: AgeingBucket[] = ["not_due", "d0_30", "d31_60", "d61_
 
 export const METRIC_LABEL: Record<RevMetric, string> = {
   active: "Active subscribers",
+  pending: "Pending (KYC, installation or activation later)",
   expired: "Expired, not churned yet",
   churned: "Churned",
   other: "Blocked, frozen, suspended or off",
@@ -123,8 +124,17 @@ export function kpiTiles(d: RevenueSummary): KpiTile[] {
       value: String(k.active),
       def: "active",
       metric: "active",
-      sub: `of ${k.total} subscribers`,
+      sub: `of ${k.total} subscribers, as on the Overview`,
       tone: "success",
+    },
+    {
+      key: "pending",
+      label: "Pending",
+      value: String(k.pending),
+      def: "pending",
+      metric: "pending",
+      sub: "KYC, installation or activation date to come",
+      tone: "warning",
     },
     {
       key: "churned",
