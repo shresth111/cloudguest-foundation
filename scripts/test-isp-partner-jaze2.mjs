@@ -163,6 +163,23 @@ eq(
   m.enforcementEventLabel({ kind: "mac_bound", detail: "pppoe: AA" }),
   "Device MAC bound",
 );
+// ENFORCE-2: hotspot refusals (detail starts "hotspot: ")
+eq(
+  "hotspot mac refusal label",
+  m.enforcementEventLabel({ kind: "mac_reject", detail: "hotspot: AA:00:00:00:00:02" }),
+  "WiFi login refused: device MAC not bound",
+);
+eq(
+  "hotspot hard timeout label",
+  m.enforcementEventLabel({ kind: "hard_timeout", detail: "hotspot: 300s" }),
+  "WiFi login refused: session time limit used up",
+);
+eq(
+  "sweep hard timeout label unchanged",
+  m.enforcementEventLabel({ kind: "hard_timeout", detail: "300s" }),
+  "Session ended: session time limit",
+);
+eq("hotspot detail prefix stripped", m.enforcementEventDetail("hotspot: 10.5.60.50"), "10.5.60.50");
 eq(
   "string detail shown as is",
   m.enforcementEventDetail("pppoe: 1 live, limit 1"),
