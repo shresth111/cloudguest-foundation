@@ -265,11 +265,20 @@ export const PPPOE_REFUSAL_LABEL: Record<string, string> = {
   concurrency: "PPPoE login refused: too many devices at once",
 };
 
-function isPppoeEvent(detail: unknown): boolean {
-  if (typeof detail === "string") return detail.startsWith("pppoe:");
+/** ENFORCE-2: the hotspot (WiFi) login now refuses on the same rules; the
+ * backend marks those events with a "hotspot: " detail. */
+export const HOTSPOT_REFUSAL_LABEL: Record<string, string> = {
+  mac_reject: "WiFi login refused: device MAC not bound",
+  ip_reject: "WiFi login refused: IP not allowed",
+  concurrency: "WiFi login refused: too many devices at once",
+  hard_timeout: "WiFi login refused: session time limit used up",
+};
+
+function detailStartsWith(detail: unknown, prefix: string): boolean {
+  if (typeof detail === "string") return detail.startsWith(prefix);
   if (detail && typeof detail === "object")
     return Object.values(detail as Record<string, unknown>).some(
-      (v) => typeof v === "string" && v.startsWith("pppoe:"),
+      (v) => typeof v === "string" && v.startsWith(prefix),
     );
   return false;
 }
@@ -277,7 +286,10 @@ function isPppoeEvent(detail: unknown): boolean {
 export function enforcementEventLabel(
   e: Pick<EnforcementEvent, "kind"> & { detail?: unknown },
 ): string {
-  if (isPppoeEvent(e.detail) && PPPOE_REFUSAL_LABEL[e.kind]) return PPPOE_REFUSAL_LABEL[e.kind];
+  if (detailStartsWith(e.detail, "pppoe:") && PPPOE_REFUSAL_LABEL[e.kind])
+    return PPPOE_REFUSAL_LABEL[e.kind];
+  if (detailStartsWith(e.detail, "hotspot:") && HOTSPOT_REFUSAL_LABEL[e.kind])
+    return HOTSPOT_REFUSAL_LABEL[e.kind];
   return ENFORCEMENT_EVENT_LABEL[e.kind] ?? e.kind.replace(/_/g, " ");
 }
 
@@ -286,7 +298,7 @@ export function enforcementEventDetail(detail: Record<string, unknown> | string 
   if (!detail) return "";
   // The backend stores detail as a short string (JAZE-2 record_event);
   // Object.entries on a string would spell it out letter by letter.
-  if (typeof detail === "string") return detail.replace(/^pppoe:\s*/, "");
+  if (typeof detail === "string") return detail.replace(/^(pppoe|hotspot):\s*/, "");
   return Object.entries(detail)
     .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
     .map(([k, v]) => `${k.replace(/_/g, " ")}: ${String(v)}`)
