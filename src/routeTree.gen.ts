@@ -84,6 +84,7 @@ import { Route as PartnerPppoeRouteImport } from './routes/partner.pppoe'
 import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging'
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
+import { Route as PartnerIncidentsRouteImport } from './routes/partner.incidents'
 import { Route as PartnerForgotPasswordRouteImport } from './routes/partner.forgot-password'
 import { Route as PartnerFinanceRouteImport } from './routes/partner.finance'
 import { Route as PartnerFiberRouteImport } from './routes/partner.fiber'
@@ -611,6 +612,11 @@ const PartnerLogsRoute = PartnerLogsRouteImport.update({
 const PartnerLoginRoute = PartnerLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerIncidentsRoute = PartnerIncidentsRouteImport.update({
+  id: '/incidents',
+  path: '/incidents',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerForgotPasswordRoute = PartnerForgotPasswordRouteImport.update({
@@ -1562,6 +1568,7 @@ export interface FileRoutesByFullPath {
   '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
+  '/partner/incidents': typeof PartnerIncidentsRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
@@ -1787,6 +1794,7 @@ export interface FileRoutesByTo {
   '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
+  '/partner/incidents': typeof PartnerIncidentsRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
@@ -2017,6 +2025,7 @@ export interface FileRoutesById {
   '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
+  '/partner/incidents': typeof PartnerIncidentsRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
@@ -2249,6 +2258,7 @@ export interface FileRouteTypes {
     | '/partner/fiber'
     | '/partner/finance'
     | '/partner/forgot-password'
+    | '/partner/incidents'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
@@ -2474,6 +2484,7 @@ export interface FileRouteTypes {
     | '/partner/fiber'
     | '/partner/finance'
     | '/partner/forgot-password'
+    | '/partner/incidents'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
@@ -2703,6 +2714,7 @@ export interface FileRouteTypes {
     | '/partner/fiber'
     | '/partner/finance'
     | '/partner/forgot-password'
+    | '/partner/incidents'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
@@ -3435,6 +3447,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/partner/login'
       preLoaderRoute: typeof PartnerLoginRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/incidents': {
+      id: '/partner/incidents'
+      path: '/incidents'
+      fullPath: '/partner/incidents'
+      preLoaderRoute: typeof PartnerIncidentsRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/forgot-password': {
@@ -4851,6 +4870,7 @@ interface PartnerRouteChildren {
   PartnerFiberRoute: typeof PartnerFiberRoute
   PartnerFinanceRoute: typeof PartnerFinanceRoute
   PartnerForgotPasswordRoute: typeof PartnerForgotPasswordRoute
+  PartnerIncidentsRoute: typeof PartnerIncidentsRoute
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
   PartnerMessagingRoute: typeof PartnerMessagingRoute
@@ -4887,6 +4907,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerFiberRoute: PartnerFiberRoute,
   PartnerFinanceRoute: PartnerFinanceRoute,
   PartnerForgotPasswordRoute: PartnerForgotPasswordRoute,
+  PartnerIncidentsRoute: PartnerIncidentsRoute,
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
   PartnerMessagingRoute: PartnerMessagingRoute,

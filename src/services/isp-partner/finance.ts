@@ -180,7 +180,15 @@ export interface Tds194h {
   note: string;
 }
 
-export type Trigger = "pre_expiry" | "unpaid" | "receipt" | "renewal" | "overdue" | "welcome";
+export type Trigger =
+  | "pre_expiry"
+  | "unpaid"
+  | "receipt"
+  | "renewal"
+  | "overdue"
+  | "welcome"
+  | "outage"
+  | "restored";
 export interface AutomationSettings {
   whatsapp_enabled: boolean;
   whatsapp_enabled_at: string | null;

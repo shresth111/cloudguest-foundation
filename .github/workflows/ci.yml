@@ -2830,6 +2830,9 @@ jobs:
       - name: ISP partner collections (COLLECTIONS-1)
         if: hashFiles('scripts/test-isp-partner-collections.mjs') != ''
         run: bun run test:isp-partner-collections
+      - name: ISP partner incidents (INCIDENTS-1)
+        if: hashFiles('scripts/test-isp-partner-incidents.mjs') != ''
+        run: bun run test:isp-partner-incidents
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list
