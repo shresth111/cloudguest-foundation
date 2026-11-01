@@ -46,6 +46,7 @@
     "test:isp-partner-revenue": "node scripts/test-isp-partner-revenue.mjs",
     "test:isp-partner-incidents": "node scripts/test-isp-partner-incidents.mjs",
     "test:isp-partner-queued-renewal": "node scripts/test-isp-partner-queued-renewal.mjs",
+    "test:isp-partner-gap-sweep": "node scripts/test-isp-partner-gap-sweep.mjs",
     "test:isp-partner-referrals": "node scripts/test-isp-partner-referrals.mjs",
     "test:isp-partner-audit-log": "node scripts/test-isp-partner-audit-log.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",

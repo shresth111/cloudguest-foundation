@@ -132,7 +132,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         output: {
-          manualChunks(id) {
+          manualChunks(id: string) {
             if (
               /[\\/]node_modules[\\/](react|react-dom|react-is|clsx|prop-types|lucide-react|zod|axios|tailwind-merge|class-variance-authority)[\\/]/.test(
                 id,

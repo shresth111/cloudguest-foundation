@@ -45,6 +45,7 @@ import { MEmptyState } from "@/components/master/MasterKit";
 import { NatFeedBanner } from "@/components/isp-partner/compliance/NatFeedBanner";
 import { useAppsEnabled } from "@/hooks/isp-partner/useApps";
 import { useRevenueEnabled } from "@/hooks/isp-partner/useRevenue";
+import { useFlagOffNav } from "@/hooks/isp-partner/useNavFlags";
 import { ZoneSwitcher } from "@/components/isp-partner/zones/ZoneSwitcher";
 
 interface NavItem {
@@ -132,11 +133,14 @@ export function PartnerShell({ children }: { children: ReactNode }) {
 
   const apps = useAppsEnabled();
   const revenue = useRevenueEnabled();
+  // GAP-SWEEP: Collections / Incidents / Referrals / PPPoE / Fiber hide on their flag-off 404.
+  const flagOff = useFlagOffNav();
   const nav = PARTNER_NAV.filter(
     (n) =>
       (!n.anyOf || n.anyOf.some((p) => can(p))) &&
       (n.to !== "/partner/apps" || apps.enabled) &&
-      (n.to !== "/partner/revenue" || revenue.enabled),
+      (n.to !== "/partner/revenue" || revenue.enabled) &&
+      !flagOff.has(n.to),
   );
   // QA-017: a page whose nav item this role cannot see is not mounted on a
   // direct URL either, so it never fires a request that can only 403 (and
