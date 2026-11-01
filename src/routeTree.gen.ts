@@ -168,6 +168,7 @@ import { Route as PreviewPortalDemoRouteImport } from './routes/preview.portal.d
 import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.portal.$locationId'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as PartnerTr069CpeIdRouteImport } from './routes/partner.tr069.$cpeId'
+import { Route as PartnerSubscribersNewRouteImport } from './routes/partner.subscribers.new'
 import { Route as PartnerSubscribersSubscriberIdRouteImport } from './routes/partner.subscribers.$subscriberId'
 import { Route as PartnerRoutersIspRouterIdRouteImport } from './routes/partner.routers.$ispRouterId'
 import { Route as PartnerPayTokenRouteImport } from './routes/partner.pay.$token'
@@ -1061,6 +1062,11 @@ const PartnerTr069CpeIdRoute = PartnerTr069CpeIdRouteImport.update({
   path: '/tr069/$cpeId',
   getParentRoute: () => PartnerRoute,
 } as any)
+const PartnerSubscribersNewRoute = PartnerSubscribersNewRouteImport.update({
+  id: '/subscribers/new',
+  path: '/subscribers/new',
+  getParentRoute: () => PartnerRoute,
+} as any)
 const PartnerSubscribersSubscriberIdRoute =
   PartnerSubscribersSubscriberIdRouteImport.update({
     id: '/subscribers/$subscriberId',
@@ -1624,6 +1630,7 @@ export interface FileRoutesByFullPath {
   '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
+  '/partner/subscribers/new': typeof PartnerSubscribersNewRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
@@ -1843,6 +1850,7 @@ export interface FileRoutesByTo {
   '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
+  '/partner/subscribers/new': typeof PartnerSubscribersNewRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
@@ -2071,6 +2079,7 @@ export interface FileRoutesById {
   '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
   '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
+  '/partner/subscribers/new': typeof PartnerSubscribersNewRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
@@ -2299,6 +2308,7 @@ export interface FileRouteTypes {
     | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
     | '/partner/subscribers/$subscriberId'
+    | '/partner/subscribers/new'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
@@ -2518,6 +2528,7 @@ export interface FileRouteTypes {
     | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
     | '/partner/subscribers/$subscriberId'
+    | '/partner/subscribers/new'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
@@ -2745,6 +2756,7 @@ export interface FileRouteTypes {
     | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
     | '/partner/subscribers/$subscriberId'
+    | '/partner/subscribers/new'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
@@ -3976,6 +3988,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerTr069CpeIdRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/subscribers/new': {
+      id: '/partner/subscribers/new'
+      path: '/subscribers/new'
+      fullPath: '/partner/subscribers/new'
+      preLoaderRoute: typeof PartnerSubscribersNewRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/partner/subscribers/$subscriberId': {
       id: '/partner/subscribers/$subscriberId'
       path: '/subscribers/$subscriberId'
@@ -4787,6 +4806,7 @@ interface PartnerRouteChildren {
   PartnerPayTokenRoute: typeof PartnerPayTokenRoute
   PartnerRoutersIspRouterIdRoute: typeof PartnerRoutersIspRouterIdRoute
   PartnerSubscribersSubscriberIdRoute: typeof PartnerSubscribersSubscriberIdRoute
+  PartnerSubscribersNewRoute: typeof PartnerSubscribersNewRoute
   PartnerTr069CpeIdRoute: typeof PartnerTr069CpeIdRoute
   PartnerCustomersIndexRoute: typeof PartnerCustomersIndexRoute
   PartnerInvoicesIndexRoute: typeof PartnerInvoicesIndexRoute
@@ -4819,6 +4839,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerPayTokenRoute: PartnerPayTokenRoute,
   PartnerRoutersIspRouterIdRoute: PartnerRoutersIspRouterIdRoute,
   PartnerSubscribersSubscriberIdRoute: PartnerSubscribersSubscriberIdRoute,
+  PartnerSubscribersNewRoute: PartnerSubscribersNewRoute,
   PartnerTr069CpeIdRoute: PartnerTr069CpeIdRoute,
   PartnerCustomersIndexRoute: PartnerCustomersIndexRoute,
   PartnerInvoicesIndexRoute: PartnerInvoicesIndexRoute,
