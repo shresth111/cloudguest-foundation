@@ -87,6 +87,24 @@ export interface Settlement {
   sgst_paise: number;
   igst_paise: number;
   issued_at: string | null;
+  /** FINISH: the GST tax invoice issued for this settlement (null: nothing
+   * billed, billing not set up, or a settlement from before invoicing). */
+  invoice?: SettlementInvoice | null;
+  invoice_id?: string | null;
+}
+
+export interface SettlementInvoice {
+  id: string;
+  number: string;
+  issue_date: string;
+  taxable_paise: number;
+  cgst_paise: number;
+  sgst_paise: number;
+  igst_paise: number;
+  total_paise: number;
+  place_of_supply_state_code: string | null;
+  buyer_gstin: string | null;
+  status: string;
 }
 
 export const franchiseService = {
@@ -138,6 +156,11 @@ export const franchiseService = {
       date_from: from,
       date_to: to,
     });
+    return data;
+  },
+  /** FINISH: issue (once) the tax invoice for an older settlement. */
+  async invoiceSettlement(id: string): Promise<Settlement> {
+    const { data } = await api.post<Settlement>(`/isp/franchise/settlements/${id}/invoice`, {});
     return data;
   },
   settlementPdf(id: string, number: string): Promise<FileDownload> {
