@@ -16,6 +16,9 @@ export interface InvoiceRow {
   created_at: string;
   invoice_date: string;
   due_date?: string | null;
+  /** QA #16: billing period (`YYYY-MM-DD`); a multi-cycle renewal spans N cycles. */
+  period_start?: string | null;
+  period_end?: string | null;
   bill_to_kind: BillToKind | string;
   subscriber: {
     id: string;

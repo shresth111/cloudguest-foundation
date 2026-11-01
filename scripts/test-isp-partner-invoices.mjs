@@ -97,6 +97,16 @@ eq(
   "Cafe",
 );
 
+// QA #16: the billing period a multi-cycle renewal carries
+eq(
+  "billing period from the invoice",
+  JSON.stringify(m.billingPeriod({ period_start: "2026-12-01", period_end: "2027-03-01" })),
+  '["2026-12-01","2027-03-01"]',
+);
+eq("no period on a one-off", m.billingPeriod({ period_start: null, period_end: null }), null);
+eq("older rows without the keys", m.billingPeriod({}), null);
+eq("half a period is no period", m.billingPeriod({ period_start: "2026-12-01" }), null);
+
 if (failures) {
   console.error(`\nFAIL: ${failures} of ${checks} checks failed`);
   process.exit(1);
