@@ -80,6 +80,7 @@ import { Route as PartnerUsersRouteImport } from './routes/partner.users'
 import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
 import { Route as PartnerResetPasswordRouteImport } from './routes/partner.reset-password'
 import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
+import { Route as PartnerPppoeRouteImport } from './routes/partner.pppoe'
 import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging'
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
@@ -580,6 +581,11 @@ const PartnerResetPasswordRoute = PartnerResetPasswordRouteImport.update({
 const PartnerReportsRoute = PartnerReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerPppoeRoute = PartnerPppoeRouteImport.update({
+  id: '/pppoe',
+  path: '/pppoe',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerMessagingRoute = PartnerMessagingRouteImport.update({
@@ -1492,6 +1498,7 @@ export interface FileRoutesByFullPath {
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
+  '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
@@ -1706,6 +1713,7 @@ export interface FileRoutesByTo {
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
+  '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
@@ -1925,6 +1933,7 @@ export interface FileRoutesById {
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
+  '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
@@ -2146,6 +2155,7 @@ export interface FileRouteTypes {
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
+    | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/settings'
@@ -2360,6 +2370,7 @@ export interface FileRouteTypes {
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
+    | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/settings'
@@ -2578,6 +2589,7 @@ export interface FileRouteTypes {
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
+    | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/settings'
@@ -3273,6 +3285,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/partner/reports'
       preLoaderRoute: typeof PartnerReportsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/pppoe': {
+      id: '/partner/pppoe'
+      path: '/pppoe'
+      fullPath: '/partner/pppoe'
+      preLoaderRoute: typeof PartnerPppoeRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/messaging': {
@@ -4638,6 +4657,7 @@ interface PartnerRouteChildren {
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
   PartnerMessagingRoute: typeof PartnerMessagingRoute
+  PartnerPppoeRoute: typeof PartnerPppoeRoute
   PartnerReportsRoute: typeof PartnerReportsRoute
   PartnerResetPasswordRoute: typeof PartnerResetPasswordRoute
   PartnerSettingsRoute: typeof PartnerSettingsRoute
@@ -4663,6 +4683,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
   PartnerMessagingRoute: PartnerMessagingRoute,
+  PartnerPppoeRoute: PartnerPppoeRoute,
   PartnerReportsRoute: PartnerReportsRoute,
   PartnerResetPasswordRoute: PartnerResetPasswordRoute,
   PartnerSettingsRoute: PartnerSettingsRoute,

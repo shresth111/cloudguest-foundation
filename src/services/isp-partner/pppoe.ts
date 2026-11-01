@@ -44,9 +44,8 @@ export const pppoeService = {
     ).data;
   },
   async sessions(q: PppoeSessionQuery): Promise<IspPage<PppoeSession>> {
-    return (
-      await api.get<IspPage<PppoeSession>>("/isp/pppoe/sessions", { params: cleanParams(q) })
-    ).data;
+    return (await api.get<IspPage<PppoeSession>>("/isp/pppoe/sessions", { params: cleanParams(q) }))
+      .data;
   },
   async disconnectSession(sessionId: string): Promise<PppoeKickResult> {
     return (await api.post<PppoeKickResult>(`/isp/pppoe/sessions/${sessionId}/disconnect`)).data;
