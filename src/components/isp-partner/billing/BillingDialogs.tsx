@@ -17,6 +17,7 @@ import {
   useVoidInvoice,
   useVoidPayment,
 } from "@/hooks/isp-partner/useBilling";
+import { DiscountCodeField } from "@/components/isp-partner/discounts/DiscountCodeField";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { billingService, newIdempotencyKey } from "@/services/isp-partner/billing";
 import { financeService } from "@/services/isp-partner/finance";
@@ -389,6 +390,7 @@ export function CreateInvoiceDialog({
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [discountCode, setDiscountCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const create = useCreateInvoice();
@@ -401,6 +403,7 @@ export function CreateInvoiceDialog({
       setPeriodStart("");
       setPeriodEnd("");
       setDueDate("");
+      setDiscountCode("");
       setError(null);
       setFieldErrors({});
     }
@@ -427,6 +430,7 @@ export function CreateInvoiceDialog({
         period_start: periodStart || null,
         period_end: periodEnd || null,
         ...(dueDate ? { due_date: dueDate } : {}),
+        ...(discountCode.trim() ? { discount_code: discountCode.trim() } : {}),
       });
       toast.success(`Invoice ${inv.number} issued for ${formatRupees(inv.total_paise)}.`);
       onClose();
@@ -517,6 +521,12 @@ export function CreateInvoiceDialog({
             Empty uses the default due days from billing settings.
           </span>
         </label>
+        <DiscountCodeField
+          value={discountCode}
+          onChange={setDiscountCode}
+          pricePaise={parseRupeesToPaise(amount)}
+          includesGst={false}
+        />
         <FormError message={error} />
       </div>
     </MDialog>

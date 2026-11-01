@@ -144,6 +144,8 @@ export interface InvoiceCreate {
   description: string;
   amount_paise: number;
   due_date?: string;
+  /** SMALL-2: DISCOUNT-WIRE code (pre-tax). */
+  discount_code?: string;
 }
 
 export interface PaymentCreate {

@@ -7,7 +7,9 @@ import { MButton, MDialog, MSeg, M_INPUT } from "@/components/master/MasterKit";
 import { CustomerSelect, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { ReceiptButton } from "@/components/isp-partner/billing/BillingDialogs";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
+import { DiscountCodeField } from "@/components/isp-partner/discounts/DiscountCodeField";
 import { useInvoiceMutation } from "@/hooks/isp-partner/useInvoices";
+import { useInvoiceTaxableGross } from "@/hooks/isp-partner/useInvoiceTaxableGross";
 import { useSubscribers } from "@/hooks/isp-partner/usePlans";
 import { billingService, newIdempotencyKey } from "@/services/isp-partner/billing";
 import { invoicesService } from "@/services/isp-partner/invoices";
@@ -374,6 +376,8 @@ export function ManualInvoiceDialog({ open, onClose }: { open: boolean; onClose:
   const [po, setPo] = useState("");
   const [gstin, setGstin] = useState("");
   const [lines, setLines] = useState([emptyLine()]);
+  const [discountCode, setDiscountCode] = useState("");
+  const discountGross = useInvoiceTaxableGross(lines);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const create = useInvoiceMutation(invoicesService.createManual);
@@ -388,6 +392,7 @@ export function ManualInvoiceDialog({ open, onClose }: { open: boolean; onClose:
       setPo("");
       setGstin("");
       setLines([emptyLine()]);
+      setDiscountCode("");
       setError(null);
       setFieldErrors({});
     }
@@ -426,6 +431,7 @@ export function ManualInvoiceDialog({ open, onClose }: { open: boolean; onClose:
         lines: out,
         po_number: po.trim() || null,
         buyer_gstin: gstin.trim().toUpperCase() || null,
+        ...(discountCode.trim() ? { discount_code: discountCode.trim() } : {}),
       });
       toast.success(`Invoice ${inv.number} issued for ${formatRupees(inv.total_paise)}.`);
       onClose();
@@ -573,6 +579,12 @@ export function ManualInvoiceDialog({ open, onClose }: { open: boolean; onClose:
             <Plus /> Add line
           </MButton>
         </div>
+        <DiscountCodeField
+          value={discountCode}
+          onChange={setDiscountCode}
+          pricePaise={discountGross}
+          includesGst={false}
+        />
         <p className="text-[11px] text-muted-foreground">
           The number is assigned when issued, in your FY series. GST is split by place of supply
           (CGST + SGST or IGST) on the server.

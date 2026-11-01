@@ -129,6 +129,8 @@ export interface ManualInvoiceBody {
   lines: ManualInvoiceLine[];
   po_number?: string | null;
   buyer_gstin?: string | null;
+  /** SMALL-2: DISCOUNT-WIRE code, quoted once on the whole invoice (pre-tax). */
+  discount_code?: string;
 }
 
 export interface BulkBody {
