@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MSectionHeader, MSeg, M_INPUT } from "@/components/master/MasterKit";
 import { CustomerSelect } from "@/components/isp-partner/kit";
 import { Tr069DevicesTable } from "@/components/isp-partner/tr069/Tr069DevicesTable";
+import { Tr069SummaryTiles } from "@/components/isp-partner/network/Tr069Tiles";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
@@ -29,6 +30,7 @@ export function Tr069InventoryPage() {
         title="TR-069 devices"
         description="Devices managed through the Wyfy Guest device manager (ACS). Actions are queued and run at each device's next check-in."
       />
+      <Tr069SummaryTiles />
       <div className="flex flex-wrap items-center gap-2">
         <div className="w-full max-w-xs">
           <CustomerSelect value={customerId} onChange={setCustomerId} customers={customers.data} />

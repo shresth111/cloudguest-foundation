@@ -2,7 +2,7 @@
  * "duplicate with a different validity" dialog, enable/disable, delete. */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Copy, Package as PackageIcon, Pencil, Plus, Trash2, RefreshCcw } from "lucide-react";
+import { Copy, Network, Package as PackageIcon, Pencil, Plus, Trash2, RefreshCcw } from "lucide-react";
 import {
   MButton,
   MDialog,
@@ -30,6 +30,7 @@ import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
 import { DEFAULT_VALIDITY_DAYS, formatKbps, previewPackageName } from "@/lib/isp-partner/plans";
 import type { IspPackage, PackageBody, PackageType } from "@/services/isp-partner/plans-types";
+import { PackagePolicyDrawer } from "@/components/isp-partner/network/PackagePolicyDrawer";
 
 function PackageDrawer({
   open,
@@ -320,6 +321,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
   });
   const [editing, setEditing] = useState<IspPackage | null | "new">(null);
   const [duplicating, setDuplicating] = useState<IspPackage | null>(null);
+  const [rules, setRules] = useState<IspPackage | null>(null);
   const [deleting, setDeleting] = useState<IspPackage | null>(null);
   // ADDENDUM_05 J19: "apply to existing subscribers".
   const [syncing, setSyncing] = useState<{
@@ -448,6 +450,16 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
                         <RefreshCcw />
                       </MButton>
                     )}
+                    {can("isp_plans.read") && (
+                      <MButton
+                        variant="ghost"
+                        title="Network rules (FUP, night boost, devices, timeouts)"
+                        aria-label={`Network rules for ${p.name}`}
+                        onClick={() => setRules(p)}
+                      >
+                        <Network />
+                      </MButton>
+                    )}
                     {can("isp_plans.create") && (
                       <MButton
                         variant="ghost"
@@ -510,6 +522,11 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
       />
       <PlanSyncDialog target={syncing} onClose={() => setSyncing(null)} />
       <DuplicateDialog pkg={duplicating} onClose={() => setDuplicating(null)} />
+      <PackagePolicyDrawer
+        pkg={rules}
+        onClose={() => setRules(null)}
+        canEdit={can("isp_plans.update")}
+      />
       <MDialog
         open={deleting !== null}
         onClose={() => setDeleting(null)}

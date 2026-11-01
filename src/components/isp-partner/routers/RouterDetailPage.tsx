@@ -17,6 +17,7 @@ import { Card, ErrorBlock, LoadingBlock } from "@/components/isp-partner/kit";
 import { PartnerTr069SetupStep } from "@/components/isp-partner/routers/PartnerTr069SetupStep";
 import { PartnerWordingScope } from "@/components/isp-partner/routers/PartnerWordingScope";
 import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDrawer";
+import { RouterNetworkPanel } from "@/components/isp-partner/network/RouterNetworkPanel";
 import { Tr069ScriptPanel } from "@/components/isp-partner/tr069/Tr069ScriptPanel";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspRouter, useIspRouterAsDevice } from "@/hooks/isp-partner/useIsp";
@@ -162,6 +163,8 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
           </dl>
         </Card>
       </div>
+
+      <RouterNetworkPanel routerId={routerId} />
 
       {can("isp_partner.execute") ? (
         <section className="space-y-3">
