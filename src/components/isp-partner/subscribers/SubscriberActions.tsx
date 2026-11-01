@@ -9,6 +9,7 @@ import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
 import { CustomerSelect, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { ProfileFields, emptyDraft } from "@/components/isp-partner/subscribers/ProfileFields";
 import { CyclesSelect } from "@/components/isp-partner/plans/CyclesSelect";
+import { ReuploadDocs } from "@/components/isp-partner/subscribers/ReuploadDocs";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { usePackages } from "@/hooks/isp-partner/usePlans";
 import { useSub360Mutation } from "@/hooks/isp-partner/useSubscriber360";
@@ -443,6 +444,9 @@ function ProfileDialog({ s, onClose }: Props) {
       }
     >
       <ProfileFields draft={draft} onChange={setDraft} />
+      <div className="mt-3">
+        <ReuploadDocs subscriberId={s.id} />
+      </div>
       <FormError message={error} />
     </MDialog>
   );

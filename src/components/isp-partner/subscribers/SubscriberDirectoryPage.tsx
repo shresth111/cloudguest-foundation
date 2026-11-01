@@ -4,6 +4,8 @@
  * customer and zone; typeahead on name, mobile, login id or circuit id.
  * A row opens the Subscriber 360 page.
  */
+import { DirectoryBulkBar } from "@/components/isp-partner/subscribers/DirectoryBulkBar";
+import { useDir2Available } from "@/hooks/isp-partner/useDir2";
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus, Search, Users } from "lucide-react";
@@ -96,6 +98,9 @@ export function SubscriberDirectoryPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [adding, setAdding] = useState(false);
+  // DIR-2: bulk actions + export (shown only when the BE flag is on).
+  const dir2 = useDir2Available();
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const debounced = useDebouncedValue(search.trim(), 300);
   const q = useSubscriberDirectory({
     state: state || undefined,
@@ -107,6 +112,15 @@ export function SubscriberDirectoryPage() {
     page_size: 25,
   });
   const data = q.data;
+  const pageIds = data?.items.map((s) => s.id) ?? [];
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const toggle = (id: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < dir2.max) next.add(id);
+      return next;
+    });
   const counts = data?.state_counts;
   const total = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : undefined;
 
@@ -227,10 +241,42 @@ export function SubscriberDirectoryPage() {
         />
       ) : (
         <>
+          {dir2.available && (
+            <DirectoryBulkBar
+              selectedIds={[...selected]}
+              filter={{
+                state: state || undefined,
+                isp_customer_id: customerId || undefined,
+                package_id: packageId || undefined,
+                zone_id: zoneId || undefined,
+                search: debounced || undefined,
+              }}
+              onClear={() => setSelected(new Set())}
+            />
+          )}
           <MTable
             loading={q.isLoading}
             head={
               <>
+                {dir2.available && (
+                  <MTh>
+                    <input
+                      type="checkbox"
+                      aria-label="Select this page"
+                      checked={allOnPage}
+                      onChange={() =>
+                        setSelected((cur) => {
+                          const next = new Set(cur);
+                          for (const id of pageIds) {
+                            if (allOnPage) next.delete(id);
+                            else if (next.size < dir2.max) next.add(id);
+                          }
+                          return next;
+                        })
+                      }
+                    />
+                  </MTh>
+                )}
                 <MTh className="text-right">Circuit</MTh>
                 <MTh>Subscriber</MTh>
                 <MTh>Mobile</MTh>
@@ -243,6 +289,16 @@ export function SubscriberDirectoryPage() {
           >
             {data?.items.map((s) => (
               <MTr key={s.id}>
+                {dir2.available && (
+                  <MTd>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${s.identifier}`}
+                      checked={selected.has(s.id)}
+                      onChange={() => toggle(s.id)}
+                    />
+                  </MTd>
+                )}
                 <MTd className="text-right text-xs tabular-nums">{s.circuit_id ?? "–"}</MTd>
                 <MTd>
                   <Link

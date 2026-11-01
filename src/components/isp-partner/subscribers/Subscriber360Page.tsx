@@ -35,6 +35,7 @@ import {
 import { subscribers360Service } from "@/services/isp-partner/subscribers360";
 import type { Subscriber360 } from "@/services/isp-partner/subscribers360-types";
 import { SubscriberNetworkPanel } from "@/components/isp-partner/network/SubscriberNetworkPanel";
+import { InvoiceRowActions } from "@/components/isp-partner/subscribers/InvoiceRowActions";
 import { SubscriberKycPanel } from "@/components/isp-partner/compliance/SubscriberKycPanel";
 import { SubscriberPppoePanel } from "@/components/isp-partner/pppoe/SubscriberPppoePanel";
 import { SubscriberFiberCard } from "@/components/isp-partner/fiber/SubscriberFiberCard";
@@ -123,7 +124,7 @@ function LiveBar({ s, canAct }: { s: Subscriber360; canAct: boolean }) {
   );
 }
 
-function Ledger({ id }: { id: string }) {
+function Ledger({ id, phone, name }: { id: string; phone?: string | null; name?: string | null }) {
   const q = useSubscriberLedger(id);
   if (q.isLoading) return <LoadingBlock />;
   if (q.error || !q.data)
@@ -152,6 +153,7 @@ function Ledger({ id }: { id: string }) {
               <MTh className="text-right">Total</MTh>
               <MTh className="text-right">Balance</MTh>
               <MTh>Status</MTh>
+              <MTh className="text-right">Actions</MTh>
             </>
           }
         >
@@ -171,6 +173,9 @@ function Ledger({ id }: { id: string }) {
               <MTd className="text-right text-xs tabular-nums">{formatRupees(i.balance_paise)}</MTd>
               <MTd>
                 <MTag label={INVOICE_STATUS_LABEL[i.status] ?? i.status} />
+              </MTd>
+              <MTd>
+                <InvoiceRowActions invoice={i} phone={phone} name={name} />
               </MTd>
             </MTr>
           ))}
@@ -420,7 +425,11 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
           </dl>
         </Card>
         <Card title="Billing">
-          <Ledger id={s.id} />
+          <Ledger
+            id={s.id}
+            phone={s.phone}
+            name={[s.first_name, s.last_name].filter(Boolean).join(" ") || null}
+          />
         </Card>
       </div>
 
