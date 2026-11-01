@@ -2842,6 +2842,9 @@ jobs:
       - name: ISP partner referrals (REFERRAL-1)
         if: hashFiles('scripts/test-isp-partner-referrals.mjs') != ''
         run: bun run test:isp-partner-referrals
+      - name: ISP partner audit log (AUDIT-LOG)
+        if: hashFiles('scripts/test-isp-partner-audit-log.mjs') != ''
+        run: bun run test:isp-partner-audit-log
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list

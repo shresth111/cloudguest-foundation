@@ -116,6 +116,8 @@ const PARTNER_NAV: NavItem[] = [
   // APPS-FE: JAZE-5 Apps (hidden while ISP_APPS_ENABLED is off, see below).
   { to: "/partner/apps", label: "Apps", icon: AppsIcon, anyOf: ["isp_apps.read"] },
   { to: "/partner/users", label: "Staff users", icon: Users, anyOf: ["isp_partner.assign"] },
+  // AUDIT-LOG: ISP-wide staff activity, owner/admin only (flag-gated page).
+  { to: "/partner/audit-log", label: "Audit log", icon: ScrollText, anyOf: ["isp_audit.read"] },
   { to: "/partner/settings", label: "Settings", icon: Settings },
 ];
 
