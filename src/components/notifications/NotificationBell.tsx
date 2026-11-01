@@ -38,9 +38,26 @@ export interface NotificationBellProps {
    * nowhere real to send the click (e.g. no locationId yet, or no
    * dedicated platform-wide alerts page exists). */
   viewAllPath?: string;
+  /** Customer shell only: the venue's shared issue list (the same one the
+   * health pill and the Dashboard's Needs-attention card show). When given,
+   * the badge counts THESE -- open alerts are already on it as a row -- and
+   * the menu lists them first, so the bell can never say "No new
+   * notifications" while the pill says something is wrong. */
+  attention?: {
+    heading: string;
+    /** Whether open alerts are already rows of `items`. */
+    includesAlerts: boolean;
+    items: {
+      key: string;
+      title: string;
+      severity: AlertSeverity;
+      href: string | null;
+      action?: string;
+    }[];
+  };
 }
 
-export function NotificationBell({ scope, viewAllPath }: NotificationBellProps) {
+export function NotificationBell({ scope, viewAllPath, attention }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { data: alerts = [], isLoading } = useAlertsFeed(scope);
@@ -50,7 +67,12 @@ export function NotificationBell({ scope, viewAllPath }: NotificationBellProps) 
     () => alerts.filter((a: AlertNotification) => a.status === "triggered"),
     [alerts],
   );
-  const unreadCount = unread.length;
+  const attentionItems = attention?.items ?? [];
+  // The shared list already carries open alerts as rows when it was built
+  // from them; otherwise (a router-only list) unread alerts add on top.
+  const unreadCount = attention
+    ? attentionItems.length + (attention.includesAlerts ? 0 : unread.length)
+    : unread.length;
 
   const markAllRead = () => {
     for (const a of unread) acknowledge.mutate(a.id);
@@ -71,7 +93,7 @@ export function NotificationBell({ scope, viewAllPath }: NotificationBellProps) 
       <DropdownMenuContent align="end" className="w-[380px]">
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>Notifications</span>
-          {unreadCount > 0 && (
+          {unread.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -84,13 +106,44 @@ export function NotificationBell({ scope, viewAllPath }: NotificationBellProps) 
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {attentionItems.length > 0 && (
+          <>
+            <DropdownMenuGroup data-testid="bell-attention">
+              <p className="px-4 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {attention?.heading}
+              </p>
+              {attentionItems.map((item) => (
+                <DropdownMenuItem
+                  key={item.key}
+                  className="flex items-start gap-3 px-4 py-2.5"
+                  onSelect={() => {
+                    if (!item.href) return;
+                    setOpen(false);
+                    navigate({ to: item.href });
+                  }}
+                >
+                  <span className="mt-0.5 shrink-0">{severityIcon(item.severity)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{item.title}</span>
+                    {item.href && item.action && (
+                      <span className="block text-xs text-primary">{item.action} →</span>
+                    )}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuGroup className="max-h-[360px] overflow-y-auto">
           {isLoading ? (
             <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
           ) : alerts.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No new notifications
-            </div>
+            attentionItems.length > 0 ? null : (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No new notifications
+              </div>
+            )
           ) : (
             alerts.slice(0, 8).map((a: AlertNotification) => (
               <DropdownMenuItem

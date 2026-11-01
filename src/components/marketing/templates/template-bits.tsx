@@ -23,11 +23,11 @@ export function SendableChips({ template }: { template: MarketingTemplate }) {
             <Icon className="mt-px h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
             <span className="font-medium">{label(c)}</span>
             {s?.ok ? (
-              <span className="inline-flex items-center gap-0.5 text-emerald-700 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-0.5 text-[var(--wy-ok)]">
                 <CheckCircle2 className="h-3 w-3" aria-hidden /> Ready to send
               </span>
             ) : (
-              <span className="inline-flex items-start gap-0.5 text-amber-700 dark:text-amber-400">
+              <span className="inline-flex items-start gap-0.5 text-[var(--wy-warn)]">
                 <AlertTriangle className="mt-px h-3 w-3 shrink-0" aria-hidden />
                 {(s?.reason && SENDABLE_REASON_LABEL[s.reason]) || "Not sendable yet"}
               </span>

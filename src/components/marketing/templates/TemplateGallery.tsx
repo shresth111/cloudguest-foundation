@@ -129,7 +129,7 @@ export function TemplateGallery({ status }: { status: MarketingStatus }) {
   };
 
   const card = (t: MarketingTemplate) => (
-    <Card key={t.id} className="premium-card flex flex-col">
+    <Card key={t.id} className="rounded-[var(--wy-radius)] shadow-[var(--wy-shadow)] flex flex-col">
       <CardContent className="flex flex-1 flex-col gap-3 p-4">
         <div className="min-w-0">
           <div className="flex items-start justify-between gap-2">
@@ -193,7 +193,7 @@ export function TemplateGallery({ status }: { status: MarketingStatus }) {
             <SelectTrigger className="w-40" aria-label="Channel">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="wy-console">
               <SelectItem value="all">All channels</SelectItem>
               {MARKETING_CHANNELS.map((c) => (
                 <SelectItem key={c} value={c}>
@@ -206,7 +206,7 @@ export function TemplateGallery({ status }: { status: MarketingStatus }) {
             <SelectTrigger className="w-40" aria-label="Category">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="wy-console">
               <SelectItem value="all">All categories</SelectItem>
               {TEMPLATE_CATEGORIES.map((c) => (
                 <SelectItem key={c} value={c}>
@@ -302,7 +302,7 @@ export function TemplateGallery({ status }: { status: MarketingStatus }) {
       />
 
       <Dialog open={!!dupOf} onOpenChange={(o) => !o && !duplicate.isPending && setDupOf(null)}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+        <DialogContent className="wy-console w-[calc(100vw-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>Duplicate template</DialogTitle>
             <DialogDescription>

@@ -1,0 +1,30 @@
+{
+  "description": "Who logged into the dashboard and when, router activity, and account changes across every location.",
+  "ownerOnly": "Owner access only",
+  "ownerOnlyBody": "Staff Activity shows who signed in and what they changed across the whole organization. Only the organization owner can see this page.",
+  "tabs": {
+    "logins": "Dashboard sign-ins",
+    "router": "Router events",
+    "activity": "Account changes"
+  },
+  "ariaLog": "Staff activity log",
+  "emptyLogins": "No dashboard sign-ins yet — sign-ins for this organization will appear here.",
+  "emptyRouter": "No router events yet — router activity across your locations will appear here.",
+  "emptyActivity": "No account changes yet — role assignments and account or settings changes across your organization will appear here.",
+  "routerTitle": "Router events by location",
+  "col": {
+    "email": "Email",
+    "ip": "IP address",
+    "result": "Result",
+    "location": "Location",
+    "router": "Router",
+    "event": "Event",
+    "message": "Message",
+    "change": "Change",
+    "actor": "Done by",
+    "when": "When"
+  },
+  "success": "Success",
+  "failed": "Failed",
+  "system": "System"
+}

@@ -507,9 +507,18 @@ console.log("\nthe fixture file stays in its lane");
   check("fixture source: no 10.20.x address", !/\b10\.20\./.test(src));
   check("fixture source: no WireGuard / tunnel detail", !/wireguard|\bwg\d+\b/i.test(src));
   check("fixture source: no phone number", !/\+91|\b[6-9]\d{9}\b/.test(src));
+  // Types only -- except the demo world, the one source every demo fixture
+  // reads its venues/routers from, which is itself pure (types only).
   check(
-    "fixture source imports types only",
-    [...src.matchAll(/^import\s+(type\s+)?/gm)].every((x) => !!x[1]),
+    "fixture source imports types only (plus the pure demo world)",
+    [...src.matchAll(/^import\s+(type\s+)?[^;]*?from\s+"([^"]+)"/gm)].every(
+      (x) => !!x[1] || x[2] === "@/lib/demo-world",
+    ),
+  );
+  const world = readFileSync(join(ROOT, "src/lib/demo-world.ts"), "utf8");
+  check(
+    "the demo world imports types only",
+    [...world.matchAll(/^import\s+(type\s+)?/gm)].every((x) => !!x[1]),
   );
   const importers = [];
   const walk = (dir) => {

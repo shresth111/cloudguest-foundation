@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ChevronDown, Filter, Loader2, Router as RouterIcon, ShieldCheck } from "lucide-react";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { PANEL_SURFACE } from "@/components/customer/console";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -174,7 +175,7 @@ export function WebFilteringView({ locationId }: { locationId?: string }) {
       <div className="space-y-5">
         {intro}
         <div role="alert" className="space-y-2 text-sm">
-          <p className="text-destructive">
+          <p className="text-[var(--wy-crit)]">
             {requestErrorOf(categories.error)?.message ??
               t("webFilteringPage.categoriesError", "Couldn't load the list of categories.")}
           </p>
@@ -260,9 +261,9 @@ function ErrorBox({
   return (
     <div
       role="alert"
-      className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm"
+      className="space-y-2 rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-crit)_30%,transparent)] bg-[var(--wy-crit-soft)] p-3 text-sm"
     >
-      <p className="font-medium text-destructive">{explain(explained)}</p>
+      <p className="font-medium text-[var(--wy-crit)]">{explain(explained)}</p>
       {explained.detail && (
         <p className="text-xs text-muted-foreground">
           {t("webFilteringPage.routerSaid", "Details:")} {explained.detail}
@@ -365,15 +366,12 @@ function HarmfulSitesSwitch({
   }
 
   return (
-    <Card className="border-emerald-500/30 bg-emerald-500/5">
+    <Card className="border-[color-mix(in_srgb,var(--wy-ok)_30%,transparent)] bg-[var(--wy-ok-soft)]">
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <p className="flex items-center gap-2 text-sm font-semibold">
-              <ShieldCheck
-                className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
-                aria-hidden="true"
-              />
+              <ShieldCheck className="h-4 w-4 text-[var(--wy-ok)]" aria-hidden="true" />
               {t("harmfulSites.title", "Block known harmful websites (recommended)")}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -428,7 +426,7 @@ function HarmfulRouterStep({ router, items }: { router: RouterDevice; items: Web
   return (
     <div
       role="status"
-      className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200"
+      className="space-y-2 rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-warn)_30%,transparent)] bg-[var(--wy-warn-soft)] p-3 text-xs text-[var(--wy-warn)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p>
@@ -451,7 +449,7 @@ function HarmfulRouterStep({ router, items }: { router: RouterDevice; items: Web
           {t("webFilteringPage.turnOn", "Turn on")}
         </Button>
       </div>
-      {error && <p className="text-destructive">{explain(error)}</p>}
+      {error && <p className="text-[var(--wy-crit)]">{explain(error)}</p>}
       <AlertDialog open={confirm} onOpenChange={setConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -564,7 +562,7 @@ function CategoriesCard({
   }
 
   return (
-    <Card className="border-border/60">
+    <Card className={PANEL_SURFACE}>
       <CardHeader className="space-y-1">
         <CardTitle className="text-base font-semibold">
           {t("webFilteringPage.listTitle", "What to block at this venue")}
@@ -574,7 +572,7 @@ function CategoriesCard({
         {policy.isLoading ? (
           <Loading label={t("webFilteringPage.loadingPolicy", "Loading this venue's list…")} />
         ) : policy.isError || !policy.data ? (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-sm text-[var(--wy-crit)]">
             {requestErrorOf(policy.error)?.message ??
               t("webFilteringPage.policyError", "Couldn't load this venue's list.")}
           </p>
@@ -625,7 +623,7 @@ function CategoryPicker({
 
   return (
     <div ref={top} className="space-y-4">
-      <div className="space-y-1 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+      <div className="space-y-1 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-3 text-sm">
         <p>{t(`webFilteringPage.source.${policy.source}`, policySourceSentence(policy.source))}</p>
         <p className="text-muted-foreground">
           {orgNames === null
@@ -657,7 +655,7 @@ function CategoryPicker({
           )}
       </div>
 
-      <ul className="divide-y divide-border rounded-lg border border-border">
+      <ul className="divide-y divide-border rounded-[var(--wy-radius)] border border-border">
         {groups.map((g) => (
           <CategoryGroupRow key={g.id} group={g} selected={selected} onChange={setSelected} />
         ))}
@@ -728,7 +726,7 @@ function CategoryGroupRow({
           <div className="min-w-0 flex-1">
             <label htmlFor={id} className="flex flex-wrap items-center gap-2 text-sm font-medium">
               {group.isSecurity && (
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                <ShieldCheck className="h-3.5 w-3.5 text-[var(--wy-ok)]" aria-hidden="true" />
               )}
               {group.name}
               {group.beta && (
@@ -826,7 +824,7 @@ function VenueRouters({
   }
   if (routersQuery.isError) {
     return (
-      <p role="alert" className="text-sm text-destructive">
+      <p role="alert" className="text-sm text-[var(--wy-crit)]">
         {requestErrorOf(routersQuery.error)?.message ??
           t("webFilteringPage.routersError", "Couldn't load this venue's routers.")}
       </p>
@@ -863,10 +861,13 @@ function VenueRouters({
 }
 
 const STATE_STYLE: Record<keyof typeof ROUTER_STATE_LABEL, string> = {
-  active: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 dark:text-emerald-400",
-  disabled: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
-  pending: "bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400",
-  failed: "bg-rose-500/10 text-rose-700 border-rose-500/20 dark:text-rose-400",
+  active:
+    "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)] border-[color-mix(in_srgb,var(--wy-ok)_30%,transparent)]",
+  disabled: "bg-[var(--wy-offline-soft)] text-[var(--wy-offline)] border-[var(--wy-border)]",
+  pending:
+    "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)] border-[color-mix(in_srgb,var(--wy-warn)_30%,transparent)]",
+  failed:
+    "bg-[var(--wy-crit-soft)] text-[var(--wy-crit)] border-[color-mix(in_srgb,var(--wy-crit)_30%,transparent)]",
 };
 
 function formatWhen(iso: string | null): string | null {
@@ -907,7 +908,7 @@ function RouterFilterCard({
   const lastWhen = formatWhen(s?.devicePushedAt ?? null);
 
   return (
-    <Card className="border-border/60">
+    <Card className={PANEL_SURFACE}>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
@@ -978,7 +979,7 @@ function RouterFilterCard({
         {status.isLoading ? (
           <Loading label={t("webFilteringPage.loadingStatus", "Checking this router…")} />
         ) : status.isError || !s ? (
-          <p role="alert" className="text-destructive">
+          <p role="alert" className="text-[var(--wy-crit)]">
             {requestErrorOf(status.error)?.message ??
               t(
                 "webFilteringPage.statusError",
@@ -1009,7 +1010,7 @@ function RouterFilterCard({
             {stuck && (
               <p
                 role="status"
-                className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-300"
+                className="rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-warn)_30%,transparent)] bg-[var(--wy-warn-soft)] p-3 text-[var(--wy-warn)]"
               >
                 {t(
                   "webFilteringPage.stuckWhy",
@@ -1030,7 +1031,7 @@ function RouterFilterCard({
 
             {error && <ErrorBox explained={error} onUseClosest={onUseClosest} />}
 
-            <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
+            <div className="flex items-start justify-between gap-4 rounded-[var(--wy-radius)] border border-border p-3">
               <div className="space-y-1">
                 <p className="font-medium">
                   {t("webFilteringPage.bypassTitle", "Stop guests getting around the filter")}
@@ -1047,7 +1048,7 @@ function RouterFilterCard({
                   </p>
                 )}
                 {s.bypassHardeningStatus === "failed" && (
-                  <p className="text-xs text-destructive">
+                  <p className="text-xs text-[var(--wy-crit)]">
                     {t("webFilteringPage.bypassFailed", "The last change to this didn't work.")}
                     {s.bypassHardeningError ? ` ${s.bypassHardeningError}` : ""}
                   </p>

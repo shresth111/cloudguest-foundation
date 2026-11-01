@@ -86,6 +86,7 @@
   "customerGroup": {
     "overview": "Home",
     "guests": "Guests",
+    "marketing": "Marketing",
     "login-page": "Login Page",
     "network": "Network",
     "security": "Security",
@@ -116,7 +117,7 @@
     "isp-details": "Internet Connection",
     "traffic-lens": "Traffic Lens",
     "security": "Security Score",
-    "blocking": "Block Websites",
+    "blocking": "Blocking",
     "firewall": "Firewall",
     "debugging": "Fix a Problem",
     "tickets": "Support Tickets",
@@ -126,7 +127,17 @@
     "how-it-works": "How It Works"
   },
   "customerItemBadge": {
-    "addon": "Add-on"
+    "addon": "Add-on",
+    "addonTitle": "{{label}} is an add-on that isn't enabled for your organisation"
+  },
+  "customerTabMenu": {
+    "advanced": "Advanced"
+  },
+  "customerTabGroup": {
+    "who-can-connect": "Who can connect"
+  },
+  "sectionTabs": {
+    "label": "{{section}} pages"
   },
   "commandPalette": {
     "placeholder": "Search for anything — guests, offers, vouchers, staff…",
@@ -276,7 +287,7 @@
     "deviceOffline": "Not connected now",
     "keepStopsMatching": "If this device's address changes, this rule will stop matching it.",
     "guestWhoNote": "This is a guest's device. Guests' addresses change and are handed to the next guest, so this rule may soon match someone else. To keep one guest device off your WiFi, use",
-    "guestWhoLink": "Block Websites → Guests & devices",
+    "guestWhoLink": "Blocking → Guests & devices",
     "guestWhoTail": "— it blocks the device itself, not its address.",
     "keepChecking": "Checking whether this device keeps its address…",
     "keepAddress": "Keep this device on the same address",
@@ -491,10 +502,22 @@
     },
     "copy": {
       "domain_blocking_sni": "Block a website by name on secure (https) connections too, without opening or reading anyone's traffic. It is switched on with every website you block, but we have not yet proven it on a real router, so it is listed here until we have. It cannot see a site whose browser hides the name, or newer kinds of connection (QUIC), or a VPN.",
-      "application_control": "Switch off apps such as YouTube, Instagram or BGMI on your guest WiFi. It blocks the website names each app uses, not the app itself, so some apps may still get through -- one that is already open, one with a built-in address, or a phone with its own DNS or a VPN.",
+      "application_control": "Switch off apps such as YouTube, Instagram or BGMI on your guest WiFi. It blocks the website names each app uses, not the app itself, so some apps may still get through — one that is already open, one with a built-in address, or a phone with its own DNS or a VPN.",
       "threat_intelligence": "Stop guests opening websites known to spread viruses or steal passwords. Cloudflare keeps the list up to date. It works on routers where web filtering is on, and a phone with its own DNS or a VPN is not covered.",
       "guest_client_isolation": "Stop guests reaching each other's phones and laptops. Your router keeps apart guests on different access points; guests on the same access point are only kept apart if you also turn on “AP isolation” in that access point's settings."
-    }
+    },
+    "counterHint": {
+      "blocked_domains": "Websites guests can't open",
+      "blocked_addresses": "Internet addresses guests can't reach",
+      "blocks_not_applied": "Saved, but not yet sent to your router",
+      "blocked_devices": "Guests and devices kept off your WiFi",
+      "firewall_rules": "Rules deciding what can reach what",
+      "rogue_dhcp_unguarded": "Network ports with no protection against a second router",
+      "open_alerts": "Problems still waiting to be fixed"
+    },
+    "pageDescription": "How well this venue's protections are set up, and what you can switch on.",
+    "factorOk": "OK",
+    "factorPenalty": "−{{points}} points"
   },
   "blockGuests": {
     "deviceTab": "Device",
@@ -502,5 +525,117 @@
     "deviceHint": "Paste one or more device (Wi-Fi/MAC) addresses separated by commas. Your router cuts the device off now and every time it reconnects.",
     "deviceMacNote": "Anonymous guests can switch on a private Wi-Fi address on their phone and come back as a new device, so use this for devices you know.",
     "deviceConfirmBody": "Your router will drop these devices now and every time they reconnect, until you unblock them."
+  },
+  "consoleShell": {
+    "brandSubtitle": "Customer Portal",
+    "breadcrumb": "Breadcrumb",
+    "guestPrivacy": "Guest Privacy",
+    "privacyOn": "Hidden",
+    "privacyOff": "Visible",
+    "refresh": "Refresh",
+    "health": {
+      "title": "Venue health",
+      "allNormal": "All systems normal",
+      "issues_one": "{{count}} issue",
+      "issues_other": "{{count}} issues",
+      "checkedAgo": "Live · checked {{ago}}",
+      "snapshot": "Last known status, from when this venue was opened. The Dashboard checks it live.",
+      "routersCheckingIn": "Routers checking in",
+      "checking": "Checking…",
+      "notAllChecked": "Couldn't check everything",
+      "needAttention_one": "{{count}} needs attention",
+      "needAttention_other": "{{count}} need attention",
+      "routersHeading": "Routers · {{online}} of {{total}} checking in",
+      "routersOnlyNote": "Only your routers were checked. Open the Dashboard to also check alerts, devices and internet lines.",
+      "bellHeading": "Needs attention at this venue",
+      "short": {
+        "routerOffline": "Router offline",
+        "routersOffline": "Routers offline",
+        "someRoutersOffline_one": "{{count}} router offline",
+        "someRoutersOffline_other": "{{count}} routers offline",
+        "noRouter": "No router yet",
+        "criticalAlerts_one": "{{count}} critical alert",
+        "criticalAlerts_other": "{{count}} critical alerts",
+        "warningAlerts_one": "{{count}} warning",
+        "warningAlerts_other": "{{count}} warnings",
+        "devicesDown_one": "{{count}} device down",
+        "devicesDown_other": "{{count}} devices down",
+        "devicesUnstable_one": "{{count}} device unstable",
+        "devicesUnstable_other": "{{count}} devices unstable",
+        "ispDown": "Internet line down",
+        "ispDegraded": "Internet line degraded",
+        "failedLogins_one": "{{count}} failed sign-in",
+        "failedLogins_other": "{{count}} failed sign-ins",
+        "planExpired": "Plan expired",
+        "planPastDue": "Payment overdue",
+        "planExpiring": "Plan ending soon"
+      },
+      "router": {
+        "online": "Online",
+        "goneQuiet": "Gone quiet",
+        "cantConfirm": "Can't confirm",
+        "neverCheckedIn": "Never checked in",
+        "waitingForSetup": "Waiting for setup",
+        "setupNotStarted": "Setup not started",
+        "suspended": "Suspended",
+        "retired": "Retired",
+        "controllerDown": "Controller down",
+        "managedByController": "Managed by controller"
+      },
+      "contact": {
+        "notMeasured": "Not measured here",
+        "never": "Never heard from this router",
+        "unknown": "Last contact time unknown",
+        "heartbeat": "Last check-in {{ago}}",
+        "enrolment": "Setup started {{ago}} — no check-in since",
+        "other": "Last contact {{ago}}"
+      }
+    },
+    "switcher": {
+      "label": "Switch venue",
+      "select": "Select venue",
+      "heading": "Your venues",
+      "all": "All venues",
+      "loading": "Loading…",
+      "error": "Couldn't load your venues."
+    },
+    "account": {
+      "switchLocation": "Switch location",
+      "staffAccess": "Staff access",
+      "changePassword": "Change password",
+      "tfa": "2FA settings",
+      "darkMode": "Dark mode",
+      "lightMode": "Light mode",
+      "signOut": "Sign out",
+      "menu": "Account menu",
+      "admin": "Admin"
+    },
+    "palette": {
+      "hint": "Type to find a page, a venue or an action.",
+      "venues": "Venues",
+      "current": "Current",
+      "actions": "Actions",
+      "toggleSidebar": "Collapse or expand the menu",
+      "navigate": "to move",
+      "open": "to open",
+      "close": "to close"
+    },
+    "language": {
+      "label": "Language",
+      "notSaved": "Language changed on this device. We couldn't save it to your account just now — we'll use it here anyway."
+    },
+    "hiddenList": "Hidden by your permissions: {{list}}",
+    "hiddenCount_one": "{{count}} screen hidden by your permissions",
+    "hiddenCount_other": "{{count}} screens hidden by your permissions",
+    "privacyHiddenHint": "Guest details are hidden. Click to verify it's you and show them.",
+    "privacyShownHint": "Guest details are visible. Click to hide them again."
+  },
+  "netlogs": {
+    "filters": "Filters",
+    "filtersCount": "Filters ({{count}})"
+  },
+  "networkActivity": {
+    "noteSummary": "Connection and sign-in records only, not the websites guests visited.",
+    "noteMore": "More"
   }
 }

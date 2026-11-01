@@ -596,8 +596,9 @@ function RouterFleetScreen() {
     // exactly the absorption this state was added to stop.
     "controller-reported-down": { label: "Controller down", tone: "offline" },
   };
-  const statusBadge = (r: RouterDevice) => {
-    const live = deriveRouterLiveness(
+  // One projection for the badge and the operator's next step.
+  const livenessOf = (r: RouterDevice) =>
+    deriveRouterLiveness(
       {
         id: r.id,
         name: r.name,
@@ -613,6 +614,8 @@ function RouterFleetScreen() {
       },
       now,
     );
+  const statusBadge = (r: RouterDevice) => {
+    const live = livenessOf(r);
     // A NAS-only row is "not measured here" too, but it is not reached
     // through a controller: it says "Set up in Instant On" instead.
     if (live.state === "not-applicable") return notMeasuredBadge(r.vendor);
@@ -622,6 +625,14 @@ function RouterFleetScreen() {
     // bug, not a safety net. With the map keyed by the union there is no key
     // to miss, and the compiler is what catches the next one.
     return LIVENESS_BADGE[live.state];
+  };
+  // Operators get the technician's instruction (paste the Heartbeat block,
+  // run the setup script...) that customer screens deliberately do not
+  // show -- see `RouterLiveness.technicianNextStep`.
+  const operatorNextStep = (r: RouterDevice): string | null => {
+    const live = livenessOf(r);
+    if (live.status === "pass") return null;
+    return live.technicianNextStep ?? live.nextStep;
   };
 
   return (
@@ -973,6 +984,13 @@ function RouterFleetScreen() {
                       </p>
                     </div>
                   </div>
+
+                  {operatorNextStep(sel) && (
+                    <p className="rounded-lg border border-border p-2.5 text-xs">
+                      <span className="font-medium">Next step: </span>
+                      {operatorNextStep(sel)}
+                    </p>
+                  )}
 
                   {/* The controller row itself can say almost nothing true
                       (contract §11.5). What it CAN say is whether the venue's

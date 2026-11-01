@@ -1,6 +1,6 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Shield, Eye, Loader2, Lock } from "lucide-react";
+import { Shield, Eye, Loader2, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -19,12 +18,14 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   customerFeatureHref,
+  customerNavGroupOf,
+  customerSidebarEntries,
   customerSidebarGroupsForRole,
   getCustomerLoginRole,
-  type CustomerNavGroup,
+  type CustomerNavItem,
+  type CustomerSidebarEntry,
 } from "@/lib/customerNav";
 import {
   filterNavGroupsByPermissions,
@@ -43,28 +44,27 @@ import { TRAFFIC_LENS_FEATURE_KEY } from "@/types/traffic-lens";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
- * The one shared sidebar every customer page renders: every feature in
- * its group (Home / Guests / Login Page / Network / Security / Help / Logs),
- * straight off `CUSTOMER_NAV_GROUPS` via `customerSidebarGroupsForRole`,
- * role-filtered and then permission-filtered. Staff Access is the one
- * feature not here -- it is in the avatar menu (CustomerHeader.tsx).
+ * The one shared sidebar every customer page renders: ten rows, straight off
+ * `CUSTOMER_NAV_GROUPS` via `customerSidebarGroupsForRole`, role-filtered and
+ * then permission-filtered, turned into rows by `customerSidebarEntries`.
+ * Staff Access is the one feature not here -- it is in the avatar menu
+ * (CustomerHeader.tsx).
  *
- * ON THE GROUPING
- * ---------------
- * A previous change folded these rows into nine "destinations" with the
- * rest reachable as tabs inside them. That grouping was reverted: the
- * one-row-per-screen menu is what this product's customers navigate by, and
- * the destination layer is gone rather than left half-wired. `customerNav.ts`
- * is the single source of truth for what is offered and
- * `customerFeatureHref()` for where each one lives, exactly as before.
+ * ON THE GROUPING (docs/design/nav-consolidation.md)
+ * --------------------------------------------------
+ * Home's three screens (Dashboard, Alerts, Fix a Problem) are rows of their
+ * own. Every other group is ONE row -- Guests, Marketing, Login Page,
+ * Network, Security, then Logs and Help below a divider -- that opens the
+ * first screen in it the caller can see; the rest are tabs on that page
+ * (`SectionTabs`). The owner asked for it on 2026-10-31: "too many options".
  *
- * The rows are grouped by task rather than by subsystem. The old eight
- * groups answered "why is the WiFi down" across four of them and ran 30 rows
- * plus eight labels past the bottom of a laptop viewport. Now Home holds the
- * three rows for "something is wrong" (Dashboard, Alerts, Fix a Problem),
- * Network holds the hardware and the uplink together, and the three audit
- * records sit in Logs, which is collapsed until opened (or until the current
- * page is one of them) -- 29 rows, 26 visible on first load, seven labels.
+ * A previous change (#219) folded the menu into nine "destinations" and was
+ * reverted (#220): the one-row-per-screen menu was what customers navigated
+ * by. This version keeps what that one lost. There is no second nav module
+ * -- the groups are the sections -- every screen keeps its URL and is still
+ * its own command-palette entry by its own name (plus synonyms), a tab is
+ * shown exactly when its row would have been, and the collapsed rail's
+ * flyout lists every screen behind each icon.
  *
  * WHAT IS NOT REVERTED, AND WHY
  * -----------------------------
@@ -83,8 +83,8 @@ import type { useDataMasking } from "@/hooks/useCustomerDashboard";
  *     semantics. The primitive uses Radix `Sheet` and gets all four.
  *   - focus-visible rings on the nav rows.
  *
- * Those were bug fixes that happened to travel with the grouping change;
- * undoing them would be a regression on top of a revert. Same for the rows
+ * Those were bug fixes that happened to travel with the first grouping
+ * change, and #220 kept them. Same for the rows
  * being `<Link>` rather than `<button onClick>`: the old rows had no href,
  * so there was no cmd-click, no open-in-new-tab, no `aria-current`, and a
  * screen reader announced 26 unlabelled buttons with no indication of which
@@ -93,15 +93,12 @@ import type { useDataMasking } from "@/hooks/useCustomerDashboard";
  *
  * COLORS
  * ------
- * The old hand-rolled `<aside>` was plain `bg-background` until it was given
- * a dark indigo gradient (`from-[#1e1b4b] to-[#181530]`) to match the header
- * -- see `CustomerHeader.tsx`'s own doc comment. That gradient never
- * survived the migration to this shared primitive, but the primitive's own
- * `--sidebar*` tokens defaulted dark anyway (a separate, sitewide "modern
- * ink rail" restyle unrelated to this component), so the net effect was the
- * same dark chrome by another route. The inline `style` override on
- * `<Sidebar>` below re-points those tokens at the plain page tokens, which
- * is what restores the light look -- see that override's own comment.
+ * The rail was a dark indigo gradient painted inline. It is now the console
+ * surface: `wy-console` re-points the primitive's `--sidebar*` tokens at the
+ * `--wy-*` console tokens (styles.css; contract in
+ * docs/design/console-tokens.md), so it is light or dark with the theme and
+ * the only colour in it is the active row's accent. Row styling is
+ * `ROW_CLASS` below.
  */
 export interface CustomerSidebarProps {
   /** The feature id of the current page, e.g. "reports", "mac-auth" -- the
@@ -115,93 +112,65 @@ export interface CustomerSidebarProps {
   dataMasking: ReturnType<typeof useDataMasking>;
 }
 
-const GROUP_LABEL_CLASS =
-  "text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/75";
+/** Nav row: quiet by default, surface-2 on hover, accent-soft + accent text
+ * when current. Overrides the primitive's hover (which would otherwise use
+ * the same accent tint as the active row and blur the two together). */
+const ROW_CLASS =
+  "h-10 gap-3 rounded-[var(--wy-radius)] px-3 text-[15px] text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text)] active:bg-[var(--wy-surface-2)] data-[active=true]:bg-[var(--wy-accent-soft)] data-[active=true]:font-semibold data-[active=true]:text-[var(--wy-accent)] focus-visible:ring-[var(--wy-accent)] [&>svg]:text-current";
 
-/** Groups rendered collapsed until opened. Only Logs: Staff Activity, Guest
- * Connection Records and NetLogs are records an owner looks up after the
- * fact, rarely, and three rows of them were most of what pushed the rail past
- * a laptop's fold. Collapsing it costs one click on the rare visit and buys
- * the everyday rows their place on screen. */
-const COLLAPSIBLE_GROUP_IDS: ReadonlySet<string> = new Set(["logs"]);
+/** Sections drawn below a divider at the foot of the menu: the records and
+ * the help, which an owner opens after the fact rather than to run the venue.
+ * (Logs used to be a collapsible group, closed by default, to save its three
+ * rows; as one row it has nothing left to collapse.) */
+const TRAILING_SECTION_IDS: ReadonlySet<string> = new Set(["logs", "help"]);
 
-const groupOpenStorageKey = (groupId: string) => `cg_sidebar_group_open:${groupId}`;
-
-function readStoredGroupOpen(groupId: string): boolean | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const v = window.localStorage.getItem(groupOpenStorageKey(groupId));
-    return v === "1" ? true : v === "0" ? false : null;
-  } catch {
-    return null;
-  }
-}
+/** A paid add-on the org has not bought, by feature id. */
+type LockedFn = (id: string) => boolean;
 
 /**
- * A sidebar group whose label is a disclosure button.
- *
- * Closed by default; open when the current page is one of its rows (a page
- * whose own row is hidden reads as "where am I?"); and once the user toggles
- * it, their choice is kept in localStorage and wins on later page loads --
- * except that landing on one of its rows always shows that row.
- *
- * In the collapsed icon rail the label is invisible (the primitive fades it
- * out), so the group is forced open and the trigger disabled there: the rail
- * shows every icon, as it always has, and nothing invisible takes focus.
- * The trigger is Radix's, so `aria-expanded` / `aria-controls` come with it.
+ * The collapsed rail's flyout for a section row: the section's name, then
+ * its tabs as links, so the rail still shows -- and reaches -- every screen
+ * behind the icon. Rendered inside the primitive's Radix tooltip, which
+ * keeps hoverable content open while the pointer is on it. Keyboard users
+ * get the row's own link (the first tab) and the tab bar on that page.
  */
-function CollapsibleNavGroup({
-  group,
+function SectionFlyout({
   label,
+  tabs,
   activeFeatureId,
-  railCollapsed,
-  children,
+  isLocked,
+  labelOf,
 }: {
-  group: CustomerNavGroup;
   label: string;
+  tabs: CustomerNavItem[];
   activeFeatureId: string;
-  railCollapsed: boolean;
-  children: ReactNode;
+  isLocked: LockedFn;
+  labelOf: (item: CustomerNavItem) => string;
 }) {
-  const containsActive = group.items.some((item) => item.id === activeFeatureId);
-  const [open, setOpen] = useState<boolean>(
-    () => containsActive || (readStoredGroupOpen(group.id) ?? false),
-  );
-  // The sidebar is not always remounted on navigation; arriving on one of
-  // this group's pages must still reveal its row.
-  useEffect(() => {
-    if (containsActive) setOpen(true);
-  }, [containsActive]);
-
-  const onOpenChange = (next: boolean) => {
-    setOpen(next);
-    try {
-      window.localStorage.setItem(groupOpenStorageKey(group.id), next ? "1" : "0");
-    } catch {
-      // Private mode / storage full: the toggle still works for this page.
-    }
-  };
-
   return (
-    <Collapsible
-      open={railCollapsed || open}
-      onOpenChange={onOpenChange}
-      disabled={railCollapsed}
-      asChild
-    >
-      <SidebarGroup>
-        <SidebarGroupLabel asChild className={GROUP_LABEL_CLASS}>
-          <CollapsibleTrigger className="group/collapsible w-full cursor-pointer hover:text-sidebar-foreground">
-            <span className="flex-1 text-left">{label}</span>
-            <ChevronRight
-              aria-hidden
-              className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-            />
-          </CollapsibleTrigger>
-        </SidebarGroupLabel>
-        <CollapsibleContent>{children}</CollapsibleContent>
-      </SidebarGroup>
-    </Collapsible>
+    <div className="min-w-[11rem] py-0.5">
+      <p className="px-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wider opacity-70">
+        {label}
+      </p>
+      <ul className="space-y-px">
+        {tabs.map((item) => {
+          const Icon = item.icon;
+          return (
+            <li key={item.id}>
+              <Link
+                to={customerFeatureHref(item.id)}
+                aria-current={item.id === activeFeatureId ? "page" : undefined}
+                className="flex items-center gap-2 rounded px-1.5 py-1 text-[12px] hover:bg-black/10 aria-[current=page]:font-semibold dark:hover:bg-white/10"
+              >
+                <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                <span className="flex-1 truncate">{labelOf(item)}</span>
+                {isLocked(item.id) && <Lock aria-hidden className="h-3 w-3 shrink-0 opacity-70" />}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -264,42 +233,24 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
   const marketingEntitled = useFeatureEntitled(GUEST_MARKETING_FEATURE_KEY);
   // Traffic Lens: the same badge, the same source, the same rules.
   const trafficLensEntitled = useFeatureEntitled(TRAFFIC_LENS_FEATURE_KEY);
+  const isLocked: LockedFn = (id) =>
+    (id === "marketing" && marketingEntitled === false) ||
+    (id === "traffic-lens" && trafficLensEntitled === false);
 
   return (
     <Sidebar
       collapsible="icon"
-      // Customer chrome matches the auth/login pages' gradient on the app
-      // (LoginPage.tsx / AuthLayout.tsx paint #1e1b4b -> #312e81 ->
-      // #4c1d95). The rail runs the same stops top-to-bottom so the dark
-      // surfaces of the product share one identity with its login screen.
-      // styles.css's sitewide "--sidebar*" tokens default to near-black
-      // graphite instead, so they are overridden here with the matching
-      // indigo values (Master Console opts out of those defaults via its
-      // own `.master-theme` class). The primitive paints its own
-      // `bg-sidebar` on an inner div, so `--sidebar` must be transparent
-      // for the gradient on this wrapper to show through. The gradient
-      // rides on backgroundImage INLINE (not a class) so the sitewide
-      // brand-sheen rule in styles.css cannot layer over it, and so it
-      // reaches the portal-rendered mobile Sheet through the style
-      // forwarding in ui/sidebar.tsx.
-      className="customer-rail"
-      style={
-        {
-          "--sidebar": "transparent",
-          "--sidebar-foreground": "#d6d3f0",
-          "--sidebar-border": "rgb(255 255 255 / 12%)",
-          "--sidebar-accent": "#4c1d95",
-          "--sidebar-accent-foreground": "#ffffff",
-          "--sidebar-primary": "#b4a7ff",
-          "--sidebar-primary-foreground": "#ffffff",
-          "--sidebar-ring": "#8b6bff",
-          backgroundImage:
-            "linear-gradient(to bottom, #1e1b4b 0%, #2a2560 30%, #312e81 60%, #4c1d95 100%)",
-        } as CSSProperties
-      }
+      // Console rail: a quiet surface (`--wy-surface`, light or dark with the
+      // theme) instead of the indigo gradient it used to paint inline. The
+      // `--sidebar*` tokens are re-pointed at the console ones by
+      // `.wy-console` in styles.css. `wy-console` is on the rail itself (not
+      // only the page wrapper) because ui/sidebar.tsx forwards this className
+      // to the portal-rendered mobile Sheet, which mounts outside the page.
+      // `customer-rail` keeps the sitewide brand sheen off this surface.
+      className="wy-console customer-rail"
     >
-      {/* `h-16` so this header's bottom border and the topbar's land on the
-          same y. They read as one rule across the page -- the rule above
+      {/* `h-14` -- the top bar's height -- so this header's bottom border and
+          the topbar's land on the same y. They read as one rule across the page -- the rule above
           "Overview" in the rail is the same rule that runs above "This
           location, right now" in the content well -- so any height
           disagreement shows up as a visible step where they meet at the
@@ -308,11 +259,9 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
           to match. `SidebarHeader` has no height of its own -- it is `p-2`
           plus whatever it wraps -- so when the markup came across to the
           primitive the height did not, and the border settled wherever the
-          brand block happened to end: 69.5px expanded (the two-line name
-          stack is 36.5px, taller than the 32px chip), 65px collapsed once
-          that stack is hidden. Both sat below the topbar's 64px.
-          `justify-center` keeps the block centred in the fixed box. */}
-      <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
+          brand block happened to end. Pinned now; `justify-center` keeps the
+          block centred in the fixed box. */}
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border">
         {/* `px-0` in the collapsed icon rail. This row's own `px-2` sits
             inside `SidebarHeader`'s `p-2`, so the 32px brand chip starts
             16px in -- fine in the 16rem expanded rail, but the icon rail is
@@ -329,22 +278,26 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
             content box and spill back over the border we just pinned. */}
         <div className="flex items-center gap-2.5 px-2 group-data-[collapsible=icon]:px-0">
           <img src="/brand/mark-primary-blue.svg" alt="" className="h-8 w-8 shrink-0" />
-          <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-sm font-bold tracking-tight">Wyfy Guest</span>
+          <div className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
+            <span className="truncate text-[15px] font-semibold tracking-tight text-[var(--wy-text)]">
+              Wyfy Guest
+            </span>
             {/* The venue name lives in the top bar's LocationSwitcher, not
                 here as well. */}
-            <span className="truncate text-[11px] text-sidebar-foreground/50">Customer Portal</span>
+            <span className="truncate text-[12px] text-[var(--wy-text-faint)]">
+              {t("consoleShell.brandSubtitle", "Customer Portal")}
+            </span>
           </div>
         </div>
       </SidebarHeader>
 
-      {/* The primitive sets `overflow-hidden` in icon mode -- fine for the
-          nine-row nav it was last used with, but 26 icon rows are taller
-          than a short viewport and the ones past the bottom would simply be
-          unreachable in the rail. Scroll instead of clip; the expanded
+      {/* The primitive sets `overflow-hidden` in icon mode. Ten rows fit a
+          laptop, but not a short landscape phone or a zoomed window, and
+          rows past the bottom would simply be unreachable in the rail.
+          Scroll instead of clip (kept from the 26-row menu); the expanded
           sidebar already scrolls. Also drop the primitive's hardcoded
           `bg-background` so the wrapper gradient shows through. */}
-      <SidebarContent className="bg-transparent group-data-[collapsible=icon]:overflow-y-auto">
+      <SidebarContent className="gap-0 bg-transparent py-1 group-data-[collapsible=icon]:overflow-y-auto">
         {showSkeleton ? (
           <SidebarGroup>
             <SidebarGroupContent>
@@ -358,154 +311,80 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
             </SidebarGroupContent>
           </SidebarGroup>
         ) : (
-          navGroups.map((group) => {
-            const groupLabel = t(`customerGroup.${group.id}`, group.label);
-            const body = (
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = item.id === activeFeatureId;
-                    const label = t(`customerItem.${item.id}`, item.label);
-                    // Contract §11.5. Muted, titled, and still a link --
-                    // not removed, and not a dead `disabled` button.
-                    //
-                    // Removed loses the question: a row that was never there
-                    // and a row this venue cannot use look identical, and an
-                    // absence cannot be asked why. `disabled` loses the
-                    // ANSWER: a disabled button takes no pointer events, so
-                    // neither its `title` nor a Radix tooltip on it ever
-                    // fires, and the owner gets a grey row with no way to
-                    // find out what it means. Left as a link, it costs one
-                    // click to read the whole explanation, and the
-                    // destination is a panel with no form on it -- so
-                    // nothing here can still be filled in and refused.
-                    const viaController = controllerManaged
-                      ? !featureAppliesToControllerVenue(item.id, controllerVendor)
-                      : false;
-                    return (
-                      <SidebarMenuItem key={item.id}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={active}
-                          className={cn(viaController && "opacity-60")}
-                          // The collapsed rail is icons only, so the tooltip
-                          // is the label. The primitive renders it as a real
-                          // Radix tooltip and hides it when expanded, rather
-                          // than the old `title=` attribute that showed
-                          // nothing on touch.
-                          tooltip={collapsed ? label : undefined}
-                        >
-                          <Link
-                            to={customerFeatureHref(item.id)}
-                            aria-current={active ? "page" : undefined}
-                            className="relative"
-                            title={viaController ? controllerReason : undefined}
-                          >
-                            {/* Active-page accent bar -- a 3px violet rail on
-                             * the row's leading edge so the current section
-                             * reads instantly when the sidebar is expanded.
-                             * Hidden in the collapsed icon rail: the rail is
-                             * one icon wide, so a bar pinned to the row's
-                             * left edge optically shoves the icon off-center
-                             * (the active pill fill is the indicator there). */}
-                            {active && !collapsed && (
-                              <span
-                                aria-hidden
-                                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#8B5CF6]"
-                              />
-                            )}
-                            <Icon className="h-4 w-4 shrink-0" />
-                            <span className="flex-1 truncate">{label}</span>
-                            {((item.id === "marketing" && marketingEntitled === false) ||
-                              (item.id === "traffic-lens" && trafficLensEntitled === false)) && (
-                              <span
-                                className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-sidebar-foreground/80 group-data-[collapsible=icon]:hidden"
-                                title={`${label} is an add-on that isn't enabled for your organisation`}
-                              >
-                                <Lock aria-hidden className="h-2.5 w-2.5" />
-                                {t("customerItemBadge.addon", "Add-on")}
-                              </span>
-                            )}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-                {/* One quiet line, in the group it is about, and only when
-                    something in that group is actually greyed -- the same
-                    treatment (and the same reasoning) as the
-                    "hidden by your permissions" note below. A tooltip on a
-                    muted row is only found by the owner who already hovers
-                    it; this is the sentence for the one who does not. */}
-                {controllerManaged &&
-                  !collapsed &&
-                  group.items.some(
-                    (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
-                  ) && (
-                    <p className="px-2 pt-1 text-[11px] leading-snug text-sidebar-foreground/55">
-                      {controllerReason}
-                    </p>
-                  )}
-              </SidebarGroupContent>
-            );
-            return COLLAPSIBLE_GROUP_IDS.has(group.id) ? (
-              <CollapsibleNavGroup
-                key={group.id}
-                group={group}
-                label={groupLabel}
-                activeFeatureId={activeFeatureId}
-                railCollapsed={collapsed}
-              >
-                {body}
-              </CollapsibleNavGroup>
-            ) : (
-              <SidebarGroup key={group.id}>
-                <SidebarGroupLabel className={GROUP_LABEL_CLASS}>{groupLabel}</SidebarGroupLabel>
-                {body}
-              </SidebarGroup>
-            );
-          })
+          <SidebarEntries
+            entries={customerSidebarEntries(navGroups)}
+            activeFeatureId={activeFeatureId}
+            collapsed={collapsed}
+            controllerManaged={controllerManaged}
+            controllerVendor={controllerVendor}
+            controllerReason={controllerReason}
+            isLocked={isLocked}
+          />
         )}
         {!showSkeleton && hiddenByPermissions.length > 0 && !collapsed && (
           <div className="px-4 pb-3 pt-1">
             <p
-              className="flex items-start gap-1.5 text-[11px] leading-snug text-sidebar-foreground/55"
-              title={`Hidden by your permissions: ${hiddenByPermissions
-                .map((i) => t(`customerItem.${i.id}`, i.label))
-                .join(", ")}`}
+              className="flex items-start gap-1.5 text-[11px] leading-snug text-[var(--wy-text-faint)]"
+              title={t("consoleShell.hiddenList", {
+                list: hiddenByPermissions.map((i) => t(`customerItem.${i.id}`, i.label)).join(", "),
+                defaultValue: "Hidden by your permissions: {{list}}",
+              })}
             >
               <Lock aria-hidden className="mt-[1px] h-3 w-3 shrink-0" />
               <span>
-                {hiddenByPermissions.length} section
-                {hiddenByPermissions.length === 1 ? "" : "s"} hidden by your permissions
+                {t("consoleShell.hiddenCount", {
+                  count: hiddenByPermissions.length,
+                  defaultValue_one: "{{count}} screen hidden by your permissions",
+                  defaultValue_other: "{{count}} screens hidden by your permissions",
+                })}
               </span>
             </p>
           </div>
         )}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border">
+      <SidebarFooter className="border-t border-sidebar-border p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               disabled={dataMasking.sending}
               onClick={dataMasking.requestToggle}
+              className={ROW_CLASS}
               tooltip={
                 dataMasking.masked
-                  ? "Guest details are hidden. Click to verify and show them."
-                  : "Guest details are visible. Click to hide them again."
+                  ? t(
+                      "consoleShell.privacyHiddenHint",
+                      "Guest details are hidden. Click to verify it's you and show them.",
+                    )
+                  : t(
+                      "consoleShell.privacyShownHint",
+                      "Guest details are visible. Click to hide them again.",
+                    )
               }
             >
               {dataMasking.sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-[18px] w-[18px] animate-spin" />
               ) : dataMasking.masked ? (
-                <Shield className="h-4 w-4" />
+                <Shield className="h-[18px] w-[18px]" />
               ) : (
-                <Eye className={cn("h-4 w-4", "text-violet-300")} />
+                <Eye className="h-[18px] w-[18px]" />
               )}
-              <span className="flex-1 truncate">Guest Privacy</span>
+              <span className="flex-1 truncate">
+                {t("consoleShell.guestPrivacy", "Guest Privacy")}
+              </span>
+              {/* The state, in words -- the icon alone was the only cue. */}
+              <span
+                className={cn(
+                  "ml-auto shrink-0 rounded px-1.5 py-px text-[10px] font-semibold group-data-[collapsible=icon]:hidden",
+                  dataMasking.masked
+                    ? "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]"
+                    : "bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]",
+                )}
+              >
+                {dataMasking.masked
+                  ? t("consoleShell.privacyOn", "Hidden")
+                  : t("consoleShell.privacyOff", "Visible")}
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -525,5 +404,163 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
         onCancel={dataMasking.cancel}
       />
     </Sidebar>
+  );
+}
+
+/**
+ * The menu: Home's rows, then the sections, then the trailing sections (Logs,
+ * Help) below a divider. One `<Link>` per row with `aria-current`, exactly as
+ * before; a section row links to its first visible tab and is current when
+ * the page is any of its tabs.
+ */
+function SidebarEntries({
+  entries,
+  activeFeatureId,
+  collapsed,
+  controllerManaged,
+  controllerVendor,
+  controllerReason,
+  isLocked,
+}: {
+  entries: CustomerSidebarEntry[];
+  activeFeatureId: string;
+  collapsed: boolean;
+  controllerManaged: boolean;
+  controllerVendor: string | null;
+  controllerReason: string;
+  isLocked: LockedFn;
+}) {
+  const { t } = useTranslation("nav", { i18n });
+  const labelOf = (item: CustomerNavItem) => t(`customerItem.${item.id}`, item.label);
+  // Contract §11.5, per screen -- the same test the rows always used.
+  const unsupported = (id: string) =>
+    controllerManaged && !featureAppliesToControllerVenue(id, controllerVendor);
+  // A page whose own tab the filters hid (opened by URL) still lights its
+  // section: "where am I?" must always have an answer in the menu.
+  const activeGroupId = customerNavGroupOf(activeFeatureId)?.id;
+
+  const renderEntry = (entry: CustomerSidebarEntry) => {
+    let key: string;
+    let Icon: CustomerNavItem["icon"];
+    let label: string;
+    let href: string;
+    let active: boolean;
+    let muted: boolean;
+    let locked: boolean;
+    let tooltip: string | { children: ReactNode; className: string };
+    if (entry.kind === "item") {
+      const { item } = entry;
+      key = item.id;
+      Icon = item.icon;
+      label = labelOf(item);
+      href = customerFeatureHref(item.id);
+      active = item.id === activeFeatureId;
+      muted = unsupported(item.id);
+      locked = isLocked(item.id);
+      tooltip = label;
+    } else {
+      const { group } = entry;
+      const tabs = group.items;
+      key = `section:${group.id}`;
+      Icon = group.icon ?? tabs[0].icon;
+      label = t(`customerGroup.${group.id}`, group.label);
+      href = customerFeatureHref(tabs[0].id);
+      active = activeGroupId === group.id;
+      // Muted / badged only when EVERY screen behind the row is: a row that
+      // still opens something usable must not look unusable.
+      muted = tabs.every((i) => unsupported(i.id));
+      locked = tabs.every((i) => isLocked(i.id));
+      tooltip = {
+        // Radix portals the tooltip onto <body>, outside the rail, so it
+        // needs the console scope (and the rail's indigo) by class.
+        className:
+          "wy-console customer-rail border border-white/10 bg-[#241f5c] p-2 text-[#d6d3f0]",
+        children: (
+          <SectionFlyout
+            label={label}
+            tabs={tabs}
+            activeFeatureId={activeFeatureId}
+            isLocked={isLocked}
+            labelOf={labelOf}
+          />
+        ),
+      };
+    }
+    return (
+      <SidebarMenuItem key={key}>
+        <SidebarMenuButton
+          asChild
+          isActive={active}
+          className={cn(ROW_CLASS, muted && "opacity-60")}
+          // The collapsed rail is icons only, so the tooltip is the label --
+          // and, for a section, the list of its tabs. The primitive hides it
+          // when expanded and on mobile.
+          tooltip={collapsed ? tooltip : undefined}
+        >
+          <Link
+            to={href}
+            aria-current={active ? "page" : undefined}
+            className="relative"
+            title={muted ? controllerReason : undefined}
+          >
+            {/* Active accent bar on the row's leading edge; hidden in the
+             * icon rail, where it would shove the icon off-centre. */}
+            {active && !collapsed && (
+              <span
+                aria-hidden
+                className="absolute -left-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--wy-accent)]"
+              />
+            )}
+            <Icon className="h-[18px] w-[18px] shrink-0" />
+            <span className="flex-1 truncate">{label}</span>
+            {locked && (
+              <span
+                className="ml-auto inline-flex shrink-0 items-center gap-1 rounded border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-1.5 py-px text-[10px] font-semibold text-[var(--wy-text-faint)] group-data-[collapsible=icon]:hidden"
+                title={t("customerItemBadge.addonTitle", {
+                  label,
+                  defaultValue: "{{label}} is an add-on that isn't enabled for your organisation",
+                })}
+              >
+                <Lock aria-hidden className="h-2.5 w-2.5" />
+                {t("customerItemBadge.addon", "Add-on")}
+              </span>
+            )}
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  };
+
+  const blocks: CustomerSidebarEntry[][] = [
+    entries.filter((e) => e.kind === "item"),
+    entries.filter((e) => e.kind === "section" && !TRAILING_SECTION_IDS.has(e.group.id)),
+    entries.filter((e) => e.kind === "section" && TRAILING_SECTION_IDS.has(e.group.id)),
+  ].filter((b) => b.length > 0);
+  // One quiet line when anything behind the menu is greyed for this venue --
+  // a muted tab is only found by someone already on its section.
+  const anyUnsupported = entries.some((e) =>
+    e.kind === "item" ? unsupported(e.item.id) : e.group.items.some((i) => unsupported(i.id)),
+  );
+
+  return (
+    <>
+      {blocks.map((block, i) => (
+        <SidebarGroup
+          key={i}
+          className={cn(
+            i > 0 && "border-t border-sidebar-border/70 group-data-[collapsible=icon]:border-t",
+          )}
+        >
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-1">{block.map(renderEntry)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
+      {controllerManaged && !collapsed && anyUnsupported && (
+        <p className="px-4 pb-2 pt-1 text-[11px] leading-snug text-[var(--wy-text-faint)]">
+          {controllerReason}
+        </p>
+      )}
+    </>
   );
 }

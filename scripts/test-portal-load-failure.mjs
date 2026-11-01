@@ -118,6 +118,11 @@ writeFileSync(
      },
      async update(id, patch, org) { record("update", { id, patch, org }); return STORED; },
      async create(payload) { record("create", payload); return STORED; },
+     // A read, never a write: the Google-reviews card's "Last 30 days" line.
+     async getReviewStats(locationId, days, org) {
+       record("getReviewStats", { locationId, days, org });
+       return { shown: 0, opened: 0 };
+     },
    };`,
 );
 
@@ -232,7 +237,13 @@ await build({
         }
         b.onResolve({ filter: /^@\// }, (args) => {
           const base = join(ROOT, "src", args.path.slice(2));
-          for (const cand of [base, `${base}.tsx`, `${base}.ts`, join(base, "index.tsx")]) {
+          for (const cand of [
+            base,
+            `${base}.tsx`,
+            `${base}.ts`,
+            join(base, "index.tsx"),
+            join(base, "index.ts"),
+          ]) {
             if (existsSync(cand) && extname(cand)) return { path: cand };
           }
           return { errors: [{ text: `cannot resolve ${args.path}` }] };

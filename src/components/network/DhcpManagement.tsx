@@ -1,17 +1,7 @@
-import { useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import {
-  Plus,
-  Search,
-  Trash2,
-  Pencil,
-  Share2,
-  ShieldCheck,
-  ShieldOff,
-  Server,
-  UploadCloud,
-  Loader2,
-} from "lucide-react";
+import i18n from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
+import { useId, useState } from "react";
+import { Plus } from "lucide-react";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,22 +9,11 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -46,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ControllerRoutersNote, RouterPickerItems } from "@/components/network/RouterPickerItems";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,9 +35,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { StatCard, SectionHeader } from "@/components/ui-ext";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import {
+  DataTable,
+  FormField,
+  FormSection,
+  FormSwitchRow,
+  PageHeader,
+  Panel,
+  StatTile,
+  StatusDot,
+  TablePager,
+  Toolbar,
+  ToolbarSearch,
+  type DataTableColumn,
+} from "@/components/customer/console";
+import {
+  DIALOG_CONSOLE,
+  EnabledBadge,
+  NameCell,
+  PushStatusBadge,
+  RowActions,
+  SCREEN_ROOT,
+  type PageScope,
+} from "@/components/network/network-ui";
 import {
   useDhcpPools,
   useCreateDhcpPool,
@@ -78,18 +76,15 @@ import type { DhcpPool, DhcpDevicePushStatus } from "@/types/dhcp";
 const PAGE_SIZE = 25;
 
 const dhcpSchema = z.object({
-  routerId: z.string().min(1, "Select a router"),
-  name: z.string().trim().min(2, "Required").max(48),
-  addressRangeStart: z.string().trim().min(1, "Required"),
-  addressRangeEnd: z.string().trim().min(1, "Required"),
+  routerId: z.string().min(1, "common.selectRouter"),
+  name: z.string().trim().min(2, "common.required").max(48),
+  addressRangeStart: z.string().trim().min(1, "common.required"),
+  addressRangeEnd: z.string().trim().min(1, "common.required"),
   // Required, not optional -- see this component's own comment on the
   // "Interface" field below for why a pool with no interface never
   // actually starts a dhcp-server on the real device (silently creates a
   // bare /ip pool that hands out nothing).
-  interface: z
-    .string()
-    .trim()
-    .min(1, "Required — the DHCP server won't start on the router without it"),
+  interface: z.string().trim().min(1, "dhcp.gatewayRequired"),
   gatewayIpAddress: z.string().trim().optional().or(z.literal("")),
   dnsPrimary: z.string().trim().optional().or(z.literal("")),
   dnsSecondary: z.string().trim().optional().or(z.literal("")),
@@ -113,83 +108,11 @@ const BLANK_DHCP_FORM: DhcpFormValues = {
   isEnabled: true,
 };
 
-function DhcpIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 52"
-      className="hidden h-12 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      <rect
-        x="6"
-        y="16"
-        width="24"
-        height="20"
-        rx="4"
-        fill="#2e2a5c"
-        stroke="#a78bfa"
-        strokeWidth="1.6"
-      />
-      <circle cx="18" cy="26" r="4.5" fill="#1e1b4b" stroke="#22d3ee" strokeWidth="1.4" />
-      <path
-        d="M18 23v3l2 2"
-        stroke="#22d3ee"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <motion.path
-        d="M30 26h12"
-        stroke="#4f46e5"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeDasharray="1 4"
-        initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      />
-      <rect
-        x="42"
-        y="8"
-        width="36"
-        height="36"
-        rx="6"
-        fill="#1e1b4b"
-        stroke="#f0abfc"
-        strokeWidth="1.6"
-      />
-      {[0, 1, 2].map((i) => (
-        <motion.rect
-          key={i}
-          x={49}
-          y={16 + i * 8}
-          width={22 - i * 4}
-          height="4"
-          rx="2"
-          fill={["#a78bfa", "#22d3ee", "#f0abfc"][i]}
-          fillOpacity="0.7"
-          initial={shouldReduceMotion ? false : { scaleX: 0, opacity: 0 }}
-          animate={{ scaleX: 1, opacity: 1 }}
-          transition={{ duration: 0.45, delay: 0.12 * i, ease: "easeOut" }}
-          style={{ transformOrigin: `49px ${18 + i * 8}px` }}
-        />
-      ))}
-    </svg>
-  );
-}
-
+/** i18n keys (network namespace), rendered through `t`. */
 const DEVICE_PUSH_LABEL: Record<DhcpDevicePushStatus, string> = {
-  active: "Applied",
-  pending: "Not yet applied",
-  failed: "Couldn't apply",
-};
-
-const DEVICE_PUSH_STYLES: Record<DhcpDevicePushStatus, string> = {
-  active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
-  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
-  failed: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
+  active: "common.push.applied",
+  pending: "common.push.pending",
+  failed: "common.push.failed",
 };
 
 /** Whether this pool actually exists on the router.
@@ -205,29 +128,26 @@ const DEVICE_PUSH_STYLES: Record<DhcpDevicePushStatus, string> = {
  * what to do, and summarising device errors is how the silence started.
  */
 function DevicePushBadge({ pool }: { pool: DhcpPool }) {
-  const badge = (
-    <Badge
-      variant="outline"
-      className={cn("rounded-full font-medium", DEVICE_PUSH_STYLES[pool.devicePushStatus])}
-    >
-      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
-      {DEVICE_PUSH_LABEL[pool.devicePushStatus]}
-    </Badge>
-  );
-  if (pool.devicePushStatus !== "failed" || !pool.devicePushError) return badge;
+  const { t } = useTranslation("network", { i18n });
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-default">{badge}</span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        Couldn&apos;t apply this pool to your router: {pool.devicePushError}
-      </TooltipContent>
-    </Tooltip>
+    <PushStatusBadge
+      status={pool.devicePushStatus}
+      label={t(DEVICE_PUSH_LABEL[pool.devicePushStatus])}
+      error={pool.devicePushError}
+      errorPrefix={t("dhcp.couldnTApplyThisPool")}
+    />
   );
 }
 
-export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
+export function DhcpManagement({
+  locationId,
+  scope,
+}: {
+  locationId?: string;
+  /** Title + venue from the customer shell, which then draws no header of its own. */
+  scope?: PageScope;
+} = {}) {
+  const { t } = useTranslation("network", { i18n });
   const [page, setPage] = useState(1);
   const [routerFilter, setRouterFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -264,10 +184,11 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
     push.mutate(
       { id: pool.id },
       {
-        onSuccess: () => toast.success(`${pool.name} applied to the router`),
+        onSuccess: () => toast.success(t("dhcp.appliedToTheRouter", { name: pool.name })),
         onError: (err) =>
           toast.error(
-            (err as unknown as AppError)?.message || `Couldn't apply ${pool.name} to the router`,
+            (err as unknown as AppError)?.message ||
+              t("dhcp.couldnTApplyToThe", { name: pool.name }),
           ),
       },
     );
@@ -330,214 +251,152 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
   const statHint = partialCountHint(data?.rows.length ?? 0, data?.total ?? 0);
   const totalHint = locationId ? statHint : undefined;
 
+  const plain = !!locationId;
+  const columns: DataTableColumn<DhcpPool>[] = [
+    {
+      id: "name",
+      header: plain ? t("dhcp.range") : t("dhcp.pool"),
+      mobile: "title",
+      cell: (p) => <NameCell name={p.name} sub={p.interface} />,
+    },
+    { id: "router", header: t("dhcp.router"), cell: (p) => routerName(p.routerId) },
+    {
+      id: "range",
+      header: t("dhcp.addressRange"),
+      mono: true,
+      cell: (p) => `${p.addressRangeStart} – ${p.addressRangeEnd}`,
+    },
+    {
+      id: "gateway",
+      header: plain ? t("dhcp.routerAddress") : t("dhcp.gateway"),
+      mono: true,
+      cell: (p) => p.gatewayIpAddress ?? "—",
+    },
+    {
+      id: "dns",
+      header: "DNS",
+      mono: true,
+      cell: (p) => [p.dnsPrimary, p.dnsSecondary].filter(Boolean).join(", ") || "—",
+    },
+    {
+      id: "lease",
+      header: plain ? t("dhcp.heldFor") : t("dhcp.lease"),
+      className: "tabular-nums text-[var(--wy-text-muted)]",
+      cell: (p) => `${Math.round(p.leaseTimeSeconds / 3600)}h`,
+    },
+    { id: "status", header: t("dhcp.status"), cell: (p) => <EnabledBadge enabled={p.isEnabled} /> },
+    { id: "push", header: t("dhcp.onRouter"), cell: (p) => <DevicePushBadge pool={p} /> },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className={SCREEN_ROOT}>
       {/* Shared with the master console's own /network/dhcp route (rendered
        * with no locationId there) -- that audience keeps the precise
        * technical title/description; only the customer portal (which
        * always passes a real locationId, via OperationsFeatures.tsx's
-       * DhcpView) gets the friendlier name. Same id/route/data either way. */}
-      <SectionHeader
-        icon={Server}
-        eyebrow="Network"
-        title={locationId ? "IP Addresses" : "DHCP Pool Management"}
-        description={
-          locationId
-            ? "The pool of IP addresses your router hands out to guest devices, plus their gateway, DNS and how long each address is held."
-            : "Per-router DHCP address pools, gateway, DNS and lease time. Apply a pool to send it to the router."
-        }
-        illustration={<DhcpIllustration />}
+       * DhcpView) gets the friendlier name. Same id/route/data either way.
+       * Under the customer shell this is the page's only header: the shell
+       * hands over the tab name and venue (`scope`) and draws none itself. */}
+      <PageHeader
+        title={scope?.title ?? (plain ? t("dhcp.ipAddresses") : t("dhcp.dhcpPoolManagement"))}
+        venue={scope?.venue}
+        description={plain ? t("dhcp.thePoolOfIpAddresses") : t("dhcp.perRouterDhcpAddressPools")}
         actions={
           <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> {locationId ? "New address range" : "New Pool"}
+            <Plus aria-hidden className="mr-1.5 h-4 w-4" />{" "}
+            {plain ? t("dhcp.newAddressRange") : t("dhcp.newPool")}
           </Button>
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total Pools" value={total} hint={totalHint} icon={Share2} tone="primary" />
-        <StatCard
-          label="Enabled"
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile label={t("dhcp.totalPools")} value={total} hint={totalHint} loading={isLoading} />
+        <StatTile
+          label={t("dhcp.enabled")}
           value={enabledCount}
           hint={statHint}
-          icon={ShieldCheck}
-          tone="success"
+          loading={isLoading}
+          leading={<StatusDot status="ok" label={t("dhcp.enabled")} size="sm" />}
         />
-        <StatCard
-          label="Disabled"
+        <StatTile
+          label={t("dhcp.disabled")}
           value={filteredRows.length - enabledCount}
           hint={statHint}
-          icon={ShieldOff}
-          tone="warning"
+          loading={isLoading}
+          leading={<StatusDot status="offline" label={t("dhcp.disabled")} size="sm" />}
         />
       </div>
 
       <CurrentRouterPools routers={livePoolRouters} />
 
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base font-semibold">
-            {locationId ? "All address ranges" : "All DHCP Pools"}
-          </CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={routerFilter}
-              onValueChange={(v) => {
-                setRouterFilter(v);
-                setPage(1);
+      <Panel flush title={plain ? t("dhcp.allAddressRanges") : t("dhcp.allDhcpPools")}>
+        <Toolbar divided>
+          <Select
+            value={routerFilter}
+            onValueChange={(v) => {
+              setRouterFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-48" aria-label={t("dhcp.router")}>
+              <SelectValue placeholder={t("dhcp.allRouters")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("dhcp.allRouters")}</SelectItem>
+              {/* Contract §11.5: the two kinds of device are listed
+                  apart, and only the ones this platform configures are
+                  selectable. See RouterPickerItems. */}
+              <RouterPickerItems rows={routers.rows} />
+            </SelectContent>
+          </Select>
+          <ToolbarSearch
+            value={search}
+            onValueChange={setSearch}
+            placeholder={t("dhcp.searchNameRangeRouter")}
+          />
+        </Toolbar>
+        <DataTable
+          ariaLabel={plain ? t("dhcp.allAddressRanges") : t("dhcp.allDhcpPools")}
+          columns={columns}
+          rows={rows}
+          rowKey={(p) => p.id}
+          loading={isLoading}
+          loadingLabel={t("dhcp.loading")}
+          empty={plain ? t("dhcp.noAddressRangesMatchYour") : t("dhcp.noDhcpPoolsMatchYour")}
+          maxHeight="70vh"
+          rowActions={(p) => (
+            /* Apply is always visible, unlike the revealed edit/delete
+               pair: this is the step that actually reaches the hardware,
+               and a pool sitting at "Not yet applied" is the thing an
+               operator most needs to notice -- it is the difference
+               between a guest getting an address and getting nothing. */
+            <RowActions
+              name={p.name}
+              apply={{
+                label: p.devicePushStatus === "active" ? t("dhcp.reApply") : t("dhcp.apply"),
+                pending: push.isPending && push.variables?.id === p.id,
+                quiet: p.devicePushStatus === "active",
+                onClick: () => handlePush(p),
               }}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All routers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All routers</SelectItem>
-                {/* Contract §11.5: the two kinds of device are listed
-                    apart, and only the ones this platform configures are
-                    selectable. See RouterPickerItems. */}
-                <RouterPickerItems rows={routers.rows} />
-              </SelectContent>
-            </Select>
-            <div className="relative w-64 max-w-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, range, router…"
-                className="pl-8"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{locationId ? "Range" : "Pool"}</TableHead>
-                <TableHead>Router</TableHead>
-                <TableHead>Address range</TableHead>
-                <TableHead>{locationId ? "Router address" : "Gateway"}</TableHead>
-                <TableHead>DNS</TableHead>
-                <TableHead>{locationId ? "Held for" : "Lease"}</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>On router</TableHead>
-                <TableHead className="w-[160px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell
-                    colSpan={9}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && rows.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={9}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    {locationId
-                      ? "No address ranges match your filters."
-                      : "No DHCP pools match your filters."}
-                  </TableCell>
-                </TableRow>
-              )}
-              {rows.map((p) => (
-                <TableRow key={p.id} className="group">
-                  <TableCell>
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{p.name}</div>
-                      {p.interface && (
-                        <div className="truncate text-xs text-muted-foreground">{p.interface}</div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{routerName(p.routerId)}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {p.addressRangeStart} – {p.addressRangeEnd}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{p.gatewayIpAddress ?? "—"}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {[p.dnsPrimary, p.dnsSecondary].filter(Boolean).join(", ") || "—"}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {Math.round(p.leaseTimeSeconds / 3600)}h
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={p.isEnabled ? "default" : "secondary"}>
-                      {p.isEnabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DevicePushBadge pool={p} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      {/* Always visible, unlike the hover-revealed edit/delete
-                          pair: this is the step that actually reaches the
-                          hardware, and a pool sitting at "Not yet applied" is
-                          the thing an operator most needs to notice -- it is
-                          the difference between a guest getting an address and
-                          getting nothing. */}
-                      <Button
-                        size="sm"
-                        variant={p.devicePushStatus === "active" ? "ghost" : "outline"}
-                        disabled={push.isPending && push.variables?.id === p.id}
-                        onClick={() => handlePush(p)}
-                      >
-                        {push.isPending && push.variables?.id === p.id ? (
-                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <UploadCloud className="mr-1 h-3.5 w-3.5" />
-                        )}
-                        {p.devicePushStatus === "active" ? "Re-apply" : "Apply"}
-                      </Button>
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button size="icon" variant="ghost" onClick={() => setEditing(p)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => setConfirmDelete(p)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t p-3 text-xs text-muted-foreground">
-              <span>
-                Page {page} of {totalPages} · {total} pools
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!hasPrevious}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!hasNext}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+              onEdit={() => setEditing(p)}
+              onDelete={() => setConfirmDelete(p)}
+            />
           )}
-        </CardContent>
-      </Card>
+          footer={
+            totalPages > 1 ? (
+              <TablePager
+                summary={t("dhcp.pageOfPools", { page, totalPages, total })}
+                previousLabel={t("common.previous")}
+                nextLabel={t("common.next")}
+                hasPrevious={hasPrevious}
+                hasNext={hasNext}
+                onPrevious={() => setPage((p) => p - 1)}
+                onNext={() => setPage((p) => p + 1)}
+              />
+            ) : undefined
+          }
+        />
+      </Panel>
 
       <DhcpDialog
         plain={!!locationId}
@@ -551,31 +410,34 @@ export function DhcpManagement({ locationId }: { locationId?: string } = {}) {
       />
 
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className={DIALOG_CONSOLE}>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {locationId ? "Delete address range" : "Delete pool"} "{confirmDelete?.name}"?
+              {locationId
+                ? t("dhcp.deleteRangeTitle", { name: confirmDelete?.name })
+                : t("dhcp.deletePoolTitle", { name: confirmDelete?.name })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes it from{" "}
-              {confirmDelete ? routerName(confirmDelete.routerId) : ""}. This cannot be undone.
+              {t("common.cannotUndo", {
+                router: confirmDelete ? routerName(confirmDelete.routerId) : "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("dhcp.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (!confirmDelete) return;
                 try {
                   await del.mutateAsync({ id: confirmDelete.id });
-                  toast.success(`Pool ${confirmDelete.name} deleted`);
+                  toast.success(t("dhcp.poolDeleted", { name: confirmDelete.name }));
                 } catch (err) {
-                  toast.error((err as AppError).message || "Failed to delete pool");
+                  toast.error((err as AppError).message || t("dhcp.failedToDeletePool"));
                 }
                 setConfirmDelete(null);
               }}
             >
-              {locationId ? "Delete range" : "Delete pool"}
+              {locationId ? t("dhcp.deleteRange") : t("dhcp.deletePool")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -602,6 +464,7 @@ function DhcpDialog({
   plain: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("network", { i18n });
   const create = useCreateDhcpPool();
   const update = useUpdateDhcpPool();
 
@@ -627,6 +490,7 @@ function DhcpDialog({
   });
   const selectedRouterId = form.watch("routerId");
   const [manualInterface, setManualInterface] = useState(false);
+  const id = useId();
 
   // Real interfaces read live off the device, not guessed -- excludes
   // whatever's already bound to a dhcp-server/dhcp-client on the router
@@ -676,223 +540,240 @@ function DhcpDialog({
       };
       if (pool) {
         await update.mutateAsync({ id: pool.id, payload: shared });
-        toast.success(plain ? "Address range updated" : "DHCP pool updated");
+        toast.success(plain ? t("dhcp.addressRangeUpdated") : t("dhcp.dhcpPoolUpdated"));
       } else {
         await create.mutateAsync({ routerId: v.routerId, ...shared });
-        toast.success(plain ? "Address range created" : "DHCP pool created");
+        toast.success(plain ? t("dhcp.addressRangeCreated") : t("dhcp.dhcpPoolCreated"));
       }
       close();
     } catch (err) {
       toast.error(
         (err as AppError).message ||
-          (plain ? "Couldn't save that address range" : "Failed to save pool"),
+          (plain ? t("dhcp.couldnTSaveThatAddress") : t("dhcp.failedToSavePool")),
       );
     }
   }
 
+  const errors = form.formState.errors;
+  const interfaceHint = interfacesErrored
+    ? "Couldn't reach the router to list its interfaces — type the name manually."
+    : selectedRouterId && !interfacesLoading && deviceInterfaces?.length === 0
+      ? "No available interfaces on this router (everything's already in use, or it's offline) — type one manually if you're sure."
+      : "Read live off the router — already-in-use interfaces are left out.";
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={`${DIALOG_CONSOLE} max-w-lg`}>
         <DialogHeader>
           <DialogTitle>
             {plain
               ? pool
-                ? "Edit address range"
-                : "New address range"
+                ? t("dhcp.editAddressRange")
+                : t("dhcp.newAddressRange")
               : pool
-                ? "Edit DHCP pool"
-                : "New DHCP pool"}
+                ? t("dhcp.editDhcpPool")
+                : t("dhcp.newDhcpPool")}
           </DialogTitle>
           <DialogDescription>
             {pool
               ? plain
-                ? "The router this range belongs to cannot be changed — delete it and make a new one to move it."
-                : "The router this pool belongs to cannot be changed — delete and recreate to move it."
+                ? t("dhcp.theRouterThisRangeBelongs")
+                : t("dhcp.theRouterThisPoolBelongs")
               : plain
-                ? "An address range belongs to exactly one router for its whole life."
-                : "A DHCP pool belongs to exactly one router for its whole lifetime."}
+                ? t("dhcp.anAddressRangeBelongsTo")
+                : t("dhcp.aDhcpPoolBelongsTo")}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit(submit)} className="grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Router</Label>
-            <Controller
-              control={form.control}
-              name="routerId"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={!!pool}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select router" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* Contract §11.5. A controller is listed here but not
-                        selectable: the backend refuses this write by vendor,
-                        and meeting that refusal after the form is filled in
-                        is the defect this closes. */}
-                    <RouterPickerItems rows={routers} />
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {form.formState.errors.routerId && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.routerId.message}
-              </p>
-            )}
-            {/* Names what was greyed out and why. Renders nothing at a venue
-                with no controller. */}
-            <ControllerRoutersNote rows={routers} />
-          </div>
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs font-medium">Name</Label>
-            <Input {...form.register("name")} placeholder="Guest pool" />
-            {form.formState.errors.name && (
-              <p className="text-[11px] text-destructive">{form.formState.errors.name.message}</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Range start</Label>
-            <Input
-              {...form.register("addressRangeStart")}
-              placeholder="10.0.0.10"
-              className="font-mono"
-            />
-            {form.formState.errors.addressRangeStart && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.addressRangeStart.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Range end</Label>
-            <Input
-              {...form.register("addressRangeEnd")}
-              placeholder="10.0.0.250"
-              className="font-mono"
-            />
-            {form.formState.errors.addressRangeEnd && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.addressRangeEnd.message}
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">
-              {plain ? "Router address (optional)" : "Gateway IP (optional)"}
-            </Label>
-            <Input
-              {...form.register("gatewayIpAddress")}
-              placeholder="10.0.0.1"
-              className="font-mono"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium">
-                {plain ? "Which cable or zone" : "Interface"}
-              </Label>
-              {!manualInterface && (
-                <button
-                  type="button"
-                  className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                  onClick={() => setManualInterface(true)}
-                >
-                  Type manually
-                </button>
-              )}
-            </div>
-            {manualInterface ? (
-              <Input {...form.register("interface")} placeholder="bridgeLocal, ether3, vlan3…" />
-            ) : (
+        <form onSubmit={form.handleSubmit(submit)}>
+          <FormSection
+            variant="plain"
+            footer={
+              <>
+                <Button type="button" variant="ghost" onClick={close}>
+                  {t("dhcp.cancel")}
+                </Button>
+                <Button type="submit" disabled={create.isPending || update.isPending}>
+                  {pool ? t("dhcp.saveChanges") : t("dhcp.createPool")}
+                </Button>
+              </>
+            }
+          >
+            <FormField
+              wide
+              label={t("dhcp.router")}
+              htmlFor={`${id}-router`}
+              error={errors.routerId?.message && t(errors.routerId.message)}
+            >
               <Controller
                 control={form.control}
-                name="interface"
+                name="routerId"
                 render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={!selectedRouterId || interfacesLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          !selectedRouterId
-                            ? "Select a router first"
-                            : interfacesLoading
-                              ? "Checking router…"
-                              : "Select interface"
-                        }
-                      />
+                  <Select value={field.value} onValueChange={field.onChange} disabled={!!pool}>
+                    <SelectTrigger id={`${id}-router`}>
+                      <SelectValue placeholder={t("dhcp.selectRouter")} />
                     </SelectTrigger>
                     <SelectContent>
-                      {(deviceInterfaces ?? []).map((i) => (
-                        <SelectItem key={i.name} value={i.name}>
-                          {i.name}
-                          {i.bridge ? ` (in ${i.bridge})` : ""}
-                          {i.running ? " · link up" : ""}
-                        </SelectItem>
-                      ))}
+                      {/* Contract §11.5. A controller is listed here but not
+                          selectable: the backend refuses this write by vendor,
+                          and meeting that refusal after the form is filled in
+                          is the defect this closes. */}
+                      <RouterPickerItems rows={routers} />
                     </SelectContent>
                   </Select>
                 )}
               />
-            )}
-            {form.formState.errors.interface ? (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.interface.message}
-              </p>
-            ) : interfacesErrored ? (
-              <p className="text-[11px] text-destructive">
-                Couldn't reach the router to list its interfaces — type the name manually.
-              </p>
-            ) : selectedRouterId && !interfacesLoading && deviceInterfaces?.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground">
-                No available interfaces on this router (everything's already in use, or it's
-                offline) — type one manually if you're sure.
-              </p>
-            ) : (
-              <p className="text-[11px] text-muted-foreground">
-                Read live off the router — already-in-use interfaces are left out.
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">DNS primary (optional)</Label>
-            <Input {...form.register("dnsPrimary")} placeholder="8.8.8.8" className="font-mono" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">DNS secondary (optional)</Label>
-            <Input {...form.register("dnsSecondary")} placeholder="8.8.4.4" className="font-mono" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">
-              {plain ? "Hold each address for (seconds)" : "Lease time (seconds)"}
-            </Label>
-            <Input type="number" min={1} {...form.register("leaseTimeSeconds")} />
-            {form.formState.errors.leaseTimeSeconds && (
-              <p className="text-[11px] text-destructive">
-                {form.formState.errors.leaseTimeSeconds.message}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2.5">
-            <div className="text-sm font-medium">Enabled</div>
-            <Controller
-              control={form.control}
-              name="isEnabled"
-              render={({ field }) => (
-                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              {/* Names what was greyed out and why. Renders nothing at a venue
+                  with no controller. */}
+              <ControllerRoutersNote rows={routers} />
+            </FormField>
+            <FormField
+              wide
+              label={t("dhcp.name")}
+              htmlFor={`${id}-name`}
+              error={errors.name?.message && t(errors.name.message)}
+            >
+              <Input
+                id={`${id}-name`}
+                {...form.register("name")}
+                placeholder={t("dhcp.guestPool")}
+              />
+            </FormField>
+            <FormField
+              label={t("dhcp.rangeStart")}
+              htmlFor={`${id}-start`}
+              error={errors.addressRangeStart?.message && t(errors.addressRangeStart.message)}
+            >
+              <Input
+                id={`${id}-start`}
+                {...form.register("addressRangeStart")}
+                placeholder="10.0.0.10"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField
+              label={t("dhcp.rangeEnd")}
+              htmlFor={`${id}-end`}
+              error={errors.addressRangeEnd?.message && t(errors.addressRangeEnd.message)}
+            >
+              <Input
+                id={`${id}-end`}
+                {...form.register("addressRangeEnd")}
+                placeholder="10.0.0.250"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField
+              label={plain ? t("dhcp.routerAddressOptional") : t("dhcp.gatewayIpOptional")}
+              htmlFor={`${id}-gateway`}
+            >
+              <Input
+                id={`${id}-gateway`}
+                {...form.register("gatewayIpAddress")}
+                placeholder="10.0.0.1"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField
+              label={plain ? t("dhcp.whichCableOrZone") : t("dhcp.interface")}
+              htmlFor={`${id}-interface`}
+              error={errors.interface?.message && t(errors.interface.message)}
+              hint={interfaceHint}
+              hintTone={interfacesErrored ? "crit" : "muted"}
+              labelAction={
+                !manualInterface ? (
+                  <button
+                    type="button"
+                    className="rounded text-xs text-[var(--wy-text-muted)] underline underline-offset-2 hover:text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+                    onClick={() => setManualInterface(true)}
+                  >
+                    {t("dhcp.typeManually")}
+                  </button>
+                ) : null
+              }
+            >
+              {manualInterface ? (
+                <Input
+                  id={`${id}-interface`}
+                  {...form.register("interface")}
+                  placeholder={t("dhcp.bridgelocalEther3Vlan3")}
+                />
+              ) : (
+                <Controller
+                  control={form.control}
+                  name="interface"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={!selectedRouterId || interfacesLoading}
+                    >
+                      <SelectTrigger id={`${id}-interface`}>
+                        <SelectValue
+                          placeholder={
+                            !selectedRouterId
+                              ? t("dhcp.selectARouterFirst")
+                              : interfacesLoading
+                                ? t("dhcp.checkingRouter")
+                                : t("dhcp.selectInterface")
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(deviceInterfaces ?? []).map((i) => (
+                          <SelectItem key={i.name} value={i.name}>
+                            {i.name}
+                            {i.bridge ? t("dhcp.in", { bridge: i.bridge }) : ""}
+                            {i.running ? t("dhcp.linkUp") : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               )}
+            </FormField>
+            <FormField label={t("dhcp.dnsPrimaryOptional")} htmlFor={`${id}-dns1`}>
+              <Input
+                id={`${id}-dns1`}
+                {...form.register("dnsPrimary")}
+                placeholder="8.8.8.8"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField label={t("dhcp.dnsSecondaryOptional")} htmlFor={`${id}-dns2`}>
+              <Input
+                id={`${id}-dns2`}
+                {...form.register("dnsSecondary")}
+                placeholder="8.8.4.4"
+                className="font-mono"
+              />
+            </FormField>
+            <FormField
+              label={plain ? t("dhcp.holdEachAddressForSeconds") : t("dhcp.leaseTimeSeconds")}
+              htmlFor={`${id}-lease`}
+              error={errors.leaseTimeSeconds?.message && t(errors.leaseTimeSeconds.message)}
+            >
+              <Input
+                id={`${id}-lease`}
+                type="number"
+                min={1}
+                {...form.register("leaseTimeSeconds")}
+              />
+            </FormField>
+            <FormSwitchRow
+              className="self-end"
+              label={t("dhcp.enabled")}
+              control={
+                <Controller
+                  control={form.control}
+                  name="isEnabled"
+                  render={({ field }) => (
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  )}
+                />
+              }
             />
-          </div>
-          <DialogFooter className="sm:col-span-2">
-            <Button type="button" variant="ghost" onClick={close}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>
-              {pool ? "Save changes" : "Create pool"}
-            </Button>
-          </DialogFooter>
+          </FormSection>
         </form>
       </DialogContent>
     </Dialog>

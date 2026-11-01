@@ -50,7 +50,7 @@
     "acrossSessions_one": "{{formatted}} सेशन के हिसाब से",
     "acrossSessions_other": "{{formatted}} सेशन के हिसाब से",
     "uptime": "अपटाइम",
-    "allHealthy": "सब सिस्टम ठीक हैं"
+    "uptimeFooter": "मुख्य इंटरनेट लाइन, पिछले 24 घंटे"
   },
   "guestsOnline": {
     "title": "ऑनलाइन मेहमान",
@@ -59,7 +59,8 @@
     "empty": "{{range}} में कोई मेहमान नहीं जुड़ा।",
     "tooltipValue_one": "{{count}} मेहमान",
     "tooltipValue_other": "{{count}} मेहमान",
-    "tooltipLabel": "ऑनलाइन"
+    "tooltipLabel": "ऑनलाइन",
+    "srSummary": "ऑनलाइन मेहमान, {{range}}। सबसे ज़्यादा {{peak}}। हर हिस्सा पढ़ने के लिए तीर वाली कुंजियाँ दबाएँ।"
   },
   "devicesByOs": {
     "title": "डिवाइस (OS के हिसाब से)",
@@ -70,10 +71,41 @@
     "titleDaily": "हर दिन के सेशन",
     "subtitle": "मेहमानों के नए सेशन",
     "empty": "{{range}} में कोई सेशन नहीं।",
-    "tooltipLabel": "सेशन"
+    "tooltipLabel": "सेशन",
+    "srSummary": "नए मेहमान सेशन, {{range}}: कुल {{total}}। हर हिस्सा पढ़ने के लिए तीर वाली कुंजियाँ दबाएँ।"
   },
   "bandwidth": {
-    "title": "बैंडविड्थ"
+    "title": "बैंडविड्थ",
+    "utilTitle": "बैंडविड्थ का इस्तेमाल",
+    "cadence": "{{line}} · लगभग हर 30 सेकंड में नई रीडिंग",
+    "primaryLine": "मुख्य लाइन",
+    "ofPlanHint": "आपके {{plan}} Mbps प्लान में से {{now}} (यह आपके ISP की बताई स्पीड है, हमारी मापी हुई नहीं)",
+    "ofPlan": "प्लान का {{pct}}",
+    "manage": "बदलें →",
+    "series": "लाइनें",
+    "download": "डाउनलोड",
+    "upload": "अपलोड",
+    "show": "{{series}} दिखाएँ",
+    "hide": "{{series}} छिपाएँ",
+    "alsoHere": "यहाँ ये भी",
+    "health": {
+      "healthy": "ऑनलाइन",
+      "degraded": "कमज़ोर",
+      "unhealthy": "ऑफ़लाइन",
+      "unknown": "पता नहीं"
+    },
+    "rolePrimary": "मुख्य",
+    "roleBackup": "बैकअप",
+    "comfortable": "पिछली {{total}} रीडिंग में इस्तेमाल {{plan}} Mbps से आराम से कम रहा।",
+    "congested": "पिछली {{total}} रीडिंग में से {{count}} में आपका {{plan}} Mbps प्लान 90% से ज़्यादा भरा रहा ({{pct}}%)",
+    "congestedAdvice": " — शायद मेहमानों को इंटरनेट धीमा लग रहा है। बड़ा प्लान लेने के बारे में सोचें।",
+    "fullStop": "।",
+    "emptyNoLine": "अभी कोई इंटरनेट लाइन सेट नहीं है।",
+    "emptyNoSamples": "अभी कोई रीडिंग नहीं — अगली जाँच एक मिनट के अंदर होगी।",
+    "noReading": "रीडिंग नहीं",
+    "planLine": "{{plan}} Mbps प्लान",
+    "setPlan": "इस्तेमाल % में देखने के लिए {{line}} के प्लान की स्पीड डालें।",
+    "setIt": "डालें →"
   },
   "recentUsers": {
     "title": "हाल के मेहमान",
@@ -84,10 +116,119 @@
     "colStatus": "स्थिति",
     "statusOnline": "ऑनलाइन",
     "statusOffline": "ऑफ़लाइन",
-    "statusIdle": "रुका हुआ"
+    "statusIdle": "आइडल"
   },
   "recentAlerts": {
     "title": "हाल के अलर्ट",
-    "empty": "कोई अलर्ट नहीं। अभी कुछ करने की ज़रूरत नहीं।"
+    "empty": "कोई अलर्ट नहीं। अभी कुछ करने की ज़रूरत नहीं।",
+    "type": {
+      "error": "गंभीर",
+      "warning": "चेतावनी",
+      "success": "ठीक हो गया",
+      "info": "जानकारी"
+    }
+  },
+  "rangeLabel": "समय सीमा",
+  "rangeShort": {
+    "24h": "24 घंटे",
+    "7d": "7 दिन",
+    "30d": "30 दिन"
+  },
+  "sectionError": {
+    "title": "यह हिस्सा नहीं दिख पाया",
+    "body": "बाकी पेज ठीक चल रहा है। पेज रीफ़्रेश करके देखें।"
+  },
+  "topology": {
+    "title": "नेटवर्क नक्शा",
+    "meta": "लाइव हालत · जानकारी के लिए ऊपर ले जाएँ, खोलने के लिए क्लिक करें",
+    "metaController": "एक्सेस पॉइंट, जैसा आपका कंट्रोलर बताता है",
+    "openDevices": "डिवाइस →",
+    "checking": "जाँच रहे हैं…",
+    "status": {
+      "ok": "ऑनलाइन",
+      "warn": "कमज़ोर",
+      "crit": "बंद",
+      "info": "जानकारी",
+      "offline": "ऑफ़लाइन",
+      "unknown": "पता नहीं"
+    },
+    "ghost": {
+      "noIsp": "कोई ISP नहीं जोड़ा",
+      "noIspBody": "अपनी इंटरनेट लाइन जोड़ें",
+      "noRouter": "अभी कोई राउटर नहीं",
+      "noRouterBody": "चालू करने के लिए राउटर सेट करें",
+      "routersUnreadable": "राउटर की हालत नहीं पढ़ पाए",
+      "routersUnreadableBody": "अभी हालत पता नहीं",
+      "apsUnmeasured": "एक्सेस पॉइंट यहाँ नहीं दिखते",
+      "apsUnmeasuredBody": "आपकी कंपनी के ऐप से चलते हैं",
+      "controllerDown": "कंट्रोलर जवाब नहीं दे रहा",
+      "controllerDownBody": "एक्सेस पॉइंट की हालत पता नहीं",
+      "noAps": "कोई एक्सेस पॉइंट नहीं जोड़ा",
+      "noApsBody": "MAC पते से एक जोड़ें"
+    },
+    "fact": {
+      "role": "भूमिका",
+      "interface": "पोर्ट",
+      "gatewayIp": "गेटवे IP",
+      "latency": "देरी",
+      "loss": "पैकेट लॉस",
+      "plan": "प्लान",
+      "lastChecked": "आख़िरी जाँच",
+      "vendor": "कंपनी",
+      "state": "हालत",
+      "lastContact": "आख़िरी संपर्क",
+      "model": "मॉडल",
+      "ip": "IP",
+      "mac": "MAC",
+      "uptime": "अपटाइम",
+      "clients": "जुड़े डिवाइस",
+      "firmware": "फ़र्मवेयर",
+      "type": "प्रकार",
+      "floor": "मंज़िल",
+      "detail": "विवरण",
+      "lastSeen": "आख़िरी बार दिखा",
+      "source": "किसने बताया"
+    },
+    "role": {
+      "primary": "मुख्य",
+      "backup": "बैकअप"
+    },
+    "source": {
+      "controller": "आपका कंट्रोलर"
+    },
+    "guestsOnline_one": "{{count}} मेहमान ऑनलाइन",
+    "guestsOnline_other": "{{count}} मेहमान ऑनलाइन",
+    "more": "+{{count}} और",
+    "clientsSub": "अभी जुड़े हुए",
+    "moreSub": "सब देखने के लिए डिवाइस खोलें",
+    "activeUplink": "अभी इसी से इंटरनेट चल रहा है",
+    "open": {
+      "isp-details": "इंटरनेट कनेक्शन खोलें",
+      "devices": "डिवाइस खोलें",
+      "users": "मेहमान खोलें"
+    },
+    "tier": {
+      "isp": "इंटरनेट",
+      "gateway": "राउटर",
+      "downstream": "एक्सेस पॉइंट और डिवाइस",
+      "clients": "मेहमान"
+    },
+    "srDownstream": "{{total}} में से {{up}} चालू",
+    "notMeasured": "नहीं मापा जाता"
+  },
+  "activity": {
+    "hint": "किसी बार पर क्लिक करके उसे चुनें",
+    "peak": "सबसे ज़्यादा",
+    "clear": "हटाएँ",
+    "peakAt": "सबसे ज़्यादा {{value}}, {{when}} पर"
+  },
+  "network": {
+    "heading": "नेटवर्क",
+    "viewLabel": "नेटवर्क व्यू",
+    "cards": "कार्ड",
+    "map": "नक्शा"
+  },
+  "liveness": {
+    "raiseTicket": "सपोर्ट टिकट बनाएँ"
   }
 }

@@ -2,6 +2,50 @@ import { MapPin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { CUSTOMER_NAVS } from "@/lib/customerNav";
+import type { PageScope } from "@/components/customer/console";
+
+/**
+ * Screens that draw the console `PageHeader` themselves (title, venue chip,
+ * description AND their primary actions in one header). For these the shell
+ * renders no scope line -- it hands the same title and venue down as a
+ * `PageScope` instead, so there is one header, not two. The design-system
+ * migration (docs/design/console-tokens.md) grows this set batch by batch;
+ * when it holds every screen, this component goes.
+ */
+export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
+  // batch 1
+  "alerts",
+  "dhcp",
+  "vlans",
+  "port-forwarding",
+  "voip",
+  // batch 2 (Guests' own route, /users, draws its PageHeader directly)
+  "debugging",
+  "teams",
+  "vouchers",
+  "reports",
+  "business-hours",
+  "admin-logs",
+  "mac-auth",
+  // batch 3: Security
+  "security",
+  "blocking",
+  "firewall",
+  "policies",
+  "whitelist",
+  // batch 3: Logs
+  "network-activity",
+  "netlogs",
+  // batch 3c: Help, Staff Access, Login Page › Portal
+  "tickets",
+  "how-it-works",
+  "agents",
+  "portal",
+  // batch 3b
+  "traffic-lens",
+  "marketing",
+  "campaigns",
+]);
 
 /**
  * The scope line every customer feature page sits under: what this screen

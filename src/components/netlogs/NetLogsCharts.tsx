@@ -11,23 +11,31 @@ import { categoryLabel, chartDayLabel, type NetLogsChartRow } from "@/lib/netlog
  * TrafficLensTimelineChart).
  */
 
-const AXIS_TICK = { fontSize: 10, fill: "var(--muted-foreground)" } as const;
+const AXIS_TICK = { fontSize: 10, fill: "var(--wy-text-faint)" } as const;
 const NETLOGS_CHART_H = 180;
 
-/** Fixed per category so a colour means the same thing on every visit. */
+/** Fixed per category so a colour means the same thing on every visit.
+ * The console's categorical series (`--wy-series-1..6`, assigned in a fixed
+ * order, docs/design/console-tokens.md), never the status colours: the old
+ * set painted Firewall red and RADIUS green, so a category read as an alarm
+ * or an all-clear (design review §2 issue 6). The two categories past the
+ * sixth are neutral greys, distinct from each other and labelled in the
+ * legend and the tooltip. */
 const CATEGORY_COLORS: Record<string, string> = {
-  dhcp: "var(--chart-1)",
-  hotspot_auth: "var(--chart-3)",
-  radius: "var(--chart-4)",
-  firewall: "oklch(0.62 0.19 25)",
-  dns: "var(--chart-2)",
-  system: "var(--chart-5)",
-  wireless: "oklch(0.6 0.16 300)",
-  other: "oklch(0.7 0.02 260)",
+  dhcp: "var(--wy-series-1)",
+  hotspot_auth: "var(--wy-series-2)",
+  radius: "var(--wy-series-3)",
+  firewall: "var(--wy-series-4)",
+  dns: "var(--wy-series-5)",
+  system: "var(--wy-series-6)",
+  wireless: "var(--wy-offline)",
+  other: "var(--wy-border-strong)",
 };
 
-const ERROR_COLOR = "oklch(0.6 0.2 25)";
-const WARNING_COLOR = "oklch(0.78 0.15 75)";
+/** The errors chart IS a status chart (errors vs warnings), so it wears the
+ * status tokens -- the one place on this page they mean what they say. */
+const ERROR_COLOR = "var(--wy-crit)";
+const WARNING_COLOR = "var(--wy-warn)";
 
 interface Band {
   key: string;
@@ -48,7 +56,7 @@ function ChartTooltip({
   const row = payload[0]?.payload;
   if (!row) return null;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-3 py-2 text-xs text-[var(--wy-text)] shadow-lg">
       <p className="font-semibold">{chartDayLabel(row.day, row.lastDay)}</p>
       <ul className="mt-1 space-y-0.5">
         {bands
@@ -60,7 +68,7 @@ function ChartTooltip({
                 className="h-2 w-2 shrink-0 rounded-sm"
                 style={{ background: b.color }}
               />
-              <span className="text-muted-foreground">{b.label}</span>
+              <span className="text-[var(--wy-text-muted)]">{b.label}</span>
               <span className="ml-auto pl-3 tabular-nums">
                 {Number(row[b.key] ?? 0).toLocaleString()}
               </span>
@@ -73,7 +81,7 @@ function ChartTooltip({
 
 function Legend({ bands }: { bands: Band[] }) {
   return (
-    <ul className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+    <ul className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--wy-text-muted)]">
       {bands.map((b) => (
         <li key={b.key} className="flex items-center gap-1.5">
           <span aria-hidden className="h-2 w-2 rounded-sm" style={{ background: b.color }} />
@@ -98,7 +106,7 @@ function StackedBars({
       <Legend bands={bands} />
       <ResponsiveContainer width="100%" height={NETLOGS_CHART_H}>
         <BarChart data={rows} margin={{ left: 0, right: 4, top: 4, bottom: 0 }} barCategoryGap={1}>
-          <CartesianGrid stroke="var(--border)" vertical={false} />
+          <CartesianGrid stroke="var(--wy-border)" vertical={false} />
           <XAxis
             dataKey="day"
             tick={AXIS_TICK}
@@ -115,7 +123,10 @@ function StackedBars({
             allowDecimals={false}
             tickFormatter={(v: number) => v.toLocaleString()}
           />
-          <Tooltip cursor={{ fill: "var(--accent)" }} content={<ChartTooltip bands={bands} />} />
+          <Tooltip
+            cursor={{ fill: "var(--wy-surface-2)" }}
+            content={<ChartTooltip bands={bands} />}
+          />
           {bands.map((b) => (
             <Bar key={b.key} dataKey={b.key} stackId="n" fill={b.color} isAnimationActive={false} />
           ))}

@@ -38,7 +38,7 @@ function OrgPortalConsent() {
         <SelectTrigger className="w-60" aria-label="Venue for the opt-in setting">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="wy-console">
           <SelectItem value={ORG_DEFAULT}>Organisation default</SelectItem>
           {venues.map((v) => (
             <SelectItem key={v.id} value={v.id}>

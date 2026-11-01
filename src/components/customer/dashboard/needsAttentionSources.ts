@@ -20,7 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { deviceHardwareService, type MonitoredDeviceRow } from "@/services/deviceHardware.service";
-import { useDeviceStore } from "@/stores/deviceStore";
+import { useMonitoredHardware } from "@/hooks/useMonitoredHardware";
 
 /** The `AlertResponse` fields this card reads (monitoring/schemas.py). */
 export interface OpenAlertRow {
@@ -70,12 +70,15 @@ export function useVenueOpenAlerts(locationId: string, enabled: boolean) {
   });
 }
 
-/** This venue's monitored hardware. The demo branch reads the same
- * `useDeviceStore` fixture `useMonitoredHardware` does, so the demo card
- * agrees with the demo's own Network Hardware card. */
+/** This venue's monitored hardware. The demo branch reads it through
+ * `useMonitoredHardware` itself -- the one hook allowed to touch the demo
+ * fixture -- so the demo list, health overlay included, is exactly the one
+ * the demo's own Network Hardware card shows ("Unstable" access point and
+ * all). Outside the demo that hook is handed `""` (its "not yet" value),
+ * which makes no request. */
 export function useVenueMonitoredHardware(locationId: string, enabled: boolean) {
   const demo = isDemo();
-  const demoDevices = useDeviceStore((s) => s.devices);
+  const demoHardware = useMonitoredHardware(demo ? locationId : "");
   const query = useQuery({
     queryKey: needsAttentionKeys.hardware(locationId),
     queryFn: (): Promise<MonitoredDeviceRow[]> => deviceHardwareService.list(locationId),
@@ -87,7 +90,7 @@ export function useVenueMonitoredHardware(locationId: string, enabled: boolean) 
   });
   if (demo) {
     return {
-      data: demoDevices.filter((d) => d.locationId === locationId),
+      data: demoHardware.devices,
       isLoading: false,
       isError: false,
       error: null,

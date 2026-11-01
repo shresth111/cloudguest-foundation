@@ -24,11 +24,25 @@
  * Run: node scripts/test-hardware-health.mjs
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
+// The Devices page's hardware list moved out of BasicFeatureViews.tsx into
+// src/components/customer/devices/ (fleet model, inventory, drawer) in the
+// console revamp; the view file still owns the add form and the venue
+// gating. Read them together so each rule is checked where the code lives.
+function readHardwareView() {
+  const dir = join(ROOT, "src/components/customer/devices");
+  return [
+    readFileSync(join(ROOT, "src/components/customer/BasicFeatureViews.tsx"), "utf8"),
+    ...readdirSync(dir)
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !/demo-fixtures/.test(f))
+      .map((f) => readFileSync(join(dir, f), "utf8")),
+  ].join("\n");
+}
+
 let failures = 0;
 function check(name, ok, extra = "") {
   if (ok) console.log(`  ok   ${name}`);
@@ -127,7 +141,7 @@ console.log("\nHKM: port link down says which port, and since when");
 console.log("\nan up device shows 'since', never 'connected <duration>'");
 {
   const live = describeLiveness(row(raw()), NOW);
-  eq("badge", live.state, "Up");
+  eq("badge", live.state, "Online");
   eq("detail", live.detail, "since 09:30");
   check("no 'connected' wording", !/connected/.test(live.detail ?? ""));
   eq("detailKind", live.detailKind, "health");
@@ -166,7 +180,7 @@ console.log("\na stale verdict is not shown as current");
     NOW,
   );
   eq("badge", live.state, "Status stale");
-  check("not 'Up'", live.state !== "Up");
+  check("not 'Online'", live.state !== "Online");
   const unreadable = describeLiveness(
     row(raw({ state: "unknown", reason: "not_checked_recently" }), {
       status: "down",
@@ -263,7 +277,7 @@ console.log("\n24h strip");
 
 console.log("\nwiring");
 {
-  const view = readFileSync(join(ROOT, "src/components/customer/BasicFeatureViews.tsx"), "utf8");
+  const view = readHardwareView();
   check("Devices table renders HardwareHealthDetails", /<HardwareHealthDetails/.test(view));
   check(
     "add dialog warns about a duplicate MAC",

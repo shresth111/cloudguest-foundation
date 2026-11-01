@@ -65,7 +65,7 @@
  *
  * Run: node scripts/test-customer-dashboard-qa-copy.mjs
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -338,30 +338,21 @@ console.log("\n7. EN/HI parity across the venue-admin dictionaries");
 // (`test:portal-i18n-parity`) is the GUEST PORTAL and does not read these
 // files. Nothing ran over them until now.
 
-const NAMESPACES = [
-  "common",
-  "nav",
-  "guests",
-  "account",
-  "help",
-  "whitelist",
-  "trustedDevices",
-  "openHours",
-  "guestGroups",
-  "fixProblem",
-  "accessRules",
-  "dashboard",
-  "needsAttention",
-  "insights",
-];
+// Every namespace on disk, not a hand-kept list: a namespace added later
+// (alerts, network, vouchers, reports, staffActivity on 2026-10-31) is covered
+// the day it lands. Interpolation variables, plural pairs and <tags> are
+// checked per string in scripts/check-i18n-literals.mjs.
+const NAMESPACES = readdirSync(join(ROOT, "src/lib/i18n/locales/en"))
+  .filter((f) => f.endsWith(".json"))
+  .map((f) => f.replace(/\.json$/, ""))
+  .sort();
 /**
- * `help` is deliberately partial: `hi/help.json` carries the page chrome and
- * the eight group lines, and the 26 per-screen sentences reach a Hindi reader
- * through `fallbackLng` until a native review pass. That is a decision
- * recorded in `src/lib/i18n/index.ts`, so it is exempted BY NAME rather than
- * by weakening the check for everything.
+ * `help` used to be partial by design (per-screen sentences reached a Hindi
+ * reader through `fallbackLng`). The 2026-10-31 language pass translated
+ * them, so nothing is exempt any more; keep the set for a future deliberate
+ * exception, named here with its reason.
  */
-const PARTIAL_BY_DESIGN = new Set(["help"]);
+const PARTIAL_BY_DESIGN = new Set();
 
 const flatten = (obj, prefix = "") =>
   Object.entries(obj).flatMap(([k, v]) =>
@@ -554,11 +545,19 @@ check(
   !/calls stay clear/.test(qos),
   "throughput was never measured; CAPABILITY-MATRIX §10.4",
 );
-check("it says what the rule does instead", /changes the order traffic is sent in/.test(qos));
+// The sentence moved into the network dictionary (2026-10-31 language pass):
+// pin the key the screen renders AND its English text, so neither half can
+// drift back to the old promise on its own.
+const networkEn = JSON.parse(read("src/lib/i18n/locales/en/network.json"));
+const networkHi = JSON.parse(read("src/lib/i18n/locales/hi/network.json"));
+const callIntro = networkEn.qos?.callPriorityIntro ?? "";
+check("the screen renders the call-priority intro key", /t\("qos\.callPriorityIntro"\)/.test(qos));
+check("it says what the rule does instead", /changes the order traffic is sent in/.test(callIntro));
 check(
   "and names the limit the owner would otherwise discover the hard way",
-  /cannot add capacity your internet line does not have/.test(qos),
+  /cannot add capacity your internet line does not have/.test(callIntro),
 );
+check("and the Hindi says it too, not a fallback", !!networkHi.qos?.callPriorityIntro);
 // The gate question the brief asked, pinned as ANSWERED rather than re-solved:
 // this screen is already not offered at a controller venue, so no second
 // vendor check belongs inside it.
@@ -745,6 +744,16 @@ check(
   /\{!isLoading && tone !== "live" && \(\s*<button\s+type="button"\s+onClick=\{\(\) => handleNav\("debugging"\)\}/.test(
     dashPage,
   ),
+);
+// The status bar that used to hold it is gone (one verdict: the top-bar
+// pill). The CTA lives in the page header, beside the range control, so it
+// stays one click away on a not-live venue.
+check(
+  "the Fix a problem CTA sits in the page header, not a status bar",
+  !dashPage.includes('data-testid="status-bar"') &&
+    /\{!isLoading && tone !== "live" && \(\s*<button[\s\S]{0,900}t\("status\.fixProblem", "Fix a problem"\)[\s\S]{0,1600}<RangeSelect value=\{range\} onChange=\{setRange\} \/>/.test(
+      dashPage,
+    ),
 );
 check(
   "the Fix a problem CTA label is translated",

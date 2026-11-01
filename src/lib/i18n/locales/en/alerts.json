@@ -1,0 +1,21 @@
+{
+  "title": "Alerts",
+  "description": "Problems we've spotted with your routers, internet lines and WiFi login page, as they happen.",
+  "tiles": {
+    "open": "Open",
+    "warnings": "Warnings",
+    "resolved": "Resolved",
+    "total": "Total"
+  },
+  "recent": "Recent alerts",
+  "empty": {
+    "title": "All clear",
+    "body": "Nothing needs you right now. If a router, internet line or the WiFi login page has a problem, it shows up here straight away."
+  },
+  "system": "System",
+  "status": {
+    "open": "Open",
+    "acknowledged": "Seen",
+    "resolved": "Resolved"
+  }
+}

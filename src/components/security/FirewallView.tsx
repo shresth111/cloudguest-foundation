@@ -120,6 +120,11 @@ import {
 } from "@/components/security/FirewallDevicePicker";
 import type { FirewallPushResult, FirewallRule, FloodLimitPreset } from "@/types/firewall";
 import type { RouterDevice } from "@/types/router";
+import { Callout, PANEL_SURFACE, PageHeader, type PageScope } from "@/components/customer/console";
+
+/** An inline text link inside console copy: accent, visible focus ring. */
+const INLINE_LINK =
+  "rounded-sm font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wy-accent)]";
 
 /**
  * Security -> Firewall. Who may reach what, from the venue's guest network,
@@ -156,7 +161,14 @@ import type { RouterDevice } from "@/types/router";
  * MIXED venue it lists only the MikroTik(s), and `ControllerRoutersNote`
  * names the controller it left out.
  */
-export function FirewallView({ locationId }: { locationId?: string }) {
+export function FirewallView({
+  locationId,
+  scope,
+}: {
+  locationId?: string;
+  /** Title + venue from the shell (OWN_PAGE_HEADER_FEATURES). */
+  scope?: PageScope;
+}) {
   const { t } = useTranslation("nav", { i18n });
   const activeLocation = useCustomerStore((s) => s.activeLocation);
   const controllerGated =
@@ -175,28 +187,39 @@ export function FirewallView({ locationId }: { locationId?: string }) {
     },
   });
 
-  const intro = (
-    <p className="max-w-3xl text-sm text-muted-foreground">
-      {t(
-        "blockWebsites.firewallIntro",
-        "Decide which devices on your network may reach which internet addresses. Rules are checked top first, and nothing changes on your router until you apply them.",
-      )}{" "}
-      {t("blockWebsites.firewallWebsitesPrefix", "To block a website by its name, use")}{" "}
-      <Link to="/blocking" className="font-medium text-primary underline-offset-4 hover:underline">
-        {t("customerItem.blocking", "Block Websites")}
-      </Link>
-      .
-    </p>
+  const header = (
+    <PageHeader
+      title={scope?.title ?? t("customerItem.firewall", "Firewall")}
+      venue={scope?.venue}
+      description={
+        <>
+          {t(
+            "blockWebsites.firewallIntro",
+            "Decide which devices on your network may reach which internet addresses. Rules are checked top first, and nothing changes on your router until you apply them.",
+          )}{" "}
+          {t("blockWebsites.firewallWebsitesPrefix", "To block a website by its name, use")}{" "}
+          <Link to="/blocking" className={INLINE_LINK}>
+            {t("customerItem.blocking", "Blocking")}
+          </Link>
+          .
+        </>
+      }
+    />
   );
 
+  // The customer shell never mounts this at a controller venue (it renders
+  // the notice under its own scope line); the staff `/agent` shell does.
   if (controllerGated) {
     return (
-      <ControllerManagedFeatureNotice
-        featureId="firewall"
-        featureLabel={t("customerItem.firewall", "Firewall")}
-        venueName={activeLocation?.name ?? null}
-        vendor={locationControllerVendor(activeLocation?.liveness)}
-      />
+      <div className="wy-console space-y-5">
+        {header}
+        <ControllerManagedFeatureNotice
+          featureId="firewall"
+          featureLabel={t("customerItem.firewall", "Firewall")}
+          venueName={activeLocation?.name ?? null}
+          vendor={locationControllerVendor(activeLocation?.liveness)}
+        />
+      </div>
     );
   }
 
@@ -204,15 +227,15 @@ export function FirewallView({ locationId }: { locationId?: string }) {
   const { writable } = partitionRoutersByDeviceWrite(rows);
 
   return (
-    <div className="space-y-5">
-      {intro}
+    <div className="wy-console space-y-5">
+      {header}
       {routersQuery.isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-[13px] text-[var(--wy-text-muted)]">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           {t("firewallPage.loadingRouters", "Loading this venue's routers…")}
         </div>
       ) : routersQuery.isError ? (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-[13px] text-[var(--wy-crit)]">
           {requestErrorOf(routersQuery.error)?.message ??
             t("firewallPage.routersError", "Couldn't load this venue's routers.")}
         </p>
@@ -245,9 +268,11 @@ export function FirewallView({ locationId }: { locationId?: string }) {
 }
 
 const STATUS_STYLE: Record<"pending" | "active" | "failed", string> = {
-  active: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 dark:text-emerald-400",
-  pending: "bg-zinc-500/10 text-zinc-600 border-zinc-500/20 dark:text-zinc-400",
-  failed: "bg-rose-500/10 text-rose-700 border-rose-500/20 dark:text-rose-400",
+  active:
+    "bg-[var(--wy-ok-soft)] text-[var(--wy-ok)] border-[color-mix(in_srgb,var(--wy-ok)_30%,transparent)]",
+  pending: "bg-[var(--wy-offline-soft)] text-[var(--wy-offline)] border-[var(--wy-border)]",
+  failed:
+    "bg-[var(--wy-crit-soft)] text-[var(--wy-crit)] border-[color-mix(in_srgb,var(--wy-crit)_30%,transparent)]",
 };
 
 function RouterFirewallCard({
@@ -338,16 +363,16 @@ function RouterFirewallCard({
   }
 
   return (
-    <Card className="border-border/60">
+    <Card className={PANEL_SURFACE}>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
-            <RouterIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <RouterIcon className="h-4 w-4 text-[var(--wy-text-faint)]" aria-hidden="true" />
             {router.name}
           </CardTitle>
           {bandState === "ready" && (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-[var(--wy-ok)]" aria-hidden="true" />
               {t("firewallPage.bandReady", "This router is ready for firewall rules.")}
             </p>
           )}
@@ -375,12 +400,9 @@ function RouterFirewallCard({
             action (firewall.manage, GLOBAL scope). A customer-facing button
             would 403. */}
         {bandBlocksApply && (
-          <p
-            role="status"
-            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300"
-          >
+          <Callout tone="warn" role="status">
             {t("firewallPage.bandMissing", BAND_MISSING_SENTENCE)}
-          </p>
+          </Callout>
         )}
 
         <PrivateNetworksSwitch
@@ -401,24 +423,17 @@ function RouterFirewallCard({
         <GuestIsolationCard routerId={router.id} organizationId={organizationId} />
 
         {pushError && (
-          <div
-            role="alert"
-            className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm"
-          >
-            <p className="font-medium text-destructive">{pushError.sentence}</p>
+          <Callout tone="crit" role="alert" title={pushError.sentence}>
             {pushError.detail && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[var(--wy-text-muted)]">
                 {t("firewallPage.routerSaid", "What the router said:")} {pushError.detail}
               </p>
             )}
-          </div>
+          </Callout>
         )}
 
         {pushResult && !pushError && (
-          <p
-            role="status"
-            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-800 dark:text-emerald-300"
-          >
+          <Callout tone="ok" role="status">
             {pushResult.added + pushResult.removed === 0
               ? t(
                   "firewallPage.appliedNoChange",
@@ -433,45 +448,45 @@ function RouterFirewallCard({
                     unchanged: pushResult.unchanged,
                   },
                 )}
-          </p>
+          </Callout>
         )}
 
         {notApplied > 0 && !push.isPending && (
-          <div
+          <Callout
+            tone="warn"
             role="status"
-            className="flex flex-col gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:text-amber-200"
+            action={
+              <Button
+                size="sm"
+                onClick={() => setConfirmApply(true)}
+                disabled={rulesQuery.isLoading || bandBlocksApply}
+                className="shrink-0"
+              >
+                <UploadCloud className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                {t("firewallPage.applyNow", "Apply now")}
+              </Button>
+            }
           >
-            <span>
-              {t(
-                "firewallPage.notAppliedHint",
-                "{{count}} rule(s) are saved but not on the router. They take effect when you apply them.",
-                { count: notApplied },
-              )}
-            </span>
-            <Button
-              size="sm"
-              onClick={() => setConfirmApply(true)}
-              disabled={rulesQuery.isLoading || bandBlocksApply}
-              className="shrink-0"
-            >
-              <UploadCloud className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              {t("firewallPage.applyNow", "Apply now")}
-            </Button>
-          </div>
+            {t(
+              "firewallPage.notAppliedHint",
+              "{{count}} rule(s) are saved but not on the router. They take effect when you apply them.",
+              { count: notApplied },
+            )}
+          </Callout>
         )}
 
         {rulesQuery.isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-[13px] text-[var(--wy-text-muted)]">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             {t("firewallPage.loadingRules", "Loading rules…")}
           </div>
         ) : rulesQuery.isError ? (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-[13px] text-[var(--wy-crit)]">
             {requestErrorOf(rulesQuery.error)?.message ??
               t("firewallPage.rulesError", "Couldn't load this router's rules.")}
           </p>
         ) : rules.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] p-6 text-center text-[13px] text-[var(--wy-text-muted)]">
             {t(
               "firewallPage.noRules",
               "No rules yet. Without any, the router lets your network's traffic through as it does today.",
@@ -533,7 +548,7 @@ function RouterFirewallCard({
                           </p>
                         )}
                         {!editable.editable && (
-                          <p className="mt-1 max-w-xs text-xs text-amber-700 dark:text-amber-400">
+                          <p className="mt-1 max-w-xs text-xs text-[var(--wy-warn)]">
                             {editable.reason}
                           </p>
                         )}
@@ -550,8 +565,8 @@ function RouterFirewallCard({
                           className={cn(
                             "rounded-full",
                             decision === "Allow"
-                              ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
-                              : "border-rose-500/30 text-rose-700 dark:text-rose-400",
+                              ? "border-[color-mix(in_srgb,var(--wy-ok)_30%,transparent)] text-[var(--wy-ok)]"
+                              : "border-[color-mix(in_srgb,var(--wy-crit)_30%,transparent)] text-[var(--wy-crit)]",
                           )}
                         >
                           {decision === "Allow"
@@ -607,7 +622,7 @@ function RouterFirewallCard({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-destructive"
+                            className="h-8 w-8 text-[var(--wy-crit)]"
                             aria-label={t("firewallPage.delete", "Delete")}
                             disabled={!editable.editable}
                             onClick={() => setConfirmDelete(rule)}
@@ -679,7 +694,7 @@ function RouterFirewallCard({
                   )}
                 </p>
                 {summary.unpushable > 0 && (
-                  <p className="text-amber-700 dark:text-amber-400">
+                  <p className="text-[var(--wy-warn)]">
                     {t(
                       "firewallPage.applyUnpushable",
                       "{{count}} switched-on rule(s) protect the router itself and can't be applied from here, so the router will refuse this change until they are switched off.",
@@ -722,7 +737,7 @@ function RouterFirewallCard({
           <AlertDialogFooter>
             <AlertDialogCancel>{t("firewallPage.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-[var(--wy-crit)]-foreground hover:bg-[var(--wy-crit-soft)]"
               onClick={() => {
                 const target = confirmDelete;
                 setConfirmDelete(null);
@@ -814,7 +829,7 @@ function PrivateNetworksSwitch({
   }
 
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 p-4">
+    <div className="flex items-start justify-between gap-4 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4">
       <div className="space-y-0.5">
         <p className="text-sm font-semibold">
           {t("firewallPage.privateTitle", "Keep guests off your private networks")}
@@ -893,7 +908,7 @@ function FloodLimitCard({
   return (
     <div
       data-testid="flood-limit-card"
-      className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4"
+      className="space-y-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-0.5">
@@ -928,8 +943,8 @@ function FloodLimitCard({
               <label
                 key={p.id}
                 className={cn(
-                  "flex cursor-pointer items-start gap-2 rounded-md border bg-background p-2.5 text-sm",
-                  current === p.id ? "border-primary" : "border-border/60",
+                  "flex cursor-pointer items-start gap-2 rounded-[var(--wy-radius)] border bg-[var(--wy-surface)] p-2.5 text-sm",
+                  current === p.id ? "border-primary" : "border-[var(--wy-border)]",
                   set.isPending && "pointer-events-none opacity-60",
                 )}
               >
@@ -958,7 +973,7 @@ function FloodLimitCard({
         </p>
       )}
       {on && !state.consistent && (
-        <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+        <p role="status" className="text-xs text-[var(--wy-warn)]">
           {t(
             "firewallPage.floodPartial",
             "Part of this limit is missing on the router. Choose a level again to repair it.",
@@ -981,7 +996,7 @@ function FloodLimitCard({
       )}
       {error && (
         <div role="alert" className="space-y-1 text-sm">
-          <p className="font-medium text-destructive">{error.sentence}</p>
+          <p className="font-medium text-[var(--wy-crit)]">{error.sentence}</p>
           {error.detail && (
             <p className="text-xs text-muted-foreground">
               {t("firewallPage.routerSaid", "What the router said:")} {error.detail}
@@ -1053,7 +1068,7 @@ function GuestIsolationCard({
   return (
     <div
       data-testid="guest-isolation-card"
-      className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4"
+      className="space-y-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-0.5">
@@ -1091,7 +1106,7 @@ function GuestIsolationCard({
       )}
 
       {on && !state.consistent && (
-        <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+        <p role="status" className="text-xs text-[var(--wy-warn)]">
           {t(
             "firewallPage.isoPartial",
             "Part of this is missing on the router — a port may have been added. Turn it off and on again to cover it.",
@@ -1102,7 +1117,7 @@ function GuestIsolationCard({
       {(state.apIsolationNeeded || onePort) && (
         <p
           data-testid="guest-isolation-ap-note"
-          className="rounded-md border border-amber-300/60 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+          className="rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-warn)_30%,transparent)] bg-[var(--wy-warn-soft)] p-2.5 text-xs text-[var(--wy-warn)]"
         >
           {onePort
             ? t("firewallPage.isoOnePort", ISOLATION_ONE_PORT_SENTENCE)
@@ -1131,7 +1146,7 @@ function GuestIsolationCard({
       )}
       {error && (
         <div role="alert" className="space-y-1 text-sm">
-          <p className="font-medium text-destructive">{error.sentence}</p>
+          <p className="font-medium text-[var(--wy-crit)]">{error.sentence}</p>
           {error.detail && (
             <p className="text-xs text-muted-foreground">
               {t("firewallPage.routerSaid", "What the router said:")} {error.detail}
@@ -1335,7 +1350,7 @@ function RuleDialog({
 
   const err = (k: keyof FirewallRuleDraft) =>
     showErrors && errors[k] ? (
-      <p className="text-xs text-destructive" role="alert">
+      <p className="text-xs text-[var(--wy-crit)]" role="alert">
         {errors[k]}
       </p>
     ) : null;
@@ -1378,7 +1393,7 @@ function RuleDialog({
           </label>
         </RadioGroup>
         {modes[end] === "device" && (
-          <div className="space-y-2 rounded-md border bg-muted/20 p-2">
+          <div className="space-y-2 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-2">
             {p && (
               <p className="text-sm">
                 <span className="font-medium">{d?.name ?? p.name}</span>{" "}
@@ -1388,7 +1403,7 @@ function RuleDialog({
               </p>
             )}
             {moved && d && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-[var(--wy-warn)]">
                 {t(
                   "firewallPage.deviceMoved",
                   "{{name}} is now at {{ip}}. Saving moves this rule to its new address.",
@@ -1397,7 +1412,7 @@ function RuleDialog({
               </p>
             )}
             {p && !d && devicesQuery.isSuccess && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-[var(--wy-warn)]">
                 {t(
                   "firewallPage.deviceNotSeen",
                   "We can't see this device on the router right now, so the rule keeps using {{ip}}.",

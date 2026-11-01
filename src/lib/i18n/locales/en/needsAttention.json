@@ -13,7 +13,8 @@
     "alerts": "alerts",
     "devices": "devices",
     "staffLogins": "staff sign-ins",
-    "plan": "your plan"
+    "plan": "your plan",
+    "isp": "internet lines"
   },
   "severity": {
     "error": "Problem",
@@ -24,7 +25,8 @@
     "debugging": "Fix a problem",
     "alerts": "View alerts",
     "devices": "View devices",
-    "admin-logs": "View staff activity"
+    "admin-logs": "View staff activity",
+    "isp-details": "View internet connection"
   },
   "rows": {
     "venueOffline": {
@@ -71,6 +73,24 @@
       "title_one": "Your plan ends in {{count}} day",
       "title_other": "Your plan ends in {{count}} days",
       "detail": "Ends on {{date}} and won't renew by itself."
+    },
+    "devicesUnstable": {
+      "title_one": "{{count}} device is unstable",
+      "title_other": "{{count}} devices are unstable",
+      "detail": "They answer, but keep dropping off or missing checks. Often a loose cable."
+    },
+    "ispDown": {
+      "title_one": "An internet line is down",
+      "title_other": "{{count}} internet lines are down"
+    },
+    "ispDegraded": {
+      "title_one": "An internet line is slow or unreliable",
+      "title_other": "{{count}} internet lines are slow or unreliable"
     }
+  },
+  "routerDetail": {
+    "show_one": "Which router?",
+    "show_other": "Which routers?",
+    "hide": "Hide"
   }
 }

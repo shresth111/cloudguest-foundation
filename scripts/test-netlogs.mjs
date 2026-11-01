@@ -259,9 +259,9 @@ for (const s of ["disconnected", "released", null, undefined, "weird"])
 eq("status is case-insensitive", m.statusTone("ACCEPT"), "positive");
 check(
   "green is green and red is red",
-  /emerald/.test(m.STATUS_TONE_CLASS.positive) &&
-    /red/.test(m.STATUS_TONE_CLASS.negative) &&
-    !/emerald|red/.test(m.STATUS_TONE_CLASS.neutral),
+  m.STATUS_TONE_CONSOLE.positive === "ok" &&
+    m.STATUS_TONE_CONSOLE.negative === "crit" &&
+    m.STATUS_TONE_CONSOLE.neutral === "offline",
 );
 eq("no status is a dash, not a guess", m.statusLabel(null), "—");
 eq("status label", m.statusLabel("disconnected"), "Disconnected");
@@ -494,10 +494,13 @@ const featurePage = read("src/components/customer/CustomerFeaturePage.tsx");
 const en = JSON.parse(read("src/lib/i18n/locales/en/nav.json"));
 const hi = JSON.parse(read("src/lib/i18n/locales/hi/nav.json"));
 
+// A tab of the Logs section since the sidebar became ten rows
+// (docs/design/nav-consolidation.md); same id, same /netlogs URL.
 check(
-  "nav row sits in Logs",
-  /id: "netlogs", label: "NetLogs", icon: Logs, roles: \["owner", "agent"\]/.test(nav) &&
-    nav.indexOf('id: "netlogs"') > nav.indexOf('id: "logs"'),
+  "nav tab sits in the Logs section",
+  /id: "netlogs",\s*label: "NetLogs",\s*icon: Logs,\s*roles: \["owner", "agent"\]/.test(nav) &&
+    nav.indexOf('id: "netlogs"') > nav.indexOf('id: "logs"') &&
+    nav.indexOf('id: "netlogs"') < nav.indexOf('id: "help"'),
 );
 eq("nav row needs network_logs.read", m.NAV_PERMISSION_KEYS.netlogs, ["network_logs.read"]);
 check("that key is seeded by the backend", m.BACKEND_PERMISSION_KEYS.includes("network_logs.read"));
@@ -524,7 +527,9 @@ check(
 );
 check(
   "the feature page mounts the view",
-  /feature === "netlogs" && <NetLogsView locationId=\{locationId\} \/>/.test(featurePage),
+  /feature === "netlogs" && <NetLogsView locationId=\{locationId\} scope=\{pageScope\} \/>/.test(
+    featurePage,
+  ),
 );
 check(
   "the view reads its filters from the URL",

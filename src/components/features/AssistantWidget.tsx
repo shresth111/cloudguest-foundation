@@ -7,7 +7,6 @@ import { assistantService } from "@/services/assistant.service";
 import type { AssistantMessage } from "@/types/assistant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 
 /**
  * Floating customer-support chat widget -- bottom-right button that
@@ -137,6 +136,38 @@ function demoReply(message: string): string {
   return DEMO_DEFAULT_REPLY;
 }
 
+/**
+ * True while the page is being scrolled DOWN (any scroller: the window or
+ * the console's content pane, caught in the capture phase), false again on
+ * scroll up or back near the top. The launcher reads it to get out of the
+ * way of the content being read. Passive listener, one
+ * state flip per direction change, no request of any kind.
+ */
+function useTuckOnScrollDown(): boolean {
+  const [tucked, setTucked] = useState(false);
+  useEffect(() => {
+    const last = new WeakMap<EventTarget, number>();
+    const onScroll = (e: Event) => {
+      const el =
+        e.target instanceof Document
+          ? (e.target.scrollingElement ?? e.target.documentElement)
+          : e.target instanceof HTMLElement
+            ? e.target
+            : null;
+      if (!el || el.closest?.("[data-assistant-panel]")) return;
+      const top = el.scrollTop;
+      const prev = last.get(el) ?? 0;
+      last.set(el, top);
+      if (top < 48) setTucked(false);
+      else if (top > prev + 4) setTucked(true);
+      else if (top < prev - 4) setTucked(false);
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", onScroll, { capture: true });
+  }, []);
+  return tucked;
+}
+
 function toDisplay(messages: AssistantMessage[]): DisplayMessage[] {
   return messages.map((m) => ({ id: m.id, role: m.role, content: m.content }));
 }
@@ -150,6 +181,7 @@ export default function AssistantWidget() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const tucked = useTuckOnScrollDown();
 
   // Auto-scroll to the latest message.
   useEffect(() => {
@@ -224,28 +256,38 @@ export default function AssistantWidget() {
   return (
     <>
       {open && (
-        <Card className="fixed bottom-24 right-8 z-50 flex h-[30rem] w-[22rem] flex-col overflow-hidden rounded-2xl border shadow-2xl sm:w-96">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b bg-primary/5 px-4 py-3">
+        <section
+          data-assistant-panel
+          aria-label="Support Assistant"
+          className="wy-console fixed inset-x-3 bottom-[4.25rem] z-50 flex h-[min(30rem,calc(100dvh-6rem))] flex-col overflow-hidden rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)] text-[var(--wy-text)] shadow-[0_12px_32px_rgb(16_24_40/0.18)] sm:inset-x-auto sm:bottom-20 sm:right-6 sm:w-96"
+        >
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-4 py-3">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                <Bot className="h-4 w-4" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]">
+                <Bot className="h-4 w-4" aria-hidden />
               </div>
               <div>
                 <p className="text-sm font-semibold leading-tight">Support Assistant</p>
-                <p className="text-[11px] text-muted-foreground leading-tight">
+                <p className="text-[11px] leading-tight text-[var(--wy-text-faint)]">
                   {demo ? "Demo mode" : "We usually reply instantly"}
                 </p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setOpen(false)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setOpen(false)}
+              aria-label="Close support chat"
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3">
-            <div className="space-y-3">
+            <div className="space-y-3" aria-live="polite">
               {messages.length === 0 && !sending && (
-                <p className="px-2 py-8 text-center text-xs text-muted-foreground">
+                <p className="px-2 py-8 text-center text-xs text-[var(--wy-text-muted)]">
                   Ask about WiFi connectivity, billing, or vouchers to get started.
                 </p>
               )}
@@ -261,22 +303,22 @@ export default function AssistantWidget() {
                     className={cn(
                       "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
                       m.role === "user"
-                        ? "bg-muted text-foreground"
-                        : "bg-primary text-primary-foreground",
+                        ? "bg-[var(--wy-surface-2)] text-[var(--wy-text)]"
+                        : "bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]",
                     )}
                   >
                     {m.role === "user" ? (
-                      <User className="h-3.5 w-3.5" />
+                      <User className="h-3.5 w-3.5" aria-hidden />
                     ) : (
-                      <Bot className="h-3.5 w-3.5" />
+                      <Bot className="h-3.5 w-3.5" aria-hidden />
                     )}
                   </div>
                   <div
                     className={cn(
-                      "max-w-[75%] rounded-2xl px-3 py-2 text-sm leading-relaxed",
+                      "max-w-[80%] rounded-[var(--wy-radius-lg)] px-3 py-2 text-[13px] leading-relaxed",
                       m.role === "user"
-                        ? "rounded-br-sm bg-primary text-primary-foreground"
-                        : "rounded-bl-sm bg-muted text-foreground",
+                        ? "rounded-br-sm bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]"
+                        : "rounded-bl-sm bg-[var(--wy-surface-2)] text-[var(--wy-text)]",
                     )}
                   >
                     {m.content}
@@ -284,20 +326,23 @@ export default function AssistantWidget() {
                 </div>
               ))}
               {sending && (
-                <div className="flex items-end gap-2">
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                    <Bot className="h-3.5 w-3.5" />
+                <div className="flex items-end gap-2" role="status">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]">
+                    <Bot className="h-3.5 w-3.5" aria-hidden />
                   </div>
-                  <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm bg-muted px-3 py-2.5">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Thinking…</span>
+                  <div className="flex items-center gap-1.5 rounded-[var(--wy-radius-lg)] rounded-bl-sm bg-[var(--wy-surface-2)] px-3 py-2.5">
+                    <Loader2
+                      className="h-3.5 w-3.5 animate-spin text-[var(--wy-text-faint)] motion-reduce:animate-none"
+                      aria-hidden
+                    />
+                    <span className="text-xs text-[var(--wy-text-muted)]">Thinking…</span>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 border-t p-3">
+          <div className="flex shrink-0 items-center gap-2 border-t border-[var(--wy-border)] p-3">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -308,6 +353,7 @@ export default function AssistantWidget() {
                 }
               }}
               placeholder="Type a message…"
+              aria-label="Type a message…"
               disabled={sending}
               className="h-9 text-sm"
             />
@@ -316,20 +362,35 @@ export default function AssistantWidget() {
               className="h-9 w-9 shrink-0"
               onClick={() => void handleSend()}
               disabled={sending || !input.trim()}
+              aria-label="Send"
             >
               <Send className="h-4 w-4" />
             </Button>
           </div>
-        </Card>
+        </section>
       )}
 
+      {/* The launcher. Smaller and tucked into the corner below `sm`, and at
+          every width it slides out of the way while the page scrolls down
+          (back on scroll up, near the top, or on keyboard focus), so it never
+          sits on a table's last row, a footer total or a pager -- the overlap
+          the design review measured on every page, worst at 390px. */}
       <Button
         onClick={() => setOpen((o) => !o)}
         size="icon"
-        className="fixed bottom-8 right-8 z-50 h-14 w-14 rounded-full shadow-2xl"
+        data-tucked={tucked && !open ? "true" : undefined}
+        className={cn(
+          "fixed bottom-3 right-3 z-50 h-11 w-11 rounded-full bg-[var(--wy-accent)] text-[var(--wy-accent-fg)] shadow-[0_6px_16px_rgb(16_24_40/0.22)] transition-[transform,opacity] duration-200 hover:bg-[color-mix(in_srgb,var(--wy-accent)_88%,black)] focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] focus-visible:ring-offset-2 motion-reduce:transition-none sm:bottom-6 sm:right-6 sm:h-12 sm:w-12",
+          "data-[tucked=true]:pointer-events-none data-[tucked=true]:translate-y-20 data-[tucked=true]:opacity-0 data-[tucked=true]:focus-visible:pointer-events-auto data-[tucked=true]:focus-visible:translate-y-0 data-[tucked=true]:focus-visible:opacity-100",
+        )}
         aria-label={open ? "Close support chat" : "Open support chat"}
+        aria-expanded={open}
       >
-        {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {open ? (
+          <X className="h-5 w-5 sm:h-6 sm:w-6" />
+        ) : (
+          <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
+        )}
       </Button>
     </>
   );

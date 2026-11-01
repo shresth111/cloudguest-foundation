@@ -5,7 +5,8 @@
     "setup": "Groups",
     "update": "Find a Guest",
     "bulkGroups": "Add Many Groups",
-    "bulkMap": "Add Guests to Groups"
+    "bulkMap": "Add Guests to Groups",
+    "label": "Guest group tools"
   },
   "templateDownloaded": "Template downloaded",
   "csv": {

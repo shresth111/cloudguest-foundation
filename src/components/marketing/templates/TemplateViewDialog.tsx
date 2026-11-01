@@ -35,7 +35,7 @@ export function TemplateViewDialog({
   const t = template;
   return (
     <Dialog open={!!t} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
+      <DialogContent className="wy-console max-h-[92vh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto">
         {t && (
           <>
             <DialogHeader>

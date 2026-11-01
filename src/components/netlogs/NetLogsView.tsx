@@ -14,9 +14,23 @@ import {
   Search,
   ShieldAlert,
   X,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
+import {
+  MONO_CELL,
+  PANEL_SURFACE,
+  PageHeader,
+  Panel,
+  SegmentedControl,
+  StatTile,
+  StatusBadge,
+  StatusDot,
+  SubTabs,
+  type PageScope,
+} from "@/components/customer/console";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -51,7 +65,7 @@ import {
   NETLOGS_PRESET_LABEL,
   NETLOGS_SEVERITIES,
   NETLOGS_STATUSES,
-  STATUS_TONE_CLASS,
+  STATUS_TONE_CONSOLE,
   categoryLabel,
   deviceHost,
   eventCategoryLabel,
@@ -87,7 +101,7 @@ const NetLogsErrorsChart = lazy(() =>
 );
 
 const SELECT_CLASS =
-  "h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+  "h-9 rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-[13px] text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-10";
 
 /**
  * Logs -> NetLogs: this account's router and sign-in log lines
@@ -105,7 +119,15 @@ const SELECT_CLASS =
  * a line was matched to a router. The backend does not send them on this
  * surface, and nothing here may ask for them.
  */
-export function NetLogsView({ locationId }: { locationId: string }) {
+export function NetLogsView({
+  locationId,
+  scope,
+}: {
+  locationId: string;
+  /** Title (+ venue, which the shell leaves out here: the location filter
+   * can move off the top-bar venue) from the shell. */
+  scope?: PageScope;
+}) {
   const navigate = useNavigate();
   const rawSearch = useSearch({ strict: false }) as Record<string, unknown>;
   const searchKey = JSON.stringify(rawSearch ?? {});
@@ -185,125 +207,130 @@ export function NetLogsView({ locationId }: { locationId: string }) {
     });
   };
 
+  const header = (
+    <PageHeader
+      title={scope?.title ?? "NetLogs"}
+      venue={scope?.venue}
+      description={
+        view === "ipdr"
+          ? "One row per connection, in the CERT-In IPDR column order. Phone numbers and e-mail addresses are masked here and appear in full only in the export."
+          : "What your routers and guest sign-ins recorded: addresses handed out, sign-ins accepted or refused, traffic the firewall stopped, and router events. Phone numbers and e-mail addresses are masked before lines are stored."
+      }
+    />
+  );
+
   if (!permitted) {
     return (
-      <EmptyState
-        icon={ShieldAlert}
-        title="You don't have access to network logs"
-        description="Your role doesn't include Network Logs. Ask your account owner if you need it."
-      />
-    );
-  }
-
-  const tabs = ipdrRead ? (
-    <div
-      role="tablist"
-      aria-label="NetLogs view"
-      className="inline-flex rounded-md border bg-background p-0.5"
-    >
-      {(
-        [
-          ["logs", "Log lines"],
-          ["ipdr", "Connections (IPDR)"],
-        ] as const
-      ).map(([key, label]) => (
-        <button
-          key={key}
-          type="button"
-          role="tab"
-          aria-selected={view === key}
-          onClick={() => showView(key)}
-          className={cn(
-            "rounded px-3 py-1 text-sm font-medium transition-colors",
-            view === key
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground",
-          )}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  ) : null;
-
-  if (view === "ipdr") {
-    return (
-      <div className="space-y-5">
-        {tabs}
-        <IpdrConnections
-          filters={filters}
-          apply={applyIpdr}
-          activeLocationId={locationId}
-          orgWide={orgWide}
-          org={org}
-          canExport={ipdrExport}
+      <div className="wy-console space-y-5">
+        {header}
+        <EmptyState
+          icon={ShieldAlert}
+          title="You don't have access to network logs"
+          description="Your role doesn't include Network Logs. Ask your account owner if you need it."
         />
       </div>
     );
   }
 
+  const tabs = ipdrRead ? (
+    <SubTabs
+      idPrefix="netlogs"
+      ariaLabel="NetLogs view"
+      value={view}
+      onChange={showView}
+      options={[
+        { value: "logs", label: "Log lines" },
+        { value: "ipdr", label: "Connections (IPDR)" },
+      ]}
+    />
+  ) : null;
+  // The panel the tabs control; plain when there is only one view.
+  const panelProps = ipdrRead
+    ? {
+        id: "netlogs-panel",
+        role: "tabpanel" as const,
+        "aria-labelledby": `netlogs-tab-${view}`,
+      }
+    : {};
+
+  if (view === "ipdr") {
+    return (
+      <div className="wy-console space-y-5">
+        {header}
+        {tabs}
+        <div {...panelProps}>
+          <IpdrConnections
+            filters={filters}
+            apply={applyIpdr}
+            activeLocationId={locationId}
+            orgWide={orgWide}
+            org={org}
+            canExport={ipdrExport}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-5">
+    <div className="wy-console space-y-5">
+      {header}
       {tabs}
-      <p className="max-w-3xl text-sm text-muted-foreground">
-        What your routers and guest sign-ins recorded: addresses handed out, sign-ins accepted or
-        refused, traffic the firewall stopped, and router events. Phone numbers and e-mail addresses
-        are masked before lines are stored.
-      </p>
-
-      <Filters
-        filters={filters}
-        apply={apply}
-        activeLocationId={locationId}
-        effLocation={effLocation}
-        orgWide={orgWide}
-        org={org}
-        onRefresh={() => setAt(Date.now())}
-        refreshing={summary.isFetching || logs.isFetching}
-        exportParams={params}
-        locationHeader={locationHeader}
-        exportDisabled={featureOff || !!error}
-      />
-
-      {win.clamped && (
-        <p className="text-xs text-muted-foreground">
-          Showing the last 2 years of that range: that is the most this page can show at once.
-        </p>
-      )}
-
-      {featureOff ? (
-        <EmptyState
-          icon={PowerOff}
-          title="NetLogs isn't switched on for your account yet"
-          description="Nothing is being collected right now, so there is nothing to show. Contact Wyfy support if you'd like network logs for your venues."
+      <div {...panelProps} className="space-y-5">
+        <Filters
+          filters={filters}
+          apply={apply}
+          activeLocationId={locationId}
+          effLocation={effLocation}
+          orgWide={orgWide}
+          org={org}
+          onRefresh={() => setAt(Date.now())}
+          refreshing={summary.isFetching || logs.isFetching}
+          exportParams={params}
+          locationHeader={locationHeader}
+          exportDisabled={featureOff || !!error}
         />
-      ) : friendly ? (
-        <ErrorPanel friendly={friendly} apply={apply} onRetry={() => setAt(Date.now())} />
-      ) : (
-        <>
-          <SummaryCards
-            summary={summary.data}
-            loading={summary.isLoading}
-            onPickRouter={(r) =>
-              apply({
-                location: r.location_id && r.location_id !== locationId ? r.location_id : "",
-                router: r.router_id ?? "",
-              })
-            }
-            activeRouter={filters.router}
+
+        {win.clamped && (
+          <p className="text-xs text-[var(--wy-text-muted)]">
+            Showing the last 2 years of that range: that is the most this page can show at once.
+          </p>
+        )}
+
+        {featureOff ? (
+          <EmptyState
+            icon={PowerOff}
+            title="NetLogs isn't switched on for your account yet"
+            description="Nothing is being collected right now, so there is nothing to show. Contact Wyfy support if you'd like network logs for your venues."
           />
-          <ChartsRow summary={summary.data} loading={summary.isLoading} />
-          <LogTable
-            items={logs.data?.pages.flatMap((p) => p.items) ?? []}
-            loading={logs.isLoading}
-            narrowed={hasNarrowingFilters(filters)}
-            onClear={() => apply({ router: "", severity: [], category: [], status: [], q: "" })}
-            hasMore={!!logs.hasNextPage}
-            loadingMore={logs.isFetchingNextPage}
-            onLoadMore={() => void logs.fetchNextPage()}
-          />
-        </>
-      )}
+        ) : friendly ? (
+          <ErrorPanel friendly={friendly} apply={apply} onRetry={() => setAt(Date.now())} />
+        ) : (
+          <>
+            <SummaryCards
+              summary={summary.data}
+              loading={summary.isLoading}
+              onPickRouter={(r) =>
+                apply({
+                  location: r.location_id && r.location_id !== locationId ? r.location_id : "",
+                  router: r.router_id ?? "",
+                })
+              }
+              activeRouter={filters.router}
+            />
+            <ChartsRow summary={summary.data} loading={summary.isLoading} />
+            <LogTable
+              items={logs.data?.pages.flatMap((p) => p.items) ?? []}
+              loading={logs.isLoading}
+              narrowed={hasNarrowingFilters(filters)}
+              onClear={() => apply({ router: "", severity: [], category: [], status: [], q: "" })}
+              hasMore={!!logs.hasNextPage}
+              loadingMore={logs.isFetchingNextPage}
+              onLoadMore={() => void logs.fetchNextPage()}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -337,6 +364,7 @@ function Filters({
   locationHeader: string | null;
   exportDisabled: boolean;
 }) {
+  const { t } = useTranslation("nav", { i18n });
   const demo = useIsDemo();
   const locations = useCustomerLocations();
   const locationOptions = useMemo(
@@ -397,108 +425,115 @@ function Filters({
   };
 
   const locationValue = filters.location === "all" && orgWide ? "all" : (effLocation ?? "all");
+  // Below `sm` the five narrowing controls fold behind one "Filters (n)"
+  // button (design review: the seven-control block filled the whole first
+  // screen at 390px). Range, search, refresh and export stay out.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const narrowingCount =
+    (filters.location ? 1 : 0) +
+    (filters.router ? 1 : 0) +
+    filters.severity.length +
+    filters.category.length +
+    filters.status.length;
   const today = new Date();
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   return (
-    <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
+    <div className={cn(PANEL_SURFACE, "space-y-3 p-3")}>
       <div className="flex flex-wrap items-center gap-2">
-        <div
-          role="group"
-          aria-label="Time range"
-          className="inline-flex flex-wrap rounded-md border bg-background p-0.5"
-        >
-          {NETLOGS_PRESETS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              aria-pressed={filters.range === p}
-              onClick={() => {
-                setCustomOpen(false);
-                apply({ range: p, from: "", to: "" });
-              }}
-              className={cn(
-                "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                filters.range === p
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )}
-            >
-              {NETLOGS_PRESET_LABEL[p]}
-            </button>
-          ))}
-          <button
-            type="button"
-            aria-pressed={filters.range === "custom"}
-            onClick={() => setCustomOpen((o) => !o)}
-            className={cn(
-              "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-              filters.range === "custom"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            Custom
-          </button>
-        </div>
-
-        <select
-          aria-label="Location"
-          className={SELECT_CLASS}
-          value={locationValue}
-          onChange={(e) => {
-            const v = e.target.value;
-            apply({ location: v === activeLocationId ? "" : v, router: "" });
+        <SegmentedControl
+          ariaLabel="Time range"
+          size="md"
+          className="max-w-full flex-wrap"
+          value={filters.range}
+          onChange={(p) => {
+            if (p === "custom") {
+              setCustomOpen((o) => !o);
+              return;
+            }
+            setCustomOpen(false);
+            apply({ range: p, from: "", to: "" });
           }}
-        >
-          {orgWide && <option value="all">All locations</option>}
-          {locationOptions.length === 0 && effLocation && (
-            <option value={effLocation}>This location</option>
-          )}
-          {locationOptions.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+          options={[
+            ...NETLOGS_PRESETS.map((p) => ({ value: p, label: NETLOGS_PRESET_LABEL[p] })),
+            { value: "custom" as const, label: "Custom" },
+          ]}
+        />
 
-        <select
-          aria-label="Router"
-          className={SELECT_CLASS}
-          value={filters.router}
-          disabled={!effLocation}
-          title={effLocation ? undefined : "Pick a location to choose one of its routers"}
-          onChange={(e) => apply({ router: e.target.value })}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-10 gap-1.5 sm:hidden"
+          aria-expanded={moreOpen}
+          aria-controls="netlogs-more-filters"
+          onClick={() => setMoreOpen((o) => !o)}
         >
-          <option value="">All routers</option>
-          {filters.router && !(routers.data ?? []).some((r) => r.id === filters.router) && (
-            <option value={filters.router}>Selected router</option>
-          )}
-          {(routers.data ?? []).map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          {narrowingCount > 0
+            ? t("netlogs.filtersCount", "Filters ({{count}})", { count: narrowingCount })
+            : t("netlogs.filters", "Filters")}
+        </Button>
 
-        <MultiSelect
-          label="Severity"
-          options={NETLOGS_SEVERITIES.map((s) => ({ value: s, label: titleCase(s) }))}
-          selected={filters.severity}
-          onChange={(severity) => apply({ severity })}
-        />
-        <MultiSelect
-          label="Category"
-          options={NETLOGS_CATEGORIES.map((c) => ({ value: c, label: categoryLabel(c) }))}
-          selected={filters.category}
-          onChange={(category) => apply({ category })}
-        />
-        <MultiSelect
-          label="Status"
-          options={NETLOGS_STATUSES.map((s) => ({ value: s, label: titleCase(s) }))}
-          selected={filters.status}
-          onChange={(status) => apply({ status })}
-        />
+        <div id="netlogs-more-filters" className={cn("contents", !moreOpen && "max-sm:hidden")}>
+          <select
+            aria-label="Location"
+            className={SELECT_CLASS}
+            value={locationValue}
+            onChange={(e) => {
+              const v = e.target.value;
+              apply({ location: v === activeLocationId ? "" : v, router: "" });
+            }}
+          >
+            {orgWide && <option value="all">All locations</option>}
+            {locationOptions.length === 0 && effLocation && (
+              <option value={effLocation}>This location</option>
+            )}
+            {locationOptions.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            aria-label="Router"
+            className={SELECT_CLASS}
+            value={filters.router}
+            disabled={!effLocation}
+            title={effLocation ? undefined : "Pick a location to choose one of its routers"}
+            onChange={(e) => apply({ router: e.target.value })}
+          >
+            <option value="">All routers</option>
+            {filters.router && !(routers.data ?? []).some((r) => r.id === filters.router) && (
+              <option value={filters.router}>Selected router</option>
+            )}
+            {(routers.data ?? []).map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+
+          <MultiSelect
+            label="Severity"
+            options={NETLOGS_SEVERITIES.map((s) => ({ value: s, label: titleCase(s) }))}
+            selected={filters.severity}
+            onChange={(severity) => apply({ severity })}
+          />
+          <MultiSelect
+            label="Category"
+            options={NETLOGS_CATEGORIES.map((c) => ({ value: c, label: categoryLabel(c) }))}
+            selected={filters.category}
+            onChange={(category) => apply({ category })}
+          />
+          <MultiSelect
+            label="Status"
+            options={NETLOGS_STATUSES.map((s) => ({ value: s, label: titleCase(s) }))}
+            selected={filters.status}
+            onChange={(status) => apply({ status })}
+          />
+        </div>
 
         <form
           className="flex min-w-[220px] flex-1 items-center gap-2"
@@ -508,7 +543,10 @@ function Filters({
           }}
         >
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--wy-text-faint)]"
+            />
             <Input
               aria-label="Search log lines"
               placeholder="Search text, IP, MAC…"
@@ -551,14 +589,14 @@ function Filters({
 
       {customOpen && (
         <form
-          className="flex flex-wrap items-end gap-2 border-t pt-3"
+          className="flex flex-wrap items-end gap-2 border-t border-[var(--wy-border)] pt-3"
           onSubmit={(e) => {
             e.preventDefault();
             if (!from || !to) return;
             apply({ range: "custom", from, to });
           }}
         >
-          <label className="grid gap-1 text-xs text-muted-foreground">
+          <label className="grid gap-1 text-xs text-[var(--wy-text-muted)]">
             From
             <Input
               type="date"
@@ -568,7 +606,7 @@ function Filters({
               onChange={(e) => setFrom(e.target.value)}
             />
           </label>
-          <label className="grid gap-1 text-xs text-muted-foreground">
+          <label className="grid gap-1 text-xs text-[var(--wy-text-muted)]">
             To
             <Input
               type="date"
@@ -582,7 +620,7 @@ function Filters({
           <Button type="submit" size="sm" disabled={!from || !to}>
             Apply range
           </Button>
-          <p className="text-[11px] text-muted-foreground">Up to 2 years at a time.</p>
+          <p className="text-[11px] text-[var(--wy-text-faint)]">Up to 2 years at a time.</p>
         </form>
       )}
 
@@ -627,16 +665,16 @@ function ActiveFilterChips({
           key={c.key}
           type="button"
           onClick={() => apply(c.clear)}
-          className="inline-flex items-center gap-1 rounded-full border bg-muted/60 px-2 py-0.5 text-[11px] text-foreground hover:bg-muted"
+          className="inline-flex h-6 items-center gap-1 rounded-full border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-2 text-[11px] text-[var(--wy-text)] hover:border-[var(--wy-border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
           aria-label={`Remove filter ${c.label}`}
         >
           {c.label}
-          <X className="h-3 w-3" />
+          <X className="h-3 w-3" aria-hidden="true" />
         </button>
       ))}
       <button
         type="button"
-        className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+        className="rounded-sm text-[11px] text-[var(--wy-text-muted)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
         onClick={() => apply({ router: "", severity: [], category: [], status: [], q: "" })}
       >
         Clear all
@@ -667,17 +705,17 @@ function MultiSelect({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-1">
+        <Button variant="outline" size="sm" className="h-9 gap-1 max-sm:h-10">
           {label}
           {selected.length > 0 && (
-            <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+            <span className="rounded-full bg-[var(--wy-accent)] px-1.5 text-[11px] font-semibold text-[var(--wy-accent-fg)]">
               {selected.length}
             </span>
           )}
-          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-52">
+      <DropdownMenuContent align="start" className="wy-console w-52">
         <DropdownMenuLabel className="text-xs">{label}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {options.map((o) => (
@@ -695,7 +733,7 @@ function MultiSelect({
             <DropdownMenuSeparator />
             <button
               type="button"
-              className="w-full px-2 py-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+              className="w-full rounded-sm px-2 py-1.5 text-left text-xs text-[var(--wy-text-muted)] hover:text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
               onClick={() => onChange([])}
             >
               Clear
@@ -732,12 +770,13 @@ function ErrorPanel({
             }
           : null;
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-12 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-        <AlertTriangle className="h-6 w-6 text-destructive" />
-      </div>
-      <h3 className="text-base font-semibold text-foreground">{friendly.title}</h3>
-      <p className="mt-1 max-w-md text-sm text-muted-foreground">{friendly.detail}</p>
+    <div
+      role="alert"
+      className="flex flex-col items-center justify-center rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-crit)_28%,transparent)] bg-[var(--wy-crit-soft)] px-6 py-12 text-center"
+    >
+      <AlertTriangle aria-hidden="true" className="mb-3 h-6 w-6 text-[var(--wy-crit)]" />
+      <h3 className="text-base font-semibold text-[var(--wy-text)]">{friendly.title}</h3>
+      <p className="mt-1 max-w-md text-[13px] text-[var(--wy-text-muted)]">{friendly.detail}</p>
       <div className="mt-5 flex gap-2">
         {fix && <Button onClick={() => apply(fix.patch)}>{fix.label}</Button>}
         <Button variant="outline" onClick={onRetry}>
@@ -763,25 +802,20 @@ function StatCard({
   tone?: "error" | "warning";
   loading: boolean;
 }) {
+  // A non-zero error/warning count carries a dot (word + colour), never a
+  // red/amber number on its own.
+  const flagged = (tone === "error" || tone === "warning") && (value ?? 0) > 0;
   return (
-    <Card className="border-0 shadow-sm">
-      <CardContent className="p-4">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        {loading ? (
-          <div className="mt-2 h-7 w-20 animate-pulse rounded bg-muted" />
-        ) : (
-          <p
-            className={cn(
-              "mt-1 text-2xl font-semibold tabular-nums",
-              tone === "error" && (value ?? 0) > 0 && "text-red-600 dark:text-red-400",
-              tone === "warning" && (value ?? 0) > 0 && "text-amber-600 dark:text-amber-400",
-            )}
-          >
-            {value === undefined ? "—" : value.toLocaleString()}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+    <StatTile
+      label={label}
+      loading={loading}
+      value={value === undefined ? null : value.toLocaleString()}
+      leading={
+        flagged ? (
+          <StatusDot status={tone === "error" ? "crit" : "warn"} label={label} />
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -798,7 +832,7 @@ function SummaryCards({
 }) {
   const top = (summary?.top_routers ?? []).slice(0, 5);
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-4">
       <StatCard label="Total events" value={summary?.totals.events} loading={loading} />
       <StatCard label="Errors" value={summary?.totals.errors} tone="error" loading={loading} />
       <StatCard
@@ -807,13 +841,15 @@ function SummaryCards({
         tone="warning"
         loading={loading}
       />
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-4">
-          <p className="text-xs font-medium text-muted-foreground">Top routers</p>
+      <div className={cn(PANEL_SURFACE, "col-span-3 px-4 py-3 lg:col-span-1")}>
+        <div>
+          <p className="text-xs font-medium text-[var(--wy-text-muted)]">Top routers</p>
           {loading ? (
-            <div className="mt-2 h-16 animate-pulse rounded bg-muted" />
+            <div className="mt-2 h-16 animate-pulse rounded bg-[var(--wy-surface-2)]" />
           ) : top.length === 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">No router logged anything here.</p>
+            <p className="mt-2 text-xs text-[var(--wy-text-faint)]">
+              No router logged anything here.
+            </p>
           ) : (
             <ul className="mt-1.5 space-y-0.5">
               {top.map((r, i) => {
@@ -828,23 +864,25 @@ function SummaryCards({
                       onClick={() => clickable && onPickRouter(r)}
                       title={clickable ? "Show only this router's lines" : undefined}
                       className={cn(
-                        "flex w-full items-baseline justify-between gap-2 rounded px-1 py-0.5 text-left text-xs",
-                        clickable ? "hover:bg-accent" : "cursor-default",
-                        activeRouter && r.router_id === activeRouter && "bg-accent font-medium",
+                        "flex w-full items-baseline justify-between gap-2 rounded px-1 py-0.5 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]",
+                        clickable ? "hover:bg-[var(--wy-surface-2)]" : "cursor-default",
+                        activeRouter &&
+                          r.router_id === activeRouter &&
+                          "bg-[var(--wy-accent-soft)] font-medium",
                       )}
                     >
                       <span className="min-w-0 truncate">
-                        <span className="text-foreground">{name}</span>
+                        <span className="text-[var(--wy-text)]">{name}</span>
                         {r.location_name && (
-                          <span className="ml-1 text-[10px] text-muted-foreground">
+                          <span className="ml-1 text-[11px] text-[var(--wy-text-faint)]">
                             {r.location_name}
                           </span>
                         )}
                       </span>
-                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                      <span className="shrink-0 tabular-nums text-[var(--wy-text-muted)]">
                         {r.total.toLocaleString()}
                         {r.errors > 0 && (
-                          <span className="ml-1 text-red-600 dark:text-red-400">
+                          <span className="ml-1 text-[var(--wy-crit)]">
                             · {r.errors.toLocaleString()} err
                           </span>
                         )}
@@ -855,8 +893,8 @@ function SummaryCards({
               })}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
@@ -865,47 +903,39 @@ function ChartsRow({ summary, loading }: { summary: NetLogSummary | undefined; l
   const rows = useMemo(() => netLogsChartRows(summary), [summary]);
   const categories = useMemo(() => presentCategories(summary), [summary]);
   const placeholder = (text: string) => (
-    <div className="flex h-[180px] items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">
+    <div className="flex h-[180px] items-center justify-center rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] text-xs text-[var(--wy-text-muted)]">
       {text}
     </div>
   );
-  const skeleton = <div className="h-[200px] animate-pulse rounded-lg bg-muted" />;
+  const skeleton = (
+    <div className="h-[200px] animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]" />
+  );
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Volume by day</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            skeleton
-          ) : rows.length === 0 ? (
-            placeholder("No lines in this period.")
-          ) : (
-            <Suspense fallback={skeleton}>
-              <NetLogsVolumeChart rows={rows} categories={categories} />
-            </Suspense>
-          )}
-        </CardContent>
-      </Card>
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Errors by day</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            skeleton
-          ) : rows.length === 0 ? (
-            placeholder("No lines in this period.")
-          ) : (summary?.totals.errors ?? 0) + (summary?.totals.warnings ?? 0) === 0 ? (
-            placeholder("No errors or warnings in this period.")
-          ) : (
-            <Suspense fallback={skeleton}>
-              <NetLogsErrorsChart rows={rows} />
-            </Suspense>
-          )}
-        </CardContent>
-      </Card>
+      <Panel title="Volume by day">
+        {loading ? (
+          skeleton
+        ) : rows.length === 0 ? (
+          placeholder("No lines in this period.")
+        ) : (
+          <Suspense fallback={skeleton}>
+            <NetLogsVolumeChart rows={rows} categories={categories} />
+          </Suspense>
+        )}
+      </Panel>
+      <Panel title="Errors by day">
+        {loading ? (
+          skeleton
+        ) : rows.length === 0 ? (
+          placeholder("No lines in this period.")
+        ) : (summary?.totals.errors ?? 0) + (summary?.totals.warnings ?? 0) === 0 ? (
+          placeholder("No errors or warnings in this period.")
+        ) : (
+          <Suspense fallback={skeleton}>
+            <NetLogsErrorsChart rows={rows} />
+          </Suspense>
+        )}
+      </Panel>
     </div>
   );
 }
@@ -956,13 +986,11 @@ function LogTable({
 
   if (loading) {
     return (
-      <Card className="border-0 shadow-sm">
-        <CardContent className="space-y-2 p-4">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="h-9 animate-pulse rounded bg-muted" />
-          ))}
-        </CardContent>
-      </Card>
+      <div className={cn(PANEL_SURFACE, "space-y-2 p-4")}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="h-9 animate-pulse rounded bg-[var(--wy-surface-2)]" />
+        ))}
+      </div>
     );
   }
 
@@ -983,8 +1011,8 @@ function LogTable({
   }
 
   return (
-    <Card className="border-0 shadow-sm">
-      <CardContent className="p-0">
+    <Panel flush>
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -1020,10 +1048,10 @@ function LogTable({
                         className={cn(
                           "mt-0.5 block text-[10px] uppercase tracking-wide",
                           sev === "error"
-                            ? "text-red-600/80 dark:text-red-400/80"
+                            ? "text-[var(--wy-crit)]"
                             : sev === "warning"
-                              ? "text-amber-600/80 dark:text-amber-400/80"
-                              : "text-muted-foreground/70",
+                              ? "text-[var(--wy-warn)]"
+                              : "text-[var(--wy-text-faint)]",
                         )}
                       >
                         {severityLabel(e)}
@@ -1037,19 +1065,14 @@ function LogTable({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{e.src_ip ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-xs">{e.dst_ip ?? "—"}</TableCell>
+                    <TableCell className={MONO_CELL}>{e.src_ip ?? "—"}</TableCell>
+                    <TableCell className={MONO_CELL}>{e.dst_ip ?? "—"}</TableCell>
                     <TableCell className="text-xs">{e.protocol ?? "—"}</TableCell>
                     <TableCell>
                       {e.status ? (
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                            STATUS_TONE_CLASS[statusTone(e.status)],
-                          )}
-                        >
+                        <StatusBadge status={STATUS_TONE_CONSOLE[statusTone(e.status)]}>
                           {statusLabel(e.status)}
-                        </span>
+                        </StatusBadge>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
@@ -1062,7 +1085,7 @@ function LogTable({
                             onClick={() => toggle(e.id)}
                             aria-expanded={expanded}
                             aria-label={expanded ? "Hide full line" : "Show full line"}
-                            className="mt-0.5 shrink-0 rounded text-muted-foreground hover:text-foreground"
+                            className="mt-0.5 shrink-0 rounded text-[var(--wy-text-faint)] hover:text-[var(--wy-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
                           >
                             {expanded ? (
                               <ChevronDown className="h-3.5 w-3.5" />
@@ -1090,7 +1113,7 @@ function LogTable({
                     </TableCell>
                   </TableRow>
                   {expanded && msg.detail && (
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableRow className="bg-[var(--wy-surface-2)] hover:bg-[var(--wy-surface-2)]">
                       <TableCell colSpan={7} className="py-2">
                         <pre className="whitespace-pre-wrap break-all font-mono text-[11px] text-foreground">
                           {msg.detail}
@@ -1103,7 +1126,7 @@ function LogTable({
             })}
           </TableBody>
         </Table>
-        <div className="flex items-center justify-between gap-2 border-t px-4 py-3 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between gap-2 border-t border-[var(--wy-border)] px-4 py-3 text-xs text-[var(--wy-text-muted)]">
           <span>
             {items.length.toLocaleString()} line{items.length === 1 ? "" : "s"} shown, newest first
           </span>
@@ -1116,7 +1139,7 @@ function LogTable({
             <span>End of the list</span>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }

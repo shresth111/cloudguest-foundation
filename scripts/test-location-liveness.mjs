@@ -258,19 +258,46 @@ check(
   neverCheckedIn.label === "Never checked in",
   neverCheckedIn.label,
 );
-// The whole point of the report: name the block AND the fix.
+// The whole point of the report: name the block AND the fix -- for the
+// technician (Master console). The venue owner's `nextStep` must not: a cafe
+// owner cannot paste a script into a router terminal, so theirs says what
+// they can do (contact support) and names no technician detail.
 check(
-  "never-checked-in-next-step-names-the-heartbeat-block",
-  /heartbeat block/i.test(neverCheckedIn.nextStep ?? ""),
+  "never-checked-in-technician-next-step-names-the-heartbeat-block",
+  /heartbeat block/i.test(neverCheckedIn.technicianNextStep ?? ""),
+  String(neverCheckedIn.technicianNextStep),
+);
+check(
+  "never-checked-in-technician-next-step-explains-the-single-line-paste",
+  /single line/i.test(neverCheckedIn.technicianNextStep ?? ""),
+  String(neverCheckedIn.technicianNextStep),
+);
+const TECHNICIAN_WORDS =
+  /heartbeat|setup script|script|terminal|scheduler|routeros|wireguard|radius|tunnel/i;
+check(
+  "never-checked-in-customer-next-step-has-no-technician-words",
+  !!neverCheckedIn.nextStep && !TECHNICIAN_WORDS.test(neverCheckedIn.nextStep),
   String(neverCheckedIn.nextStep),
 );
 check(
-  "never-checked-in-next-step-explains-the-single-line-paste",
-  /single line/i.test(neverCheckedIn.nextStep ?? ""),
+  "never-checked-in-customer-next-step-points-to-support",
+  /contact support/i.test(neverCheckedIn.nextStep ?? ""),
   String(neverCheckedIn.nextStep),
 );
 
 check("gone-quiet-is-not-live", wentSilent.state === "not-live", wentSilent.state);
+check(
+  "gone-quiet-customer-next-step-is-power-internet-then-support",
+  /power/i.test(wentSilent.nextStep ?? "") &&
+    /contact support/i.test(wentSilent.nextStep ?? "") &&
+    !TECHNICIAN_WORDS.test(wentSilent.nextStep ?? ""),
+  String(wentSilent.nextStep),
+);
+check(
+  "gone-quiet-technician-next-step-keeps-the-heartbeat-block",
+  /heartbeat block/i.test(wentSilent.technicianNextStep ?? ""),
+  String(wentSilent.technicianNextStep),
+);
 check(
   "gone-quiet-says-when-it-was-last-heard-from",
   /3 hours ago/.test(wentSilent.summary),
@@ -530,7 +557,17 @@ check(
   "dashboard-header-no-longer-falls-through-to-a-red-dot",
   !/activeLocation\?\.status === "online"[\s\S]{0,200}bg-rose-400/.test(dash),
 );
-check("dashboard-header-renders-the-shared-badge", dash.includes("<LocationLivenessBadge"));
+// The console shell (dashboard-revamp) replaced the header badge with a
+// health pill in the top bar; the requirement is unchanged -- the header's
+// status must be the liveness verdict, not something of its own.
+{
+  const header = readFileSync(resolve(ROOT, "src/components/customer/CustomerHeader.tsx"), "utf8");
+  const pill = readFileSync(resolve(ROOT, "src/components/customer/ConsoleHealth.tsx"), "utf8");
+  check(
+    "dashboard-header-renders-the-liveness-verdict",
+    header.includes("<ConsoleHealthPill") && pill.includes("livenessTone(liveness.state)"),
+  );
+}
 check("dashboard-header-has-a-loading-state-of-its-own", dash.includes("CHECKING_LIVENESS"));
 check(
   "dashboard-header-survives-a-summary-persisted-before-liveness-existed",
@@ -541,14 +578,60 @@ check(
   "core-systems-icons-are-not-unconditionally-green",
   !/className="h-3\.5 w-3\.5 text-emerald-500"/.test(dash),
 );
-check("core-systems-icons-follow-the-verdict", dash.includes("CORE_ICON[livenessTone("));
-check("dashboard-explains-why-it-is-not-live", dash.includes("<LocationLivenessExplainer"));
-// The ISP pill is not an ISP signal (see getDashboard()); it must not wear
-// a status icon that implies it is one.
-check(
-  "the-isp-pill-does-not-claim-a-status-it-never-measured",
-  /<Activity aria-hidden className="h-3\.5 w-3\.5 text-muted-foreground" \/>/.test(dash),
-);
+// The Dashboard's own status strip (System % / Routers n/m / ISP name, each
+// with a dot) is gone: it was a second, router-only verdict beside the
+// pill (PM review 2026-10-31). Its requirement moved with it -- the router
+// dots now live in the pill's popover, and each must be that router's own
+// liveness status, never a fixed colour; the pill itself must follow the
+// shared issue list, not a sentence of its own.
+{
+  const pill = readFileSync(resolve(ROOT, "src/components/customer/ConsoleHealth.tsx"), "utf8");
+  check(
+    "core-systems-icons-follow-the-verdict",
+    !dash.includes('data-testid="status-bar"') &&
+      !/d\.health\.(systemHealth|routersOnline)/.test(dash) &&
+      dash.includes("const tone = livenessTone(liveness.state)") &&
+      /const rs = routerStatus\(r\);[\s\S]{0,200}<StatusDot status=\{rs\}/.test(pill) &&
+      /const verdict = venueVerdict\(issues\);\s*const status = verdict\.status;/.test(pill),
+  );
+}
+// Why the venue is not live, and what to do: stated ONCE, in the
+// Needs-attention routers row (which routers, their last contact and the
+// liveness module's next step), not in a separate explainer panel that
+// repeated it (design review 2026-10-31, issue 4).
+{
+  const model = readFileSync(
+    resolve(ROOT, "src/components/customer/dashboard/needsAttentionModel.ts"),
+    "utf8",
+  );
+  const card = readFileSync(
+    resolve(ROOT, "src/components/customer/dashboard/NeedsAttentionCard.tsx"),
+    "utf8",
+  );
+  check(
+    "dashboard-explains-why-it-is-not-live",
+    (model.match(/routers: silent,/g) ?? []).length === 2 &&
+      /<RouterDetail item=\{item\} t=\{t\} \/>/.test(card) &&
+      /\{r\.nextStep && <p/.test(card) &&
+      dash.includes("<NeedsAttentionCardView state={attention} />") &&
+      !dash.includes("<LocationLivenessExplainer"),
+  );
+}
+// The ISP chip was not an ISP signal (see getDashboard(): `d.health.isp` is
+// only the active link's NAME). It is gone, and the ISP signal that replaced
+// it is the measured one: each line's `healthStatus` from its health checks.
+{
+  const model = readFileSync(
+    resolve(ROOT, "src/components/customer/dashboard/needsAttentionModel.ts"),
+    "utf8",
+  );
+  check(
+    "the-isp-pill-does-not-claim-a-status-it-never-measured",
+    !/d\.health\.isp/.test(dash) &&
+      /l\.healthStatus === "unhealthy"/.test(model) &&
+      /l\.healthStatus === "degraded"/.test(model),
+  );
+}
 
 // This used to assert that CustomerFeaturePage rendered the explainer too,
 // because it carried its own second copy of the dashboard (`DashboardView`).

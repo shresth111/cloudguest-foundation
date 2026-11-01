@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
+import { PANEL_SURFACE } from "@/components/customer/console";
 import {
   AlertTriangle,
   HelpCircle,
@@ -123,7 +125,9 @@ type PolicyForm = GuestWifiLimitsForm;
 // asserts the data-limit control is aimed at the fields that are read.
 
 // ── constants ───────────────────────────────────────────────────
-const UNITS = ["Mumbai HQ", "Delhi Office", "Bangalore DC", "Chennai Office"]; // Matches this demo account's real location roster (see customer.service.ts DEMO_LOCATIONS) instead of unrelated placeholder hospitality names that clashed with the rest of the demo persona.
+// Demo-only: the demo world's venues (`@/lib/demo-world`), so every picker
+// lists the same venues as the venue switcher.
+const UNITS: string[] = [...DEMO_VENUE_NAMES];
 const DATA_UNITS = ["MB", "GB"];
 // "Per session" is deliberately NOT here any more, and its absence is the
 // honest half of making this control real -- the same trade IDLE_TIMEOUT made
@@ -196,7 +200,7 @@ function Tooltip({ id, text }: { id: string; text: string }) {
         onBlur={(e) => {
           if (!ref.current?.contains(e.relatedTarget)) close();
         }}
-        className="inline-flex items-center justify-center rounded text-slate-300 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-500 dark:hover:text-slate-300"
+        className="inline-flex items-center justify-center rounded text-[var(--wy-text-faint)] hover:text-[var(--wy-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
       >
         <HelpCircle className="h-3.5 w-3.5" />
       </button>
@@ -208,13 +212,13 @@ function Tooltip({ id, text }: { id: string; text: string }) {
           onKeyDown={(e) => {
             if (e.key === "Escape") close();
           }}
-          className="absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white shadow-lg dark:bg-white dark:text-slate-800"
+          className="absolute bottom-full left-1/2 z-20 mb-2 w-56 -translate-x-1/2 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-3 py-2 text-xs text-[var(--wy-surface)] shadow-lg"
         >
           <p>{text}</p>
           <button
             onClick={close}
             aria-label="Close tooltip"
-            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-600 text-white dark:bg-slate-300 dark:text-slate-800"
+            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--wy-offline)] text-[var(--wy-surface)]"
           >
             <X className="h-3 w-3" />
           </button>
@@ -254,10 +258,10 @@ function Select({
     <div>
       <label
         htmlFor={id}
-        className={`mb-1 flex items-center gap-1 text-sm font-medium ${disabled ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-300"}`}
+        className={`mb-1 flex items-center gap-1 text-sm font-medium ${disabled ? "text-[var(--wy-text-faint)]" : "text-[var(--wy-text-muted)]"}`}
       >
         {label}
-        {required && !disabled && <span className="text-indigo-500">*</span>}
+        {required && !disabled && <span className="text-[var(--wy-accent)]">*</span>}
         {tooltip && <Tooltip id={id} text={tooltip} />}
       </label>
       <select
@@ -265,7 +269,7 @@ function Select({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+        className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:cursor-not-allowed disabled:bg-[var(--wy-surface-2)] disabled:text-[var(--wy-text-faint)]"
       >
         {placeholder && (
           <option value="" disabled>
@@ -282,10 +286,8 @@ function Select({
           tooltip -- for a form whose banner above says changes take effect
           immediately for already-connected guests, the explanation
           shouldn't require a discovery click. */}
-      {caption && !err && (
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{caption}</p>
-      )}
-      {err && <p className="mt-1 text-xs text-indigo-500">{err}</p>}
+      {caption && !err && <p className="mt-1 text-xs text-[var(--wy-text-faint)]">{caption}</p>}
+      {err && <p className="mt-1 text-xs text-[var(--wy-crit)]">{err}</p>}
     </div>
   );
 }
@@ -1127,19 +1129,19 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // ── helpers ───────────────────────────────────────────────────
   const showToast = toast;
   const Err = ({ k }: { k: keyof PolicyForm }) =>
-    errs[k] ? <p className="mt-0.5 text-xs text-indigo-500">{errs[k]}</p> : null;
+    errs[k] ? <p className="mt-0.5 text-xs text-[var(--wy-crit)]">{errs[k]}</p> : null;
 
   return (
     <div className="space-y-6">
       {/* toast */}
       {showToast && (
-        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm text-white shadow-lg dark:bg-white dark:text-slate-900">
+        <div className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-5 py-2.5 text-sm text-[var(--wy-surface)] shadow-lg ">
           {showToast}
         </div>
       )}
 
       {/* form card */}
-      <Card className="border-0 shadow-sm">
+      <Card className={PANEL_SURFACE}>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-sm">
             {editingId ? `Edit Guest WiFi Limits — ${f.businessUnit}` : "Guest WiFi Limits"}
@@ -1164,7 +1166,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 setDataLimitOpen(false);
                 setDlQuota("");
               }}
-              className="text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="text-xs font-medium text-[var(--wy-text-faint)] hover:text-[var(--wy-text-muted)]"
             >
               Cancel edit
             </button>
@@ -1194,14 +1196,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
               grouped in one clearly-labeled section instead of being
               scattered across a flat 6-field grid alongside unrelated
               time-based settings. */}
-            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-4">
               <div className="mb-1 flex items-center gap-2">
-                <Gauge className="h-4 w-4 text-indigo-500" />
-                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  Speed &amp; Devices
-                </h3>
+                <Gauge className="h-4 w-4 text-[var(--wy-accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--wy-text)]">Speed &amp; Devices</h3>
               </div>
-              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+              <p className="mb-4 text-xs text-[var(--wy-text-faint)]">
                 How fast guests connect, and how many devices each guest can use.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1276,7 +1276,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     err={errs.venueSpeed}
                   />
                   {!speedAsking && !venueSpeedUsable && (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs text-[var(--wy-text-muted)]">
                       {t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
                     </p>
                   )}
@@ -1308,14 +1308,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 onClick={() => setDataLimitOpen((prev) => !prev)}
                 aria-expanded={dataLimitOpen}
                 aria-controls="data-limit-panel"
-                className="mt-4 flex w-full items-center justify-between rounded-md border border-dashed border-slate-300 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:hover:bg-slate-700"
+                className="mt-4 flex w-full items-center justify-between rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               >
-                <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                  <Plus className="h-4 w-4 text-indigo-500" /> Add a data limit{" "}
-                  <span className="text-xs font-normal text-slate-400">(Optional)</span>
+                <span className="flex items-center gap-2 text-sm font-medium text-[var(--wy-text)]">
+                  <Plus className="h-4 w-4 text-[var(--wy-accent)]" /> Add a data limit{" "}
+                  <span className="text-xs font-normal text-[var(--wy-text-faint)]">
+                    (Optional)
+                  </span>
                 </span>
                 <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition-transform ${dataLimitOpen ? "rotate-180" : ""}`}
+                  className={`h-4 w-4 text-[var(--wy-text-faint)] transition-transform ${dataLimitOpen ? "rotate-180" : ""}`}
                 />
               </button>
 
@@ -1327,7 +1329,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     operator. Burying either half behind the (?) tooltip
                     pattern would be hiding the part that generates the support
                     call. */}
-                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="mt-3 text-xs text-[var(--wy-text-muted)]">
                     Each guest gets this much data per period. When they reach it their session ends
                     and they are signed out — at a controller-managed venue the controller cuts the
                     device off, and a device that reconnects lands back on the sign-in page. They
@@ -1337,7 +1339,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     <div>
                       <label
                         htmlFor="dl-quota"
-                        className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                        className="mb-1 block text-sm font-medium text-[var(--wy-text-muted)]"
                       >
                         Data quota
                       </label>
@@ -1349,16 +1351,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                         placeholder="0"
                         value={dlQuota}
                         onChange={(e) => setDlQuota(e.target.value)}
-                        className="block w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                        className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                       />
                       {errs.dataLimit && (
-                        <p className="mt-1 text-xs text-indigo-500">{errs.dataLimit}</p>
+                        <p className="mt-1 text-xs text-[var(--wy-crit)]">{errs.dataLimit}</p>
                       )}
                     </div>
                     <div>
                       <label
                         htmlFor="dl-unit"
-                        className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                        className="mb-1 block text-sm font-medium text-[var(--wy-text-muted)]"
                       >
                         Unit
                       </label>
@@ -1366,7 +1368,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                         id="dl-unit"
                         value={dlUnit}
                         onChange={(e) => setDlUnit(e.target.value)}
-                        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                        className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                       >
                         {DATA_UNITS.map((u) => (
                           <option key={u} value={u}>
@@ -1378,7 +1380,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     <div>
                       <label
                         htmlFor="dl-resets"
-                        className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300"
+                        className="mb-1 block text-sm font-medium text-[var(--wy-text-muted)]"
                       >
                         Resets
                       </label>
@@ -1386,7 +1388,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                         id="dl-resets"
                         value={dlResets}
                         onChange={(e) => setDlResets(e.target.value)}
-                        className="block w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                        className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                       >
                         {RESETS.map((r) => (
                           <option key={r} value={r}>
@@ -1405,14 +1407,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
               disconnected or has to sign in again), separated from the
               speed/capacity group above so an owner can scan for the kind
               of setting they actually want to change. */}
-            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+            <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-4">
               <div className="mb-1 flex items-center gap-2">
-                <Clock className="h-4 w-4 text-indigo-500" />
-                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  Time Limits
-                </h3>
+                <Clock className="h-4 w-4 text-[var(--wy-accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--wy-text)]">Time Limits</h3>
               </div>
-              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+              <p className="mb-4 text-xs text-[var(--wy-text-faint)]">
                 When a guest gets disconnected or has to sign in again.
               </p>
               <div className="grid gap-4 sm:grid-cols-3">
@@ -1463,7 +1463,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             </div>
           </div>
 
-          <hr className="my-6 border-slate-100 dark:border-slate-600" />
+          <hr className="my-6 border-[var(--wy-border)]" />
           {/* When-it-applies notice -- a slim, contextual line right where
             it's relevant: the moment before clicking Save. Support contact
             tucked behind the same Tooltip pattern already used for
@@ -1502,8 +1502,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             the wrong one: this screen has spent three releases removing
             sentences that were true of most of the form. */}
           <div className="flex flex-col items-center gap-3">
-            <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <p className="flex items-center gap-1.5 text-xs text-[var(--wy-text-muted)]">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--wy-warn)]" />
               {/* SPEED LEFT THE "NEXT CONNECT" LIST. Publishing a speed
                   re-applies it to the guests who are online -- the per-guest
                   speed and the venue total alike -- so the old opening,
@@ -1525,7 +1525,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+              className="inline-flex items-center gap-2 rounded-[var(--wy-radius)] bg-[var(--wy-text)] px-8 py-2.5 text-sm font-semibold text-[var(--wy-surface)] transition-colors hover:bg-[var(--wy-text)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-border-strong)] focus:ring-offset-2 disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {saving ? "Saving…" : editingId ? "Save changes" : "Update policies"}
@@ -1535,7 +1535,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       </Card>
 
       {/* table card */}
-      <Card className="border-0 shadow-sm">
+      <Card className={PANEL_SURFACE}>
         <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
           <div>
             <CardTitle className="text-sm">Current Guest WiFi Limits</CardTitle>
@@ -1545,7 +1545,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--wy-text-faint)]" />
               <input
                 type="text"
                 placeholder="Search…"
@@ -1554,10 +1554,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   setSearch(e.target.value);
                   setPage(0);
                 }}
-                className="w-44 rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
+                className="w-44 rounded-[var(--wy-radius)] border border-[var(--wy-border)] py-1.5 pl-8 pr-3 text-sm placeholder:text-[var(--wy-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
               />
             </div>
-            <div className="flex items-center gap-0.5 rounded-md border border-slate-200 p-0.5 dark:border-slate-600">
+            <div className="flex items-center gap-0.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-0.5">
               {PAGE_SIZE_OPTS.map((n) => (
                 <button
                   key={n}
@@ -1565,7 +1565,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     setPageSize(n);
                     setPage(0);
                   }}
-                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"}`}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${pageSize === n ? "bg-[var(--wy-text)] text-[var(--wy-surface)]" : "text-[var(--wy-text-muted)] hover:bg-[var(--wy-surface-2)]"}`}
                 >
                   {n}
                 </button>
@@ -1603,7 +1603,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     <TableRow key={p.id} className="border-b">
                       <TableCell className="font-medium">
                         <span className="flex items-center gap-2">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--wy-accent-soft)] text-[var(--wy-accent)] ">
                             <MapPin className="h-3.5 w-3.5" />
                           </span>
                           {p.businessUnit}
@@ -1621,7 +1621,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                           p.bandwidth
                         ) : (
                           <span
-                            className="text-slate-400 dark:text-slate-500"
+                            className="text-[var(--wy-text-faint)]"
                             title={speedVerdict.reason ?? undefined}
                           >
                             Not applied here
@@ -1636,7 +1636,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       <TableCell
                         className={
                           !venueSpeedUsable || p.venueSpeed === VENUE_SPEED_NO_LIMIT
-                            ? "text-slate-400 dark:text-slate-500"
+                            ? "text-[var(--wy-text-faint)]"
                             : undefined
                         }
                       >
@@ -1658,7 +1658,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       <TableCell
                         className={
                           p.idleTimeout === DEFAULT_IDLE_TIMEOUT_LABEL
-                            ? "text-slate-400 dark:text-slate-500"
+                            ? "text-[var(--wy-text-faint)]"
                             : undefined
                         }
                       >
@@ -1666,9 +1666,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       </TableCell>
                       <TableCell
                         className={
-                          p.dailyLimit === "No Limit"
-                            ? "text-slate-400 dark:text-slate-500"
-                            : undefined
+                          p.dailyLimit === "No Limit" ? "text-[var(--wy-text-faint)]" : undefined
                         }
                       >
                         {p.dailyLimit}
@@ -1676,7 +1674,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       <TableCell
                         className={
                           p.devicesPerUser === "Unlimited"
-                            ? "text-slate-400 dark:text-slate-500"
+                            ? "text-[var(--wy-text-faint)]"
                             : undefined
                         }
                       >
@@ -1684,18 +1682,18 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       </TableCell>
                       <TableCell className="text-xs">
                         {p.dataLimit ? (
-                          <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                          <span className="inline-flex items-center rounded-full bg-[var(--wy-accent-soft)] px-2 py-0.5 font-medium text-[var(--wy-accent)] ">
                             {p.dataLimit.quota} {p.dataLimit.unit} / {p.dataLimit.resets}
                           </span>
                         ) : (
-                          <span className="text-slate-400 dark:text-slate-500">No limit</span>
+                          <span className="text-[var(--wy-text-faint)]">No limit</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
                         <button
                           aria-label={`Edit ${p.businessUnit}`}
                           onClick={() => handleEdit(p)}
-                          className="inline-flex items-center justify-center rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                          className="inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 text-[var(--wy-text-faint)] transition-colors hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
@@ -1704,7 +1702,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                             confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`
                           }
                           onClick={() => handleDelete(p.id)}
-                          className={`inline-flex items-center justify-center rounded-lg p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${confirming === p.id ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700 dark:hover:text-red-400"}`}
+                          className={`inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] ${confirming === p.id ? "bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]" : "text-[var(--wy-text-faint)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-crit)]"}`}
                         >
                           {confirming === p.id ? (
                             <span className="text-[11px] font-medium px-1">Confirm</span>
@@ -1730,14 +1728,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 <button
                   disabled={safePage === 0}
                   onClick={() => setPage(safePage - 1)}
-                  className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
                   disabled={safePage >= totalPages - 1}
                   onClick={() => setPage(safePage + 1)}
-                  className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="inline-flex items-center justify-center rounded p-1 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

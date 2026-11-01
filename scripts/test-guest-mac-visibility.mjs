@@ -223,13 +223,22 @@ check(
   "a failed chunk leaves cells unresolved rather than failing the dialog",
   /catch \{/.test(voucherService),
 );
+// The page renders these through i18n (vouchers namespace); pin the key in
+// the component AND its English text in the dictionary, so either side
+// drifting still fails.
+const vouchersEn = JSON.parse(
+  readFileSync(join(ROOT, "src/lib/i18n/locales/en/vouchers.json"), "utf8"),
+);
 check(
   "the voucher dialog renders Device MAC and IP columns",
-  /Device MAC/.test(vouchersPage) && /IP Address/.test(vouchersPage),
+  /t\("v\.deviceMac"\)/.test(vouchersPage) &&
+    /t\("v\.ipAddress"\)/.test(vouchersPage) &&
+    vouchersEn.v?.deviceMac === "Device MAC" &&
+    vouchersEn.v?.ipAddress === "IP Address",
 );
 check(
   "an unused voucher says 'Not redeemed' rather than showing the same blank as an unresolved one",
-  /Not redeemed/.test(vouchersPage),
+  /t\("v\.notRedeemed"\)/.test(vouchersPage) && vouchersEn.v?.notRedeemed === "Not redeemed",
 );
 check(
   "a multi-use voucher shows how many other sessions it had",

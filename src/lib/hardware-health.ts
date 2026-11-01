@@ -228,7 +228,7 @@ export function describeHealth(h: DeviceHealth, now: number = Date.now()): Healt
     };
   }
   return {
-    state: "Up",
+    state: "Online",
     detail: `since ${formatWhen(h.since, now)}`,
     explanation:
       h.probeMethod === "arp"

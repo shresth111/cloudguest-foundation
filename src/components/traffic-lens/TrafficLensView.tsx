@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Check, Lock, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  PANEL_SURFACE,
+  PageHeader,
+  SegmentedControl,
+  SubTabs,
+  type PageScope,
+} from "@/components/customer/console";
 import { useFeatureEntitled } from "@/hooks/useCustomerDashboard";
 import {
   useTrafficLensFindings,
@@ -69,10 +75,13 @@ type LensViewId = (typeof LENS_VIEWS)[number]["id"];
 export function TrafficLensView({
   locationId,
   timeZone,
+  scope,
 }: {
   locationId: string;
   /** The venue's time zone, for the Records table's Start and End. */
   timeZone?: string | null;
+  /** The shell's title + venue for the one PageHeader (OWN_PAGE_HEADER_FEATURES). */
+  scope?: PageScope;
 }) {
   const entitled = useFeatureEntitled(TRAFFIC_LENS_FEATURE_KEY);
   // The second add-on (connection records), as `/me/entitlements` reports it.
@@ -100,19 +109,34 @@ export function TrafficLensView({
     screen.kind === "data" && view === "overview",
   );
   const now = Date.now();
+  const header = (actions?: ReactNode) => (
+    <PageHeader
+      title={scope?.title ?? TRAFFIC_LENS_NAME}
+      venue={scope?.venue}
+      description={LENS_TAGLINE}
+      actions={actions}
+    />
+  );
 
-  if (screen.kind === "locked") return <LockedScreen />;
+  if (screen.kind === "locked")
+    return (
+      <div className="space-y-5">
+        {header()}
+        <LockedScreen />
+      </div>
+    );
   if (screen.kind === "loading")
     return (
-      <div className="space-y-4">
-        <div className="h-10 w-80 max-w-full animate-pulse rounded-lg bg-muted" />
-        <div className="h-72 animate-pulse rounded-3xl bg-muted" />
+      <div className="space-y-5" aria-busy="true">
+        {header()}
+        <div className="h-9 w-80 max-w-full animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]" />
+        <div className="h-72 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]" />
       </div>
     );
   if (screen.kind !== "data")
     return (
-      <div className="space-y-4">
-        <p className="max-w-3xl text-sm text-muted-foreground">{LENS_TAGLINE}</p>
+      <div className="space-y-5">
+        {header()}
         <NoticeCard
           notice={LENS_NOTICES[screen.kind]}
           action={
@@ -132,93 +156,101 @@ export function TrafficLensView({
 
   return (
     <div className="space-y-5">
-      <p className="max-w-3xl text-sm text-muted-foreground">{LENS_TAGLINE}</p>
+      {header(
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setAt(Date.now());
+            void status.refetch();
+          }}
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden /> Refresh
+        </Button>,
+      )}
 
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="flex flex-wrap items-start gap-3">
-          {LENS_VIEWS.length > 1 && (
-            <Tabs value={view} onValueChange={(v) => setView(v as LensViewId)}>
-              <TabsList aria-label="View">
-                {LENS_VIEWS.map((v) => (
-                  <TabsTrigger key={v.id} value={v.id}>
-                    {v.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          )}
-          <LensRangeControl
-            value={range}
-            onChange={(r) => {
-              setAt(Date.now());
-              setRange(r);
-            }}
-          />
-        </div>
+      {LENS_VIEWS.length > 1 && (
+        <SubTabs
+          ariaLabel="View"
+          idPrefix="lens-view"
+          value={view}
+          onChange={setView}
+          options={LENS_VIEWS.map((v) => ({ value: v.id, label: v.label }))}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <LensRangeControl
+          value={range}
+          onChange={(r) => {
+            setAt(Date.now());
+            setRange(r);
+          }}
+        />
         <div className="flex flex-wrap items-center gap-3">
           {/* How far back anything exists, beside the period control, so
               nobody searches beyond it. From the API, not a constant. */}
           {retentionNote(status.data?.retention_days) && (
-            <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+            <span className="rounded-full bg-[var(--wy-surface-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--wy-text-muted)]">
               {retentionNote(status.data?.retention_days)}
             </span>
           )}
-          <span className="text-xs text-muted-foreground">{lensFreshness(latest, now)}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setAt(Date.now());
-              void status.refetch();
-            }}
-          >
-            <RefreshCw className="h-4 w-4" /> Refresh
-          </Button>
+          <span className="text-xs text-[var(--wy-text-faint)]">{lensFreshness(latest, now)}</span>
         </div>
       </div>
 
       {stopped && <NoticeCard notice={stopped} tone="warning" />}
 
-      {view === "overview" && (
-        <TrafficLensOverview
-          query={summary}
-          findings={findings}
-          range={range}
-          rangeMs={bounds.ms}
-          now={now}
-          onRetry={() => setAt(Date.now())}
-          locationId={locationId}
-          bounds={bounds}
-          onOpenRecords={() => setView("destinations")}
-          onOpenCountries={() => setView("geo")}
-        />
-      )}
-      {/* One Records view, two tables: which one is decided from what the
+      <div
+        id="lens-view-panel"
+        role={LENS_VIEWS.length > 1 ? "tabpanel" : undefined}
+        aria-labelledby={LENS_VIEWS.length > 1 ? `lens-view-tab-${view}` : undefined}
+        className="space-y-5"
+      >
+        {view === "overview" && (
+          <TrafficLensOverview
+            query={summary}
+            findings={findings}
+            range={range}
+            rangeMs={bounds.ms}
+            now={now}
+            onRetry={() => setAt(Date.now())}
+            locationId={locationId}
+            bounds={bounds}
+            onOpenRecords={() => setView("destinations")}
+            onOpenCountries={() => setView("geo")}
+          />
+        )}
+        {/* One Records view, two tables: which one is decided from what the
           backend reports about the second add-on, never worked out here. */}
-      {view === "destinations" && recordsMode === "connections" && (
-        <TrafficLensFlowRecords locationId={locationId} bounds={bounds} timeZone={timeZone} />
-      )}
-      {view === "destinations" && recordsMode !== "connections" && (
-        <TrafficLensDestinations
-          locationId={locationId}
-          bounds={bounds}
-          timeZone={timeZone}
-          locked={recordsMode === "venue_locked"}
-        />
-      )}
-      {view === "geo" && (
-        <TrafficLensGeo
-          locationId={locationId}
-          range={range}
-          at={at}
-          onRetry={() => setAt(Date.now())}
-        />
-      )}
+        {view === "destinations" && recordsMode === "connections" && (
+          <TrafficLensFlowRecords locationId={locationId} bounds={bounds} timeZone={timeZone} />
+        )}
+        {view === "destinations" && recordsMode !== "connections" && (
+          <TrafficLensDestinations
+            locationId={locationId}
+            bounds={bounds}
+            timeZone={timeZone}
+            locked={recordsMode === "venue_locked"}
+          />
+        )}
+        {view === "geo" && (
+          <TrafficLensGeo
+            locationId={locationId}
+            range={range}
+            at={at}
+            onRetry={() => setAt(Date.now())}
+          />
+        )}
+      </div>
 
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-[var(--wy-text-faint)]">
         Figures come from traffic records and are kept for {status.data?.retention_days ?? 7} days.
         They are not your billing figure. For the internet line's speed over time, see{" "}
-        <Link to="/isp-details" className="font-medium text-primary hover:underline">
+        <Link
+          to="/isp-details"
+          className="rounded-sm font-medium text-[var(--wy-accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+        >
           Internet Connection
         </Link>
         .
@@ -255,10 +287,16 @@ function LensRangeControl({
 
   return (
     <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-      <Tabs
-        className="max-w-full"
+      <SegmentedControl
+        ariaLabel="Period"
+        size="md"
+        className="max-w-full overflow-x-auto [&>button]:shrink-0 [&>button]:whitespace-nowrap"
         value={editing || value.kind === "custom" ? "custom" : value.window}
-        onValueChange={(v) => {
+        options={[
+          ...LENS_PRESETS.map((p) => ({ value: p.value as string, label: p.label })),
+          { value: "custom", label: "Custom" },
+        ]}
+        onChange={(v) => {
           setError(null);
           if (v === "custom") {
             // Opens on the period already in use, or the last hour.
@@ -275,23 +313,14 @@ function LensRangeControl({
             onChange({ kind: "preset", window: preset.value });
           }
         }}
-      >
-        <TabsList aria-label="Period" className="max-w-full justify-start overflow-x-auto">
-          {LENS_PRESETS.map((p) => (
-            <TabsTrigger key={p.value} value={p.value}>
-              {p.label}
-            </TabsTrigger>
-          ))}
-          <TabsTrigger value="custom">Custom</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      />
       {value.kind === "custom" && !editing && (
-        <span className="text-xs text-muted-foreground">{rangeLabel(value)}</span>
+        <span className="text-xs text-[var(--wy-text-muted)]">{rangeLabel(value)}</span>
       )}
       {editing && (
-        <div className="flex w-full flex-wrap items-end gap-2 rounded-lg border border-border bg-card p-3">
-          <label className="block w-52 space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">From</span>
+        <div className={`flex w-full flex-wrap items-end gap-2 p-3 ${PANEL_SURFACE}`}>
+          <label className="block w-full space-y-1.5 sm:w-52">
+            <span className="text-xs font-medium text-[var(--wy-text-muted)]">From</span>
             <Input
               type="datetime-local"
               value={since}
@@ -300,8 +329,8 @@ function LensRangeControl({
               onChange={(e) => setSince(e.target.value)}
             />
           </label>
-          <label className="block w-52 space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">To</span>
+          <label className="block w-full space-y-1.5 sm:w-52">
+            <span className="text-xs font-medium text-[var(--wy-text-muted)]">To</span>
             <Input
               type="datetime-local"
               value={until}
@@ -322,13 +351,13 @@ function LensRangeControl({
           >
             Cancel
           </Button>
-          <p className="w-full text-[11px] text-muted-foreground">
+          <p className="w-full text-[11px] text-[var(--wy-text-faint)]">
             Your local time, to the minute. Figures are kept for {FLOW_RETENTION_DAYS} days, and a
             period may be at most {FLOW_RETENTION_DAYS} days long. Figures are per five-minute
             window, so a period covers the windows that start inside it.
           </p>
           {error && (
-            <p role="alert" className="w-full text-xs text-destructive">
+            <p role="alert" className="w-full text-xs text-[var(--wy-crit)]">
               {error}
             </p>
           )}
@@ -338,53 +367,44 @@ function LensRangeControl({
   );
 }
 
-/** The lock screen: the same dark slab the answer sits on, what the add-on
- * does and does not do, and one real action. No sample chart and no demo
- * numbers: nothing here is a figure. */
+/** The lock screen: a console panel saying what the add-on does and does
+ * not do, and one real action. No sample chart and no demo numbers:
+ * nothing here is a figure. */
 function LockedScreen() {
   return (
-    <section
-      aria-label={`${TRAFFIC_LENS_NAME} is an add-on`}
-      className="relative overflow-hidden rounded-3xl bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)]"
-    >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-24 -top-36 h-96 w-96 rounded-full opacity-45 blur-3xl"
-        style={{ background: "var(--primary)" }}
-      />
-      <div className="relative grid gap-10 p-6 sm:p-10 lg:grid-cols-5 lg:p-14">
+    <section aria-label={`${TRAFFIC_LENS_NAME} is an add-on`} className={PANEL_SURFACE}>
+      <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-5">
         <div className="lg:col-span-3">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
+          <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-2.5 text-[11px] font-medium text-[var(--wy-text-muted)]">
             <Lock className="h-3 w-3" aria-hidden />
             Add-on
           </span>
-          <h2 className="mt-5 font-display text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl">
+          <h2 className="mt-3 text-base font-semibold text-[var(--wy-text)]">
             {TRAFFIC_LENS_NAME} is an add-on
           </h2>
-          <p className="mt-4 max-w-xl text-base text-white/70">
+          <p className="mt-1 max-w-xl text-[13px] text-[var(--wy-text-muted)]">
             It is not enabled for your organisation.
           </p>
-          <div className="mt-8">
+          <div className="mt-5">
             <AskWyfy
-              onInk
               subject={LENS_ENABLE_SUBJECT}
               description={`Please enable the ${TRAFFIC_LENS_NAME} add-on for our organisation.`}
               label="Ask Wyfy to enable it"
             />
           </div>
         </div>
-        <ul className="space-y-3 lg:col-span-2">
+        <ul className="space-y-2 lg:col-span-2">
           {LENS_LOCKED_POINTS.map((p, i) => {
             const not = i === LENS_LOCKED_POINTS.length - 1;
             return (
               <li
                 key={p}
-                className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-relaxed text-white/85"
+                className="flex items-start gap-2.5 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-3 text-[13px] leading-relaxed text-[var(--wy-text)]"
               >
                 {not ? (
-                  <X className="mt-0.5 h-4 w-4 shrink-0 text-white/50" aria-hidden />
+                  <X className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-text-faint)]" aria-hidden />
                 ) : (
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-ok)]" aria-hidden />
                 )}
                 <span>{p}</span>
               </li>

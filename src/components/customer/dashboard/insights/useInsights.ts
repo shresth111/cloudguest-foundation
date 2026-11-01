@@ -2,6 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import {
+  demoGuestMix,
+  demoLocationComparison,
+  demoLoginFunnel,
+  demoPeakHours,
+} from "./insights.demo";
 import type {
   GuestMixData,
   InsightRangeDays,
@@ -14,9 +20,12 @@ import type {
  * Data hooks for the venue-insight widgets. This file is the widgets' only
  * seam to the network -- the render test stubs it whole.
  *
- * Demo sessions have no backend tenant, so every hook is disabled there and
- * the widgets say so. Nothing here ever returns sample numbers: a failed read
- * is an error state, never zeros.
+ * Demo sessions have no backend tenant, so every hook's query is disabled
+ * there. The three venue cards are instead handed the demo fixtures from
+ * `insights.demo.ts` -- ONLY on that branch, behind `useIsDemo()`, the same
+ * gate every other demo widget uses. A real session never receives them:
+ * its data is the backend's body or nothing, and a failed read is an error
+ * state, never zeros (scripts/test-insights-demo-gate.mjs).
  */
 
 const BASE = "/analytics/venue-insights";
@@ -94,6 +103,16 @@ export interface InsightQuery<T> {
   refetch: () => void;
 }
 
+/** The demo body for one card, or `undefined` for a real session. The
+ * single place a fixture can enter these hooks. */
+export function demoInsightBody(kind: string, demo: boolean, locationId: string, days: number) {
+  if (!demo) return undefined;
+  if (kind === "peak-hours") return demoPeakHours(locationId, days);
+  if (kind === "guest-mix") return demoGuestMix(locationId, days);
+  if (kind === "login-funnel") return demoLoginFunnel(locationId, days);
+  return undefined;
+}
+
 function useVenueInsight<T>(
   kind: string,
   path: string,
@@ -107,6 +126,11 @@ function useVenueInsight<T>(
     enabled: !!locationId && !demo,
     ...QUERY_DEFAULTS,
   });
+  const demoBody = demoInsightBody(kind, demo, locationId, days) as T | undefined;
+  if (demoBody !== undefined) {
+    // Demo workspace: the fixture renders through the real-data path.
+    return { data: demoBody, isLoading: false, isError: false, isDemo: false, refetch: () => {} };
+  }
   return {
     data: q.data,
     isLoading: q.isLoading,
@@ -148,6 +172,17 @@ export function useLocationComparison(
     enabled: !demo,
     ...QUERY_DEFAULTS,
   });
+  if (demo) {
+    // Demo workspace only: every demo venue, counted from the demo world.
+    // It is a selling point for multi-venue owners, so the demo shows it.
+    return {
+      data: demoLocationComparison(days),
+      isLoading: false,
+      isError: false,
+      isDemo: true,
+      refetch: () => {},
+    };
+  }
   return {
     data: q.data,
     isLoading: q.isLoading,

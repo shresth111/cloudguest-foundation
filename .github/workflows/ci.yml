@@ -1053,6 +1053,36 @@ jobs:
             "Portal accessibility invariants: all checks passed." \
             bun run test:a11y
 
+      # The customer console design system (docs/design/console-tokens.md).
+      # Customer-rendered files must use the --wy-* tokens and the console
+      # primitives, not premium-card / rounded-2xl / gradients / raw Tailwind
+      # palette status colours. Files not migrated yet are on
+      # scripts/console-styles-allowlist.json, which may only shrink: a
+      # clean file left on it fails as stale. Floor = 8 checks.
+      - name: console styles guard
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "console-styles" 8 \
+            "console styles: all checks passed" \
+            bun run check:console-styles
+
+      # Hard-coded English on the customer console (dashboard ships en + hi;
+      # docs/design/i18n-style.md). Lists every user-visible literal (JSX text,
+      # copy attributes, toasts, table headers, zod messages, label maps) in
+      # the customer trees and fails on one that is not on
+      # scripts/i18n-literals-allowlist.json -- which only shrinks: a
+      # translated literal left on it fails as stale (regenerate with
+      # `node scripts/check-i18n-literals.mjs --write` and review the diff).
+      # Also the EN/HI dictionary parity: every key both ways, matching
+      # {{variables}}, <tags> and _one/_other pairs, in every namespace.
+      # Floor 175, observed 183 on 2026-10-31.
+      - name: customer console i18n literals + parity
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "i18n-literals" 175 \
+            "i18n-literals: all checks passed" \
+            bun run check:i18n-literals
+
       # --- Fleet wizard Discovery pre-flight ----------------------------
       #
       # THE ONE THAT WAS WRITTEN, PASSING, AND GATED BY NOTHING. This
@@ -2236,6 +2266,20 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "block-scope" 40 "all block-scope checks passed" \
             bun run test:block-scope
+
+      # --- Front desk can unblock a guest at its own venue ----------------
+      #
+      # Owner decision 2026-10-31. Executes lib/guest-unblock.ts (who is
+      # offered Unblock, which rows show it -- server-masked identifiers
+      # included -- and why an org-wide ban is not offered to a venue
+      # account) and pins the X-Location-Id wiring the backend needs.
+      #
+      # Floor 34, observed green at 34.
+      - name: front desk can unblock a guest at its own venue
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "guest-unblock" 34 "all guest-unblock checks passed" \
+            bun run test:guest-unblock
 
       # --- What a block did to their devices -----------------------------
       #

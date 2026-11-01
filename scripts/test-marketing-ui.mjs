@@ -335,7 +335,11 @@ check(
     !/checkbox/i.test(locHtml),
 );
 for (const [file, re] of [
-  ["src/components/marketing/campaigns/CampaignList.tsx", /orgScoped && <TableHead[^>]*>Venues/],
+  // The Venues column exists only for an org-scoped caller (DataTable column).
+  [
+    "src/components/marketing/campaigns/CampaignList.tsx",
+    /\.\.\.\(orgScoped\s*\?\s*\[\s*\{\s*id: "venues",\s*header: "Venues"/,
+  ],
   ["src/components/marketing/audience/ContactsTable.tsx", /<VenueFilterSelect/],
   ["src/components/marketing/campaigns/CampaignList.tsx", /<VenueFilterSelect/],
   ["src/components/marketing/deliveries/DeliveryLogTable.tsx", /<VenueFilterSelect/],
@@ -963,8 +967,27 @@ console.log("\nlock state comes from the backend, not the login radio");
 
 const nav = read("src/lib/customerNav.ts");
 check(
-  "the Guest Messaging (marketing) row is offered to both login roles",
-  /id: "marketing", label: "Guest Messaging", icon: Send, roles: \["owner", "agent"\]/.test(nav),
+  "the Guest Messaging (marketing) tab is offered to both login roles",
+  /id: "marketing",\s*label: "Guest Messaging",\s*icon: Send,\s*roles: \["owner", "agent"\]/.test(
+    nav,
+  ),
+);
+// The second tab of its own Marketing section, after Login Page Offers (owner
+// decision 2026-10-31: a non-subscriber's Marketing click lands on the free
+// feature they use, not an upsell). Offers is owner-only, so for staff this
+// is still the FIRST visible tab and the sidebar row opens it -- the add-on
+// stays one click away, not a fifth tab of Guests.
+check(
+  "Marketing's tabs are Login Page Offers, then Guest Messaging",
+  /id: "marketing",\s*label: "Marketing",\s*icon: Megaphone,\s*items: \[\s*\{\s*id: "campaigns",[^}]*roles: \["owner"\],[^}]*\},\s*\{\s*id: "marketing",\s*label: "Guest Messaging"/.test(
+    nav.replace(/\/\/[^\n]*/g, ""),
+  ),
+);
+check(
+  "the Marketing tab carries the add-on badge too",
+  /useFeatureEntitled\(GUEST_MARKETING_FEATURE_KEY\)/.test(
+    read("src/components/customer/console/SectionTabs.tsx"),
+  ) && /marketingEntitled === false/.test(read("src/components/customer/console/SectionTabs.tsx")),
 );
 const perms = read("src/lib/customerNavPermissions.ts");
 check(

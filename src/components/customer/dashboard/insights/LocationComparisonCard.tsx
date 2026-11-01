@@ -18,16 +18,17 @@ import {
 } from "./insights.types";
 
 const LIVENESS_DOT: Record<Liveness, string> = {
-  online: "bg-emerald-500",
-  partial: "bg-amber-500",
-  offline: "bg-rose-500",
-  none: "bg-muted-foreground/40",
+  online: "bg-[var(--wy-ok)]",
+  partial: "bg-[var(--wy-warn)]",
+  offline: "bg-[var(--wy-crit)]",
+  none: "bg-[var(--wy-offline)]",
 };
 
 /**
  * Every venue in the organization side by side. Renders nothing at all for a
- * single-venue organization (or in the demo, which has no tenant) -- there is
- * nothing to compare, and an empty card would only take space.
+ * single-venue organization -- there is nothing to compare, and an empty
+ * card would only take space. The demo workspace gets the demo world's
+ * venues (`useLocationComparison`'s demo branch), never a real session.
  */
 export function LocationComparisonCard({
   days = DEFAULT_INSIGHT_RANGE_DAYS,
@@ -39,7 +40,6 @@ export function LocationComparisonCard({
   const { t } = useTranslation("insights", { i18n });
   const q = useLocationComparison(days);
 
-  if (q.isDemo) return null;
   if (q.data && q.data.locations.length <= 1) return null;
 
   return (

@@ -7,7 +7,7 @@ export {
 } from "./WanStatusCard";
 export { BandwidthUtilizationCard } from "./BandwidthUtilizationCard";
 export { DeviceStatusCard } from "./DeviceStatusCard";
-export { NeedsAttentionCard } from "./NeedsAttentionCard";
+export { NeedsAttentionCard, NeedsAttentionCardView } from "./NeedsAttentionCard";
 export { useNeedsAttention, buildNeedsAttention } from "./useNeedsAttention";
 export { useWanSummary } from "./useWanSummary";
 export { useBandwidthSeries } from "./useBandwidthSeries";

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/customer/console";
 import { useTrafficLensGeo } from "@/hooks/useTrafficLens";
 import { requestErrorMessage } from "@/services/api";
 import {
@@ -111,9 +112,9 @@ export function TrafficLensGeoTable({
   return (
     <Panel title={GEO_BLOCK_TITLE} note={GEO_BLOCK_NOTE}>
       {loading ? (
-        <div className="h-48 animate-pulse rounded-2xl bg-muted" />
+        <div className="h-48 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]" />
       ) : error !== null ? (
-        <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-crit)_28%,transparent)] bg-[var(--wy-crit-soft)] p-4">
           <div>
             <p className="text-sm font-semibold">Couldn't load countries for this period.</p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -130,11 +131,7 @@ export function TrafficLensGeoTable({
         <BigNotice title={state.title} body={state.body} />
       ) : (
         <div className="space-y-6">
-          {stale && (
-            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-              {stale}
-            </p>
-          )}
+          {stale && <Callout tone="warn">{stale}</Callout>}
           {geoMeasuredEmpty(geo) ? (
             <BigNotice title="No traffic to outside addresses in this period." />
           ) : (
@@ -143,11 +140,11 @@ export function TrafficLensGeoTable({
                 {lead && (
                   <div className="lg:col-span-3">
                     {lead.figure && (
-                      <p className="font-display text-6xl font-bold leading-none tracking-tighter tabular-nums sm:text-7xl">
+                      <p className="text-4xl font-semibold leading-none tracking-tight tabular-nums text-[var(--wy-text)] sm:text-5xl">
                         {lead.figure}
                       </p>
                     )}
-                    <p className="mt-3 max-w-xl font-display text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
+                    <p className="mt-3 max-w-xl text-base font-semibold leading-snug text-[var(--wy-text)]">
                       {lead.headline}
                     </p>
                     {lead.detail && (
@@ -155,7 +152,7 @@ export function TrafficLensGeoTable({
                     )}
                   </div>
                 )}
-                <div className="rounded-xl border border-border bg-muted/40 p-4 lg:col-span-2">
+                <div className="rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4 lg:col-span-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                     Read this as an estimate
                   </p>
@@ -167,7 +164,7 @@ export function TrafficLensGeoTable({
                 {rows.map((row, i) => (
                   <li key={row.key} className="py-4">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      <span className="w-6 shrink-0 font-display text-lg font-semibold tabular-nums text-muted-foreground">
+                      <span className="w-6 shrink-0 text-sm font-semibold tabular-nums text-[var(--wy-text-faint)]">
                         {i + 1}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -199,12 +196,12 @@ export function TrafficLensGeoTable({
                           {row.bytes} · download {row.down} · upload {row.up}
                         </p>
                       </div>
-                      <span className="font-display text-2xl font-semibold tabular-nums">
+                      <span className="text-lg font-semibold tabular-nums text-[var(--wy-text)]">
                         {row.share}
                       </span>
                     </div>
                     <div className="mt-3 pl-10">
-                      <RankBar width={row.barWidth} color="var(--chart-1)" />
+                      <RankBar width={row.barWidth} color="var(--wy-series-1)" />
                     </div>
                     {row.expandable && open.has(row.key) && (
                       <Networks row={row} withheldSentence={withheldSentence} />
@@ -221,7 +218,7 @@ export function TrafficLensGeoTable({
                           {row.bytes} · {row.hint}
                         </p>
                       </div>
-                      <span className="font-display text-2xl font-semibold tabular-nums text-muted-foreground">
+                      <span className="text-lg font-semibold tabular-nums text-[var(--wy-text-muted)]">
                         {row.share}
                       </span>
                     </div>
@@ -234,7 +231,7 @@ export function TrafficLensGeoTable({
             </>
           )}
           {(withheld || coverage) && (
-            <div className="space-y-2 rounded-xl border border-dashed border-border p-4 text-sm">
+            <div className="space-y-2 rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] p-4 text-[13px]">
               {withheld && (
                 <div>
                   <p className="font-medium">{withheld}</p>
@@ -279,7 +276,7 @@ function Networks({ row, withheldSentence }: { row: GeoCountryRow; withheldSente
   return (
     <div
       id={`lens-geo-networks-${row.key}`}
-      className="ml-10 mt-4 space-y-3 rounded-xl bg-muted/40 p-4"
+      className="ml-10 mt-4 space-y-3 rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)] p-4"
     >
       {row.networks.length > 0 && (
         <p className="flex justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -294,9 +291,7 @@ function Networks({ row, withheldSentence }: { row: GeoCountryRow; withheldSente
             {n.asn !== n.name && (
               <span className="font-mono text-xs text-muted-foreground">{n.asn}</span>
             )}
-            <span className="ml-auto font-display text-base font-semibold tabular-nums">
-              {n.share}
-            </span>
+            <span className="ml-auto text-sm font-semibold tabular-nums">{n.share}</span>
           </div>
           <div className="mt-1.5">
             <RankBar width={n.barWidth} color="var(--muted-foreground)" />
@@ -321,9 +316,9 @@ function Networks({ row, withheldSentence }: { row: GeoCountryRow; withheldSente
  * outline, as on the rest of the page. Never a row of zeros. */
 function BigNotice({ title, body }: { title: string; body?: string }) {
   return (
-    <div className="rounded-2xl border-2 border-dashed border-border px-6 py-10">
-      <p className="font-display text-2xl font-semibold leading-tight tracking-tight">{title}</p>
-      {body && <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{body}</p>}
+    <div className="rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] px-5 py-8">
+      <p className="text-base font-semibold leading-snug text-[var(--wy-text)]">{title}</p>
+      {body && <p className="mt-1.5 max-w-2xl text-[13px] text-[var(--wy-text-muted)]">{body}</p>}
     </div>
   );
 }

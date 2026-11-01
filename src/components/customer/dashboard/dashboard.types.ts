@@ -6,27 +6,27 @@ export const WAN_HEALTH_STYLE: Record<
 > = {
   healthy: {
     label: "Online",
-    dot: "bg-emerald-500",
-    text: "text-emerald-600 dark:text-emerald-400",
-    bar: "bg-emerald-500",
+    dot: "bg-[var(--wy-ok)]",
+    text: "text-[var(--wy-ok)]",
+    bar: "bg-[var(--wy-ok)]",
   },
   degraded: {
     label: "Degraded",
-    dot: "bg-amber-500",
-    text: "text-amber-600 dark:text-amber-400",
-    bar: "bg-amber-500",
+    dot: "bg-[var(--wy-warn)]",
+    text: "text-[var(--wy-warn)]",
+    bar: "bg-[var(--wy-warn)]",
   },
   unhealthy: {
     label: "Offline",
-    dot: "bg-rose-500",
-    text: "text-rose-600 dark:text-rose-400",
-    bar: "bg-rose-500",
+    dot: "bg-[var(--wy-crit)]",
+    text: "text-[var(--wy-crit)]",
+    bar: "bg-[var(--wy-crit)]",
   },
   unknown: {
     label: "Unknown",
-    dot: "bg-muted-foreground/40",
-    text: "text-muted-foreground",
-    bar: "bg-muted-foreground/30",
+    dot: "bg-[var(--wy-offline)]",
+    text: "text-[var(--wy-offline)]",
+    bar: "bg-[color-mix(in_srgb,var(--wy-offline)_45%,transparent)]",
   },
 };
 

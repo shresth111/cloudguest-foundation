@@ -8,9 +8,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/context/AuthContext";
-import { setDashboardLanguage } from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
+import i18n, { setDashboardLanguage } from "@/lib/i18n";
 import { authService } from "@/services/auth.service";
-import type { AppError } from "@/services/api";
+import { isHonouredDemoToken } from "@/lib/demo-host";
 
 /** Same dropdown shape as the captive portal's own
  * `src/components/portal-runtime/LanguageSwitcher.tsx` -- a lightweight
@@ -25,23 +26,51 @@ const DASHBOARD_LANGUAGES: { code: "en" | "hi"; label: string }[] = [
 
 export function DashboardLanguageSwitcher({ className }: { className?: string }) {
   const { user, updateUser } = useAuth();
-  const current = user?.language ?? "en";
+  const { i18n: inst } = useTranslation("nav", { i18n });
+  // What is on screen, not what the server last stored: after a save that
+  // failed, the screen is still in the language the owner picked.
+  const current = (inst.resolvedLanguage ?? inst.language ?? user?.language ?? "en").slice(0, 2);
 
   async function switchTo(lang: string) {
     if (lang === current) return;
-    // Optimistic: flip the rendered language immediately, persist in the
-    // background. Matches AccountSection's save() -- same two calls, same
-    // order (persist, then updateUser, then setDashboardLanguage) so the
-    // two entry points can't drift out of sync.
+    // The language changes on screen FIRST and stays changed: it is this
+    // person's display choice, and a backend that cannot store it right now
+    // (the 502 a PM hit) is no reason to snap the UI back to English.
     setDashboardLanguage(lang);
+    // The demo has no account to save to -- and calling the backend from the
+    // sales demo is how a raw "Request failed with status code 502" reached
+    // a prospect. Keep the choice in the local session only.
+    // (Read the same way `customer.service`'s `isDemo()` does, without pulling
+    // that service into the master console, which also renders this.)
+    let demo = false;
     try {
-      const updated = await authService.updateMyProfile({ language: lang });
-      updateUser(updated);
-    } catch (err) {
-      // Revert the visual change if the save didn't actually stick --
-      // otherwise the UI silently claims a preference the backend never got.
-      setDashboardLanguage(current);
-      toast.error((err as AppError).message || "Failed to save language preference");
+      demo = isHonouredDemoToken(window.localStorage.getItem("cloudguest_token"));
+    } catch {
+      demo = false;
+    }
+    if (demo) {
+      if (user) updateUser({ ...user, language: lang });
+      return;
+    }
+    const save = () => authService.updateMyProfile({ language: lang });
+    try {
+      updateUser(await save());
+    } catch {
+      // One quiet retry for a blip, then a plain-language note. Never the
+      // raw HTTP error, and never a revert of what the owner just chose.
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        updateUser(await save());
+      } catch {
+        if (user) updateUser({ ...user, language: lang });
+        toast.message(
+          i18n.t(
+            "consoleShell.language.notSaved",
+            "Language changed on this device. We couldn't save it to your account just now — we'll use it here anyway.",
+            { ns: "nav", lng: lang },
+          ),
+        );
+      }
     }
   }
 
@@ -52,7 +81,7 @@ export function DashboardLanguageSwitcher({ className }: { className?: string })
           variant="ghost"
           size="icon"
           className={className ?? "h-9 w-9"}
-          aria-label="Language"
+          aria-label={i18n.t("consoleShell.language.label", "Language", { ns: "nav" })}
         >
           <Languages className="h-4 w-4" />
         </Button>

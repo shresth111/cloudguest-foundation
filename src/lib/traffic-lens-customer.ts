@@ -31,14 +31,15 @@ export const LENS_ENABLE_SUBJECT = `Enable ${TRAFFIC_LENS_NAME} add-on`;
 export const LENS_SWITCH_ON_SUBJECT = `Switch on ${TRAFFIC_LENS_NAME} for a venue`;
 
 /** Band colours for the timeline on the customer dashboard, in fixed order:
- * four of its own chart tokens, chosen so neighbours differ in hue (the
- * second teal token sits too close to the first to tell apart). A fifth
- * service folds into "Other" rather than getting an invented colour. */
+ * the console's first four data-viz series tokens (`--wy-series-1..4`,
+ * docs/design/console-tokens.md), validated so neighbours differ for
+ * colour-blind readers too. Never a status colour. A fifth service folds
+ * into "Other" rather than getting an invented colour. */
 export const LENS_SERIES_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-5)",
-  "var(--chart-3)",
-  "var(--chart-4)",
+  "var(--wy-series-1)",
+  "var(--wy-series-2)",
+  "var(--wy-series-3)",
+  "var(--wy-series-4)",
 ] as const;
 
 /** The period the page is looking at. One type and one control

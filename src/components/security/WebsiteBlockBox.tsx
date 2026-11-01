@@ -19,9 +19,11 @@ import { websiteToDomain } from "@/lib/firewall-rules";
 import type { ContentFilterRule } from "@/types/contentFilter";
 
 const CHIP_STYLE: Record<ContentFilterRule["devicePushStatus"], string> = {
-  active: "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
-  pending: "border-zinc-500/30 bg-zinc-500/10 text-zinc-700 dark:text-zinc-300",
-  failed: "border-rose-500/30 bg-rose-500/10 text-rose-800 dark:text-rose-300",
+  active:
+    "border-[color-mix(in_srgb,var(--wy-ok)_30%,transparent)] bg-[var(--wy-ok-soft)] text-[var(--wy-ok)]",
+  pending: "border-[var(--wy-border)] bg-[var(--wy-offline-soft)] text-[var(--wy-offline)]",
+  failed:
+    "border-[color-mix(in_srgb,var(--wy-crit)_30%,transparent)] bg-[var(--wy-crit-soft)] text-[var(--wy-crit)]",
 };
 
 /**
@@ -146,7 +148,7 @@ export function WebsiteBlockBox({ routerId }: { routerId: string }) {
   }
 
   return (
-    <section className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4">
+    <section className="space-y-3 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-4">
       <div className="space-y-0.5">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Globe2 className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -194,7 +196,7 @@ export function WebsiteBlockBox({ routerId }: { routerId: string }) {
         </Button>
       </form>
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs text-[var(--wy-crit)]">
           {error}
         </p>
       )}
@@ -290,7 +292,7 @@ function BypassSwitch({ routerId }: { routerId: string }) {
   if (!status.data) return null;
   const s = status.data;
   return (
-    <div className="flex items-start justify-between gap-4 rounded-md border border-border/60 bg-background p-3">
+    <div className="flex items-start justify-between gap-4 rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-3">
       <div className="space-y-0.5">
         <p className="text-sm font-medium">
           {t("firewallPage.bypassTitle", "Stop guests getting around these blocks")}
@@ -302,7 +304,7 @@ function BypassSwitch({ routerId }: { routerId: string }) {
           )}
         </p>
         {s.bypassHardeningStatus === "failed" && (
-          <p role="alert" className="text-xs text-destructive">
+          <p role="alert" className="text-xs text-[var(--wy-crit)]">
             {t("firewallPage.bypassFailed", "The last change to this didn't work.")}
             {s.bypassHardeningError ? ` ${s.bypassHardeningError}` : ""}
           </p>

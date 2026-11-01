@@ -285,6 +285,11 @@ eq("a blocked guest is reported as blocked", blocked.finding, "blocked");
 eq("...with certainty", blocked.confidence, "certain");
 check("...quoting the recorded reason", /abuse — manager/.test(blocked.meaning));
 check(
+  "...and sends the owner to where blocked guests now live",
+  /Security › Blocking/.test(blocked.action) && !/Access Rules/.test(blocked.action),
+  blocked.action,
+);
+check(
   "a blocked guest with no recorded reason gets no invented one",
   /no reason was recorded/i.test(gv({ guest: guest({ isBlocked: true }) }).meaning),
 );

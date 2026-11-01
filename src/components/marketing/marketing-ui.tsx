@@ -4,6 +4,12 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  StatTile as ConsoleStatTile,
+  StatusBadge,
+  TablePager,
+  type ConsoleStatus,
+} from "@/components/customer/console";
 import { CHANNEL_ICON, formatCount, useChannelLabel } from "./marketing-helpers";
 import type { CampaignStatus, MarketingChannel, RecipientStatus } from "@/types/marketing";
 
@@ -26,7 +32,7 @@ export function ChannelTag({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium",
+        "inline-flex h-5 items-center gap-1.5 rounded-[calc(var(--wy-radius)-2px)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-1.5 text-[11px] font-medium text-[var(--wy-text-muted)]",
         className,
       )}
     >
@@ -36,13 +42,16 @@ export function ChannelTag({
   );
 }
 
-const CAMPAIGN_STATUS_STYLE: Record<CampaignStatus, string> = {
-  draft: "bg-muted text-muted-foreground",
-  scheduled: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
-  sending: "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300",
-  sent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
-  failed: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
-  cancelled: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
+/** Campaign state -> console status (docs/design/console-tokens.md). Neutral
+ * for a state that is nobody's fault (draft, cancelled), info while it is
+ * queued or going out, ok when done, crit when it failed. Never the accent. */
+const CAMPAIGN_STATUS_TONE: Record<CampaignStatus, ConsoleStatus> = {
+  draft: "offline",
+  scheduled: "info",
+  sending: "info",
+  sent: "ok",
+  failed: "crit",
+  cancelled: "offline",
 };
 
 const CAMPAIGN_STATUS_FALLBACK: Record<CampaignStatus, string> = {
@@ -57,24 +66,19 @@ const CAMPAIGN_STATUS_FALLBACK: Record<CampaignStatus, string> = {
 export function CampaignStatusTag({ status }: { status: CampaignStatus }) {
   const { t } = useTranslation("marketing", { i18n });
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
-        CAMPAIGN_STATUS_STYLE[status] ?? "bg-muted text-muted-foreground",
-      )}
-    >
+    <StatusBadge status={CAMPAIGN_STATUS_TONE[status] ?? "offline"} pulse={status === "sending"}>
       {t(`campaignStatus.${status}`, CAMPAIGN_STATUS_FALLBACK[status] ?? status)}
-    </span>
+    </StatusBadge>
   );
 }
 
-const RECIPIENT_STATUS_STYLE: Record<RecipientStatus, string> = {
-  pending: "bg-muted text-muted-foreground",
-  sending: "bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300",
-  submitted: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
-  delivered: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300",
-  failed: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
-  skipped: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
+const RECIPIENT_STATUS_TONE: Record<RecipientStatus, ConsoleStatus> = {
+  pending: "offline",
+  sending: "info",
+  submitted: "info",
+  delivered: "ok",
+  failed: "crit",
+  skipped: "warn",
 };
 
 const RECIPIENT_STATUS_FALLBACK: Record<RecipientStatus, string> = {
@@ -89,14 +93,9 @@ const RECIPIENT_STATUS_FALLBACK: Record<RecipientStatus, string> = {
 export function RecipientStatusTag({ status }: { status: RecipientStatus }) {
   const { t } = useTranslation("marketing", { i18n });
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
-        RECIPIENT_STATUS_STYLE[status] ?? "bg-muted text-muted-foreground",
-      )}
-    >
+    <StatusBadge status={RECIPIENT_STATUS_TONE[status] ?? "offline"} pulse={status === "sending"}>
       {t(`recipientStatus.${status}`, RECIPIENT_STATUS_FALLBACK[status] ?? status)}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -108,20 +107,54 @@ export function Pager({
   totalItems,
   onPage,
   busy,
+  inTable,
 }: {
   page: number;
   totalPages: number;
   totalItems: number;
   onPage: (p: number) => void;
   busy?: boolean;
+  /** In a DataTable footer: the console TablePager row instead of the loose line. */
+  inTable?: boolean;
 }) {
+  if (inTable) {
+    return totalPages <= 1 ? (
+      totalItems > 0 ? (
+        <p className="px-3 py-2.5 text-xs tabular-nums text-[var(--wy-text-muted)]">
+          {totalItems.toLocaleString()} total
+        </p>
+      ) : null
+    ) : (
+      <TablePager
+        summary={`Page ${page} of ${totalPages} · ${totalItems.toLocaleString()} total`}
+        previousLabel={
+          <>
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Previous page</span>
+          </>
+        }
+        nextLabel={
+          <>
+            <ChevronRight className="h-4 w-4" aria-hidden />
+            <span className="sr-only">Next page</span>
+          </>
+        }
+        hasPrevious={!busy && page > 1}
+        hasNext={!busy && page < totalPages}
+        onPrevious={() => onPage(page - 1)}
+        onNext={() => onPage(page + 1)}
+      />
+    );
+  }
   if (totalPages <= 1) {
     return totalItems > 0 ? (
-      <p className="px-1 pt-3 text-xs text-muted-foreground">{totalItems.toLocaleString()} total</p>
+      <p className="px-1 pt-3 text-xs tabular-nums text-[var(--wy-text-faint)]">
+        {totalItems.toLocaleString()} total
+      </p>
     ) : null;
   }
   return (
-    <div className="flex items-center justify-between gap-2 px-1 pt-3 text-xs text-muted-foreground">
+    <div className="flex items-center justify-between gap-2 px-1 pt-3 text-xs tabular-nums text-[var(--wy-text-muted)]">
       <span>
         Page {page} of {totalPages} · {totalItems.toLocaleString()} total
       </span>
@@ -133,7 +166,7 @@ export function Pager({
           onClick={() => onPage(page - 1)}
           aria-label="Previous page"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4" aria-hidden />
         </Button>
         <Button
           variant="outline"
@@ -142,14 +175,15 @@ export function Pager({
           onClick={() => onPage(page + 1)}
           aria-label="Next page"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4" aria-hidden />
         </Button>
       </div>
     </div>
   );
 }
 
-/** A labelled number tile. `value` null renders "—" (not measured), never 0. */
+/** A labelled number tile: the console StatTile, with the value's tone on a
+ * status token. `value` null renders "—" (not measured), never 0. */
 export function StatTile({
   label,
   value,
@@ -162,21 +196,20 @@ export function StatTile({
   tone?: "default" | "good" | "bad" | "warn";
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "mt-1 text-2xl font-semibold tabular-nums",
-          tone === "good" && "text-emerald-600",
-          tone === "bad" && "text-red-600",
-          tone === "warn" && "text-amber-600",
-        )}
-      >
-        {formatCount(value)}
-      </p>
-      {hint && <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{hint}</p>}
-    </div>
+    <ConsoleStatTile
+      label={label}
+      hint={hint}
+      value={
+        <span
+          className={cn(
+            tone === "good" && "text-[var(--wy-ok)]",
+            tone === "bad" && "text-[var(--wy-crit)]",
+            tone === "warn" && "text-[var(--wy-warn)]",
+          )}
+        >
+          {formatCount(value)}
+        </span>
+      }
+    />
   );
 }

@@ -48,7 +48,7 @@ export function FirewallDevicePicker({
   }
   if (failed) {
     return (
-      <p role="alert" className="text-xs text-destructive">
+      <p role="alert" className="text-xs text-[var(--wy-crit)]">
         {t(
           "firewallPage.devicesFailed",
           "Couldn't load the devices on your network. Use “A specific address or range” instead, or try again in a minute.",
@@ -82,7 +82,11 @@ export function FirewallDevicePicker({
           className="pl-8"
         />
       </div>
-      <div role="listbox" aria-label={label} className="max-h-56 overflow-y-auto rounded-md border">
+      <div
+        role="listbox"
+        aria-label={label}
+        className="max-h-56 overflow-y-auto rounded-[var(--wy-radius)] border"
+      >
         {shown.length === 0 ? (
           <p className="p-3 text-xs text-muted-foreground">
             {t("firewallPage.devicesNoMatch", "No device matches that.")}
@@ -161,7 +165,7 @@ export function DeviceAddressNote({
 }) {
   const { t } = useTranslation("nav", { i18n });
   const warn = (text: string) => (
-    <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+    <p className="flex items-start gap-1.5 text-xs text-[var(--wy-warn)]">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>{text}</span>
     </p>
@@ -175,7 +179,7 @@ export function DeviceAddressNote({
   let body: ReactNode = null;
   if (offer === "guest") {
     body = (
-      <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+      <p className="flex items-start gap-1.5 text-xs text-[var(--wy-warn)]">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span>
           {t(
@@ -187,7 +191,7 @@ export function DeviceAddressNote({
             search={{ tab: "guests" }}
             className="font-medium underline underline-offset-2"
           >
-            {t("firewallPage.guestWhoLink", "Block Websites → Guests & devices")}
+            {t("firewallPage.guestWhoLink", "Blocking → Guests & devices")}
           </Link>{" "}
           {t("firewallPage.guestWhoTail", "— it blocks the device itself, not its address.")}
         </span>
@@ -226,7 +230,7 @@ export function DeviceAddressNote({
   } else if (offer === "kept") {
     body = (
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+        <CheckCircle2 className="h-3.5 w-3.5 text-[var(--wy-ok)]" aria-hidden="true" />
         {t("firewallPage.keepAlready", "The router always gives this device {{ip}}.", {
           ip: device.ip,
         })}
@@ -252,7 +256,7 @@ export function DeviceAddressNote({
     <div className="space-y-1">
       {body}
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs text-[var(--wy-crit)]">
           {error}
         </p>
       )}

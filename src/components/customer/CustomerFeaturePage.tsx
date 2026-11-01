@@ -1,5 +1,6 @@
 import { Suspense, useState } from "react";
 import { lazyView } from "@/lib/lazy-view";
+import i18n from "@/lib/i18n";
 import { useNavigate } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,12 @@ import { resolveMarketingScope } from "@/lib/marketing-scope";
 import { resolveActiveOrganizationId } from "@/services/api";
 import { useCustomerStore } from "@/stores/customerStore";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
-import { CustomerPageScope } from "@/components/customer/CustomerPageScope";
+import {
+  CustomerPageScope,
+  OWN_PAGE_HEADER_FEATURES,
+} from "@/components/customer/CustomerPageScope";
+import { useCustomerPageScope } from "@/components/customer/use-page-scope";
+import { SectionTabs } from "@/components/customer/console/SectionTabs";
 import {
   CustomerCommandPalette,
   useCustomerCommandPalette,
@@ -27,25 +33,79 @@ import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
-import { AgentsPage } from "@/components/features/AgentsPage";
-import { CampaignsPage } from "@/components/features/CampaignsPage";
-import { VouchersPage } from "@/components/features/VouchersPage";
-import { PortalPage } from "@/components/features/PortalPage";
-import PoliciesHub from "@/components/features/PoliciesHub";
-import { AdvancedPage } from "@/components/features/FeatureComponents";
-import ManageTeamsPage from "@/components/features/ManageTeamsPage";
-import WhiteList from "@/components/features/WhiteList";
-import UserReports from "@/components/features/UserReports";
-import NetworkActivityLog from "@/components/features/NetworkActivityLog";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
-import TicketsPage from "@/components/features/TicketsPage";
-import { HowItWorksView } from "@/components/customer/HowItWorksPage";
+// Every page view is fetched lazily, so the shell above (sidebar, top bar,
+// tab bar) only waits for its own code. These used to be static imports:
+// the route could not render until all of them -- UserReports alone is ~2,900
+// lines -- had downloaded, and `__root.tsx` holds its full-screen boot loader
+// until the route renders, so a cold open of /blocking or /security showed a
+// shell-less spinner for seconds (PM review 2026-10-31). Now the shell paints
+// and the content area shows `ContentSkeleton` while the one view it needs
+// arrives.
+const AgentsPage = lazyView(() => import("@/components/features/AgentsPage"), "AgentsPage");
+const CampaignsPage = lazyView(
+  () => import("@/components/features/CampaignsPage"),
+  "CampaignsPage",
+);
+const VouchersPage = lazyView(() => import("@/components/features/VouchersPage"), "VouchersPage");
+const PortalPage = lazyView(() => import("@/components/features/PortalPage"), "PortalPage");
+const PoliciesHub = lazyView(() => import("@/components/features/PoliciesHub"), "default");
+const AdvancedPage = lazyView(
+  () => import("@/components/features/FeatureComponents"),
+  "AdvancedPage",
+);
+const ManageTeamsPage = lazyView(() => import("@/components/features/ManageTeamsPage"), "default");
+const WhiteList = lazyView(() => import("@/components/features/WhiteList"), "default");
+const UserReports = lazyView(() => import("@/components/features/UserReports"), "default");
+const NetworkActivityLog = lazyView(
+  () => import("@/components/features/NetworkActivityLog"),
+  "default",
+);
+const TicketsPage = lazyView(() => import("@/components/features/TicketsPage"), "default");
+const HowItWorksView = lazyView(
+  () => import("@/components/customer/HowItWorksPage"),
+  "HowItWorksView",
+);
+
+/** The content area's loading state: the page's own shape (a header line,
+ * a row of tiles, a panel), never a full-screen spinner -- the shell around
+ * it is already on screen. */
+function ContentSkeleton() {
+  return (
+    <div className="space-y-4" role="status" aria-busy="true">
+      <span className="sr-only">
+        {i18n.t("loading", { ns: "common", defaultValue: "Loading…" })}
+      </span>
+      <div className="h-5 w-48 animate-pulse rounded bg-[var(--wy-surface-2)]" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-hidden>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-20 animate-pulse rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)]"
+          />
+        ))}
+      </div>
+      <div
+        aria-hidden
+        className="h-72 animate-pulse rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)]"
+      />
+    </div>
+  );
+}
 const NetworkHardwareView = lazyView(
   () => import("@/components/customer/BasicFeatureViews"),
   "NetworkHardwareView",
 );
+const ConnectedDevicesPanel = lazyView(
+  () => import("@/components/customer/devices/ConnectedDevicesPanel"),
+  "ConnectedDevicesPanel",
+);
+import {
+  SectionBoundary,
+  SectionFailed,
+} from "@/components/customer/dashboard/overview/console-ui";
 import { DeviceHealthTrafficView } from "@/components/customer/DeviceHealthTrafficView";
 import { maskMac, DEMO_PLAN_RENEWAL_ISO } from "@/components/features/HeaderControls";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
@@ -176,6 +236,19 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
     locationIsControllerManaged(activeLocation?.liveness) &&
     !featureAppliesToControllerVenue(feature, locationControllerVendor(activeLocation?.liveness));
   const controllerVendor = locationControllerVendor(activeLocation?.liveness);
+  // NetLogs names its scope in its own Location filter (which can read "All
+  // locations"), so the line does not repeat a venue the filter may have
+  // moved away from.
+  const scopeLocationName =
+    feature === "netlogs"
+      ? undefined
+      : feature === "marketing" &&
+          resolveMarketingScope(roles, resolveActiveOrganizationId(), activeLocationId).kind ===
+            "organization"
+        ? "All venues"
+        : activeLocation?.name;
+  const pageScope = useCustomerPageScope(feature, scopeLocationName);
+  const ownPageHeader = OWN_PAGE_HEADER_FEATURES.has(feature) && !controllerGated;
 
   const handleLogout = async () => {
     await logout();
@@ -186,26 +259,11 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
   };
 
   return (
-    <SidebarProvider
-      className="bg-muted/30"
-      style={
-        {
-          // The indigo brand accent from login/select-location/dashboard
-          // never reached this shell -- every feature page nested under it
-          // (Reports, Campaigns, Portal, Vouchers, Policies, Whitelist,
-          // Devices, Teams, Agents, Alerts, Open Hours,
-          // ISP Details, Admin Logs, Mac Auth, Port Forwarding, DHCP,
-          // VLANs, VOIP, ISP Routing, Debugging, Hotspot, Tickets) was
-          // still rendering every `text-primary`/`bg-primary`/`ring-primary`
-          // utility with the old teal token, which is what kept reading as
-          // "still old" no matter how many individual pages got polished.
-          // One override here fixes it everywhere at once.
-          "--primary": "#6C4EFF",
-          "--primary-foreground": "#ffffff",
-          "--ring": "#6366f1",
-        } as React.CSSProperties
-      }
-    >
+    // `wy-console` scopes the console tokens (styles.css,
+    // docs/design/console-tokens.md) to the whole shell. It also re-points
+    // `--primary`/`--ring` at the console accent, which replaces the inline
+    // `#6C4EFF` override this wrapper used to carry for the same purpose.
+    <SidebarProvider className="wy-console bg-[var(--wy-bg)]">
       {/* The hand-rolled scrim + translate-x drawer that used to live here
           is gone: `SidebarProvider` owns open/collapsed state (persisted to
           a cookie, so it survives this shell remounting on every route
@@ -218,20 +276,10 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* No `title`: the page name is the header's breadcrumb, read from
+            the same CUSTOMER_NAVS list the palette and the page scope line
+            read, so it can never show a retired technical name. */}
         <CustomerHeader
-          title={
-            // Label from the same CUSTOMER_NAVS list the palette and the
-            // page scope line read, never the raw feature id -- the old fallback
-            // CSS-`capitalize`d it and so kept showing retired technical
-            // names ("Whitelist", "Isp-Details") after the rename. The venue
-            // stays in the bar as well as on the page: the bar is where you
-            // check it deliberately, the page heading is where you read it
-            // without meaning to. See CustomerPageScope for why that
-            // matters once lists are scoped server-side.
-            <p className="truncate text-sm font-semibold capitalize">
-              {CUSTOMER_NAVS.find((n) => n.id === feature)?.label ?? feature}
-            </p>
-          }
           locationId={locationId}
           planExpiryIso={planExpiryIso}
           onOpenSearch={() => setPaletteOpen(true)}
@@ -256,34 +304,22 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 scope line says so instead of naming the venue in the top bar.
                 Decided from the real role assignments, not the login radio --
                 see lib/marketing-scope.ts. */}
-            <CustomerPageScope
-              featureId={feature}
-              locationName={
-                // NetLogs names its scope in its own Location filter (which
-                // can read "All locations"), so the line does not repeat a
-                // venue the filter may have moved away from.
-                feature === "netlogs"
-                  ? undefined
-                  : feature === "marketing" &&
-                      resolveMarketingScope(roles, resolveActiveOrganizationId(), activeLocationId)
-                        .kind === "organization"
-                    ? "All venues"
-                    : activeLocation?.name
-              }
-            />
+            {/* Section › tab bar (docs/design/nav-consolidation.md). Nothing
+                for Home's rows and off-sidebar screens. */}
+            <SectionTabs featureId={feature} />
+            {/* A migrated screen draws its own PageHeader from `pageScope`
+                (OWN_PAGE_HEADER_FEATURES); the controller notice that
+                replaces a gated screen does not, so it keeps the line. */}
+            {!ownPageHeader && (
+              <CustomerPageScope featureId={feature} locationName={scopeLocationName} />
+            )}
             {/* Every branch below can be a lazily-loaded view, so the whole
                 group sits behind one boundary. Only one branch matches at a
                 time, and a single fallback keeps the page from flickering
                 between them. It has to wrap the *whole* group: an earlier
                 version started halfway down and left the views above it
                 uncovered, which would have thrown on first render. */}
-            <Suspense
-              fallback={
-                <div className="flex min-h-[240px] items-center justify-center">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                </div>
-              }
-            >
+            <Suspense fallback={<ContentSkeleton />}>
               {/* No `dashboard`/`users` branch here on purpose. Both were
                   dead: `/` renders CustomerDashboardPage (routes/index.tsx)
                   and `/users` is its own route (routes/users.tsx), and no
@@ -297,36 +333,49 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   went without. Deleted rather than re-wired; if this
                   shell ever needs to render a dashboard again it should
                   render the live component, not a fork of it. */}
-              {feature === "reports" && <UserReports masked={masked} />}
-              {feature === "campaigns" && <CampaignsPage locationId={locationId} />}
-              {feature === "portal" && <PortalPage locationId={locationId} />}
-              {feature === "vouchers" && <VouchersPage locationId={locationId} />}
-              {feature === "policies" && <PoliciesHub locationId={locationId} />}
+              {feature === "reports" && <UserReports masked={masked} scope={pageScope} />}
+              {feature === "campaigns" && (
+                <CampaignsPage locationId={locationId} scope={pageScope} />
+              )}
+              {feature === "portal" && <PortalPage locationId={locationId} scope={pageScope} />}
+              {feature === "vouchers" && <VouchersPage locationId={locationId} scope={pageScope} />}
+              {feature === "policies" && <PoliciesHub locationId={locationId} scope={pageScope} />}
               {/* Allow-list and Trusted Devices are live everywhere except a
                   NAS-only venue (Aruba Instant On), where `controllerGated`
                   is true for them and the notice below renders instead. */}
-              {feature === "whitelist" && !controllerGated && <WhiteList locationId={locationId} />}
+              {feature === "whitelist" && !controllerGated && (
+                <WhiteList locationId={locationId} scope={pageScope} />
+              )}
               {feature === "devices" && (
-                <div className="space-y-4">
-                  <NetworkHardwareView locationId={locationId} />
-                  {/* The venue's own network hardware and how it has been
-                    performing, above the guest devices connected to it. */}
-                  <DeviceHealthTrafficView locationId={locationId} />
-                  <DevicesView locationId={locationId} masked={masked} />
+                // Fleet strip + inventory, then how the hardware has been
+                // performing, then the guest devices connected to it. Each
+                // section fails on its own (SectionBoundary), never the page.
+                <div className="space-y-6">
+                  <SectionBoundary name="devices-hardware" fallback={devicesSectionFailed}>
+                    <NetworkHardwareView locationId={locationId} />
+                  </SectionBoundary>
+                  <SectionBoundary name="devices-traffic" fallback={devicesSectionFailed}>
+                    <DeviceHealthTrafficView locationId={locationId} />
+                  </SectionBoundary>
+                  <SectionBoundary name="devices-connected" fallback={devicesSectionFailed}>
+                    <ConnectedDevicesPanel locationId={locationId} masked={masked} />
+                  </SectionBoundary>
                 </div>
               )}
-              {feature === "teams" && <ManageTeamsPage locationId={locationId} />}
-              {feature === "agents" && <AgentsPage locationId={locationId} />}
+              {feature === "teams" && <ManageTeamsPage locationId={locationId} scope={pageScope} />}
+              {feature === "agents" && <AgentsPage locationId={locationId} scope={pageScope} />}
               {feature === "advanced" && <AdvancedPage />}
               {/* "audit" no longer has its own nav entry (merged into Admin
                 Logs' Account Activity section) -- keep old bookmarks/links
                 to /customer/:id/audit landing somewhere real instead of the
                 generic-feature fallback. */}
               {feature === "audit" && <AdminLogsView locationId={locationId} />}
-              {feature === "tickets" && <TicketsPage locationId={locationId} />}
-              {feature === "how-it-works" && <HowItWorksView />}
-              {feature === "alerts" && <AlertsView />}
-              {feature === "business-hours" && <OpenHoursView locationId={locationId} />}
+              {feature === "tickets" && <TicketsPage locationId={locationId} scope={pageScope} />}
+              {feature === "how-it-works" && <HowItWorksView scope={pageScope} />}
+              {feature === "alerts" && <AlertsView scope={pageScope} />}
+              {feature === "business-hours" && (
+                <OpenHoursView locationId={locationId} scope={pageScope} />
+              )}
               {/* "background-image" no longer renders here -- the login-screen
                 backdrop is uploaded from Portal -> Design (PortalPage.tsx),
                 beside the logo and headline it has to stay legible against.
@@ -342,11 +391,15 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   are gone with it; the component stays because it is the
                   console's only complete connect flow and is moving to the
                   Master console (FE-0 step 3, not done here). */}
-              {feature === "admin-logs" && <AdminLogsView locationId={locationId} />}
-              {feature === "network-activity" && <NetworkActivityLog masked={masked} />}
-              {feature === "netlogs" && <NetLogsView locationId={locationId} />}
+              {feature === "admin-logs" && (
+                <AdminLogsView locationId={locationId} scope={pageScope} />
+              )}
+              {feature === "network-activity" && (
+                <NetworkActivityLog masked={masked} scope={pageScope} />
+              )}
+              {feature === "netlogs" && <NetLogsView locationId={locationId} scope={pageScope} />}
               {feature === "mac-auth" && !controllerGated && (
-                <MacAuthView locationId={locationId} />
+                <MacAuthView locationId={locationId} scope={pageScope} />
               )}
               {/* The RouterOS screens. On a controller-managed venue
                   the view is NOT MOUNTED -- this is not a disabled form over
@@ -365,13 +418,17 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 />
               ) : (
                 <>
-                  {feature === "port-forwarding" && <PortForwardingView locationId={locationId} />}
-                  {feature === "dhcp" && <DhcpView locationId={locationId} />}
-                  {feature === "vlans" && <VlansView locationId={locationId} />}
-                  {feature === "voip" && <VoipView locationId={locationId} />}
+                  {feature === "port-forwarding" && (
+                    <PortForwardingView locationId={locationId} scope={pageScope} />
+                  )}
+                  {feature === "dhcp" && <DhcpView locationId={locationId} scope={pageScope} />}
+                  {feature === "vlans" && <VlansView locationId={locationId} scope={pageScope} />}
+                  {feature === "voip" && <VoipView locationId={locationId} scope={pageScope} />}
                   {/* Security -> Firewall writes the venue's MikroTik, so it
                       sits behind the same gate as the Network screens. */}
-                  {feature === "firewall" && <FirewallView locationId={locationId} />}
+                  {feature === "firewall" && (
+                    <FirewallView locationId={locationId} scope={pageScope} />
+                  )}
                   {/* No "website-blocking" or "web-filtering" branch: both
                       are the "Websites" tab of Security -> Block Websites
                       now, which applies this same controller gate to that
@@ -382,14 +439,22 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {/* `masked` matters here now: this page looks a guest up by
                   phone number, so it renders an identifier the account
                   holder's own masking preference applies to. */}
-              {feature === "security" && <SecurityOverviewView />}
-              {feature === "blocking" && <BlockingView locationId={locationId} syncWithUrl />}
-              {feature === "marketing" && <MarketingView locationId={locationId} syncWithUrl />}
+              {feature === "security" && <SecurityOverviewView scope={pageScope} />}
+              {feature === "blocking" && (
+                <BlockingView locationId={locationId} syncWithUrl scope={pageScope} />
+              )}
+              {feature === "marketing" && (
+                <MarketingView locationId={locationId} syncWithUrl scope={pageScope} />
+              )}
               {/* Not behind the controller gate above: the view shows its own
                   "not available at this venue" from the backend's answer, and
                   the lock screen has to show at any venue. */}
-              {feature === "traffic-lens" && <TrafficLensView locationId={locationId} />}
-              {feature === "debugging" && <DebuggingView locationId={locationId} masked={masked} />}
+              {feature === "traffic-lens" && (
+                <TrafficLensView locationId={locationId} scope={pageScope} />
+              )}
+              {feature === "debugging" && (
+                <DebuggingView locationId={locationId} masked={masked} scope={pageScope} />
+              )}
               {feature === "hotspot" && <HotspotView locationId={locationId} />}
               {/* "audit" is handled above (redirected to AdminLogsView, see
                 that render line's own comment) -- excluded here too so it
@@ -575,140 +640,12 @@ function DashboardWatchIllustration() {
 }
 
 // ── Devices ───────────────────────────────────────────────
-const DEMO_DEVICES = [
-  { m: "00:1A:2B:3C:4D:5E", i: "10.0.1.42", d: "iPhone 15", fs: "Today", ls: "Just now" },
-  { m: "AA:BB:CC:DD:EE:FF", i: "10.0.1.87", d: "MacBook Pro", fs: "Yesterday", ls: "2 min ago" },
-  { m: "11:22:33:44:55:66", i: "10.0.2.15", d: "Galaxy S24", fs: "Today", ls: "5 min ago" },
-  { m: "AB:CD:EF:01:23:45", i: "10.0.2.34", d: "iPad Air", fs: "2 days ago", ls: "1 hour ago" },
-];
-
-function ConnectedDevicesIllustration() {
-  const shouldReduceMotion = useReducedMotion();
-  const nodes = [
-    { x: 12, y: 10, color: "#22d3ee" },
-    { x: 12, y: 34, color: "#f0abfc" },
-    { x: 68, y: 8, color: "#8B5CF6" },
-    { x: 70, y: 36, color: "#22d3ee" },
-  ];
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 84 46"
-      className="hidden h-11 w-auto shrink-0 sm:block"
-      fill="none"
-    >
-      {nodes.map((n, i) => (
-        <motion.line
-          key={i}
-          x1="42"
-          y1="23"
-          x2={n.x}
-          y2={n.y}
-          stroke={n.color}
-          strokeOpacity="0.5"
-          strokeWidth="1.4"
-          strokeDasharray="1 4"
-          strokeLinecap="round"
-          initial={shouldReduceMotion ? false : { pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 * i, ease: "easeOut" }}
-        />
-      ))}
-      {nodes.map((n, i) => (
-        <g key={i} transform={`translate(${n.x}, ${n.y})`}>
-          <rect
-            x="-6"
-            y="-5"
-            width="12"
-            height="10"
-            rx="2.5"
-            fill="#2e2a5c"
-            stroke={n.color}
-            strokeWidth="1.3"
-          />
-          <circle cx="0" cy="0" r="1.4" fill={n.color} />
-        </g>
-      ))}
-      <motion.circle
-        cx="42"
-        cy="23"
-        r="9"
-        fill="#1e1b4b"
-        stroke="#6C4EFF"
-        strokeWidth="2"
-        animate={
-          shouldReduceMotion ? { opacity: 0.9 } : { scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }
-        }
-        transition={
-          shouldReduceMotion ? undefined : { duration: 2.3, repeat: Infinity, ease: "easeInOut" }
-        }
-      />
-      <path d="M38 23h8M42 19v8" stroke="#8B5CF6" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DevicesView({ locationId, masked }: { locationId: string; masked: boolean }) {
-  const { data, isLoading } = useCustomerFeatureData("devices", locationId);
-  const demo = useIsDemo();
-  const devices = data?.devices?.length
-    ? data.devices.map((d) => ({ m: d.mac, i: d.ip, d: d.device, fs: d.firstSeen, ls: d.lastSeen }))
-    : demo
-      ? DEMO_DEVICES
-      : [];
-  return (
-    <Card className="premium-card premium-card-hover">
-      <CardHeader className="flex flex-row items-center justify-between gap-2.5 space-y-0">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6C4EFF] to-[#8B5CF6]">
-            <Wifi className="h-3.5 w-3.5 text-white" />
-          </div>
-          <CardTitle className="text-sm">Connected Devices</CardTitle>
-        </div>
-        <ConnectedDevicesIllustration />
-      </CardHeader>
-      <CardContent className="p-0">
-        {isLoading ? (
-          <div className="p-4">
-            <LoadingSkeleton rows={4} />
-          </div>
-        ) : devices.length === 0 ? (
-          <EmptyState
-            icon={Wifi}
-            title="No connected devices yet"
-            description="Devices that connect to this location's network will show up here."
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">MAC</TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">IP</TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  Device
-                </TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  First Seen
-                </TableHead>
-                <TableHead className="text-xs font-medium uppercase tracking-wide">
-                  Last Seen
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {devices.map((d) => (
-                <TableRow key={d.m} className="border-b">
-                  <TableCell className="font-mono text-xs">{masked ? maskMac(d.m) : d.m}</TableCell>
-                  <TableCell className="font-mono text-xs">{d.i}</TableCell>
-                  <TableCell>{d.d}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{d.fs}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{d.ls}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+// The Devices page's sections live in `@/components/customer/devices/`
+// (and NetworkHardwareView / DeviceHealthTrafficView). This is only the
+// fallback a section shows if it fails to render.
+const devicesSectionFailed = (
+  <SectionFailed
+    title="This section couldn't be shown"
+    body="The rest of the page is unaffected. Reload to try again."
+  />
+);

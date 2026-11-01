@@ -39,13 +39,26 @@
  * Run: node scripts/test-ap-inventory-honesty.mjs
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const p = (rel) => join(ROOT, rel).replace(/\\/g, "/");
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
+// The Devices page's hardware list moved out of BasicFeatureViews.tsx into
+// src/components/customer/devices/ (fleet model, inventory, drawer) in the
+// console revamp; the view file still owns the add form and the venue
+// gating. Read them together so each rule is checked where the code lives.
+function readHardwareView() {
+  const dir = join(ROOT, "src/components/customer/devices");
+  return [
+    readFileSync(join(ROOT, "src/components/customer/BasicFeatureViews.tsx"), "utf8"),
+    ...readdirSync(dir)
+      .filter((f) => /\.(ts|tsx)$/.test(f) && !/demo-fixtures/.test(f))
+      .map((f) => readFileSync(join(dir, f), "utf8")),
+  ].join("\n");
+}
 
 let failures = 0;
 function check(name, ok, extra = "") {
@@ -170,7 +183,7 @@ const measuredUp = describeLiveness(
   },
   NOW,
 );
-eq("an explicitly measured row still says Up", measuredUp.state, "Up");
+eq("an explicitly measured row still says Online", measuredUp.state, "Online");
 eq("with its uptime", measuredUp.detail, "up 7h 28m");
 eq("and no explanation to show", measuredUp.explanation, null);
 
@@ -243,7 +256,7 @@ check(
 console.log("\nthe screen's two cards keep their sources apart and promise nothing extra");
 
 const card = read("src/components/customer/ControllerDevicesCard.tsx");
-const hardwareView = read("src/components/customer/BasicFeatureViews.tsx");
+const hardwareView = readHardwareView();
 // The same rows are rendered a second time by the location picker's
 // cross-location hardware panel. A screen that says "Not measured" in one
 // column and "UNKNOWN" beside a status dot in the next contradicts itself.

@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { motion } from "framer-motion";
+import { Link } from "@tanstack/react-router";
+import { customerFeatureHref } from "@/lib/customerNav";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Callout, PageHeader, Panel, type PageScope } from "@/components/customer/console";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,14 +27,12 @@ import {
 } from "@/components/ui/select";
 import {
   Download,
+  Eye,
   ImageUp,
-  Sparkles,
   RefreshCw,
   ExternalLink,
   Info,
   Loader2,
-  MessageSquareText,
-  Star,
   Trash2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -117,15 +127,23 @@ const PORTAL_QR_URL = "https://auth.wyfyguest.com";
  * claim about guest behaviour, so it needs no data behind it and can never
  * be wrong. */
 const ASK_METER = [
-  { label: "Nothing extra is asked.", tone: "text-muted-foreground", dot: "bg-muted-foreground" },
-  { label: "One ask. Barely noticeable.", tone: "text-emerald-600", dot: "bg-emerald-500" },
-  { label: "Two is comfortable.", tone: "text-emerald-600", dot: "bg-emerald-500" },
+  {
+    label: "Nothing extra is asked.",
+    tone: "text-[var(--wy-text-muted)]",
+    dot: "bg-[var(--wy-text-faint)]",
+  },
+  { label: "One ask. Barely noticeable.", tone: "text-[var(--wy-ok)]", dot: "bg-[var(--wy-ok)]" },
+  { label: "Two is comfortable.", tone: "text-[var(--wy-ok)]", dot: "bg-[var(--wy-ok)]" },
   {
     label: "Three asks. Most guests will ignore the last one.",
-    tone: "text-amber-600",
-    dot: "bg-amber-500",
+    tone: "text-[var(--wy-warn)]",
+    dot: "bg-[var(--wy-warn)]",
   },
-  { label: "Four asks. This will feel like a form.", tone: "text-destructive", dot: "bg-red-500" },
+  {
+    label: "Four asks. This will feel like a form.",
+    tone: "text-[var(--wy-crit)]",
+    dot: "bg-[var(--wy-crit)]",
+  },
 ];
 
 // The one place a venue turns guest sign-in methods on and off. There used
@@ -152,6 +170,39 @@ const AUTH_OPTIONS: [PortalLoginMethod, string][] = [
   ["social", "Social Login"],
 ];
 
+/** A bordered sub-section inside a panel (a settings row, a picker group). */
+const INSET = "rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-3";
+/** An upload thumbnail frame. */
+const THUMB =
+  "flex shrink-0 items-center justify-center overflow-hidden rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)]";
+/** The upload / remove buttons beside each thumbnail. 32px, 40px on touch. */
+const FILE_BUTTON =
+  "inline-flex h-8 items-center gap-1.5 rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-xs font-medium text-[var(--wy-text-muted)] transition-colors hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-text)] focus-within:ring-2 focus-within:ring-[var(--wy-accent)] max-sm:h-10";
+const REMOVE_BUTTON =
+  "inline-flex h-8 items-center gap-1.5 rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-xs font-medium text-[var(--wy-text-muted)] transition-colors hover:border-[var(--wy-crit)] hover:bg-[var(--wy-crit-soft)] hover:text-[var(--wy-crit)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] disabled:opacity-50 max-sm:h-10";
+const HINT = "text-xs text-[var(--wy-text-muted)]";
+
+/** True at the `lg` breakpoint and up, where the preview sits beside the
+ * form. Below it the preview lives in a bottom sheet behind a sticky
+ * Preview button (design review §5: on a phone the preview dropped below a
+ * 2,000px form, so the owner edited blind). Read synchronously on first
+ * render so the preview mounts once, in the right place. */
+function useWideLayout() {
+  const query = "(min-width: 1024px)";
+  const [wide, setWide] = useState(() =>
+    typeof window === "undefined" || !window.matchMedia ? true : window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mql = window.matchMedia(query);
+    const onChange = () => setWide(mql.matches);
+    mql.addEventListener("change", onChange);
+    onChange();
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return wide;
+}
+
 /**
  * One settings row on the "After they connect" card -- title and
  * description left, `Switch` right, expandable detail underneath. Same
@@ -175,11 +226,11 @@ function PostConnectRow({
   disabled?: boolean;
 }) {
   return (
-    <div className="rounded-lg border p-3">
+    <div className={INSET}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium">{title}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
+          <p className="text-[13px] font-medium text-[var(--wy-text)]">{title}</p>
+          <p className={HINT}>{description}</p>
         </div>
         <Switch
           checked={checked}
@@ -188,7 +239,9 @@ function PostConnectRow({
           disabled={disabled}
         />
       </div>
-      {checked && children ? <div className="mt-3 space-y-2 border-t pt-3">{children}</div> : null}
+      {checked && children ? (
+        <div className="mt-3 space-y-2 border-t border-[var(--wy-border)] pt-3">{children}</div>
+      ) : null}
     </div>
   );
 }
@@ -233,10 +286,8 @@ function PostConnectRow({
 function NoDataYet() {
   return (
     <div className="space-y-1">
-      <p className="text-xs text-muted-foreground">
-        No data yet. Numbers appear here once we are counting them.
-      </p>
-      <p className="text-xs text-muted-foreground">
+      <p className={HINT}>No data yet. Numbers appear here once we are counting them.</p>
+      <p className={HINT}>
         Counts cover guests on Android and laptops. iPhone and iPad guests go straight online
         without opening this screen.
       </p>
@@ -244,7 +295,10 @@ function NoDataYet() {
   );
 }
 
-export function PortalPage({ locationId }: { locationId?: string }) {
+export function PortalPage({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
+  const { t } = useTranslation(["common", "help", "nav"], { i18n });
+  const wideLayout = useWideLayout();
+  const [previewSheetOpen, setPreviewSheetOpen] = useState(false);
   const demo = useIsDemo();
   const [primary, setPrimary] = useState("#1B57F5");
   // The actual big heading a guest sees on the sign-in screen (e.g.
@@ -1296,37 +1350,208 @@ export function PortalPage({ locationId }: { locationId?: string }) {
     }
   };
 
+  // The guest-screen preview: screen picker, actions, guest scenarios and
+  // the phone frame rendering the real runtime components. Built once and
+  // placed either beside the form (lg+) or inside the bottom sheet.
+  const previewPanel = (
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        {/* Three buttons, one highlighted. The old control was a two-way
+            tab row (Sign in / Connected), which left the venue's own
+            pre-login screen unpreviewable -- the one screen configured on
+            this page that a venue could never look at. These are the three
+            screens a guest can actually be on, in the order they meet
+            them. */}
+        <div
+          role="group"
+          aria-label="Which guest screen to preview"
+          className="inline-flex rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] p-0.5"
+        >
+          {PREVIEW_AREAS.map(({ id, label }) => {
+            const unavailable = id === "before" && !hasGatingContentStep(livePreviewConfig);
+            const selected = previewArea === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={selected}
+                disabled={unavailable}
+                title={
+                  unavailable
+                    ? "This venue has no pre-login screen — set one under Before sign-in"
+                    : undefined
+                }
+                onClick={() => setPreviewArea(id)}
+                className={cn(
+                  "h-8 rounded-[calc(var(--wy-radius)-2px)] px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)] max-sm:h-10",
+                  selected
+                    ? "bg-[var(--wy-surface)] text-[var(--wy-text)] shadow-sm"
+                    : "text-[var(--wy-text-muted)] hover:text-[var(--wy-text)]",
+                  unavailable && "cursor-not-allowed opacity-40",
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {(demo || (orgId && locationId)) && (
+            <Button variant="outline" size="sm" onClick={openExternalPreview}>
+              <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open in new tab
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label="Refresh preview from the last saved configuration"
+            title="Refresh from saved configuration"
+          >
+            {refreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          {/* Was a full Card with a 128px box, a caption line and a
+              full-width button -- ~250px of the right column, for a
+              download that only fired a toast. Now one icon, and a real
+              SVG. */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleDownloadQr}
+            aria-label="Download the guest portal QR code"
+            title="Download QR code"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Which guest, not which card. The mutual-exclusion rules are NOT
+          simulated away: the preview runs the real resolver and shows ONE
+          ask per screen, because a preview showing four cards at once
+          would teach the venue a picture of their portal that no guest
+          will ever see. To see the others, they switch guest. */}
+      {previewArea === "connected" && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-[var(--wy-text-faint)]">Showing:</span>
+          {CONNECTED_PREVIEW_SCENARIOS.map((sc) => (
+            <button
+              key={sc.id}
+              type="button"
+              onClick={() => setPreviewScenario(sc.id)}
+              aria-pressed={previewScenario === sc.id}
+              className={cn(
+                "h-7 rounded-full border px-2.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]",
+                previewScenario === sc.id
+                  ? "border-[var(--wy-accent)] bg-[var(--wy-accent-soft)] text-[var(--wy-accent)]"
+                  : "border-[var(--wy-border)] text-[var(--wy-text-muted)] hover:text-[var(--wy-text)]",
+              )}
+            >
+              {sc.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* An iPhone 16 at its real logical size (393 x 852pt), shortened
+          only if the window cannot show that much -- so the frame keeps
+          the device's own proportions instead of being an arbitrary
+          340x560 box, and `container-type: size` is what lets the guest
+          shell size its own spacing against the *frame* rather than
+          against the browser window (see PortalShell). The real
+          components render inside it at 1:1: `livePreviewConfig` above is
+          rebuilt from this page's live form state on every render, so
+          every keystroke, colour pick and toggle re-renders the exact
+          component tree a guest's device renders. */}
+      <div className="mx-auto w-[393px] max-w-full rounded-[3.2rem] border-[10px] border-black bg-black p-1.5 shadow-2xl">
+        <div
+          className="relative overflow-hidden rounded-[2.6rem] bg-white"
+          style={{ height: "min(852px, calc(100vh - 11rem))", containerType: "size" }}
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-2.5 z-20 h-[22px] w-[86px] -translate-x-1/2 rounded-full bg-black"
+          />
+          <div className="h-full overflow-x-hidden overflow-y-auto">
+            <PortalRuntimeProvider
+              organizationId={orgId ?? "preview"}
+              locationId={locationId ?? "preview"}
+              routerId="preview"
+              previewMode
+              presetConfig={livePreviewConfig}
+              presetConfigLoading={false}
+            >
+              {previewArea === "connected" ? (
+                <ConnectedPreview scenario={previewScenario} />
+              ) : previewArea === "before" ? (
+                // Continue advances the *preview* to the next screen, which
+                // is exactly what it does for a guest -- so the two screens
+                // can be walked here rather than only looked at.
+                <PortalShell constrained>
+                  <PortalContentBlock onContinue={() => setPreviewArea("login")} />
+                </PortalShell>
+              ) : (
+                <PortalShell constrained>
+                  <GuestSignInCard />
+                </PortalShell>
+              )}
+            </PortalRuntimeProvider>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
   return (
-    <div className="space-y-5">
+    <div className="wy-console space-y-5">
+      {/* The page's only header: the shell hands over the tab name + venue
+          (the agent view mounts it bare). The description is the same
+          sentence How It Works uses for this screen. */}
+      <PageHeader
+        title={scope?.title ?? t("nav:customerItem.portal", "Portal")}
+        venue={scope?.venue}
+        description={t(
+          "help:feature.portal",
+          "Design the sign-in screen guests see — logo, colours, headline, languages and sign-in methods.",
+        )}
+      />
       {/* A failed load must LOOK like a failed load. Not a toast (gone in
           four seconds, and this state does not go away), and not a silent
           fall-through to defaults. */}
       {loadState === "failed" && (
-        <div className="flex flex-wrap items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
-          <Info className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="font-semibold">
-              This venue&apos;s saved portal settings could not be read
-            </p>
-            <p className="text-sm text-muted-foreground">{loadError}</p>
-            <p className="text-sm text-muted-foreground">
-              The controls below are showing this page&apos;s defaults, not your settings, so they
-              are locked — saving now would write those defaults over whatever is really stored.
-              Your guests are unaffected: nothing on this screen has changed for them.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" disabled={refreshing} onClick={handleRefresh}>
-            {refreshing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            Try again
-          </Button>
-        </div>
+        <Callout
+          tone="crit"
+          icon={Info}
+          title={<>This venue&apos;s saved portal settings could not be read</>}
+          action={
+            <Button variant="outline" size="sm" disabled={refreshing} onClick={handleRefresh}>
+              {refreshing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Try again
+            </Button>
+          }
+        >
+          <p className="text-[var(--wy-text-muted)]">{loadError}</p>
+          <p className="text-[var(--wy-text-muted)]">
+            The controls below are showing this page&apos;s defaults, not your settings, so they are
+            locked — saving now would write those defaults over whatever is really stored. Your
+            guests are unaffected: nothing on this screen has changed for them.
+          </p>
+        </Callout>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      {/* `grid-cols-1` (minmax(0, 1fr)), not the implicit auto track: an
+          auto track grew to the 393px phone frame and pushed every input
+          past the right edge of a 390px screen. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
         {/* LEFT COLUMN. Two cards, not one, and the boundary is deliberate:
             Portal Configuration is the sign-in screen (headline, logo,
             colours, auth methods, terms); "After they connect" is the screen
@@ -1343,299 +1568,302 @@ export function PortalPage({ locationId }: { locationId?: string }) {
             fieldset defaults to `min-width: min-content`, which would break
             the grid column. */}
         <fieldset disabled={editorLocked} className="m-0 min-w-0 space-y-4 border-0 p-0">
-          <Card className="shadow-sm border-0">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2.5 text-sm">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-                  <Sparkles className="h-3.5 w-3.5 text-white" />
-                </div>
-                Portal Configuration
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label>Headline</Label>
-                  <SplashCharCounter value={headline} max={SPLASH_HEADLINE_MAX} />
-                </div>
-                <Input
-                  value={headline}
-                  onChange={(e) => setHeadline(e.target.value)}
-                  placeholder="Welcome to your venue"
-                />
-                <p className="text-xs text-muted-foreground">
-                  The large heading guests see first on the sign-in screen. Leave blank to use the
-                  default "Welcome to [venue]".
-                </p>
+          <Panel title="Portal Configuration" bodyClassName="space-y-5">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="portal-headline">Headline</Label>
+                <SplashCharCounter value={headline} max={SPLASH_HEADLINE_MAX} />
               </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label>Welcome Message</Label>
-                  <SplashCharCounter value={msg} max={SPLASH_WELCOME_MAX} />
-                </div>
-                <Textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} />
-                <p className="text-xs text-muted-foreground">
-                  Smaller subtext shown under the headline.
-                </p>
+              <Input
+                id="portal-headline"
+                value={headline}
+                onChange={(e) => setHeadline(e.target.value)}
+                placeholder="Welcome to your venue"
+              />
+              <p className={HINT}>
+                The large heading guests see first on the sign-in screen. Leave blank to use the
+                default "Welcome to [venue]".
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="portal-welcome">Welcome Message</Label>
+                <SplashCharCounter value={msg} max={SPLASH_WELCOME_MAX} />
               </div>
+              <Textarea
+                id="portal-welcome"
+                rows={2}
+                value={msg}
+                onChange={(e) => setMsg(e.target.value)}
+              />
+              <p className={HINT}>Smaller subtext shown under the headline.</p>
+            </div>
 
-              <div>
-                <Label className="mb-2 block">Brand Color</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  {SWATCHES.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setPrimary(c)}
-                      aria-label={c}
-                      className="relative h-8 w-8 rounded-full ring-2 ring-offset-2 ring-offset-background transition-transform hover:scale-110"
-                      style={{
-                        background: c,
-                        ["--tw-ring-color" as string]: primary === c ? c : "transparent",
-                      }}
-                    >
-                      {primary === c && (
-                        <motion.span
-                          layoutId="swatch-ring"
-                          className="absolute inset-0 rounded-full ring-2 ring-foreground/70"
-                          transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
-                        />
-                      )}
-                    </button>
-                  ))}
-                  <div className="ml-1 flex items-center gap-2">
-                    <Input
-                      type="color"
-                      value={primary}
-                      onChange={(e) => setPrimary(e.target.value)}
-                      className="h-9 w-10 p-1"
-                    />
-                    <Input
-                      value={primary}
-                      onChange={(e) => setPrimary(e.target.value)}
-                      className="font-mono h-9 w-24"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <Label className="mb-2 block">Portal Logo</Label>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
-                    {uploadingLogo ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : logo ? (
-                      <img
-                        src={logo}
-                        alt="Portal logo"
-                        className="h-full w-full object-cover"
-                        onError={() => setLogo(null)}
+            <div role="group" aria-labelledby="portal-brand-color" className="min-w-0">
+              <p id="portal-brand-color" className="mb-2 text-sm font-medium">
+                Brand Color
+              </p>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                {SWATCHES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setPrimary(c)}
+                    aria-label={c}
+                    aria-pressed={primary === c}
+                    className="relative h-8 w-8 shrink-0 rounded-full ring-2 ring-offset-2 ring-offset-[var(--wy-surface)] transition-transform hover:scale-110 focus-visible:outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--wy-accent)] motion-reduce:transition-none motion-reduce:hover:scale-100"
+                    style={{
+                      background: c,
+                      ["--tw-ring-color" as string]: primary === c ? c : "transparent",
+                    }}
+                  >
+                    {primary === c && (
+                      <motion.span
+                        layoutId="swatch-ring"
+                        className="absolute inset-0 rounded-full ring-2 ring-[var(--wy-text)]/70"
+                        transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
                       />
-                    ) : (
-                      <ImageUp className="h-5 w-5 text-muted-foreground" />
                     )}
-                  </div>
-                  <label className="cursor-pointer">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                      <ImageUp className="h-3.5 w-3.5" />
-                      Upload logo
-                    </span>
+                  </button>
+                ))}
+                <div className="flex min-w-0 items-center gap-2">
+                  <Input
+                    type="color"
+                    aria-label="Pick a custom brand colour"
+                    value={primary}
+                    onChange={(e) => setPrimary(e.target.value)}
+                    className="h-9 w-10 shrink-0 p-1"
+                  />
+                  <Input
+                    aria-label="Brand colour hex code"
+                    value={primary}
+                    onChange={(e) => setPrimary(e.target.value)}
+                    className="h-9 w-24 min-w-0 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-medium">Portal Logo</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className={cn(THUMB, "h-14 w-14")}>
+                  {uploadingLogo ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-[var(--wy-text-faint)]" />
+                  ) : logo ? (
+                    <img
+                      src={logo}
+                      alt="Portal logo"
+                      className="h-full w-full object-cover"
+                      onError={() => setLogo(null)}
+                    />
+                  ) : (
+                    <ImageUp className="h-5 w-5 text-[var(--wy-text-faint)]" />
+                  )}
+                </div>
+                <label className="cursor-pointer">
+                  <span className={FILE_BUTTON}>
+                    <ImageUp className="h-3.5 w-3.5" />
+                    Upload logo
                     <input
                       type="file"
+                      aria-label="Upload logo"
                       accept={BRAND_ASSET_ACCEPT_ATTR}
-                      className="hidden"
+                      className="sr-only"
                       disabled={uploadingLogo}
                       onChange={handleLogoUpload}
                     />
-                  </label>
-                  {logo && (
-                    <button
-                      type="button"
-                      onClick={handleRemoveLogo}
-                      disabled={uploadingLogo}
-                      className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Remove
-                    </button>
+                  </span>
+                </label>
+                {logo && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLogo}
+                    disabled={uploadingLogo}
+                    className={REMOVE_BUTTON}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-medium">Background Image</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className={cn(THUMB, "h-14 w-24")}>
+                  {uploadingBg ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-[var(--wy-text-faint)]" />
+                  ) : bgImage ? (
+                    <img
+                      src={bgImage}
+                      alt="Portal background"
+                      className="h-full w-full object-cover"
+                      onError={() => setBgImage(null)}
+                    />
+                  ) : (
+                    <ImageUp className="h-5 w-5 text-[var(--wy-text-faint)]" />
                   )}
                 </div>
-              </div>
-
-              <div>
-                <Label className="mb-2 block">Background Image</Label>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
-                    {uploadingBg ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : bgImage ? (
-                      <img
-                        src={bgImage}
-                        alt="Portal background"
-                        className="h-full w-full object-cover"
-                        onError={() => setBgImage(null)}
-                      />
-                    ) : (
-                      <ImageUp className="h-5 w-5 text-muted-foreground" />
-                    )}
-                  </div>
-                  <label className="cursor-pointer">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                      <ImageUp className="h-3.5 w-3.5" />
-                      {bgImage ? "Replace image" : "Upload image"}
-                    </span>
+                <label className="cursor-pointer">
+                  <span className={FILE_BUTTON}>
+                    <ImageUp className="h-3.5 w-3.5" />
+                    {bgImage ? "Replace image" : "Upload image"}
                     <input
                       type="file"
+                      aria-label={bgImage ? "Replace background image" : "Upload background image"}
                       accept={BRAND_ASSET_ACCEPT_ATTR}
-                      className="hidden"
+                      className="sr-only"
                       disabled={uploadingBg}
                       onChange={handleBackgroundUpload}
                     />
-                  </label>
-                  {bgImage && (
-                    <button
-                      type="button"
-                      onClick={handleRemoveBackground}
-                      disabled={uploadingBg}
-                      className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Fills the screen behind the sign-in card. Keep the middle free of anything
-                  important: the card sits over it.
-                </p>
+                  </span>
+                </label>
+                {bgImage && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveBackground}
+                    disabled={uploadingBg}
+                    className={REMOVE_BUTTON}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                )}
               </div>
+              <p className={cn(HINT, "mt-1.5")}>
+                Fills the screen behind the sign-in card. Keep the middle free of anything
+                important: the card sits over it.
+              </p>
+            </div>
 
-              {/* AFTER THEY CONNECT -- one destination, chosen here. The
+            {/* AFTER THEY CONNECT -- one destination, chosen here. The
               founder's flow review ("after login: session page -> 3-2-1
               timer -> URL") is fixed at the source: a venue picks ONE of
               three, and the guest flow (see @/lib/portal-post-login, shared
               by /portal/success and /portal/session) honours exactly that.
               "html" also gets a slim "session started · remaining · MAC"
               strip above the venue's own page -- see portal.session.tsx. */}
-              <div className="space-y-3 rounded-lg border p-3">
+            <div className={cn(INSET, "space-y-3")}>
+              <div className="space-y-1.5">
+                <Label htmlFor="after-connect-mode">After they connect</Label>
+                <Select
+                  value={afterConnectMode}
+                  onValueChange={(v) => setAfterConnectMode(v as "default" | "redirect" | "html")}
+                >
+                  <SelectTrigger id="after-connect-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="wy-console">
+                    <SelectItem value="default">Show the connected page</SelectItem>
+                    <SelectItem value="redirect">Send guests to a website</SelectItem>
+                    <SelectItem value="html">Show a custom HTML page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {afterConnectMode === "default" && (
+                <p className={HINT}>
+                  Guests land on the built-in &quot;you&apos;re connected&quot; page with their
+                  session details. No redirect, no extra page.
+                </p>
+              )}
+
+              {afterConnectMode === "redirect" && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="after-connect-mode">After they connect</Label>
-                  <Select
-                    value={afterConnectMode}
-                    onValueChange={(v) => setAfterConnectMode(v as "default" | "redirect" | "html")}
-                  >
-                    <SelectTrigger id="after-connect-mode">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">Show the connected page</SelectItem>
-                      <SelectItem value="redirect">Send guests to a website</SelectItem>
-                      <SelectItem value="html">Show a custom HTML page</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {afterConnectMode === "default" && (
-                  <p className="text-xs text-muted-foreground">
-                    Guests land on the built-in &quot;you&apos;re connected&quot; page with their
-                    session details. No redirect, no extra page.
+                  <Label htmlFor="redirect-url">Website address</Label>
+                  <Input
+                    id="redirect-url"
+                    value={form.redirectUrl}
+                    onChange={(e) => setForm({ ...form, redirectUrl: e.target.value })}
+                    placeholder="https://wyfyguest.com/welcome"
+                    className="h-9"
+                  />
+                  <p className={HINT}>
+                    Guests are sent straight here the moment they&apos;re online — no intermediate
+                    portal page.
                   </p>
-                )}
+                </div>
+              )}
 
-                {afterConnectMode === "redirect" && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="redirect-url">Website address</Label>
-                    <Input
-                      id="redirect-url"
-                      value={form.redirectUrl}
-                      onChange={(e) => setForm({ ...form, redirectUrl: e.target.value })}
-                      placeholder="https://wyfyguest.com/welcome"
-                      className="h-9"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Guests are sent straight here the moment they&apos;re online — no intermediate
-                      portal page.
-                    </p>
-                  </div>
-                )}
-
-                {afterConnectMode === "html" && (
-                  <>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label htmlFor="post-login-html">Custom HTML page</Label>
-                      {/* Bytes, not characters -- the backend column's cap is a
+              {afterConnectMode === "html" && (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label htmlFor="post-login-html">Custom HTML page</Label>
+                    {/* Bytes, not characters -- the backend column's cap is a
                       byte cap, and one Devanagari code point is 3 bytes. A
                       character count would tell a Hindi-writing venue they had
                       3x the room they actually have. */}
-                      <span
-                        aria-live="polite"
-                        className={`text-xs tabular-nums ${
-                          postLoginBlocked
-                            ? "font-medium text-destructive"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {postLoginBytes.toLocaleString()} /{" "}
-                        {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()} bytes
-                      </span>
-                    </div>
-                    <Textarea
-                      id="post-login-html"
-                      rows={8}
-                      spellCheck={false}
-                      value={postLoginHtml}
-                      onChange={(e) => setPostLoginHtml(e.target.value)}
-                      placeholder={
-                        "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
-                      }
-                      className="font-mono text-xs"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      This page IS what guests see right after they sign in, with a small
-                      &quot;session started&quot; bar above it. Leave it empty and pick the
-                      connected page instead if you don&apos;t want one.
-                    </p>
-                    {/* The one thing a venue WILL get wrong if we don't say it.
+                    <span
+                      aria-live="polite"
+                      className={`text-xs tabular-nums ${
+                        postLoginBlocked
+                          ? "font-medium text-[var(--wy-crit)]"
+                          : "text-[var(--wy-text-muted)]"
+                      }`}
+                    >
+                      {postLoginBytes.toLocaleString()} /{" "}
+                      {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()} bytes
+                    </span>
+                  </div>
+                  <Textarea
+                    id="post-login-html"
+                    rows={8}
+                    spellCheck={false}
+                    value={postLoginHtml}
+                    onChange={(e) => setPostLoginHtml(e.target.value)}
+                    placeholder={
+                      "<h2>Welcome!</h2>\n<p>Show your booking at the desk for a free coffee.</p>"
+                    }
+                    className="font-mono text-xs"
+                  />
+                  <p className={HINT}>
+                    This page IS what guests see right after they sign in, with a small
+                    &quot;session started&quot; bar above it. Leave it empty and pick the connected
+                    page instead if you don&apos;t want one.
+                  </p>
+                  {/* The one thing a venue WILL get wrong if we don't say it.
                     This page runs on the same origin as the OTP screen, so the
                     HTML is rendered in a sandboxed frame with scripts disabled
                     -- an analytics or chat-widget snippet pasted here does
                     nothing at all, silently. Saying so here is cheaper than the
                     bug report. */}
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">Scripts will not run.</span> For
-                      your guests&apos; safety this page is displayed in a sandbox, so{" "}
-                      <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
-                      <code>onclick</code> handlers are ignored. HTML, CSS, images and links all
-                      work — links open in a new tab. Saving also runs the page through a safety
-                      filter, so the editor may come back slightly changed from what you pasted;
-                      that version is what guests get.
-                    </p>
-                    {hasPostLoginHtml(previewHtml) && (
-                      <div className="space-y-1.5">
-                        <p className="text-xs font-medium">Preview</p>
-                        {/* The SAME component, with the SAME sandbox, that
+                  <p className={HINT}>
+                    <span className="font-medium text-[var(--wy-text)]">Scripts will not run.</span>{" "}
+                    For your guests&apos; safety this page is displayed in a sandbox, so{" "}
+                    <code>&lt;script&gt;</code> tags, analytics snippets, chat widgets and inline{" "}
+                    <code>onclick</code> handlers are ignored. HTML, CSS, images and links all work
+                    — links open in a new tab. Saving also runs the page through a safety filter, so
+                    the editor may come back slightly changed from what you pasted; that version is
+                    what guests get.
+                  </p>
+                  {hasPostLoginHtml(previewHtml) && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium">Preview</p>
+                      {/* The SAME component, with the SAME sandbox, that
                         /portal/session renders for a real guest -- not a
                         lookalike. That is the whole point: whatever gets
                         silently dropped in this box is exactly what gets
                         dropped on the guest's phone. */}
-                        <PostLoginHtmlFrame
-                          html={previewHtml}
-                          title="Post-login page preview"
-                          className="h-64 bg-white"
-                        />
-                      </div>
-                    )}
-                    {postLoginBlocked && (
-                      <p className="text-xs text-destructive" role="alert">
-                        This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
-                        {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
+                      <PostLoginHtmlFrame
+                        html={previewHtml}
+                        title="Post-login page preview"
+                        className="h-64 bg-white"
+                      />
+                    </div>
+                  )}
+                  {postLoginBlocked && (
+                    <p className="text-xs text-[var(--wy-crit)]" role="alert">
+                      This page is {postLoginBytes.toLocaleString()} bytes — the limit is{" "}
+                      {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}. Shorten it to save.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
 
-              {/* BEFORE SIGN-IN. This picker was removed once, for a good
+            {/* BEFORE SIGN-IN. This picker was removed once, for a good
               reason that no longer holds: it asked a venue to make a
               decision about a pre-sign-in content step "most of them do not
               want", sitting in the middle of the branding controls they came
@@ -1668,217 +1896,229 @@ export function PortalPage({ locationId }: { locationId?: string }) {
 
               Its own section, not folded back into the branding block --
               that placement was half the original objection. */}
-              <div className="space-y-1.5 rounded-lg border p-3">
-                <Label htmlFor="content-mode">Before sign-in</Label>
-                <p className="text-xs text-muted-foreground">
-                  An optional screen guests see before the sign-in form. Use it for a menu, an
-                  offer, or house rules. Reaches every guest, iPhones included.
-                </p>
-                <Select
-                  value={contentMode}
-                  onValueChange={(v) => setContentMode(v as PortalContentMode)}
-                >
-                  <SelectTrigger id="content-mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="login">Nothing — go straight to sign-in</SelectItem>
-                    <SelectItem value="image">Show a picture (menu, offer, poster)</SelectItem>
-                    <SelectItem value="text">Show a short message</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className={cn(INSET, "space-y-1.5")}>
+              <Label htmlFor="content-mode">Before sign-in</Label>
+              <p className={HINT}>
+                An optional screen guests see before the sign-in form. Use it for a menu, an offer,
+                or house rules. Reaches every guest, iPhones included.
+              </p>
+              {/* Offers live in Marketing -> Login Page Offers now, so the
+                    page they are shown on points at them -- findable from
+                    both sides. A plain link, not a control: the disabled
+                    fieldset around this card does not affect it. */}
+              <Link
+                to={customerFeatureHref("campaigns")}
+                data-testid="portal-offers-link"
+                className="inline-flex min-h-6 items-center gap-1 rounded-sm text-xs font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+              >
+                Offers shown on this page →
+              </Link>
+              <Select
+                value={contentMode}
+                onValueChange={(v) => setContentMode(v as PortalContentMode)}
+              >
+                <SelectTrigger id="content-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="wy-console">
+                  <SelectItem value="login">Nothing — go straight to sign-in</SelectItem>
+                  <SelectItem value="image">Show a picture (menu, offer, poster)</SelectItem>
+                  <SelectItem value="text">Show a short message</SelectItem>
+                </SelectContent>
+              </Select>
 
-                {contentMode !== "login" && (
-                  <div className="space-y-1.5 border-t pt-3">
-                    <Label htmlFor="content-heading" className="text-xs">
-                      Heading <span className="font-normal text-muted-foreground">(optional)</span>
-                    </Label>
-                    <Input
-                      id="content-heading"
-                      value={contentHeading}
-                      onChange={(e) => setContentHeading(e.target.value)}
-                      placeholder="Today's menu"
-                    />
-                  </div>
-                )}
+              {contentMode !== "login" && (
+                <div className="space-y-1.5 border-t border-[var(--wy-border)] pt-3">
+                  <Label htmlFor="content-heading" className="text-xs">
+                    Heading{" "}
+                    <span className="font-normal text-[var(--wy-text-muted)]">(optional)</span>
+                  </Label>
+                  <Input
+                    id="content-heading"
+                    value={contentHeading}
+                    onChange={(e) => setContentHeading(e.target.value)}
+                    placeholder="Today's menu"
+                  />
+                </div>
+              )}
 
-                {contentMode === "image" && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Picture</Label>
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-20 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/40">
-                        {contentImageUploading ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        ) : contentImageUrl ? (
-                          <img
-                            src={contentImageUrl}
-                            alt="Pre-sign-in picture"
-                            className="h-full w-full object-cover"
-                            onError={() => setContentImageError(true)}
-                          />
-                        ) : (
-                          <ImageUp className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="cursor-pointer">
-                          <span className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                            <ImageUp className="h-3.5 w-3.5" />
-                            {contentImageUrl ? "Replace picture" : "Upload picture"}
-                          </span>
+              {contentMode === "image" && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium">Picture</p>
+                  <div className="flex flex-wrap items-start gap-3">
+                    <div className={cn(THUMB, "h-20 w-32")}>
+                      {contentImageUploading ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-[var(--wy-text-faint)]" />
+                      ) : contentImageUrl ? (
+                        <img
+                          src={contentImageUrl}
+                          alt="Pre-sign-in picture"
+                          className="h-full w-full object-cover"
+                          onError={() => setContentImageError(true)}
+                        />
+                      ) : (
+                        <ImageUp className="h-5 w-5 text-[var(--wy-text-faint)]" />
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-col items-start gap-1.5">
+                      <label className="cursor-pointer">
+                        <span className={FILE_BUTTON}>
+                          <ImageUp className="h-3.5 w-3.5" />
+                          {contentImageUrl ? "Replace picture" : "Upload picture"}
                           <input
                             type="file"
+                            aria-label={contentImageUrl ? "Replace picture" : "Upload picture"}
                             accept={BRAND_ASSET_ACCEPT_ATTR}
-                            className="hidden"
+                            className="sr-only"
                             disabled={contentImageUploading || (!demo && !portalId)}
                             onChange={handleContentImageUpload}
                           />
-                        </label>
-                        {contentImageUrl && (
-                          <button
-                            type="button"
-                            onClick={handleRemoveContentImage}
-                            disabled={contentImageUploading || (!demo && !portalId)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Remove
-                          </button>
-                        )}
-                        {!demo && !portalId && (
-                          <p className="text-xs text-muted-foreground">
-                            Save the portal once first — uploads are attached to a saved portal.
-                          </p>
-                        )}
-                        {contentImageUrl && (
-                          <input
-                            type="text"
-                            value={contentImageUrl}
-                            readOnly
-                            aria-label="Uploaded picture URL"
-                            className="h-7 w-48 rounded-md border bg-muted/30 px-2 font-mono text-[10px] text-muted-foreground"
-                          />
-                        )}
-                      </div>
+                        </span>
+                      </label>
+                      {contentImageUrl && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveContentImage}
+                          disabled={contentImageUploading || (!demo && !portalId)}
+                          className={REMOVE_BUTTON}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </button>
+                      )}
+                      {!demo && !portalId && (
+                        <p className={HINT}>
+                          Save the portal once first — uploads are attached to a saved portal.
+                        </p>
+                      )}
+                      {contentImageUrl && (
+                        <input
+                          type="text"
+                          value={contentImageUrl}
+                          readOnly
+                          aria-label="Uploaded picture URL"
+                          className="h-7 w-48 max-w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-2 font-mono text-[11px] text-[var(--wy-text-muted)]"
+                        />
+                      )}
                     </div>
-                    {contentImageError && (
-                      <p className="text-xs text-destructive" role="alert">
-                        This picture couldn&apos;t load — it may have been removed. Upload a new one
-                        or delete it.
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      A photo of your menu works well. Uploaded pictures are hosted by us, so they
-                      load inside the hotspot&apos;s walled garden before guests reach the internet.
-                      PNG/JPEG/WebP/GIF up to 5 MB.
+                  </div>
+                  {contentImageError && (
+                    <p className="text-xs text-[var(--wy-crit)]" role="alert">
+                      This picture couldn&apos;t load — it may have been removed. Upload a new one
+                      or delete it.
                     </p>
-                  </div>
-                )}
+                  )}
+                  <p className={HINT}>
+                    A photo of your menu works well. Uploaded pictures are hosted by us, so they
+                    load inside the hotspot&apos;s walled garden before guests reach the internet.
+                    PNG/JPEG/WebP/GIF up to 5 MB.
+                  </p>
+                </div>
+              )}
 
-                {contentMode === "text" && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="content-body" className="text-xs">
-                      Message
-                    </Label>
-                    <Textarea
-                      id="content-body"
-                      rows={3}
-                      value={contentBody}
-                      onChange={(e) => setContentBody(e.target.value)}
-                      placeholder="Kitchen closes at 10pm. Ask staff for today's specials."
-                    />
-                  </div>
-                )}
-              </div>
+              {contentMode === "text" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="content-body" className="text-xs">
+                    Message
+                  </Label>
+                  <Textarea
+                    id="content-body"
+                    rows={3}
+                    value={contentBody}
+                    onChange={(e) => setContentBody(e.target.value)}
+                    placeholder="Kitchen closes at 10pm. Ask staff for today's specials."
+                  />
+                </div>
+              )}
+            </div>
 
-              <div className="space-y-1.5">
-                <Label>Auth Methods</Label>
-                <div className="flex flex-wrap gap-2">
-                  {AUTH_OPTIONS.map(([k, v]) => (
-                    <motion.div
-                      key={k}
-                      whileTap={{ scale: 0.96 }}
-                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ${authMethods.includes(k) ? "border-primary/50 bg-primary/5" : ""}`}
-                    >
-                      {/* The visible text is a sibling `<span>`, not a
+            <div role="group" aria-labelledby="portal-auth-methods" className="space-y-1.5">
+              <p id="portal-auth-methods" className="text-sm font-medium">
+                Auth Methods
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {AUTH_OPTIONS.map(([k, v]) => (
+                  <motion.div
+                    key={k}
+                    whileTap={{ scale: 0.96 }}
+                    className={cn(
+                      "flex min-h-9 items-center gap-1.5 rounded-[var(--wy-radius)] border px-3 py-1.5 transition-colors",
+                      authMethods.includes(k)
+                        ? "border-[color-mix(in_srgb,var(--wy-accent)_45%,transparent)] bg-[var(--wy-accent-soft)]"
+                        : "border-[var(--wy-border)]",
+                    )}
+                  >
+                    {/* The visible text is a sibling `<span>`, not a
                           `<label htmlFor>`, so this control had no
                           accessible name at all: a screen reader announced
                           seven unlabelled switches. */}
-                      <Switch
-                        checked={authMethods.includes(k)}
-                        onCheckedChange={() => toggleAuth(k)}
-                        aria-label={v}
-                      />
-                      <span className="text-xs">{v}</span>
-                    </motion.div>
-                  ))}
-                </div>
+                    <Switch
+                      checked={authMethods.includes(k)}
+                      onCheckedChange={() => toggleAuth(k)}
+                      aria-label={v}
+                    />
+                    <span className="text-xs">{v}</span>
+                  </motion.div>
+                ))}
               </div>
+            </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="portal-terms">Terms &amp; Conditions</Label>
-                <Textarea
-                  id="portal-terms"
-                  rows={6}
-                  value={form.terms}
-                  placeholder="Leave blank to publish our default terms &amp; privacy copy, or paste your own here."
-                  onChange={(e) => setForm({ ...form, terms: e.target.value })}
-                />
-                {/* Blank is a real, supported answer here, so say so rather
-                 * than letting an empty box read as an unfinished form. It
-                 * is also the state every venue is in today. */}
-                <p className="text-xs text-muted-foreground">
-                  {form.terms.trim()
-                    ? "Guests see this on the Terms & Privacy page, with your paragraph breaks kept."
-                    : "Blank: guests see our default terms & privacy copy on the Terms & Privacy page."}
+            <div className="space-y-1.5">
+              <Label htmlFor="portal-terms">Terms &amp; Conditions</Label>
+              <Textarea
+                id="portal-terms"
+                rows={6}
+                value={form.terms}
+                placeholder="Leave blank to publish our default terms &amp; privacy copy, or paste your own here."
+                onChange={(e) => setForm({ ...form, terms: e.target.value })}
+              />
+              {/* Blank is a real, supported answer here, so say so rather
+               * than letting an empty box read as an unfinished form. It
+               * is also the state every venue is in today. */}
+              <p className={HINT}>
+                {form.terms.trim()
+                  ? "Guests see this on the Terms & Privacy page, with your paragraph breaks kept."
+                  : "Blank: guests see our default terms & privacy copy on the Terms & Privacy page."}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={saveBlocked}>
+                Save Configuration
+              </Button>
+              {splashBlocked && (
+                <p className="text-xs text-[var(--wy-crit)]" role="alert">
+                  {headlineBlocked && msgBlocked
+                    ? "The headline and welcome message are over their length limits — shorten them to save."
+                    : headlineBlocked
+                      ? `The headline is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
+                      : `The welcome message is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
                 </p>
-              </div>
-              <div className="space-y-1.5">
-                <Button className="w-full sm:w-auto" onClick={saveConfig} disabled={saveBlocked}>
-                  Save Configuration
-                </Button>
-                {splashBlocked && (
-                  <p className="text-xs text-destructive" role="alert">
-                    {headlineBlocked && msgBlocked
-                      ? "The headline and welcome message are over their length limits — shorten them to save."
-                      : headlineBlocked
-                        ? `The headline is over the ${SPLASH_HEADLINE_MAX}-character limit — shorten it to save.`
-                        : `The welcome message is over the ${SPLASH_WELCOME_MAX}-character limit — shorten it to save.`}
-                  </p>
-                )}
-                {/* The post-login field has its own inline error next to the
+              )}
+              {/* The post-login field has its own inline error next to the
                 counter, but it is far enough up the form to be off screen
                 from here -- repeat the reason at the disabled button rather
                 than leaving it looking broken. */}
-                {postLoginBlocked && (
-                  <p className="text-xs text-destructive" role="alert">
-                    The post-login page is over the {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}
-                    -byte limit — shorten it to save.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              {postLoginBlocked && (
+                <p className="text-xs text-[var(--wy-crit)]" role="alert">
+                  The post-login page is over the {POST_LOGIN_HTML_MAX_BYTES.toLocaleString()}
+                  -byte limit — shorten it to save.
+                </p>
+              )}
+            </div>
+          </Panel>
 
-          {/* ═══ AFTER THEY CONNECT ═══ */}
-          <Card className="shadow-sm border-0" onFocusCapture={() => setPreviewArea("connected")}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2.5 text-sm">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#a78bfa]">
-                  <MessageSquareText className="h-3.5 w-3.5 text-white" />
-                </div>
-                After they connect
-              </CardTitle>
-              {/* The only truthful conversion figure for this whole card. Every
-                setting below renders after the RADIUS session is authorised,
-                so none of them CAN cost a connection -- which is why there is
-                no "-12% conversions" chip anywhere here. See the note above
-                the "No data yet" lines. */}
-              <p className="text-xs text-muted-foreground">
-                None of this affects whether a guest gets online.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {/* ═══ AFTER THEY CONNECT ═══
+              The description is the only truthful conversion figure for this
+              whole card. Every setting below renders after the RADIUS session
+              is authorised, so none of them CAN cost a connection -- which is
+              why there is no "-12% conversions" chip anywhere here. See the
+              note above the "No data yet" lines. */}
+          <div onFocusCapture={() => setPreviewArea("connected")}>
+            <Panel
+              title="After they connect"
+              description="None of this affects whether a guest gets online."
+              bodyClassName="space-y-4"
+            >
               {/* THE ASK BUDGET. The primary cost display, and the one that
                 will actually change behaviour, because it is present at the
                 moment of the decision rather than a month later. It costs
@@ -1890,8 +2130,8 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 gets four; the guest-side rules already limit it to one ask
                 per screen, so the damage is bounded. This meter's job is to
                 make the owner feel the accumulation. */}
-              <div className="rounded-lg border bg-muted/40 p-3">
-                <p className="text-sm font-medium">
+              <div className={cn(INSET, "bg-[var(--wy-surface-2)]")}>
+                <p className="text-[13px] font-medium">
                   {askCount === 0
                     ? "Your guests are asked for nothing extra after connecting."
                     : `Your guests are asked for ${askCount} thing${askCount === 1 ? "" : "s"} after connecting.`}
@@ -1901,7 +2141,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                     {Array.from({ length: MAX_POST_CONNECT_ASKS }, (_, i) => (
                       <span
                         key={i}
-                        className={`h-2 w-2 rounded-full ${i < askCount ? askMeter.dot : "bg-muted-foreground/25"}`}
+                        className={`h-2 w-2 rounded-full ${i < askCount ? askMeter.dot : "bg-[var(--wy-border-strong)]"}`}
                       />
                     ))}
                   </span>
@@ -1920,7 +2160,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   is no reach to qualify, and the line would just be
                   noise. */}
                 {askCount > 0 && (
-                  <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
+                  <p className={cn(HINT, "mt-2 border-t border-[var(--wy-border)] pt-2")}>
                     These reach guests on Android phones and laptops (and iPhones browsing in
                     Safari). iPhones that sign in inside Apple's pop-up do open this screen, but iOS
                     closes the pop-up on its own once the connection is live, so those guests rarely
@@ -1929,7 +2169,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 )}
               </div>
 
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--wy-text-faint)]">
                 Guest details
               </p>
 
@@ -1944,7 +2184,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   if (v) setCollectGuestName(true);
                 }}
               >
-                <p className="text-xs text-muted-foreground">
+                <p className={HINT}>
                   On by default. Returning guests whose name is already on file are not asked again.
                   Applies to mobile, WhatsApp and email code sign-in.
                 </p>
@@ -1975,7 +2215,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   support ticket. The marketing consent checkbox is
                   deliberately NOT on the guest card until the consent model
                   it would write to exists. */}
-                <p className="text-xs text-muted-foreground">
+                <p className={HINT}>
                   You collect the address now; sending to it needs the marketing consent work, which
                   is not built yet.
                 </p>
@@ -1994,7 +2234,7 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   }
                 }}
               >
-                <p className="text-xs text-muted-foreground">
+                <p className={HINT}>
                   Default is enabled. First-time guests verify once via Email or Mobile OTP, set
                   their password, and sign in directly on future visits.
                 </p>
@@ -2015,17 +2255,17 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 the exact "ships and lies" failure the social-login switch
                 already demonstrated. It is shown rather than hidden so a
                 venue knows the capability is coming and what it needs first. */}
-              <div className="rounded-lg border border-dashed p-3 opacity-70">
+              <div className={cn(INSET, "border-dashed opacity-70")}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium">Ask about individual dishes</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[13px] font-medium">Ask about individual dishes</p>
+                    <p className={HINT}>
                       Needs a menu. Best for a short menu guests order from often.
                     </p>
                   </div>
                   <Switch checked={false} disabled aria-label="Ask about individual dishes" />
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
+                <p className={cn(HINT, "mt-2")}>
                   Menus are not built yet — there is nothing for a guest to rate.
                 </p>
               </div>
@@ -2035,38 +2275,25 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   Save changes
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </Panel>
+          </div>
 
           {/* ═══ GOOGLE REVIEWS ═══
               The "Rate us on Google" page guests see right after signing in
               (/portal/review). Its own card so it is findable: as row five
               of "After they connect" almost no venue switched it on. */}
           {portalIsOrgDefault && (
-            <div
-              className="flex items-start gap-2 rounded-xl border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
-              role="note"
-            >
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                This location uses your organisation&apos;s shared portal settings. Changes here
-                apply to all locations that share them.
-              </span>
-            </div>
+            <Callout tone="warn" role="note" icon={Info}>
+              This location uses your organisation&apos;s shared portal settings. Changes here apply
+              to all locations that share them.
+            </Callout>
           )}
-          <Card className="shadow-sm border-0" onFocusCapture={() => setPreviewArea("connected")}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2.5 text-sm">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#f59e0b] to-[#fbbf24]">
-                  <Star className="h-3.5 w-3.5 text-white" />
-                </div>
-                Google reviews
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Guests can skip it with one tap, and their WiFi works either way.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div onFocusCapture={() => setPreviewArea("connected")}>
+            <Panel
+              title="Google reviews"
+              description="Guests can skip it with one tap, and their WiFi works either way."
+              bodyClassName="space-y-4"
+            >
               <PostConnectRow
                 title="Show a 'Rate us on Google' page after guests sign in"
                 description="A page with your review link and an equally big 'Continue to internet' button. Shown at most once a month to each guest at this location, and never again once they open your link."
@@ -2105,21 +2332,19 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                         Test link
                       </Button>
                     </div>
-                    <p id="review-url-help" className="text-xs text-muted-foreground">
+                    <p id="review-url-help" className={HINT}>
                       Google Business Profile → Ask for reviews → copy link. Or paste your Place ID.
                     </p>
                     {/* The switch and the link are two separate stored
                       values, so say what switching off does. */}
-                    <p className="text-xs text-muted-foreground">
-                      Switching this off pauses the page and keeps your link.
-                    </p>
+                    <p className={HINT}>Switching this off pauses the page and keeps your link.</p>
                     {reviewUrlError ? (
-                      <p className="text-xs text-destructive" role="alert">
+                      <p className="text-xs text-[var(--wy-crit)]" role="alert">
                         {reviewUrlError}
                       </p>
                     ) : (
                       reviewUrlInvalid && (
-                        <p className="text-xs text-destructive" role="alert">
+                        <p className="text-xs text-[var(--wy-crit)]" role="alert">
                           That does not look like an https Google link or a Place ID — guests will
                           not see the page until it is one.
                         </p>
@@ -2130,13 +2355,13 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                 {/* Link opens, never "reviews": this product cannot see
                   Google's side, so any number labelled reviews would be
                   invented. */}
-                <p className="text-xs text-muted-foreground" data-testid="review-stats">
+                <p className={HINT} data-testid="review-stats">
                   {reviewStats && (reviewStats.shown > 0 || reviewStats.opened > 0)
                     ? `Last 30 days: ${reviewStats.shown} guests saw the page, ${reviewStats.opened} opened your review link.`
                     : "No guests yet"}
                 </p>
-                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <p className={cn(HINT, "flex items-start gap-1.5")}>
+                  <Info aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   Guests who sign in from the phone&apos;s pop-up window may not see this page,
                   because the phone closes the pop-up once they are online.
                 </p>
@@ -2157,176 +2382,66 @@ export function PortalPage({ locationId }: { locationId?: string }) {
                   Save changes
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </Panel>
+          </div>
         </fieldset>
 
-        {/* The phone, stuck to the top of the viewport while the settings on
-            the left scroll past it.
-
-            Rendered flush, with no surrounding card. It used to sit inside a
+        {/* The phone is rendered flush, with no surrounding card. It used to sit inside a
             dark gradient Card with its own header, a pulsing "Live" badge and
             two paragraphs of caption, which spent more vertical room on chrome
             than on the phone itself -- and left the frame showing ~120px of
             dead air at the top, because the guest shell sizes that band in
             `vh` (the browser window) rather than against the frame. See
             PortalShell's `constrained` branch. */}
-        <div className="lg:sticky lg:top-6">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            {/* Three buttons, one highlighted. The old control was a two-way
-                tab row (Sign in / Connected), which left the venue's own
-                pre-login screen unpreviewable -- the one screen configured on
-                this page that a venue could never look at. These are the three
-                screens a guest can actually be on, in the order they meet
-                them. */}
-            <div
-              role="group"
-              aria-label="Which guest screen to preview"
-              className="inline-flex rounded-lg border bg-muted p-0.5"
-            >
-              {PREVIEW_AREAS.map(({ id, label }) => {
-                const unavailable = id === "before" && !hasGatingContentStep(livePreviewConfig);
-                const selected = previewArea === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={selected}
-                    disabled={unavailable}
-                    title={
-                      unavailable
-                        ? "This venue has no pre-login screen — set one under Before sign-in"
-                        : undefined
-                    }
-                    onClick={() => setPreviewArea(id)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                      selected
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }${unavailable ? " cursor-not-allowed opacity-40" : ""}`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex items-center gap-1.5">
-              {(demo || (orgId && locationId)) && (
-                <Button variant="outline" size="sm" onClick={openExternalPreview}>
-                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open in new tab
-                </Button>
-              )}
+        {/* At lg and up the phone sits beside the form, stuck to the top
+            of the viewport while the settings scroll past it. Below lg it
+            would drop under a ~2,000px form, so it lives in a bottom sheet
+            opened from a floating Preview button instead. One mount either
+            way (useWideLayout reads the breakpoint before first paint). */}
+        {wideLayout ? (
+          <div className="lg:sticky lg:top-6">{previewPanel}</div>
+        ) : (
+          <>
+            {/* Fixed, centred: clear of the chat launcher at the bottom
+                right, and on screen wherever the form is scrolled to. */}
+            <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex justify-center">
               <Button
-                variant="outline"
-                size="icon"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                aria-label="Refresh preview from the last saved configuration"
-                title="Refresh from saved configuration"
+                type="button"
+                className="pointer-events-auto h-11 gap-2 rounded-full px-5 shadow-lg"
+                onClick={() => setPreviewSheetOpen(true)}
+                aria-haspopup="dialog"
               >
-                {refreshing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
-              </Button>
-              {/* Was a full Card with a 128px box, a caption line and a
-                  full-width button -- ~250px of the right column, for a
-                  download that only fired a toast. Now one icon, and a real
-                  SVG. */}
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleDownloadQr}
-                aria-label="Download the guest portal QR code"
-                title="Download QR code"
-              >
-                <Download className="h-3.5 w-3.5" />
+                <Eye aria-hidden className="h-4 w-4" />
+                {t("common:portalPreview.open", "Preview")}
               </Button>
             </div>
-          </div>
+            <Sheet open={previewSheetOpen} onOpenChange={setPreviewSheetOpen}>
+              <SheetContent
+                side="bottom"
+                className="wy-console max-h-[94dvh] overflow-y-auto rounded-t-[var(--wy-radius-lg)] bg-[var(--wy-bg)] px-3 pb-6 pt-4 sm:px-6"
+              >
+                <SheetHeader className="mb-3 pr-8 text-left">
+                  <SheetTitle>{t("common:portalPreview.title", "Guest screen preview")}</SheetTitle>
+                  <SheetDescription>
+                    {t(
+                      "common:portalPreview.description",
+                      "What a guest's phone shows, updated as you edit.",
+                    )}
+                  </SheetDescription>
+                </SheetHeader>
+                {previewPanel}
+              </SheetContent>
+            </Sheet>
+          </>
+        )}
 
-          {/* Which guest, not which card. The mutual-exclusion rules are NOT
-              simulated away: the preview runs the real resolver and shows ONE
-              ask per screen, because a preview showing four cards at once
-              would teach the venue a picture of their portal that no guest
-              will ever see. To see the others, they switch guest. */}
-          {previewArea === "connected" && (
-            <div className="mb-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-muted-foreground">Showing:</span>
-              {CONNECTED_PREVIEW_SCENARIOS.map((sc) => (
-                <button
-                  key={sc.id}
-                  type="button"
-                  onClick={() => setPreviewScenario(sc.id)}
-                  aria-pressed={previewScenario === sc.id}
-                  className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
-                    previewScenario === sc.id
-                      ? "border-foreground/30 bg-muted text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {sc.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* An iPhone 16 at its real logical size (393 x 852pt), shortened
-              only if the window cannot show that much -- so the frame keeps
-              the device's own proportions instead of being an arbitrary
-              340x560 box, and `container-type: size` is what lets the guest
-              shell size its own spacing against the *frame* rather than
-              against the browser window (see PortalShell). The real
-              components render inside it at 1:1: `livePreviewConfig` above is
-              rebuilt from this page's live form state on every render, so
-              every keystroke, colour pick and toggle re-renders the exact
-              component tree a guest's device renders. */}
-          <div className="mx-auto w-[393px] max-w-full rounded-[3.2rem] border-[10px] border-black bg-black p-1.5 shadow-2xl">
-            <div
-              className="relative overflow-hidden rounded-[2.6rem] bg-white"
-              style={{ height: "min(852px, calc(100vh - 11rem))", containerType: "size" }}
-            >
-              <div
-                aria-hidden
-                className="pointer-events-none absolute left-1/2 top-2.5 z-20 h-[22px] w-[86px] -translate-x-1/2 rounded-full bg-black"
-              />
-              <div className="h-full overflow-x-hidden overflow-y-auto">
-                <PortalRuntimeProvider
-                  organizationId={orgId ?? "preview"}
-                  locationId={locationId ?? "preview"}
-                  routerId="preview"
-                  previewMode
-                  presetConfig={livePreviewConfig}
-                  presetConfigLoading={false}
-                >
-                  {previewArea === "connected" ? (
-                    <ConnectedPreview scenario={previewScenario} />
-                  ) : previewArea === "before" ? (
-                    // Continue advances the *preview* to the next screen, which
-                    // is exactly what it does for a guest -- so the two screens
-                    // can be walked here rather than only looked at.
-                    <PortalShell constrained>
-                      <PortalContentBlock onContinue={() => setPreviewArea("login")} />
-                    </PortalShell>
-                  ) : (
-                    <PortalShell constrained>
-                      <GuestSignInCard />
-                    </PortalShell>
-                  )}
-                </PortalRuntimeProvider>
-              </div>
-            </div>
-          </div>
-
-          {/* Off-screen, and only ever serialised by handleDownloadQr. Rendered
-              always rather than on demand so the click handler stays
-              synchronous (Safari refuses a download started from an async
-              continuation that is no longer in the user-gesture's call
-              stack). */}
-          <div ref={qrRef} aria-hidden className="hidden">
-            <QRCodeSVG value={PORTAL_QR_URL} size={512} />
-          </div>
+        {/* Off-screen, and only ever serialised by handleDownloadQr. Rendered
+            always rather than on demand so the click handler stays
+            synchronous (Safari refuses a download started from an async
+            continuation that is no longer in the user-gesture's call
+            stack). */}
+        <div ref={qrRef} aria-hidden className="hidden">
+          <QRCodeSVG value={PORTAL_QR_URL} size={512} />
         </div>
       </div>
     </div>

@@ -379,6 +379,9 @@ check(
 
 // NAMING (docs/ipdr-logs-syslog-spec.md §5): the customer request said
 // "SNMP logs". It is not a log, and the transport is not the product.
+const devicesEn = JSON.parse(
+  readFileSync(join(ROOT, "src/lib/i18n/locales/en/devices.json"), "utf8"),
+);
 const customerCopy = view.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
 // "No rate yet" and "not measured at all" are different facts, and the
 // view must not tell the operator the second when the first is true.
@@ -397,7 +400,10 @@ check(
 );
 check(
   "the-waiting-message-explains-why-two-readings-are-needed",
-  /throughput needs two readings/i.test(view),
+  // The copy lives in the devices dictionary since the 2026-10-31 language
+  // pass; the view must render that key.
+  /t\(\s*"traffic\.needTwo"/.test(view) &&
+    /needs two readings/i.test(devicesEn.traffic?.needTwo ?? ""),
   "the waiting state does not say why it is waiting",
 );
 
@@ -413,7 +419,8 @@ check(
 );
 check(
   "customer-facing-title-names-the-real-thing",
-  /Device health &amp; interface traffic/.test(view),
+  /t\("traffic\.title"/.test(view) &&
+    /^Device health & (interface|port) traffic$/.test(devicesEn.traffic?.title ?? ""),
 );
 
 // SCOPE: SNMP configuration is Master-console only. No credential or

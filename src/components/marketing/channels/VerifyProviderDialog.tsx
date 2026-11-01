@@ -87,7 +87,7 @@ export function VerifyProviderDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !verify.isPending && onOpenChange(o)}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+      <DialogContent className="wy-console w-[calc(100vw-2rem)] max-w-md">
         <DialogHeader>
           <DialogTitle>Verify your {label(channel)} provider</DialogTitle>
           <DialogDescription>
@@ -124,7 +124,7 @@ export function VerifyProviderDialog({
                 <SelectTrigger aria-label="Template">
                   <SelectValue placeholder="Choose one of your templates" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="wy-console">
                   {ownSmsTemplates.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.name}
@@ -144,9 +144,12 @@ export function VerifyProviderDialog({
             {result.checks.map((c) => (
               <li key={c.name} className="flex items-start gap-2">
                 {c.ok ? (
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <CheckCircle2
+                    className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-ok)]"
+                    aria-hidden
+                  />
                 ) : (
-                  <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden />
+                  <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-crit)]" aria-hidden />
                 )}
                 <span>
                   <span className="font-medium">
@@ -165,7 +168,7 @@ export function VerifyProviderDialog({
         {error && (
           <p
             role="alert"
-            className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+            className="rounded-md bg-[var(--wy-crit-soft)] p-2 text-sm text-[var(--wy-crit)]"
           >
             {error}
           </p>

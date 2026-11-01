@@ -177,7 +177,20 @@ export interface RouterLiveness {
   /** Short badge word for this router, in a venue owner's vocabulary. */
   shortLabel: string;
   detail: string;
+  /**
+   * What a VENUE OWNER should do, in their words. Never names the setup
+   * script, the heartbeat scheduler, a terminal or any other technician
+   * detail: every customer surface (dashboard, Devices, the venue switcher)
+   * renders this field.
+   */
   nextStep: string | null;
+  /**
+   * The technician's version of `nextStep` ("paste the Heartbeat block from
+   * the setup script..."), for the Master console only. Absent when the
+   * plain `nextStep` is already all an operator needs. Optional because
+   * these objects are persisted into `localStorage` by older builds.
+   */
+  technicianNextStep?: string | null;
   lastContactIso: string | null;
   lastContactKind: LastContactKind;
   /** The raw backend status, for support conversations. Never rendered as the answer. */
@@ -233,8 +246,12 @@ export interface LocationLiveness {
   label: string;
   /** One sentence saying what is actually true. Never "Not live". */
   summary: string;
-  /** What to do about it, or null when there is nothing to do. */
+  /** What to do about it, or null when there is nothing to do. A venue
+   * owner's words -- see `RouterLiveness.nextStep`. */
   nextStep: string | null;
+  /** Master console only: the technician's version. See
+   * `RouterLiveness.technicianNextStep`. */
+  technicianNextStep?: string | null;
   /** Per-router breakdown, in the order the API returned them. */
   routers: RouterLiveness[];
   /**
@@ -338,6 +355,24 @@ export function formatAgo(iso: string | null | undefined, now: Date): string | n
   const d = Math.round(hours / 24);
   return `${d} day${d === 1 ? "" : "s"} ago`;
 }
+
+/**
+ * Customer-facing next steps. A cafe owner cannot paste a script into a
+ * router terminal, so these say what they CAN do -- check power and the
+ * line, then ask us -- and leave the "how" to support. The technician
+ * versions below are kept for the Master console (`technicianNextStep`).
+ */
+export const CUSTOMER_NEXT_STEP = {
+  wentSilent:
+    "Check the router has power and its internet cable is plugged in. Still offline? " +
+    "Contact support and we'll look at it.",
+  neverCheckedIn:
+    "Setting up this router didn't finish, so it isn't online yet. Contact support and " +
+    "we'll help you finish it.",
+  setupNotStarted:
+    "This router still needs to be set up. Contact support and we'll help you set it up.",
+  noRouter: "Add a router to bring this venue online. Contact support if you need help.",
+} as const;
 
 const PASTE_THE_HEARTBEAT_BLOCK =
   "Paste the Heartbeat block from this router's setup script into its terminal. " +
@@ -541,7 +576,8 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
             `This router came online, but its last check-in was ${ago}. ` +
             `Anything past ${HEARTBEAT_SILENT_AFTER_MINUTES} minutes means we have stopped ` +
             "hearing from it.",
-          nextStep:
+          nextStep: CUSTOMER_NEXT_STEP.wentSilent,
+          technicianNextStep:
             "Check the router has power and a working internet connection. If it does, " +
             "its check-in scheduler may have been lost — re-run the Heartbeat block from " +
             "the setup script.",
@@ -591,7 +627,8 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
           ? `Setup started on this router ${ago}, but it has never checked in since — ` +
             "so it has never come online."
           : "This router has never checked in, so it has never come online.",
-        nextStep: PASTE_THE_HEARTBEAT_BLOCK,
+        nextStep: CUSTOMER_NEXT_STEP.neverCheckedIn,
+        technicianNextStep: PASTE_THE_HEARTBEAT_BLOCK,
         lastContactIso: lastSeenIso,
         lastContactKind: lastSeenIso ? "enrolment" : "none",
       };
@@ -609,9 +646,11 @@ export function deriveRouterLiveness(raw: RawRouterLiveness, now: Date): RouterL
         detail: ago
           ? `This router is waiting to be set up. Its last contact was ${ago}, before ` +
             "it was reset for setup."
-          : "This router has been added here, but it has never contacted us — its setup " +
-            "script has not been run yet.",
-        nextStep: "Run this router's setup script on the device, from the first block to the last.",
+          : "This router has been added here, but it has never contacted us — it has not " +
+            "been set up yet.",
+        nextStep: CUSTOMER_NEXT_STEP.setupNotStarted,
+        technicianNextStep:
+          "Run this router's setup script on the device, from the first block to the last.",
         lastContactIso: lastSeenIso,
         lastContactKind: lastSeenIso ? "unspecified" : "none",
       };
@@ -784,7 +823,8 @@ export function deriveLocationLiveness(
       label: "No router yet",
       summary:
         "No router has been added to this location, so there is nothing here to bring online yet.",
-      nextStep: "Add a router to this location, then run its setup script on the device.",
+      nextStep: CUSTOMER_NEXT_STEP.noRouter,
+      technicianNextStep: "Add a router to this location, then run its setup script on the device.",
       routers: [],
       routersOnline: 0,
       routersTotal: 0,
@@ -808,6 +848,7 @@ export function deriveLocationLiveness(
             ? derived[0].detail
             : `All ${total} routers at this location are checking in.`,
       nextStep: late.length > 0 ? late[0].nextStep : null,
+      technicianNextStep: late.length > 0 ? (late[0].technicianNextStep ?? null) : null,
       routers: derived,
       routersOnline: online.length,
       routersTotal: total,
@@ -821,6 +862,7 @@ export function deriveLocationLiveness(
       label: "Partly live",
       summary: `${online.length} of ${total} routers here are checking in. ${worst.label}: ${worst.detail}`,
       nextStep: worst.nextStep,
+      technicianNextStep: worst.technicianNextStep ?? null,
       routers: derived,
       routersOnline: online.length,
       routersTotal: total,
@@ -853,6 +895,7 @@ export function deriveLocationLiveness(
       label: "Can't tell",
       summary: `${worst.label}: ${worst.detail}`,
       nextStep: worst.nextStep,
+      technicianNextStep: worst.technicianNextStep ?? null,
       routers: derived,
       routersOnline: null,
       routersTotal: total,
@@ -869,6 +912,7 @@ export function deriveLocationLiveness(
         ? `${worst.label}: ${worst.detail} (${others} other router${others === 1 ? "" : "s"} here ${others === 1 ? "is" : "are"} also not checking in.)`
         : worst.detail,
     nextStep: worst.nextStep,
+    technicianNextStep: worst.technicianNextStep ?? null,
     routers: derived,
     routersOnline: 0,
     routersTotal: total,

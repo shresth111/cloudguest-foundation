@@ -49,6 +49,7 @@ import {
 import { TrafficLensServiceDestinations } from "@/components/traffic-lens/TrafficLensDestinations";
 import { TrafficLensFindings } from "@/components/traffic-lens/TrafficLensFindings";
 import { NoticeCard } from "@/components/traffic-lens/TrafficLensParts";
+import { PANEL_SURFACE } from "@/components/customer/console";
 import { serverFindingState } from "@/lib/traffic-lens-findings";
 import { Empty, Footnotes, Panel, RankBar } from "@/components/traffic-lens/TrafficLensLayout";
 import { serviceFromKey } from "@/lib/traffic-flow-destinations";
@@ -61,9 +62,9 @@ const TrafficLensTimelineChart = lazy(() =>
 );
 
 /** The grey "everything else" segment: hatched, so it never reads as one
- * more service. */
+ * more service. Console tokens, so it reads in light and dark. */
 const REST_FILL =
-  "repeating-linear-gradient(135deg, rgb(255 255 255 / 0.22) 0 6px, rgb(255 255 255 / 0.1) 6px 12px)";
+  "repeating-linear-gradient(135deg, var(--wy-border-strong) 0 6px, var(--wy-surface-2) 6px 12px)";
 
 /**
  * Traffic Lens -> Overview. Top to bottom, in the order a venue owner asks:
@@ -115,9 +116,9 @@ export function TrafficLensOverview({
 
   if (query.isLoading)
     return (
-      <div className="space-y-4">
-        <div className="h-72 animate-pulse rounded-3xl bg-muted" />
-        <div className="h-64 animate-pulse rounded-2xl bg-muted" />
+      <div className="space-y-4" aria-busy="true">
+        <div className="h-72 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]" />
+        <div className="h-64 animate-pulse rounded-[var(--wy-radius)] bg-[var(--wy-surface-2)]" />
       </div>
     );
   if (query.isError || !s) {
@@ -171,51 +172,41 @@ export function TrafficLensOverview({
   return (
     <div className="space-y-5">
       {/* 1. The answer -------------------------------------------------- */}
-      <section
-        aria-label="Summary of this period"
-        className="relative overflow-hidden rounded-3xl bg-sidebar text-sidebar-foreground shadow-[var(--shadow-elevated)]"
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-24 -top-36 h-96 w-96 rounded-full opacity-45 blur-3xl"
-          style={{ background: "var(--primary)" }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-32 -left-24 h-72 w-72 rounded-full opacity-25 blur-3xl"
-          style={{ background: "var(--chart-1)" }}
-        />
-        <div className="relative grid gap-8 p-6 sm:p-8 lg:grid-cols-5 lg:gap-10 lg:p-10">
-          <div className="lg:col-span-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
-              Your WiFi, {phrase}
-            </p>
+      {/* A light console panel (design review §2 issue 2): the answer, the
+          figure and the traffic strip, then the three smaller answers as a
+          row of tiles. No dark wash: it was white-on-white in light mode. */}
+      <section aria-label="Summary of this period" className="space-y-3">
+        <div className={PANEL_SURFACE}>
+          <div className="p-4 sm:p-5">
+            <p className="text-xs font-medium text-[var(--wy-text-muted)]">Your WiFi, {phrase}</p>
             {top.figure && (
-              <p className="mt-4 font-display text-7xl font-bold leading-none tracking-tighter text-white tabular-nums sm:text-8xl">
+              <p className="mt-2 text-4xl font-semibold leading-none tracking-tight text-[var(--wy-text)] tabular-nums sm:text-5xl">
                 {top.figure}
               </p>
             )}
-            <h2 className="mt-4 max-w-xl font-display text-2xl font-semibold leading-tight tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 max-w-2xl text-base font-semibold leading-snug text-[var(--wy-text)]">
               {top.headline}
             </h2>
-            {top.detail && <p className="mt-3 max-w-xl text-sm text-white/70">{top.detail}</p>}
+            {top.detail && (
+              <p className="mt-1 max-w-2xl text-[13px] text-[var(--wy-text-muted)]">{top.detail}</p>
+            )}
           </div>
-          <dl className="grid gap-3 sm:grid-cols-3 lg:col-span-2 lg:grid-cols-1">
-            <AnswerTile label="Busiest time" headline={peak.headline} detail={peak.detail} />
-            <AnswerTile
-              label="Heaviest device"
-              headline={heaviest.headline}
-              detail={heaviest.detail}
-              flagged={heaviest.flagged}
-            />
-            <AnswerTile
-              label="Total used"
-              headline={volume.headline}
-              detail={[volume.detail, ...volume.facts].filter(Boolean).join(" · ")}
-            />
-          </dl>
+          {strip.length > 0 && <TrafficStrip segments={strip} />}
         </div>
-        {strip.length > 0 && <TrafficStrip segments={strip} />}
+        <dl className="grid gap-3 sm:grid-cols-3">
+          <AnswerTile label="Busiest time" headline={peak.headline} detail={peak.detail} />
+          <AnswerTile
+            label="Heaviest device"
+            headline={heaviest.headline}
+            detail={heaviest.detail}
+            flagged={heaviest.flagged}
+          />
+          <AnswerTile
+            label="Total used"
+            headline={volume.headline}
+            detail={[volume.detail, ...volume.facts].filter(Boolean).join(" · ")}
+          />
+        </dl>
       </section>
 
       {/* 2. Worth a look ------------------------------------------------ */}
@@ -253,13 +244,16 @@ export function TrafficLensOverview({
             colors={LENS_SERIES_COLORS}
           />
         </Suspense>
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-[11px] text-[var(--wy-text-faint)]">
           Speed over time, {stepLabel(s.step_seconds)}.{gapNote ? ` ${gapNote}` : ""}
           {mode === "service" && noServiceSteps > 0
             ? ` ${noServiceSteps} step${noServiceSteps === 1 ? " has" : "s have"} traffic but no per-service detail and are blank in this view; switch to Download / upload to see them.`
             : ""}{" "}
           To compare the busiest speed with what your internet plan allows, see{" "}
-          <Link to="/isp-details" className="font-medium text-primary hover:underline">
+          <Link
+            to="/isp-details"
+            className="rounded-sm font-medium text-[var(--wy-accent)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wy-accent)]"
+          >
             Internet Connection
           </Link>
           .
@@ -279,7 +273,7 @@ export function TrafficLensOverview({
         ) : services.kind === "empty" ? (
           <Empty title="No service traffic recorded in this period." />
         ) : (
-          <ol className="divide-y divide-border">
+          <ol className="divide-y divide-[var(--wy-border)]">
             {[...services.rows, ...(services.other ? [services.other] : [])].map((r, i) => {
               const name = names.get(r.key) ?? r.label;
               const color = seriesColor(s, r.key, LENS_SERIES_COLORS);
@@ -287,20 +281,20 @@ export function TrafficLensOverview({
                 <li key={r.key} className="py-4 first:pt-0 last:pb-0">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                     <div className="flex min-w-0 basis-full items-center gap-4 sm:flex-1 sm:basis-0">
-                      <span className="w-6 shrink-0 font-display text-lg font-semibold tabular-nums text-muted-foreground">
+                      <span className="w-6 shrink-0 text-sm font-semibold tabular-nums text-[var(--wy-text-faint)]">
                         {serviceFromKey(r.key) ? i + 1 : ""}
                       </span>
                       <span
                         aria-hidden
                         className="h-3 w-3 shrink-0 rounded-sm"
                         style={{
-                          background: color ?? "var(--muted-foreground)",
+                          background: color ?? "var(--wy-text-faint)",
                           opacity: color ? 1 : 0.35,
                         }}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-base font-semibold">{name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm font-semibold text-[var(--wy-text)]">{name}</p>
+                        <p className="text-xs text-[var(--wy-text-muted)]">
                           {name !== r.label ? (
                             <span className="font-mono">{r.label}</span>
                           ) : (
@@ -311,7 +305,7 @@ export function TrafficLensOverview({
                         </p>
                       </div>
                     </div>
-                    <span className="ml-14 font-display text-2xl font-semibold tabular-nums sm:ml-0">
+                    <span className="ml-14 text-lg font-semibold tabular-nums text-[var(--wy-text)] sm:ml-0">
                       {r.share}
                     </span>
                     {serviceFromKey(r.key) && (
@@ -331,7 +325,7 @@ export function TrafficLensOverview({
                     )}
                   </div>
                   <div className="mt-3 pl-10">
-                    <RankBar width={r.barWidth} color={color ?? "var(--muted-foreground)"} />
+                    <RankBar width={r.barWidth} color={color ?? "var(--wy-text-faint)"} />
                   </div>
                 </li>
               );
@@ -348,8 +342,8 @@ export function TrafficLensOverview({
             onClose={() => setOpened(null)}
           />
         )}
-        <p className="mt-5 border-t border-border pt-4 text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">By protocol: </span>
+        <p className="mt-5 border-t border-[var(--wy-border)] pt-4 text-xs text-[var(--wy-text-muted)]">
+          <span className="font-semibold text-[var(--wy-text)]">By protocol: </span>
           {protocols === null
             ? `${NOT_MEASURED} for this period.`
             : protocols.length === 0
@@ -371,20 +365,22 @@ export function TrafficLensOverview({
               {devices.map((d, i) => (
                 <li key={`${d.router_id ?? ""}-${d.ip}`}>
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className="w-6 shrink-0 font-display text-lg font-semibold tabular-nums text-muted-foreground">
+                    <span className="w-6 shrink-0 text-sm font-semibold tabular-nums text-[var(--wy-text-faint)]">
                       {i + 1}
                     </span>
-                    <span className="font-mono text-sm font-medium">{d.ip}</span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    <span className="font-[family-name:var(--wy-font-mono)] text-[13px] font-medium text-[var(--wy-text)]">
+                      {d.ip}
+                    </span>
+                    <span className="rounded-full bg-[var(--wy-surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--wy-text-muted)]">
                       {lensDeviceLabel(d.match)}
                     </span>
-                    <span className="ml-auto font-display text-lg font-semibold tabular-nums">
+                    <span className="ml-auto text-base font-semibold tabular-nums text-[var(--wy-text)]">
                       {atLeast(shareLabel(d.share_at_least), devicesLb)}
                     </span>
                   </div>
                   <div className="mt-2 pl-9">
                     <RankBar width={shareBarWidth(d.share_at_least)} />
-                    <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
+                    <p className="mt-1.5 text-xs tabular-nums text-[var(--wy-text-muted)]">
                       Download {atLeast(flowBytes(d.bytes_down), devicesLb)} · upload{" "}
                       {atLeast(flowBytes(d.bytes_up), devicesLb)}
                     </p>
@@ -427,17 +423,19 @@ export function TrafficLensOverview({
               {addresses.map((a, i) => (
                 <li key={a.ip}>
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className="w-6 shrink-0 font-display text-lg font-semibold tabular-nums text-muted-foreground">
+                    <span className="w-6 shrink-0 text-sm font-semibold tabular-nums text-[var(--wy-text-faint)]">
                       {i + 1}
                     </span>
-                    <span className="font-mono text-sm font-medium">{a.ip}</span>
-                    <span className="ml-auto font-display text-lg font-semibold tabular-nums">
+                    <span className="font-[family-name:var(--wy-font-mono)] text-[13px] font-medium text-[var(--wy-text)]">
+                      {a.ip}
+                    </span>
+                    <span className="ml-auto text-base font-semibold tabular-nums text-[var(--wy-text)]">
                       {atLeast(shareLabel(a.share_at_least), destLb)}
                     </span>
                   </div>
                   <div className="mt-2 pl-9">
-                    <RankBar width={shareBarWidth(a.share_at_least)} color="var(--chart-1)" />
-                    <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
+                    <RankBar width={shareBarWidth(a.share_at_least)} color="var(--wy-series-6)" />
+                    <p className="mt-1.5 text-xs tabular-nums text-[var(--wy-text-muted)]">
                       Download {atLeast(flowBytes(a.bytes_down), destLb)} · upload{" "}
                       {atLeast(flowBytes(a.bytes_up), destLb)}
                     </p>
@@ -468,7 +466,8 @@ export function TrafficLensOverview({
 
 const otherLine = (what: string, amount: string | null) => (amount ? `${what}: ${amount}.` : null);
 
-/** One of the three smaller answers on the slab. */
+/** One of the three smaller answers, as a console stat tile. A flagged
+ * answer carries the warn tone AND the flag's own name, never colour alone. */
 function AnswerTile({
   label,
   headline,
@@ -482,17 +481,23 @@ function AnswerTile({
 }) {
   return (
     <div
-      className={`rounded-2xl border p-4 backdrop-blur-sm ${
-        flagged ? "border-amber-400/70 bg-amber-400/10" : "border-white/10 bg-white/5"
+      className={`flex min-w-0 flex-col gap-1 rounded-[var(--wy-radius)] border px-4 py-3 shadow-[var(--wy-shadow)] ${
+        flagged
+          ? "border-[color-mix(in_srgb,var(--wy-warn)_45%,transparent)] bg-[var(--wy-warn-soft)]"
+          : "border-[var(--wy-border)] bg-[var(--wy-surface)]"
       }`}
     >
-      <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">
-        {flagged && <Flag className="h-3 w-3 text-amber-400" aria-label="Worth a look" />}
+      <dt className="flex items-center gap-1.5 text-xs font-medium text-[var(--wy-text-muted)]">
+        {flagged && (
+          <Flag className="h-3.5 w-3.5 text-[var(--wy-warn)]" aria-label="Worth a look" />
+        )}
         {label}
       </dt>
-      <dd className="mt-1.5">
-        <p className="font-display text-lg font-semibold leading-snug text-white">{headline}</p>
-        {detail && <p className="mt-1 text-xs leading-relaxed text-white/65">{detail}</p>}
+      <dd>
+        <p className="text-sm font-semibold leading-snug text-[var(--wy-text)]">{headline}</p>
+        {detail && (
+          <p className="mt-1 text-xs leading-relaxed text-[var(--wy-text-muted)]">{detail}</p>
+        )}
       </dd>
     </div>
   );
@@ -504,19 +509,19 @@ function AnswerTile({
  * or on a label fitting inside a segment. */
 function TrafficStrip({ segments }: { segments: StripSegment[] }) {
   return (
-    <div className="relative border-t border-white/10 p-6 sm:px-8 lg:px-10">
-      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
+    <div className="border-t border-[var(--wy-border)] p-4 sm:px-5">
+      <p className="mb-2 text-xs font-medium text-[var(--wy-text-muted)]">
         All traffic, split by service
       </p>
       <div
         role="img"
         aria-label={`All traffic split by service: ${segments.map((g) => `${g.name} ${g.share}`).join(", ")}`}
-        className="flex h-14 w-full gap-0.5 overflow-hidden rounded-xl sm:h-16"
+        className="flex h-10 w-full gap-0.5 overflow-hidden rounded-[var(--wy-radius)] sm:h-12"
       >
         {segments.map((g) => (
           <div
             key={g.key}
-            className="flex min-w-1.5 items-center overflow-hidden px-3 transition-[width] duration-500"
+            className="flex min-w-1.5 items-center overflow-hidden px-3 transition-[width] duration-500 motion-reduce:transition-none"
             style={{
               width: `${g.width}%`,
               background: g.key === LENS_STRIP_REST_KEY ? REST_FILL : (g.color ?? REST_FILL),
@@ -524,17 +529,17 @@ function TrafficStrip({ segments }: { segments: StripSegment[] }) {
           >
             {g.width >= 14 && (
               <span
-                className={`hidden truncate text-sm font-semibold sm:block ${
-                  g.key === LENS_STRIP_REST_KEY ? "text-white" : "text-slate-950"
+                className={`hidden truncate text-[13px] font-semibold sm:block ${
+                  g.key === LENS_STRIP_REST_KEY || !g.color ? "text-[var(--wy-text)]" : "text-black"
                 }`}
               >
-                <span className="font-display text-lg tabular-nums">{g.share}</span> {g.name}
+                <span className="tabular-nums">{g.share}</span> {g.name}
               </span>
             )}
           </div>
         ))}
       </div>
-      <ul className="mt-4 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2 xl:grid-cols-5">
+      <ul className="mt-3 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2 xl:grid-cols-5">
         {segments.map((g) => (
           <li key={g.key} className="flex items-start gap-2">
             <span
@@ -545,12 +550,16 @@ function TrafficStrip({ segments }: { segments: StripSegment[] }) {
               }}
             />
             <span className="min-w-0">
-              <span className="block font-medium text-white">
-                {g.name} <span className="tabular-nums text-white/70">{g.share}</span>
+              <span className="block font-medium text-[var(--wy-text)]">
+                {g.name} <span className="tabular-nums text-[var(--wy-text-muted)]">{g.share}</span>
               </span>
-              <span className="block text-white/55">
-                {g.label ? <span className="font-mono">{g.label}</span> : "Smaller services"} ·{" "}
-                {g.bytes}
+              <span className="block text-[var(--wy-text-faint)]">
+                {g.label ? (
+                  <span className="font-[family-name:var(--wy-font-mono)]">{g.label}</span>
+                ) : (
+                  "Smaller services"
+                )}{" "}
+                · {g.bytes}
               </span>
             </span>
           </li>

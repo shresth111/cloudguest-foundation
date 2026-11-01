@@ -4,10 +4,8 @@
  * the same lesson applied to the sidebar).
  */
 import { useState } from "react";
-import { Shield, Eye, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -19,35 +17,13 @@ import {
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 /**
- * Second design pass on the header controls (see git history for the first
- * -- three identical rounded pills, then three pills with distinct colors).
- * Founder feedback on the second pass: still reads as "generic SaaS chips,"
- * just recolored. This pass changes the shape language and the information
- * architecture, not just the palette:
- *
- * - "Plan expires" and "Book a Demo" were two disconnected chips telling
- *   two unrelated half-stories. They're now one object, `PlanRenewalTicket`:
- *   a boarding-pass-style card (angled cut ends, a perforated tear line
- *   down the middle) whose left stub is a real countdown -- a 5-bar runway
- *   gauge plus day count that only appears once the renewal is close enough
- *   to matter -- and whose right stub is the actual CTA. One shape, one
- *   sentence: "N days left on your plan -- talk to us." The gauge's fill
- *   and color tier (calm indigo / warn amber / urgent rose) are computed
- *   from the real renewal date, and only the urgent tier gets a slow pulse
- *   on the CTA -- motion tied to real account state, not decoration.
- * - The masking indicator was never a "button" in spirit (it's a read-only
- *   policy statement, see `OtpMaskToggle` below), so it no longer looks
- *   like one. It's a small notched security tag in a cool slate register
- *   that appears nowhere else in this indigo/violet UI, signalling "this
- *   is a compliance fact, not something to press" purely through material.
+ * What is left here: the renewal pill (`PlanRenewalTicket`) the top bar
+ * shows inside the last week before renewal, the OTP dialog behind the
+ * sidebar's Guest Privacy control, and re-exported masking helpers. The
+ * pill's three tiers (calm / warn / urgent) are computed from the real
+ * renewal date and coloured from the console tokens (batch 3D). The old
+ * notched `OtpMaskToggle` tag had no importer left and was removed then.
  */
-
-/** Tailwind class applied to the read-only masking tag; kept as a constant
- * because its notched-corner clip-path is the one piece of shared shape
- * between its two states (masked / unmasked). */
-const MASK_TAG_BASE =
-  "hidden items-center gap-1.5 border border-slate-400/25 bg-slate-500/10 py-1.5 pl-2.5 pr-3 text-[11px] font-medium sm:inline-flex";
-const MASK_TAG_CLIP = "polygon(7px 0, 100% 0, 100% 100%, 0 100%, 0 7px)";
 
 // `maskEmail`/`maskPhone`/`maskMac` now live in `@/lib/masking` -- pure
 // string helpers with zero imports, moved out because importing one of them
@@ -58,58 +34,7 @@ const MASK_TAG_CLIP = "polygon(7px 0, 100% 0, 100% 100%, 0 100%, 0 7px)";
 // should import them from `@/lib/masking` directly instead.
 export { maskEmail, maskPhone, maskMac } from "@/lib/masking";
 
-/** Self-service PII-masking toggle. Click sends a real OTP (see
- * `useDataMasking` in `useCustomerDashboard.ts`) and opens
- * `DataMaskingOtpDialog` to collect it -- the actual state flip only
- * happens once that code verifies. Two earlier revisions got this wrong in
- * opposite directions: one faked the OTP entirely (accepted any 6-digit
- * string, the correct code printed on the dialog itself); the next
- * over-corrected into a read-only tag with no self-service path at all,
- * on the theory that the backend's ``data_masking_enabled`` field is
- * "administrator-only." That theory didn't survive contact with the
- * actual endpoint though (see ``app.domains.user.router``'s ``/me/data-
- * masking`` docstring) -- there's no reason this can't be a real,
- * OTP-verified self-service control, so now it is one. */
-export function OtpMaskToggle({
-  masked = true,
-  onClick,
-  loading,
-  className,
-}: {
-  masked?: boolean;
-  onClick?: () => void;
-  loading?: boolean;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={loading}
-      onClick={onClick}
-      title={
-        masked
-          ? "Sensitive guest data is masked. Click to verify and show it unmasked."
-          : "Guest data is shown unmasked for this account. Click to mask it again."
-      }
-      className={
-        className ??
-        `${MASK_TAG_BASE} mr-1 transition-colors hover:bg-slate-500/20 disabled:opacity-60 ${masked ? "text-slate-300" : "text-sky-300"}`
-      }
-      style={{ clipPath: MASK_TAG_CLIP }}
-    >
-      {loading ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : masked ? (
-        <Shield className="h-3 w-3" />
-      ) : (
-        <Eye className="h-3 w-3" />
-      )}
-      Guest Privacy
-    </button>
-  );
-}
-
-/** The OTP-entry dialog `OtpMaskToggle` opens. Purely a controlled
+/** The OTP-entry dialog the sidebar's Guest Privacy control opens. Purely a controlled
  * presentational shell -- all the actual send/verify logic (and the demo-
  * vs-real branching) lives in `useDataMasking`; this just renders whatever
  * state that hook is in. */
@@ -230,10 +155,16 @@ function planTier(daysLeft: number | null): PlanTier {
 /** The renewal pill is hidden until renewal is this close. */
 const RENEWAL_VISIBLE_DAYS = 7;
 
-const TIER_STYLE: Record<PlanTier, { text: string; bar: string; ring: string }> = {
-  calm: { text: "text-indigo-300", bar: "bg-indigo-400", ring: "99,102,241" },
-  warn: { text: "text-amber-300", bar: "bg-amber-400", ring: "245,158,11" },
-  urgent: { text: "text-rose-300", bar: "bg-rose-400", ring: "244,63,94" },
+/** Pill colours per tier, from the console tokens. The pill sits in the
+ * indigo top bar, where `.wy-topbar` re-points the text tokens at the chrome
+ * palette; the two alarming tiers use the status pair (`-soft` fill, token
+ * text), which passes AA on its own fill in both themes, rather than
+ * status-coloured text straight on indigo. The gauge bars take
+ * `currentColor`, so they always match the label. */
+const TIER_STYLE: Record<PlanTier, string> = {
+  calm: "border-[var(--wy-border)] bg-[var(--wy-surface)] text-[var(--wy-text-muted)]",
+  warn: "border-transparent bg-[var(--wy-warn-soft)] text-[var(--wy-warn)]",
+  urgent: "border-transparent bg-[var(--wy-crit-soft)] text-[var(--wy-crit)]",
 };
 
 /** How many of the 5 runway bars are lit. The gauge only tracks the final
@@ -250,13 +181,13 @@ function runwayFilled(daysLeft: number | null): number {
  * signal-strength meter, filled/dimmed per `runwayFilled`. Reused nowhere
  * else in the product on purpose: it's a one-off metaphor for "how much
  * plan is left," not a generic progress bar. */
-function RunwayGauge({ tier, filled }: { tier: PlanTier; filled: number }) {
+function RunwayGauge({ filled }: { filled: number }) {
   return (
     <span className="flex items-end gap-[2px]" aria-hidden="true">
       {[5, 7, 9, 11, 13].map((h, i) => (
         <span
           key={h}
-          className={`w-[3px] rounded-[1px] transition-colors duration-500 ${i < filled ? TIER_STYLE[tier].bar : "bg-white/15"}`}
+          className={`w-[3px] rounded-[1px] transition-colors duration-500 motion-reduce:transition-none ${i < filled ? "bg-current" : "bg-[color-mix(in_srgb,currentColor_25%,transparent)]"}`}
           style={{ height: h }}
         />
       ))}
@@ -321,11 +252,11 @@ export function PlanRenewalTicket({
         gauge is `items-end`, so its bars sank to the pill's bottom edge, while
         the label's line box stayed at the top -- leaving the date sitting
         ~22px above its own gauge inside a 36px pill. */}
-      <div className="flex items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] pl-3 pr-3">
-        <RunwayGauge tier={tier} filled={filled} />
-        <span className={`ml-2 text-[11px] font-medium tabular-nums ${TIER_STYLE[tier].text}`}>
-          {statusLabel}
-        </span>
+      <div
+        className={`flex items-center overflow-hidden rounded-full border pl-3 pr-3 ${TIER_STYLE[tier]}`}
+      >
+        <RunwayGauge filled={filled} />
+        <span className="ml-2 text-[11px] font-medium tabular-nums">{statusLabel}</span>
       </div>
     </div>
   );
