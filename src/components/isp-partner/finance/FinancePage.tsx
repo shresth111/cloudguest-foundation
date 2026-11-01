@@ -1643,7 +1643,8 @@ export function FinancePage({ tab, onTab }: { tab: FinanceTab; onTab: (t: Financ
     { value: "deposits", label: "Deposits", anyOf: ["isp_billing.read"] },
     { value: "zones", label: "Zones", anyOf: ["isp_zones.read"] },
     { value: "automation", label: "Automation", anyOf: ["isp_billing.read"] },
-    { value: "messages", label: "Message log", anyOf: ["isp_billing.read"] },
+    // RBAC-FIX: message logs carry recipient phone/email + content (no viewer).
+    { value: "messages", label: "Message log", anyOf: ["isp_billing.export"] },
   ];
   const visible = tabs.filter((t) => t.anyOf.some((k) => can(k)));
   if (visible.length === 0)
