@@ -59,5 +59,33 @@ console.log("SMALL-1 bulk renew discount");
   lacks("no client-side discount maths (BE quote only)", prev, "afterDiscount(");
 }
 
+// ---------------------------------------------------------------- SMALL-2
+console.log("SMALL-2 customer invoice discount");
+{
+  const types = src("src/services/isp-partner/invoices-types.ts");
+  has("manual body carries discount_code", types, "discount_code?: string;");
+  const btypes = src("src/services/isp-partner/billing-types.ts");
+  has("1b body carries discount_code", btypes, "discount_code?: string;");
+  const manual = src("src/components/isp-partner/invoices/InvoiceDialogs.tsx");
+  has("manual dialog shows the code field", manual, "<DiscountCodeField");
+  has("manual dialog previews on the whole-invoice gross", manual, "pricePaise={discountGross}");
+  has(
+    "manual dialog sends the code only when typed",
+    manual,
+    "...(discountCode.trim() ? { discount_code: discountCode.trim() } : {}),",
+  );
+  has("manual dialog resets the code on open", manual, 'setDiscountCode("");');
+  const bill = src("src/components/isp-partner/billing/BillingDialogs.tsx");
+  has("1b dialog shows the code field", bill, "<DiscountCodeField");
+  has(
+    "1b dialog sends the code only when typed",
+    bill,
+    "...(discountCode.trim() ? { discount_code: discountCode.trim() } : {}),",
+  );
+  const hook = src("src/hooks/isp-partner/useInvoiceTaxableGross.ts");
+  has("gross sums lines through the shared helper", hook, "taxableGross({");
+  has("gross is 0 while the probe is off", hook, "if (!status) return 0;");
+}
+
 console.log(`\n${checks - failures}/${checks} checks passed`);
 if (failures) process.exit(1);
