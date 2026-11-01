@@ -65,13 +65,19 @@ export function DiscountsTab() {
           </MButton>
         )}
       </div>
+      {/* GAP-SWEEP: nothing in billing calls the JAZE-5 discount hook yet, so a
+          code never changes an invoice. Say so instead of implying it does. */}
+      <p className="text-xs text-muted-foreground">
+        Codes can be created, previewed and tracked here. Renewals, recharges and new subscribers do
+        not apply them to invoices yet.
+      </p>
       {list.error && !list.data ? (
         <ErrorBlock error={list.error} onRetry={() => list.refetch()} what="discount codes" />
       ) : list.data && list.data.items.length === 0 ? (
         <MEmptyState
           icon={BadgePercent}
           title="No discount codes"
-          description="Codes reduce the taxable amount of an invoice."
+          description="A code will reduce an invoice's taxable amount once billing applies codes."
         />
       ) : (
         <>

@@ -2839,6 +2839,9 @@ jobs:
       - name: ISP partner queued renewal (QUEUED-RENEWAL)
         if: hashFiles('scripts/test-isp-partner-queued-renewal.mjs') != ''
         run: bun run test:isp-partner-queued-renewal
+      - name: ISP partner gap sweep (flag-off nav items)
+        if: hashFiles('scripts/test-isp-partner-gap-sweep.mjs') != ''
+        run: bun run test:isp-partner-gap-sweep
       - name: ISP partner referrals (REFERRAL-1)
         if: hashFiles('scripts/test-isp-partner-referrals.mjs') != ''
         run: bun run test:isp-partner-referrals

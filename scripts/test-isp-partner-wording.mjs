@@ -132,6 +132,35 @@ const offenders = walk(join(ROOT, "src/components/isp-partner")).filter((p) =>
 );
 check("no partner component names it", offenders.length === 0, offenders.join(", "));
 
+// GAP-SWEEP: "tunnel" and "VPN" are platform internals too (QA-023). Comments
+// may explain the mapping; visible text and string literals may not. Covers
+// every partner component and every /partner route file.
+const partnerFiles = [
+  ...walk(join(ROOT, "src/components/isp-partner")),
+  ...readdirSync(join(ROOT, "src/routes"))
+    .filter((f) => f.startsWith("partner"))
+    .map((f) => join(ROOT, "src/routes", f)),
+];
+const internalWords = [];
+for (const p of partnerFiles) {
+  const code = readFileSync(p, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  code.split("\n").forEach((line, i) => {
+    if (/\b(tunnel|vpn)\b/i.test(line)) internalWords.push(`${p.slice(ROOT.length + 1)}:${i + 1}`);
+  });
+}
+check(
+  "no partner screen says tunnel or VPN outside comments",
+  internalWords.length === 0,
+  internalWords.join(", "),
+);
+check(
+  "the scan found the partner files (sanity)",
+  partnerFiles.length > 100,
+  `only ${partnerFiles.length}`,
+);
+
 console.log(`\n${checks - failures}/${checks} checks passed`);
 if (failures) process.exit(1);
 console.log("all checks passed");

@@ -44,10 +44,9 @@ function SetupScript({ routerId }: { routerId: string }) {
         <div className="space-y-1">
           <p className="font-semibold">Before you click Generate</p>
           <p className="text-muted-foreground">
-            Keep both the tunnel box (this is the router&apos;s cloud link) and the RADIUS box
-            ticked. Without the cloud link the router cannot be managed or monitored, and without
-            RADIUS no guest can sign in. Unticking either asks you to type a confirmation and is
-            written into the script.
+            Keep both the cloud link box and the RADIUS box ticked. Without the cloud link the
+            router cannot be managed or monitored, and without RADIUS no guest can sign in.
+            Unticking either asks you to type a confirmation and is written into the script.
           </p>
           <p className="text-muted-foreground">
             Each Generate issues new credentials, so a script you copied earlier stops working.
