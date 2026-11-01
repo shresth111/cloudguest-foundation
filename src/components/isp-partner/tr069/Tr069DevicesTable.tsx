@@ -13,7 +13,7 @@ const BLOCKED_LABEL: Record<Tr069BlockedReason, string> = {
 };
 import { ErrorBlock, Pager } from "@/components/isp-partner/kit";
 import { useTr069Devices } from "@/hooks/isp-partner/useTr069";
-import { formatAgo, formatDateTime } from "@/lib/isp-partner/format";
+import { formatAgo, formatIst } from "@/lib/isp-partner/format";
 import type { Tr069DeviceQuery } from "@/services/isp-partner/types";
 
 export function Tr069DevicesTable({
@@ -100,7 +100,7 @@ export function Tr069DevicesTable({
               )}
             </MTd>
             <MTd className="text-xs text-muted-foreground">
-              <span title={formatDateTime(d.last_inform_at)}>{formatAgo(d.last_inform_at)}</span>
+              <span title={formatIst(d.last_inform_at)}>{formatAgo(d.last_inform_at)}</span>
             </MTd>
           </MTr>
         ))}

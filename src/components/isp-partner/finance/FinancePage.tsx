@@ -57,6 +57,8 @@ import {
   DepositHistoryDialog,
   LeasePricePreview,
 } from "@/components/isp-partner/finance/FinanceExtrasPanels";
+import { PAGE_TABS } from "@/components/isp-partner/ui/classes";
+import { EmptyRow } from "@/components/isp-partner/ui/EmptyRow";
 
 export type FinanceTab =
   | "template"
@@ -287,6 +289,13 @@ function ProductsTab() {
           </>
         }
       >
+        {q.data?.length === 0 && (
+          <EmptyRow
+            kind="first-run"
+            title="No products yet"
+            hint="Products are the lines you put on an invoice (installation, router rent, static IP). Add the four standard ones to start."
+          />
+        )}
         {(q.data ?? []).map((p) => (
           <MTr
             key={p.id}
@@ -577,8 +586,8 @@ function PackagesTab() {
           <>
             <MTh>Package</MTh>
             <MTh>Type</MTh>
-            <MTh>Validity</MTh>
-            <MTh>Price</MTh>
+            <MTh className="text-right">Validity</MTh>
+            <MTh className="text-right">Price</MTh>
             <MTh />
           </>
         }
@@ -587,8 +596,8 @@ function PackagesTab() {
           <MTr key={p.id}>
             <MTd>{p.name}</MTd>
             <MTd>{p.type}</MTd>
-            <MTd>{p.validity_days} days</MTd>
-            <MTd>{formatRupees(p.price_paise)}</MTd>
+            <MTd className="text-right tabular-nums">{p.validity_days} days</MTd>
+            <MTd className="text-right tabular-nums">{formatRupees(p.price_paise)}</MTd>
             <MTd>
               {can("isp_plans.read") && (
                 <MButton variant="outline" onClick={() => setOpen(p.id)}>
@@ -710,19 +719,26 @@ function LeasesTab() {
               <MTh>IP</MTh>
               <MTh>Customer</MTh>
               <MTh>Subscriber</MTh>
-              <MTh>Monthly</MTh>
+              <MTh className="text-right">Monthly</MTh>
               <MTh>Since</MTh>
               <MTh>Billed through</MTh>
               <MTh />
             </>
           }
         >
+          {q.data?.length === 0 && (
+            <EmptyRow
+              kind="first-run"
+              title="No static IP leases yet"
+              hint="A lease bills a fixed monthly rent for a static IP until you end it."
+            />
+          )}
           {(q.data ?? []).map((l) => (
             <MTr key={l.id}>
               <MTd className="font-mono">{l.ip_address}</MTd>
               <MTd>{l.customer_name ?? "–"}</MTd>
               <MTd>{l.subscriber_name ?? "–"}</MTd>
-              <MTd>{formatRupees(l.monthly_amount_paise)}</MTd>
+              <MTd className="text-right tabular-nums">{formatRupees(l.monthly_amount_paise)}</MTd>
               <MTd>{l.active_since}</MTd>
               <MTd>{l.billed_through ?? "not yet"}</MTd>
               <MTd>
@@ -883,22 +899,31 @@ function DepositsTab() {
           <>
             <MTh>Customer</MTh>
             <MTh>Subscriber</MTh>
-            <MTh>Collected</MTh>
-            <MTh>Refunded</MTh>
-            <MTh>Forfeited</MTh>
-            <MTh>Held</MTh>
+            <MTh className="text-right">Collected</MTh>
+            <MTh className="text-right">Refunded</MTh>
+            <MTh className="text-right">Forfeited</MTh>
+            <MTh className="text-right">Held</MTh>
             <MTh />
           </>
         }
       >
+        {q.data?.length === 0 && (
+          <EmptyRow
+            kind="first-run"
+            title="No deposits held"
+            hint="Security deposits you collect for routers or ONTs show here, with refunds and forfeits."
+          />
+        )}
         {(q.data ?? []).map((d) => (
           <MTr key={`${d.isp_customer_id}-${d.subscriber_id ?? ""}`}>
             <MTd>{d.customer_name ?? "–"}</MTd>
             <MTd>{d.subscriber_name ?? "–"}</MTd>
-            <MTd>{formatRupees(d.collected_paise)}</MTd>
-            <MTd>{formatRupees(d.refunded_paise)}</MTd>
-            <MTd>{formatRupees(d.forfeited_paise)}</MTd>
-            <MTd className="font-semibold">{formatRupees(d.held_paise)}</MTd>
+            <MTd className="text-right tabular-nums">{formatRupees(d.collected_paise)}</MTd>
+            <MTd className="text-right tabular-nums">{formatRupees(d.refunded_paise)}</MTd>
+            <MTd className="text-right tabular-nums">{formatRupees(d.forfeited_paise)}</MTd>
+            <MTd className="text-right font-semibold tabular-nums">
+              {formatRupees(d.held_paise)}
+            </MTd>
             <MTd>
               <div className="flex gap-1">
                 <MButton
@@ -1182,6 +1207,9 @@ function ZoneDialog({ zone, onClose }: { zone: ZoneLedger; onClose: () => void }
                 </>
               }
             >
+              {q.data?.entries.length === 0 && (
+                <EmptyRow kind="first-run" title="No ledger entries yet" />
+              )}
               {(q.data?.entries ?? []).map((e) => (
                 <MTr key={e.id}>
                   <MTd>{new Date(e.occurred_at).toLocaleString("en-IN")}</MTd>
@@ -1661,6 +1689,9 @@ function MessagesTab() {
           </>
         }
       >
+        {q.data?.items.length === 0 && (
+          <EmptyRow kind="no-results" title="No messages for these filters" />
+        )}
         {(q.data?.items ?? []).map((m) => (
           <MTr key={m.id}>
             <MTd>{new Date(m.created_at).toLocaleString("en-IN")}</MTd>
@@ -1710,6 +1741,7 @@ export function FinancePage({ tab, onTab }: { tab: FinanceTab; onTab: (t: Financ
         description="Bank details on invoices, products, static IP rent, deposits, zone ledgers and automatic messages."
       />
       <MSeg<FinanceTab>
+        className={PAGE_TABS}
         value={active}
         onChange={onTab}
         options={visible.map(({ value, label }) => ({ value, label }))}

@@ -87,7 +87,7 @@ export function OnboardResult({
           {result.steps.map((st) => (
             <li key={st.step} className="flex items-center gap-2">
               {st.status === "done" ? (
-                <CheckCircle2 className="size-3.5 text-emerald-600" />
+                <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
               ) : (
                 <span className="inline-block size-3.5 text-center text-muted-foreground">–</span>
               )}
@@ -99,7 +99,7 @@ export function OnboardResult({
           ))}
         </ul>
         {result.static_queue_recorded && (
-          <p className="mt-2 text-xs text-amber-700">
+          <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
             A static speed queue was recorded on the IP but not pushed to the router; the push is
             switched off on this platform.
           </p>
@@ -209,7 +209,7 @@ export function OnboardResult({
               return (
                 <li key={d.key} className="flex items-center gap-2">
                   {u.state === "done" ? (
-                    <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" />
+                    <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                   ) : u.state === "failed" ? (
                     <CircleAlert className="size-3.5 shrink-0 text-destructive" />
                   ) : u.state === "uploading" ? (

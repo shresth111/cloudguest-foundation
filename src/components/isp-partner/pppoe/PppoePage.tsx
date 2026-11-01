@@ -14,6 +14,7 @@ import { usePppoeStatus } from "@/hooks/isp-partner/usePppoe";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { isNotFound } from "@/lib/isp-partner/errors";
 import type { PppoeStatus } from "@/services/isp-partner/pppoe-types";
+import { PAGE_TABS } from "@/components/isp-partner/ui/classes";
 
 export const PPPOE_TABS = ["sessions", "logins", "routers"] as const;
 export type PppoeTab = (typeof PPPOE_TABS)[number];
@@ -46,6 +47,7 @@ export function PppoePage({ tab, onTab }: { tab: PppoeTab; onTab: (t: PppoeTab) 
       ) : (
         <>
           <MSeg<PppoeTab>
+            className={PAGE_TABS}
             value={tab}
             onChange={onTab}
             options={PPPOE_TABS.map((t) => ({ value: t, label: LABEL[t] }))}

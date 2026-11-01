@@ -154,7 +154,7 @@ export function PaymentsTable({
           <MTd>
             <p className="font-mono text-xs font-medium">{p.receipt_number}</p>
             {p.status === "voided" && (
-              <p className="text-[11px] text-rose-600">
+              <p className="text-[11px] text-rose-600 dark:text-rose-400">
                 Voided{p.voided_reason ? `: ${p.voided_reason}` : ""}
               </p>
             )}

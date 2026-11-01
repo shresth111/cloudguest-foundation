@@ -34,7 +34,7 @@ import {
   useUpdateTr069Device,
 } from "@/hooks/isp-partner/useTr069";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
-import { formatAgo, formatDateTime, formatDuration } from "@/lib/isp-partner/format";
+import { formatAgo, formatDateTime, formatDuration, formatIst } from "@/lib/isp-partner/format";
 import type { Tr069DeviceDetail } from "@/services/isp-partner/types";
 import { Tr069OpticalCard } from "@/components/isp-partner/network/Tr069Tiles";
 
@@ -221,9 +221,7 @@ export function Tr069DevicePage({ cpeId }: { cpeId: string }) {
             <Row k="Data model" v={d.data_model} />
             <Row
               k="Last check-in"
-              v={
-                <span title={formatDateTime(d.last_inform_at)}>{formatAgo(d.last_inform_at)}</span>
-              }
+              v={<span title={formatIst(d.last_inform_at)}>{formatAgo(d.last_inform_at)}</span>}
             />
             <Row k="First seen" v={formatDateTime(d.first_seen_at)} />
             <Row k="Parameters read" v={formatDateTime(d.params_refreshed_at)} />

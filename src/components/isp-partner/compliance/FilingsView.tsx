@@ -14,6 +14,7 @@ import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatBytes, formatDateTime, formatNumber } from "@/lib/isp-partner/format";
 import { formatRupees } from "@/lib/isp-partner/money";
 import { complianceService, type ReportSchedule } from "@/services/isp-partner/compliance";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 function lastMonth(): string {
   const d = new Date();
@@ -61,7 +62,7 @@ function TraiCard({ canExport }: { canExport: boolean }) {
         <input
           type="month"
           aria-label="Month"
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={period}
           onChange={(e) => setPeriod(e.target.value)}
         />
@@ -188,14 +189,14 @@ function AgrCard({ canExport }: { canExport: boolean }) {
           <input
             type="date"
             aria-label="From"
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={since || d?.since || ""}
             onChange={(e) => setSince(e.target.value)}
           />
           <input
             type="date"
             aria-label="To"
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={until || d?.until || ""}
             onChange={(e) => setUntil(e.target.value)}
           />
@@ -239,7 +240,7 @@ function AgrCard({ canExport }: { canExport: boolean }) {
         />
       </div>
       {d?.partial_view && (
-        <p className="mt-2 text-xs text-amber-600">
+        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
           Your role is limited to some customers, but AGR covers the whole ISP.
         </p>
       )}
@@ -267,7 +268,7 @@ function SchedulesCard({ canManage }: { canManage: boolean }) {
     <Card title="Monthly emails">
       {q.error && <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="schedules" />}
       {q.data && !q.data.delivery_enabled && (
-        <p className="mb-2 text-xs text-amber-600">
+        <p className="mb-2 text-xs text-amber-600 dark:text-amber-400">
           Scheduled delivery is switched off on this platform for now. You can save schedules; they
           start sending once Wyfy turns delivery on.
         </p>

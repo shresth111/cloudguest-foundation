@@ -5,13 +5,14 @@
  * wire. Renders nothing while zones are off (404).
  */
 import { useMemo, useState } from "react";
-import { MTable, MTd, MTh, MTr, M_INPUT } from "@/components/master/MasterKit";
+import { MTable, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import { Card, ErrorBlock } from "@/components/isp-partner/kit";
 import { useZoneTotals } from "@/hooks/isp-partner/useZoneTree";
 import { ispErrorStatus } from "@/lib/isp-partner/errors";
 import { isoDay } from "@/lib/isp-partner/format";
 import { formatRupees } from "@/lib/isp-partner/money";
 import { orderTotalsDepthFirst } from "@/lib/isp-partner/zones";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 export function ZoneTotalsCard() {
   const today = new Date();
@@ -30,7 +31,7 @@ export function ZoneTotalsCard() {
         <div className="flex items-center gap-2">
           <input
             type="date"
-            className={`${M_INPUT} w-auto py-1`}
+            className={`${M_FILTER} py-1`}
             value={from}
             aria-label="From"
             onChange={(e) => setFrom(e.target.value)}
@@ -38,7 +39,7 @@ export function ZoneTotalsCard() {
           <span className="text-xs text-muted-foreground">to</span>
           <input
             type="date"
-            className={`${M_INPUT} w-auto py-1`}
+            className={`${M_FILTER} py-1`}
             value={to}
             aria-label="To"
             onChange={(e) => setTo(e.target.value)}
@@ -75,7 +76,7 @@ export function ZoneTotalsCard() {
               <MTd className="text-right tabular-nums">
                 {r.subtree_subscribers}
                 {r.subtree_subscribers !== r.subscribers && (
-                  <span className="block text-[10px] text-muted-foreground">
+                  <span className="block text-xs text-muted-foreground">
                     {r.subscribers} directly
                   </span>
                 )}
@@ -83,7 +84,7 @@ export function ZoneTotalsCard() {
               <MTd className="text-right tabular-nums">
                 {formatRupees(r.subtree_invoiced_paise)}
                 {r.subtree_invoiced_paise !== r.invoiced_paise && (
-                  <span className="block text-[10px] text-muted-foreground">
+                  <span className="block text-xs text-muted-foreground">
                     {formatRupees(r.invoiced_paise)} directly
                   </span>
                 )}
@@ -91,7 +92,7 @@ export function ZoneTotalsCard() {
               <MTd className="text-right tabular-nums">
                 {formatRupees(r.subtree_collected_paise)}
                 {r.subtree_collected_paise !== r.collected_paise && (
-                  <span className="block text-[10px] text-muted-foreground">
+                  <span className="block text-xs text-muted-foreground">
                     {formatRupees(r.collected_paise)} directly
                   </span>
                 )}

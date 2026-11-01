@@ -44,6 +44,8 @@ import {
   type StaticIpLedgerQuery,
   type StaticIpRow,
 } from "@/services/isp-partner/staticip";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
+import { EmptyRow } from "@/components/isp-partner/ui/EmptyRow";
 
 function LeaseInvoices({ leaseId }: { leaseId: string }) {
   const q = useQuery({
@@ -193,7 +195,7 @@ export function StaticIpLedger() {
           />
         </div>
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={zone}
           onChange={(e) => reset(() => setZone(e.target.value))}
           aria-label="Zone"
@@ -255,6 +257,13 @@ export function StaticIpLedger() {
             </>
           }
         >
+          {d?.items.length === 0 && (
+            <EmptyRow
+              kind="first-run"
+              title="No static IP leases here"
+              hint="Leases in this view and zone show here. Try All to include ended ones."
+            />
+          )}
           {d?.items.map((l) => (
             <Fragment key={l.id}>
               <MTr>
@@ -285,7 +294,7 @@ export function StaticIpLedger() {
                     (l.customer_name ?? "–")
                   )}
                   {l.subscriber_identifier && (
-                    <p className="text-[10px] text-muted-foreground">{l.subscriber_identifier}</p>
+                    <p className="text-xs text-muted-foreground">{l.subscriber_identifier}</p>
                   )}
                 </MTd>
                 <MTd className="text-xs">{l.zone_name ?? "–"}</MTd>
@@ -293,7 +302,7 @@ export function StaticIpLedger() {
                 <MTd className="text-xs">{l.active_until ? formatDate(l.active_until) : "–"}</MTd>
                 <MTd className="text-right tabular-nums">
                   {formatRupees(l.monthly_amount_paise)}
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {l.price_includes_gst ? "incl. GST" : "+ GST"}
                   </p>
                 </MTd>

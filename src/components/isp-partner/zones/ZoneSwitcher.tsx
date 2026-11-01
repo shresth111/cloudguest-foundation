@@ -25,6 +25,7 @@ import {
   buildZoneTree,
   filterZoneTree,
   initZoneScope,
+  stripZoneParam,
   zonePathLabel,
   type ZoneTreeItem,
 } from "@/lib/isp-partner/zones";
@@ -147,6 +148,17 @@ export function ZoneSwitcher() {
 
   const pick = (id: string | null) => {
     switchZone(qc, id);
+    // A `?zone=<id>` the console was opened with would win again on reload.
+    if (typeof window !== "undefined") {
+      const next = stripZoneParam(window.location.search);
+      if (next !== window.location.search) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${window.location.pathname}${next}${window.location.hash}`,
+        );
+      }
+    }
     setPicking(false);
     setQuery("");
   };

@@ -17,6 +17,7 @@ import { useSubscribers } from "@/hooks/isp-partner/usePlans";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { complianceService, type ComplianceSettings } from "@/services/isp-partner/compliance";
+import { PAGE_TABS } from "@/components/isp-partner/ui/classes";
 
 export type ComplianceTab =
   | "nat"
@@ -57,6 +58,7 @@ export function CompliancePage() {
         description="NAT log health, tracing a public IP to a subscriber, KYC and CAF, and the monthly TRAI / AGR figures."
       />
       <MSeg<ComplianceTab>
+        className={PAGE_TABS}
         value={tab}
         onChange={(v) => navigate({ to: "/partner/compliance", search: { tab: v }, replace: true })}
         options={tabs.map(({ value, label }) => ({ value, label }))}
@@ -87,6 +89,7 @@ function KycTab() {
         <input
           className={M_INPUT}
           placeholder="Search username, name or circuit ID"
+          aria-label="Search subscribers"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -173,7 +176,7 @@ function SettingsTab() {
         Next automatic CAF number: {form.caf_prefix ?? "CAF"}/&lt;FY&gt;/{q.data?.caf_next_seq ?? 1}
       </p>
       <FormError message={err} />
-      {saved && <p className="mt-2 text-xs text-emerald-600">Saved.</p>}
+      {saved && <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">Saved.</p>}
       {editable && (
         <MButton
           className="mt-3"

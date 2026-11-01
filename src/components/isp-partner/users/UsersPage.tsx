@@ -43,7 +43,7 @@ import {
 } from "@/hooks/isp-partner/useIsp";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
-import { ROLE_LABEL, formatAgo, roleLabel } from "@/lib/isp-partner/format";
+import { ROLE_LABEL, formatAgo, roleLabel, formatIst } from "@/lib/isp-partner/format";
 import type { IspRoleSlug, IspUser } from "@/services/isp-partner/types";
 import { customerLabels } from "@/lib/isp-partner/customer-label";
 
@@ -481,6 +481,7 @@ export function UsersPage() {
       <input
         className={`${M_INPUT} max-w-xs`}
         placeholder="Search name or email"
+        aria-label="Search staff"
         value={search}
         onChange={(e) => {
           setSearch(e.target.value);
@@ -526,7 +527,9 @@ export function UsersPage() {
                 <MTd>
                   <MTag label={u.status} tone={u.status === "active" ? "active" : "suspended"} />
                 </MTd>
-                <MTd className="text-xs text-muted-foreground">{formatAgo(u.last_login_at)}</MTd>
+                <MTd className="text-xs text-muted-foreground">
+                  <span title={formatIst(u.last_login_at)}>{formatAgo(u.last_login_at)}</span>
+                </MTd>
                 <MTd className="text-right">
                   {mayManage(u) ? (
                     <div className="flex justify-end gap-0.5">

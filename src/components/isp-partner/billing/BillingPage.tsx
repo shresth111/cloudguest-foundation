@@ -38,6 +38,7 @@ import { saveBlob } from "@/lib/isp-partner/download";
 import { INVOICE_STATUS_LABEL } from "@/lib/isp-partner/money";
 import type { BillingSettings } from "@/services/isp-partner/billing-types";
 import { isoDay } from "@/lib/isp-partner/format";
+import { M_FILTER, PAGE_TABS } from "@/components/isp-partner/ui/classes";
 
 export type BillingTab = "dues" | "invoices" | "payments" | "settings";
 
@@ -108,7 +109,7 @@ function InvoicesPanel({ overdueOnly }: { overdueOnly: boolean }) {
         </div>
         {!overdueOnly && (
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={status}
             onChange={(e) => {
               setStatus(e.target.value);
@@ -514,7 +515,7 @@ export function BillingPage({ tab, onTab }: { tab: BillingTab; onTab: (t: Billin
         title="Billing"
         description="Invoices, dues and cash / UPI / bank payments for your customers."
       />
-      <MSeg<BillingTab> value={active} onChange={onTab} options={visible} />
+      <MSeg<BillingTab> className={PAGE_TABS} value={active} onChange={onTab} options={visible} />
       {active === "dues" && <InvoicesPanel key="dues" overdueOnly />}
       {active === "payments" && <PaymentsPanel />}
       {active === "settings" && <SettingsPanel />}

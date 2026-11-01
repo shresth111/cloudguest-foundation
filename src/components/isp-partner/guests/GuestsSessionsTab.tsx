@@ -16,6 +16,7 @@ import { ErrorBlock, Pager } from "@/components/isp-partner/kit";
 import { useIspCustomerLocations, useIspGuests, useIspSessions } from "@/hooks/isp-partner/useIsp";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatBytes, formatDateTime } from "@/lib/isp-partner/format";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 type View = "sessions" | "guests";
 type SessionStatus = "all" | "active" | "ended";
@@ -172,7 +173,7 @@ export function GuestsSessionsTab({ customerId }: { customerId: string }) {
           ]}
         />
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={locationId}
           onChange={(e) => setLocationId(e.target.value)}
           aria-label="Location"

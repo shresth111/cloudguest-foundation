@@ -38,6 +38,7 @@ export function Tr069InventoryPage() {
         <input
           className={`${M_INPUT} w-full max-w-xs`}
           placeholder="Search serial, model, label"
+          aria-label="Search devices"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

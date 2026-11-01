@@ -50,6 +50,8 @@ import {
   type CommsStatus,
   type CommsTemplate,
 } from "@/services/isp-partner/comms";
+import { M_FILTER, PAGE_TABS } from "@/components/isp-partner/ui/classes";
+import { EmptyRow } from "@/components/isp-partner/ui/EmptyRow";
 
 const ck = (...k: unknown[]) => ["isp", "comms", ...k] as const;
 type Section = "logs" | "templates" | "webhook";
@@ -120,7 +122,7 @@ function LogsView() {
           ]}
         />
         <select
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="Status"
           value={status}
           onChange={(e) => (setStatus(e.target.value as "" | CommsStatus), reset())}
@@ -133,7 +135,7 @@ function LogsView() {
           ))}
         </select>
         <select
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="Event"
           value={event}
           onChange={(e) => (setEvent(e.target.value), reset())}
@@ -161,14 +163,14 @@ function LogsView() {
         />
         <input
           type="date"
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="From"
           value={from}
           onChange={(e) => (setFrom(e.target.value), reset())}
         />
         <input
           type="date"
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="To"
           value={to}
           onChange={(e) => (setTo(e.target.value), reset())}
@@ -194,6 +196,13 @@ function LogsView() {
               </>
             }
           >
+            {d?.items.length === 0 && (
+              <EmptyRow
+                kind="no-results"
+                title="No messages for these filters"
+                hint="Automatic WhatsApp, email and Telegram messages are listed here once they are sent."
+              />
+            )}
             {d?.items.map((r) => (
               <MTr key={r.id}>
                 <MTd className="text-xs">{r.at_ist}</MTd>
@@ -214,9 +223,7 @@ function LogsView() {
                     <MTag label={STATUS_LABEL[r.status] ?? r.status} tone={STATUS_TONE[r.status]} />
                   </span>
                   {r.status_at_ist && (
-                    <span className="block text-[10px] text-muted-foreground">
-                      {r.status_at_ist}
-                    </span>
+                    <span className="block text-xs text-muted-foreground">{r.status_at_ist}</span>
                   )}
                 </MTd>
                 <MTd className="text-xs text-destructive">{r.error ?? ""}</MTd>
@@ -538,7 +545,12 @@ export function CommsHub({ fallback }: { fallback: ReactNode }) {
   if (can("isp_billing.manage")) options.push({ value: "webhook", label: "Delivery receipts" });
   return (
     <div className="space-y-3">
-      <MSeg<Section> value={section} onChange={setSection} options={options} />
+      <MSeg<Section>
+        className={PAGE_TABS}
+        value={section}
+        onChange={setSection}
+        options={options}
+      />
       {section === "logs" && <LogsView />}
       {section === "templates" && <TemplatesView />}
       {section === "webhook" && <WebhookView />}

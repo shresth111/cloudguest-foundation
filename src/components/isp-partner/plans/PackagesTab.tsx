@@ -55,6 +55,7 @@ import {
   type ConnectionKind,
   type PackageKind,
 } from "@/services/isp-partner/package-meta";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 type NewGroupTarget = "speed" | "fup_fallback_speed_group_id" | "boost_speed_group_id";
 type FollowUp = { pkg: IspPackage; failed: { step: "rules" | "labels"; message: string }[] };
@@ -606,7 +607,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={groupId}
           onChange={(e) => {
             setGroupId(e.target.value);
@@ -622,7 +623,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
           ))}
         </select>
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);
@@ -637,7 +638,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
         {meta.available && (
           <>
             <select
-              className={`${M_INPUT} w-auto`}
+              className={`${M_FILTER}`}
               value={kindFilter}
               onChange={(e) => setKindFilter(e.target.value as PackageKind | "")}
               aria-label="Package type"
@@ -650,7 +651,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
               ))}
             </select>
             <select
-              className={`${M_INPUT} w-auto`}
+              className={`${M_FILTER}`}
               value={connFilter}
               onChange={(e) => setConnFilter(e.target.value as ConnectionKind | "")}
               aria-label="Connection type"
@@ -722,14 +723,14 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
                       m?.connection_type && CONNECTION_KIND_LABEL[m.connection_type],
                     ].filter(Boolean);
                     return tags.length ? (
-                      <p className="text-[10px] text-muted-foreground">{tags.join(" · ")}</p>
+                      <p className="text-xs text-muted-foreground">{tags.join(" · ")}</p>
                     ) : null;
                   })()}
                 </MTd>
                 <MTd className="text-right tabular-nums">{p.validity_days} d</MTd>
                 <MTd className="text-right tabular-nums">
                   {formatRupees(p.price_paise)}
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {p.price_includes_gst ? "incl. GST" : "+ GST"}
                   </p>
                 </MTd>
@@ -814,7 +815,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
                         </MButton>
                       ) : (
                         <span
-                          className="px-2 text-[10px] text-muted-foreground"
+                          className="px-2 text-xs text-muted-foreground"
                           title="In use: disable it instead"
                         >
                           In use

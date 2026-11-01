@@ -47,6 +47,7 @@ import {
 import { onboardingService } from "@/services/isp-partner/onboarding";
 import { appsService } from "@/services/isp-partner/apps";
 import type { OnboardingResult, PendingDocument } from "@/services/isp-partner/onboarding-types";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const ID_LABEL: Record<string, string> = {
   aadhaar: "Aadhaar",
@@ -309,7 +310,9 @@ function OnboardFormView({
       <Section id="plan" title="Plan" error={errors.plan}>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Customer (venue)</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Customer (venue)<span className="text-destructive"> *</span>
+            </span>
             <CustomerSelect
               value={f.isp_customer_id}
               onChange={(v) => setF((x) => ({ ...x, isp_customer_id: v, static_ips: [] }))}
@@ -318,7 +321,9 @@ function OnboardFormView({
             />
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Package</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Package<span className="text-destructive"> *</span>
+            </span>
             <select
               className={M_INPUT}
               value={f.package_id}
@@ -686,7 +691,7 @@ function OnboardFormView({
                 <p className="text-xs font-medium">Files (uploaded after saving)</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <select
-                    className={`${M_INPUT} w-auto`}
+                    className={`${M_FILTER}`}
                     value={docKind}
                     onChange={(e) => setDocKind(e.target.value)}
                     aria-label="Document type"

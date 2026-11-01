@@ -25,6 +25,7 @@ import {
   type TrafficCard,
   type TrafficRange,
 } from "@/services/isp-partner/netmon";
+import { M_FILTER, PAGE_TABS } from "@/components/isp-partner/ui/classes";
 
 type Tab = "list" | "traffic" | "live" | "history";
 const nk = (...k: unknown[]) => ["isp", "netmon", ...k] as const;
@@ -278,7 +279,7 @@ function HistoryView() {
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <select
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="Type"
           value={f.kind ?? ""}
           onChange={(e) => set("kind", e.target.value)}
@@ -310,14 +311,14 @@ function HistoryView() {
         />
         <input
           type="date"
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="From"
           value={f.date_from ?? ""}
           onChange={(e) => set("date_from", e.target.value)}
         />
         <input
           type="date"
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="To"
           value={f.date_to ?? ""}
           onChange={(e) => set("date_to", e.target.value)}
@@ -354,6 +355,7 @@ export function NetmonTabs({ list }: { list: ReactNode }) {
   return (
     <div className="space-y-3">
       <MSeg<Tab>
+        className={PAGE_TABS}
         value={tab}
         onChange={setTab}
         options={[

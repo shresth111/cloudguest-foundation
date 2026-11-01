@@ -57,6 +57,7 @@ import {
   rangeWindow,
   scopeParams,
 } from "@/components/isp-partner/log-views/logFilters";
+import { M_FILTER, PAGE_TABS } from "@/components/isp-partner/ui/classes";
 
 const PAGE = 100;
 
@@ -181,7 +182,9 @@ function NetLogsPanel({
           {summary.data.by_customer.map((c) => (
             <span key={c.isp_customer_id} className="rounded-full bg-muted px-2.5 py-1 text-[11px]">
               {c.customer_name}: {formatNumber(c.total)}
-              {c.errors > 0 && <span className="text-rose-600"> · {c.errors} err</span>}
+              {c.errors > 0 && (
+                <span className="text-rose-600 dark:text-rose-400"> · {c.errors} err</span>
+              )}
             </span>
           ))}
         </div>
@@ -337,7 +340,7 @@ function IpdrPanel({
           <div className="overflow-x-auto rounded-xl premium-card">
             <table className="w-full min-w-[1400px] border-collapse text-xs">
               <thead>
-                <tr className="border-b border-border text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {IPDR_TABLE_COLUMNS.map((c) => (
                     <th key={c.key} className="px-2.5 py-2">
                       {c.label}
@@ -485,7 +488,12 @@ export function LogsView({
 
   return (
     <div className="space-y-3">
-      <MSeg<LogTab> value={tab} onChange={(v) => set({ tab: v })} options={tabs} />
+      <MSeg<LogTab>
+        className={PAGE_TABS}
+        value={tab}
+        onChange={(v) => set({ tab: v })}
+        options={tabs}
+      />
       <div className="flex flex-wrap items-center gap-2">
         {!fixedCustomerId && (
           <div className="w-full max-w-[220px]">
@@ -498,7 +506,7 @@ export function LogsView({
           </div>
         )}
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={f.location}
           disabled={!f.customer}
           onChange={(e) => set({ location: e.target.value, router: "" })}
@@ -513,7 +521,7 @@ export function LogsView({
         </select>
         {tab !== "auth" && (
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={f.router}
             disabled={!f.customer}
             onChange={(e) => set({ router: e.target.value })}
@@ -528,7 +536,7 @@ export function LogsView({
           </select>
         )}
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={f.range}
           onChange={(e) => set({ range: e.target.value as LogFilters["range"] })}
           aria-label="Time range"
@@ -558,6 +566,7 @@ export function LogsView({
             <input
               className={`${M_INPUT} w-full max-w-[220px]`}
               placeholder="Search text"
+              aria-label="Search log text"
               defaultValue={f.q}
               onKeyDown={(e) => {
                 if (e.key === "Enter") set({ q: (e.target as HTMLInputElement).value });

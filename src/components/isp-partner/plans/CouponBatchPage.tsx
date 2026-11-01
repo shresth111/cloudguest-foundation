@@ -32,6 +32,7 @@ import { plansService } from "@/services/isp-partner/plans";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDate, formatDateTime } from "@/lib/isp-partner/format";
 import { COUPON_STATUS_LABEL, couponTone } from "@/lib/isp-partner/plans";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 export function CouponBatchPage({ batchId }: { batchId: string }) {
   const { can } = usePartner();
@@ -115,7 +116,7 @@ export function CouponBatchPage({ batchId }: { batchId: string }) {
           }}
         />
         <select
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={status}
           onChange={(e) => {
             setStatus(e.target.value);

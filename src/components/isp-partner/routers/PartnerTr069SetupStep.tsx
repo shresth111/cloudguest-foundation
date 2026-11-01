@@ -36,7 +36,7 @@ export function PartnerTr069SetupStep({
   if (!on) return null;
   return (
     <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-foreground">
-      <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
       <div className="space-y-1">
         <p className="font-semibold">TR-069 is included at the end of this script</p>
         {script.isLoading ? (

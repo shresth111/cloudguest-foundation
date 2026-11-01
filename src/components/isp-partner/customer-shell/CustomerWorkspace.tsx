@@ -60,7 +60,7 @@ function NavList({
     <nav aria-label="Customer workspace" className="space-y-4">
       {groups.map((g) => (
         <div key={g.id}>
-          <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {g.label}
           </p>
           <ul className="space-y-0.5">
@@ -85,7 +85,7 @@ function NavList({
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{item.label}</span>
                     {item.addon && (
-                      <span className="ml-auto rounded bg-muted px-1.5 text-[10px] font-semibold text-muted-foreground">
+                      <span className="ml-auto rounded bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground">
                         Add-on
                       </span>
                     )}

@@ -206,3 +206,14 @@ export function orderTotalsDepthFirst<
   for (const r of rows) if (!seen.has(r.zone_id)) out.push(r);
   return out;
 }
+
+/** UX-PASS: `search` without `zone=`, so a pick in the switcher is not undone
+ * on reload by a stale `?zone=<id>` (initZoneScope lets the URL win). Returns
+ * "" or "?a=b". */
+export function stripZoneParam(search: string): string {
+  const p = new URLSearchParams(search);
+  if (!p.has("zone")) return search.startsWith("?") || search === "" ? search : `?${search}`;
+  p.delete("zone");
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}

@@ -12,16 +12,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  MDrawer,
-  MSeg,
-  MStat,
-  MTable,
-  MTd,
-  MTh,
-  MTr,
-  M_INPUT,
-} from "@/components/master/MasterKit";
+import { MDrawer, MSeg, MStat, MTable, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import { Card, ErrorBlock, LoadingBlock, Pager } from "@/components/isp-partner/kit";
 import { useIspRouters } from "@/hooks/isp-partner/useIsp";
 import { usePackages } from "@/hooks/isp-partner/usePlans";
@@ -43,6 +34,7 @@ import type {
   DashTile,
   SubscriberDashboard,
 } from "@/services/isp-partner/dashboard-types";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 const SEGMENT_COLOR = { hotspot: "var(--chart-1)", pppoe: "var(--chart-2)" } as const;
 const R = 46;
@@ -262,14 +254,14 @@ export function SubscriberOpsCard({ fallback }: { fallback: ReactNode }) {
           <>
             <input
               type="date"
-              className={`${M_INPUT} w-auto py-1`}
+              className={`${M_FILTER} py-1`}
               aria-label="From"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
             />
             <input
               type="date"
-              className={`${M_INPUT} w-auto py-1`}
+              className={`${M_FILTER} py-1`}
               aria-label="To"
               value={to}
               onChange={(e) => setTo(e.target.value)}
@@ -277,7 +269,7 @@ export function SubscriberOpsCard({ fallback }: { fallback: ReactNode }) {
           </>
         )}
         <select
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="Router"
           value={routerId}
           onChange={(e) => setRouterId(e.target.value)}
@@ -290,7 +282,7 @@ export function SubscriberOpsCard({ fallback }: { fallback: ReactNode }) {
           ))}
         </select>
         <select
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="Package"
           value={packageId}
           onChange={(e) => setPackageId(e.target.value)}
@@ -303,7 +295,7 @@ export function SubscriberOpsCard({ fallback }: { fallback: ReactNode }) {
           ))}
         </select>
         <select
-          className={`${M_INPUT} w-auto py-1`}
+          className={`${M_FILTER} py-1`}
           aria-label="Connection type"
           value={conn}
           onChange={(e) => setConn(e.target.value)}
@@ -341,7 +333,7 @@ export function SubscriberOpsCard({ fallback }: { fallback: ReactNode }) {
                   onOpen={setOpen}
                   extra={
                     t === "pending" && d.pending_leads
-                      ? `+ ${formatNumber(d.pending_leads)} leads`
+                      ? `+ ${formatNumber(d.pending_leads)} ${d.pending_leads === 1 ? "lead" : "leads"}`
                       : undefined
                   }
                 />

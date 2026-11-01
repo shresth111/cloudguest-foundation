@@ -56,6 +56,7 @@ import {
 import { formatRupees } from "@/lib/isp-partner/money";
 import { cn } from "@/lib/utils";
 import type { InvoiceListQuery, InvoiceRow } from "@/services/isp-partner/invoices-types";
+import { M_FILTER } from "@/components/isp-partner/ui/classes";
 
 export interface InvoiceFilters {
   from: string;
@@ -163,7 +164,7 @@ function RowMenu({
             )}
             {can("isp_invoices.manage") && live && inv.doc_type === "invoice" && (
               <button
-                className="block w-full rounded-lg px-3 py-1.5 text-left text-rose-600 hover:bg-accent"
+                className="block w-full rounded-lg px-3 py-1.5 text-left text-rose-600 dark:text-rose-400 hover:bg-accent"
                 onClick={() => {
                   close();
                   onCredit();
@@ -312,14 +313,14 @@ export function InvoicesPage({
               <input
                 type="date"
                 aria-label="From"
-                className={`${M_INPUT} w-auto`}
+                className={`${M_FILTER}`}
                 value={from}
                 onChange={(e) => set({ from: e.target.value })}
               />
               <input
                 type="date"
                 aria-label="To"
-                className={`${M_INPUT} w-auto`}
+                className={`${M_FILTER}`}
                 value={to}
                 onChange={(e) => set({ to: e.target.value })}
               />
@@ -352,7 +353,7 @@ export function InvoicesPage({
             </button>
           ))}
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={filters.zone}
             onChange={(e) => set({ zone: e.target.value })}
             aria-label="Zone"
@@ -365,7 +366,7 @@ export function InvoicesPage({
             ))}
           </select>
           <select
-            className={`${M_INPUT} w-auto`}
+            className={`${M_FILTER}`}
             value={filters.pkg}
             onChange={(e) => set({ pkg: e.target.value })}
             aria-label="Package"
@@ -388,6 +389,7 @@ export function InvoicesPage({
             <input
               className={`${M_INPUT} pl-8`}
               placeholder="Username or invoice no."
+              aria-label="Search by username or invoice number"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               onBlur={() => searchText.trim() !== filters.q && set({ q: searchText.trim() })}
@@ -540,7 +542,7 @@ export function InvoicesPage({
                         >
                           {i.number}
                         </button>
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           #{i.display_id}
                           {i.doc_type === "credit_note" && " · credit note"}
                         </p>
@@ -550,7 +552,7 @@ export function InvoicesPage({
                           <>
                             <span className="font-mono">{i.subscriber.username}</span>
                             {i.subscriber.circuit_id != null && (
-                              <p className="text-[10px] text-muted-foreground">
+                              <p className="text-xs text-muted-foreground">
                                 Circuit {i.subscriber.circuit_id}
                               </p>
                             )}
@@ -563,7 +565,7 @@ export function InvoicesPage({
                       <td className="px-3 py-2 text-xs">{i.zone?.name ?? "–"}</td>
                       <td className="px-3 py-2 text-xs">
                         {i.package?.name ?? "–"}
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {INVOICE_KIND_LABEL[i.invoice_kind] ?? i.invoice_kind}
                         </p>
                       </td>
@@ -573,7 +575,7 @@ export function InvoicesPage({
                       <td
                         className={cn(
                           "px-3 py-2 text-right tabular-nums",
-                          i.balance_paise > 0 && "font-medium text-rose-600",
+                          i.balance_paise > 0 && "font-medium text-rose-600 dark:text-rose-400",
                         )}
                       >
                         {formatRupees(i.balance_paise)}
@@ -621,7 +623,9 @@ export function InvoicesPage({
                   <span>{formatRupees(i.total_paise)}</span>
                   <span
                     className={
-                      i.balance_paise > 0 ? "font-medium text-rose-600" : "text-muted-foreground"
+                      i.balance_paise > 0
+                        ? "font-medium text-rose-600 dark:text-rose-400"
+                        : "text-muted-foreground"
                     }
                   >
                     Due {formatRupees(i.balance_paise)}
@@ -645,7 +649,7 @@ export function InvoicesPage({
               </span>
               <span>
                 Outstanding{" "}
-                <strong className="tabular-nums text-rose-600">
+                <strong className="tabular-nums text-rose-600 dark:text-rose-400">
                   {formatRupees(data.totals.outstanding_paise)}
                 </strong>
               </span>

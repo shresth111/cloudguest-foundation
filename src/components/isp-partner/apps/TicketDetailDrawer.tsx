@@ -105,7 +105,7 @@ function Body({ t, types }: { t: TicketDetail; types: TicketTypeFull[] }) {
           {formatDateTime(t.opened_at)} via {humanize(t.source)}
         </dd>
         <dt className="text-muted-foreground">SLA</dt>
-        <dd className={t.sla_state === "breached" ? "text-rose-600" : ""}>
+        <dd className={t.sla_state === "breached" ? "text-rose-600 dark:text-rose-400" : ""}>
           {slaText(t)}
           {t.tat_minutes !== null && ` · turnaround ${minutesText(t.tat_minutes)}`}
         </dd>

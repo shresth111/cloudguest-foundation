@@ -176,5 +176,31 @@ eq(
   ["North", "Sector 12", "Block B", "South", "Loop", "Pool"],
 );
 
+// UX-PASS: "All zones click -> UI bug" (founder, 2026-11-01).
+eq("strip ?zone= keeps other params", m.stripZoneParam(`?zone=${id(1)}&tab=leases`), "?tab=leases");
+eq("strip ?zone= alone", m.stripZoneParam(`?zone=${id(1)}`), "");
+eq("strip without zone is a no-op", m.stripZoneParam("?tab=x"), "?tab=x");
+eq("strip empty", m.stripZoneParam(""), "");
+{
+  const { readFileSync } = await import("node:fs");
+  const shell = readFileSync(join(ROOT, "src/components/isp-partner/PartnerShell.tsx"), "utf8");
+  const header = (shell.match(/<header className="([^"]*)"/) || [])[1] ?? "";
+  // A backdrop-filter (or transform/filter) on the header makes it the
+  // containing block for `position: fixed`; the inline Switch zone dialog
+  // then rendered inside the 64 px bar and "All zones"/the tree were cut off.
+  eq("header found", header.length > 0, true);
+  eq(
+    "header creates no containing block for fixed dialogs",
+    /backdrop-|(^|\s)(transform|filter|blur)/.test(header),
+    false,
+  );
+  const sw = readFileSync(join(ROOT, "src/components/isp-partner/zones/ZoneSwitcher.tsx"), "utf8");
+  eq(
+    "switcher clears a stale ?zone= on pick",
+    /stripZoneParam\(window\.location\.search\)/.test(sw),
+    true,
+  );
+}
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);

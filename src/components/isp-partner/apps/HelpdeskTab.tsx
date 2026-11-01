@@ -59,6 +59,7 @@ import {
   type TicketQuery,
   type TicketTypeFull,
 } from "@/services/isp-partner/apps-types";
+import { M_FILTER, PAGE_TABS } from "@/components/isp-partner/ui/classes";
 
 type View = "queue" | "breached" | "stats" | "escalation" | "types";
 
@@ -74,6 +75,7 @@ export function HelpdeskTab() {
   return (
     <div className="space-y-3">
       <MSeg<View>
+        className={PAGE_TABS}
         value={view}
         onChange={setView}
         options={[
@@ -224,7 +226,9 @@ function Queue({ types, breachedOnly }: { types: TicketTypeFull[]; breachedOnly:
                 <MTd>
                   <StatusTag map={TICKET_STATUS_LABEL} value={t.status} />
                 </MTd>
-                <MTd className={`text-xs ${t.sla_state === "breached" ? "text-rose-600" : ""}`}>
+                <MTd
+                  className={`text-xs ${t.sla_state === "breached" ? "text-rose-600 dark:text-rose-400" : ""}`}
+                >
                   {slaText(t)}
                 </MTd>
                 <MTd className="text-xs">{t.assignee_name ?? "–"}</MTd>
@@ -418,14 +422,14 @@ function Stats() {
         <input
           type="date"
           aria-label="From"
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={since}
           onChange={(e) => setSince(e.target.value)}
         />
         <input
           type="date"
           aria-label="To"
-          className={`${M_INPUT} w-auto`}
+          className={`${M_FILTER}`}
           value={until}
           onChange={(e) => setUntil(e.target.value)}
         />
@@ -439,7 +443,10 @@ function Stats() {
           <p>
             <b>{o?.count ?? 0}</b> tickets · <b>{o?.resolved ?? 0}</b> resolved · average turnaround{" "}
             <b>{minutesText(o?.avg_tat_minutes)}</b> ·{" "}
-            <b className={o?.breached ? "text-rose-600" : ""}>{o?.breached ?? 0}</b> past SLA
+            <b className={o?.breached ? "text-rose-600 dark:text-rose-400" : ""}>
+              {o?.breached ?? 0}
+            </b>{" "}
+            past SLA
           </p>
           <MTable
             head={

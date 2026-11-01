@@ -106,3 +106,18 @@ export function isoDay(d: Date): string {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+/** UX-PASS: the absolute time in India for a relative-time tooltip, e.g. "01 Nov 2026, 02:03 pm IST". */
+export function formatIst(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })} IST`;
+}
