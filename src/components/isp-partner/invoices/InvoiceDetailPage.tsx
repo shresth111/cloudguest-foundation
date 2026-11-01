@@ -1,5 +1,6 @@
 /** `/partner/invoices/$invoiceId` (ADDENDUM_03 §13): the invoice as the PDF
  * shows it, plus payments, credit notes, reminders and the actions. */
+import { InvoiceFinanceActions } from "@/components/isp-partner/finance/InvoiceFinanceActions";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -124,6 +125,7 @@ export function InvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
                 Credit note
               </MButton>
             )}
+            {inv.doc_type === "invoice" && <InvoiceFinanceActions invoiceId={inv.id} live={live} />}
           </>
         }
       />

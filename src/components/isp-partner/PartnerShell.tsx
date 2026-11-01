@@ -24,6 +24,7 @@ import {
   Wallet,
   X,
   UserRound,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -70,6 +71,13 @@ const PARTNER_NAV: NavItem[] = [
   },
   { to: "/partner/invoices", label: "Invoices", icon: Receipt, anyOf: ["isp_invoices.read"] },
   { to: "/partner/billing", label: "Billing", icon: Wallet, anyOf: ["isp_billing.read"] },
+  // JAZE-4: finance tools (every tab answers "not switched on" until its flag is on).
+  {
+    to: "/partner/finance",
+    label: "Finance tools",
+    icon: Landmark,
+    anyOf: ["isp_billing.read", "isp_zones.read"],
+  },
   { to: "/partner/messaging", label: "Messaging", icon: Send, anyOf: ["isp_engage.read"] },
   { to: "/partner/reports", label: "Reports", icon: FileBarChart, anyOf: ["isp_partner.read"] },
   // JAZE-3: NAT feed, IP trace, KYC/CAF, TRAI/AGR (ADDENDUM_05).
