@@ -47,6 +47,9 @@ export interface MasterNavItem {
 export const MASTER_NAV: MasterNavItem[] = [
   { to: "/master", label: "Platform Overview", icon: LayoutGrid, cap: "overview" },
   { to: "/master/customers", label: "Customers", icon: Building2, cap: "customers" },
+  ...(import.meta.env.VITE_ISP_PARTNER_ENABLED === "true"
+    ? [{ to: "/master/isp-partners", label: "ISP Partners", icon: Waypoints, cap: "customers" }]
+    : []),
   {
     to: "/master/channel-partners",
     label: "Channel Partners",
@@ -121,6 +124,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
     items: [
       "/master",
       "/master/customers",
+      "/master/isp-partners",
       "/master/channel-partners",
       "/master/locations",
       "/master/billing",

@@ -1,0 +1,90 @@
+/**
+ * The ISP API's machine error codes (API_CONTRACT §9) and what the partner
+ * UI says for each.
+ *
+ * The code travels in the error envelope's `data.code`. `toAppError` keeps
+ * `data` intact but sets its own `code` (`forbidden`, `validation_error`, a
+ * slug of the message), so `data.code` has to be read explicitly.
+ */
+import { requestErrorOf, type AppError } from "@/services/api";
+
+export function ispErrorCode(err: unknown): string | null {
+  const e = requestErrorOf(err);
+  const code = e?.data?.code;
+  return typeof code === "string" ? code : null;
+}
+
+export function ispErrorStatus(err: unknown): number | null {
+  return requestErrorOf(err)?.status ?? null;
+}
+
+const MESSAGES: Record<string, string> = {
+  ISP_PARTNER_REQUIRED: "This account is not an ISP partner account.",
+  ISP_ROLE_REQUIRED: "This account is not an ISP partner account.",
+  ISP_PARTNER_SUSPENDED: "This ISP account is suspended. Contact Wyfy Guest support.",
+  ISP_CUSTOMER_NOT_FOUND: "That customer does not exist, or you do not have access to it.",
+  ISP_LOCATION_NOT_FOUND: "That location does not exist, or you do not have access to it.",
+  ISP_ROUTER_NOT_FOUND: "That router does not exist, or you do not have access to it.",
+  // JAZE-6: the BE text names the management tunnel (QA-023: partner UI never does).
+  ISP_PPPOE_ROUTER_NOT_READY:
+    "Finish this router's main setup first, then generate the PPPoE script.",
+  ISP_PORTAL_CONFIG_NOT_FOUND: "That portal does not exist, or you do not have access to it.",
+  ISP_USER_NOT_FOUND: "That user does not exist in your ISP.",
+  ISP_CUSTOMER_LIMIT: "Your ISP has reached its customer limit. Contact Wyfy Guest to raise it.",
+  ISP_CUSTOMER_SLUG_TAKEN: "That slug is already used by another customer. Pick another one.",
+  ISP_EXTERNAL_REF_TAKEN: "Another customer already uses that account number.",
+  ISP_LAST_OWNER: "This is the last active ISP Owner. Add another owner first.",
+  ISP_ROLE_INVALID: "That role cannot be given through this console.",
+  ISP_ROLE_ESCALATION: "Only an ISP Owner can grant the Owner or Admin role.",
+  ISP_CONFINEMENT_NOT_ALLOWED:
+    "Owners and admins always see every customer, so they cannot be restricted.",
+  ISP_CUSTOMER_REQUIRED: "Pick a customer first.",
+  ISP_RANGE_TOO_LONG: "Pick a range of 92 days or less.",
+  ISP_VENDOR_NOT_SUPPORTED: "Only MikroTik routers are supported for now.",
+  ISP_FORCE_NOT_ALLOWED: "Forcing a new cloud link is not allowed from the partner console.",
+  ISP_SCOPE_HEADERS_NOT_ALLOWED: "The request carried a header this console must not send.",
+  ISP_CUSTOMER_SUSPENDED:
+    "This customer is suspended. Resume its service first (refresh still works; reboot does not).",
+  ISP_SERVICE_TRANSITION_IN_PROGRESS:
+    "Another suspend or resume for this customer is running. Wait a moment and try again.",
+  ISP_SUSPEND_REASON_INVALID: "Pick one of the listed reasons.",
+  ISP_INVOICE_VOID: "That invoice is void.",
+  ISP_INVOICE_PAID: "That invoice is already paid.",
+  ISP_PAYMENT_MODE_INVALID: "Pick cash, UPI or bank transfer.",
+  ISP_PAYMENT_REFERENCE_REQUIRED: "UPI and bank transfers need the UTR / transaction reference.",
+  ISP_INVOICE_NOT_FOUND: "That invoice does not exist, or you do not have access to it.",
+  ISP_PAYMENT_NOT_FOUND: "That payment does not exist, or you do not have access to it.",
+  ISP_BILLING_NOT_CONFIGURED: "Billing is not set up yet. Fill in Billing → Settings first.",
+  TR069_NOT_ENABLED: "TR-069 is not switched on for this platform yet.",
+  TR069_DEVICE_NOT_FOUND: "That device does not exist, or you do not have access to it.",
+  TR069_DISABLED_FOR_CUSTOMER:
+    "TR-069 is switched off for this device's customer. Turn it on in the customer's TR-069 tab first.",
+  TR069_TASK_PENDING:
+    "A task of this kind is already queued for this device. It runs at the device's next check-in.",
+  TR069_ACS_UNAVAILABLE:
+    "The device management server did not answer. Nothing was queued; try again in a minute.",
+};
+
+/** One sentence for any request failure. Known codes get our wording; the
+ * rest show the backend's own message, never a generic "success". */
+export function ispErrorMessage(err: unknown, fallback = "Something went wrong."): string {
+  const code = ispErrorCode(err);
+  if (code && MESSAGES[code]) return MESSAGES[code];
+  const e: AppError | null = requestErrorOf(err);
+  if (!e) return fallback;
+  if (e.status === 403) return "You do not have permission to do this.";
+  return e.message || fallback;
+}
+
+/** 422 field errors keyed by field name, when the backend sent them. */
+export function ispFieldErrors(err: unknown): Record<string, string> {
+  return requestErrorOf(err)?.fieldErrors ?? {};
+}
+
+export function isForbidden(err: unknown): boolean {
+  return ispErrorStatus(err) === 403;
+}
+
+export function isNotFound(err: unknown): boolean {
+  return ispErrorStatus(err) === 404;
+}

@@ -1,0 +1,48 @@
+/** TanStack Query keys for the partner console. Everything starts `["isp", ...]`
+ * so one `invalidateQueries({ queryKey: ["isp"] })` resets the lot. */
+export const ispKeys = {
+  all: ["isp"] as const,
+  me: ["isp", "me"] as const,
+  overview: ["isp", "overview"] as const,
+  customers: ["isp", "customers"] as const,
+  customerList: (q: object) => ["isp", "customers", "list", q] as const,
+  customer: (id: string) => ["isp", "customers", "detail", id] as const,
+  customerLocations: (id: string) => ["isp", "customers", "detail", id, "locations"] as const,
+  locations: ["isp", "locations"] as const,
+  locationList: (q: object) => ["isp", "locations", "list", q] as const,
+  location: (id: string) => ["isp", "locations", "detail", id] as const,
+  routers: ["isp", "routers"] as const,
+  routerList: (q: object) => ["isp", "routers", "list", q] as const,
+  router: (id: string) => ["isp", "routers", "detail", id] as const,
+  portalConfigs: (locationId: string) => ["isp", "portal", "location", locationId] as const,
+  portalConfig: (configId: string) => ["isp", "portal", "config", configId] as const,
+  // Venue twins (API_CONTRACT §10). Keyed by the router as well as the query,
+  // because VLANs and IP addresses live ON a router: two MikroTiks at one
+  // location have their own sets, so one cache entry would show the wrong one.
+  venueVlans: (routerId: string, q: object) => ["isp", "venue", "vlans", routerId, q] as const,
+  venueDhcpPools: (routerId: string, q: object) =>
+    ["isp", "venue", "dhcp-pools", routerId, q] as const,
+  venuePortForwards: (routerId: string, q: object) =>
+    ["isp", "venue", "port-forwarding", routerId, q] as const,
+  venueQosRules: (routerId: string, q: object) =>
+    ["isp", "venue", "qos-rules", routerId, q] as const,
+  guests: (customerId: string, q: object) => ["isp", "guests", customerId, q] as const,
+  sessions: (customerId: string, q: object) => ["isp", "sessions", customerId, q] as const,
+  netLogs: (params: object) => ["isp", "logs", "netlogs", params] as const,
+  netLogsSummary: (params: object) => ["isp", "logs", "netlogs-summary", params] as const,
+  ipdr: (params: object) => ["isp", "logs", "ipdr", params] as const,
+  authLogs: (q: object) => ["isp", "logs", "auth", q] as const,
+  report: (q: object) => ["isp", "reports", q] as const,
+  users: ["isp", "users"] as const,
+  userList: (q: object) => ["isp", "users", "list", q] as const,
+  roles: ["isp", "roles"] as const,
+  tr069: ["isp", "tr069"] as const,
+  tr069Acs: ["isp", "tr069", "acs"] as const,
+  integrationsStatus: ["isp", "integrations", "status"] as const,
+  tr069Customer: (id: string) => ["isp", "tr069", "customer", id] as const,
+  tr069Location: (id: string) => ["isp", "tr069", "location", id] as const,
+  tr069Script: (routerId: string) => ["isp", "tr069", "script", routerId] as const,
+  tr069Devices: (q: object) => ["isp", "tr069", "devices", q] as const,
+  tr069Device: (id: string) => ["isp", "tr069", "device", id] as const,
+  tr069Tasks: (id: string) => ["isp", "tr069", "device", id, "tasks"] as const,
+};

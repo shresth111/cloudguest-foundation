@@ -253,6 +253,18 @@ jobs:
       # hostname. This pins both directions at every door.
       - name: consoles never mix hostnames
         run: bun run test:consoles-never-mix
+      - name: Partner host guard test
+        run: bun run test:partner-host
+      - name: ISP partner shim test
+        run: bun run test:isp-partner-shim
+      # money and plans land with FE #460/#461 (stacked on #459); each step
+      # starts running the moment its script exists on the branch.
+      - name: ISP partner money test
+        if: hashFiles('scripts/test-isp-partner-money.mjs') != ''
+        run: bun run test:isp-partner-money
+      - name: ISP partner plans test
+        if: hashFiles('scripts/test-isp-partner-plans.mjs') != ''
+        run: bun run test:isp-partner-plans
       # The one exception to the rule above: an operator's "View as this
       # customer" session can only live on master.wyfyguest.com (its token is
       # in that origin's localStorage). Every customer guard bounced it to
@@ -271,6 +283,10 @@ jobs:
       # endpoint (not a GLOBAL network-integrations route).
       - name: controller devices read
         run: bun run test:controller-devices
+      # ISP partner test-portal override: auth-isp only on network-staging with
+      # the flag on; every other host gets a byte-identical setup script.
+      - name: ISP portal host override test
+        run: bun run test:isp-portal-host
       # And the screen that renders it. A monitored-hardware row's up/down is
       # derived from `connected_devices`, whose only two writers reach a venue
       # over RouterOS -- so at an Omada venue nothing ever probes a registered
@@ -2904,6 +2920,157 @@ jobs:
           ./scripts/ci-gated-test.sh \
             "preview-then-apply" 90 "all checks passed" \
             node scripts/test-preview-then-apply.mjs
+      # ISP partner console (ADDENDUM_04 parity lane). Registration only; each
+      # step runs once its script exists on the branch. The customer pages the
+      # partner console mounts unchanged must reach only twinned calls.
+      - name: ISP partner portal shim
+        if: hashFiles('scripts/test-isp-partner-portal-shim.mjs') != ''
+        run: node scripts/test-isp-partner-portal-shim.mjs
+      - name: ISP partner venue pages
+        if: hashFiles('scripts/test-isp-partner-venue-pages.mjs') != ''
+        run: node scripts/test-isp-partner-venue-pages.mjs
+      - name: ISP partner customer shell
+        if: hashFiles('scripts/test-isp-partner-customer-shell.mjs') != ''
+        run: node scripts/test-isp-partner-customer-shell.mjs
+      - name: ISP partner controller-venue gate
+        if: hashFiles('scripts/test-isp-partner-controller-gate.mjs') != ''
+        run: node scripts/test-isp-partner-controller-gate.mjs
+      - name: ISP partner access (who may open the console)
+        if: hashFiles('scripts/test-isp-partner-access.mjs') != ''
+        run: node scripts/test-isp-partner-access.mjs
+      - name: ISP partner B4-B6 pages (security/ops, monitor/support, add-ons)
+        if: hashFiles('scripts/test-isp-partner-b6.mjs') != ''
+        run: |
+          node scripts/test-isp-partner-b4.mjs
+          node scripts/test-isp-partner-b5.mjs
+          node scripts/test-isp-partner-b6.mjs
+          if [ -f scripts/test-isp-partner-f13.mjs ]; then node scripts/test-isp-partner-f13.mjs; fi
+          if [ -f scripts/test-isp-partner-qa-p3.mjs ]; then node scripts/test-isp-partner-qa-p3.mjs; fi
+      - name: ISP partner NetLogs per second
+        if: hashFiles('scripts/test-isp-partner-netlogs-seconds.mjs') != ''
+        run: node scripts/test-isp-partner-netlogs-seconds.mjs
+      - name: ISP partner TR-069 location credentials
+        if: hashFiles('scripts/test-isp-partner-tr069-location.mjs') != ''
+        run: node scripts/test-isp-partner-tr069-location.mjs
+      - name: ISP partner forgot / reset password
+        if: hashFiles('scripts/test-isp-partner-password-reset.mjs') != ''
+        run: node scripts/test-isp-partner-password-reset.mjs
+      - name: ISP partner sign-out gate (QA-019/020)
+        if: hashFiles('scripts/test-isp-partner-sign-out.mjs') != ''
+        run: node scripts/test-isp-partner-sign-out.mjs
+      - name: ISP partner wording (no tunnel internals on router setup)
+        if: hashFiles('scripts/test-isp-partner-wording.mjs') != ''
+        run: node scripts/test-isp-partner-wording.mjs
+      - name: ISP portal footer support line (flag off = byte-identical)
+        if: hashFiles('scripts/test-isp-portal-support.mjs') != ''
+        run: node scripts/test-isp-portal-support.mjs
+      - name: ISP partner setup script TR-069 step (off = byte-identical)
+        if: hashFiles('scripts/test-isp-setup-extra-chunks.mjs') != ''
+        run: node scripts/test-isp-setup-extra-chunks.mjs
+      # LEFTOVERS: the per-lane ISP partner suites (each pure node + esbuild,
+      # no network); same `if: hashFiles` registration as the steps above.
+      - name: ISP partner Apps (JAZE-5 + APPS-2)
+        if: hashFiles('scripts/test-isp-partner-apps.mjs') != ''
+        run: bun run test:isp-partner-apps
+      - name: ISP partner CAF-2 workbench
+        if: hashFiles('scripts/test-isp-partner-caf.mjs') != ''
+        run: bun run test:isp-partner-caf
+      - name: ISP partner COMMS-2 hub
+        if: hashFiles('scripts/test-isp-partner-comms.mjs') != ''
+        run: bun run test:isp-partner-comms
+      - name: ISP partner COMMS-2b senders
+        if: hashFiles('scripts/test-isp-partner-comms2b.mjs') != ''
+        run: bun run test:isp-partner-comms2b
+      - name: ISP partner compliance (JAZE-3)
+        if: hashFiles('scripts/test-isp-partner-compliance.mjs') != ''
+        run: bun run test:isp-partner-compliance
+      - name: ISP partner dashboard (DASH-1)
+        if: hashFiles('scripts/test-isp-partner-dashboard.mjs') != ''
+        run: bun run test:isp-partner-dashboard
+      - name: ISP partner plain date params
+        if: hashFiles('scripts/test-isp-partner-date-params.mjs') != ''
+        run: bun run test:isp-partner-date-params
+      - name: ISP partner finance tools (JAZE-4)
+        if: hashFiles('scripts/test-isp-partner-finance.mjs') != ''
+        run: bun run test:isp-partner-finance
+      - name: ISP partner FRANCHISE-2
+        if: hashFiles('scripts/test-isp-partner-franchise.mjs') != ''
+        run: bun run test:isp-partner-franchise
+      - name: ISP partner integrations status
+        if: hashFiles('scripts/test-isp-partner-integrations.mjs') != ''
+        run: bun run test:isp-partner-integrations
+      - name: ISP partner invoices
+        if: hashFiles('scripts/test-isp-partner-invoices.mjs') != ''
+        run: bun run test:isp-partner-invoices
+      - name: ISP partner IPDR-2 LEA trace
+        if: hashFiles('scripts/test-isp-partner-ipdr-lea.mjs') != ''
+        run: bun run test:isp-partner-ipdr-lea
+      - name: ISP partner network rules (JAZE-2)
+        if: hashFiles('scripts/test-isp-partner-jaze2.mjs') != ''
+        run: bun run test:isp-partner-jaze2
+      - name: ISP partner NETMON-2
+        if: hashFiles('scripts/test-isp-partner-netmon.mjs') != ''
+        run: bun run test:isp-partner-netmon
+      - name: ISP partner ONBOARD-1
+        if: hashFiles('scripts/test-isp-partner-onboard.mjs') != ''
+        run: bun run test:isp-partner-onboard
+      - name: ISP partner PPPoE
+        if: hashFiles('scripts/test-isp-partner-pppoe.mjs') != ''
+        run: bun run test:isp-partner-pppoe
+      - name: ISP partner subscriber 360
+        if: hashFiles('scripts/test-isp-partner-sub360.mjs') != ''
+        run: bun run test:isp-partner-sub360
+      - name: ISP partner 360 workbench (SUB360-2)
+        if: hashFiles('scripts/test-isp-partner-sub360-workbench.mjs') != ''
+        run: bun run test:isp-partner-sub360-workbench
+      - name: ISP partner zones (ZONE-1)
+        if: hashFiles('scripts/test-isp-partner-zones.mjs') != ''
+        run: bun run test:isp-partner-zones
+      - name: ISP partner leftovers (lead prefill, payment slip)
+        if: hashFiles('scripts/test-isp-partner-leftovers.mjs') != ''
+        run: bun run test:isp-partner-leftovers
+      - name: ISP partner unused services (LEFTOVERS #8)
+        if: hashFiles('scripts/test-isp-partner-unused-services.mjs') != ''
+        run: bun run test:isp-partner-unused-services
+      - name: ISP partner collections (COLLECTIONS-1)
+        if: hashFiles('scripts/test-isp-partner-collections.mjs') != ''
+        run: bun run test:isp-partner-collections
+      - name: ISP partner revenue hub + churn risk (REVENUE-HUB)
+        if: hashFiles('scripts/test-isp-partner-revenue.mjs') != ''
+        run: bun run test:isp-partner-revenue
+      - name: ISP partner coupon sync now (BE-HARDEN)
+        if: hashFiles('scripts/test-isp-partner-sync-now.mjs') != ''
+        run: bun run test:isp-partner-sync-now
+      - name: ISP partner discount codes on invoices (DISCOUNT-WIRE)
+        if: hashFiles('scripts/test-isp-partner-discount-apply.mjs') != ''
+        run: bun run test:isp-partner-discount-apply
+      - name: ISP partner incidents (INCIDENTS-1)
+        if: hashFiles('scripts/test-isp-partner-incidents.mjs') != ''
+        run: bun run test:isp-partner-incidents
+      - name: ISP partner queued renewal (QUEUED-RENEWAL)
+        if: hashFiles('scripts/test-isp-partner-queued-renewal.mjs') != ''
+        run: bun run test:isp-partner-queued-renewal
+      - name: ISP partner gap sweep (flag-off nav items)
+        if: hashFiles('scripts/test-isp-partner-gap-sweep.mjs') != ''
+        run: bun run test:isp-partner-gap-sweep
+      - name: ISP partner referrals (REFERRAL-1)
+        if: hashFiles('scripts/test-isp-partner-referrals.mjs') != ''
+        run: bun run test:isp-partner-referrals
+      - name: ISP partner audit log (AUDIT-LOG)
+        if: hashFiles('scripts/test-isp-partner-audit-log.mjs') != ''
+        run: bun run test:isp-partner-audit-log
+      - name: ISP partner small follow-ups (SMALL-n)
+        if: hashFiles('scripts/test-isp-partner-small.mjs') != ''
+        run: bun run test:isp-partner-small
+      - name: ISP partner P3 sweep (inventory edit, queued renewals list, 360 cards)
+        if: hashFiles('scripts/test-isp-partner-p3-sweep.mjs') != ''
+        run: bun run test:isp-partner-p3-sweep
+      - name: ISP master list
+        if: hashFiles('scripts/test-isp-master-list.mjs') != ''
+        run: bun run test:isp-master-list
+      - name: ISP links single flight
+        if: hashFiles('scripts/test-isp-links-single-flight.mjs') != ''
+        run: bun run test:isp-single-flight
 
   # ---------------------------------------------------------------------------
   # Slack

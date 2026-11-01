@@ -31,7 +31,11 @@ function SessionExpiredPage() {
   // /agent route guards themselves key off of, so each surface's session
   // expiring sends you back to *that* surface's own sign-in, not always
   // the customer one.
-  const signInTarget = redirect?.startsWith("/master") ? "/master-login" : "/login";
+  const signInTarget = redirect?.startsWith("/partner")
+    ? "/partner/login"
+    : redirect?.startsWith("/master")
+      ? "/master-login"
+      : "/login";
   // Defensive, on top of api.ts's goToSessionExpired() no longer producing
   // this itself: never forward a `redirect` that already points back at a
   // sign-in page (a self-referential ?redirect= from a stale link, or any
