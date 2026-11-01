@@ -7,6 +7,7 @@
  * a 404 means "not switched on for this account yet".
  */
 import api from "@/services/api";
+import type { EmailInvoiceResult, EmailSenderKey, EmailSenders } from "@/lib/isp-partner/comms2b";
 import { cleanParams, downloadFile, type FileDownload } from "@/services/isp-partner/isp";
 import type { IspPage } from "@/services/isp-partner/types";
 
@@ -179,7 +180,7 @@ export interface Tds194h {
   note: string;
 }
 
-export type Trigger = "pre_expiry" | "unpaid" | "receipt" | "renewal";
+export type Trigger = "pre_expiry" | "unpaid" | "receipt" | "renewal" | "overdue" | "welcome";
 export interface AutomationSettings {
   whatsapp_enabled: boolean;
   whatsapp_enabled_at: string | null;
@@ -344,13 +345,21 @@ export const financeService = {
     invoiceId: string,
     sendTo: "primary" | "alternate" | "both",
     message?: string,
-  ): Promise<{ queued: string[] }> {
+    sender?: EmailSenderKey,
+  ): Promise<EmailInvoiceResult> {
     return (
       await api.post(`${B}/invoices/${invoiceId}/email`, {
         send_to: sendTo,
         message: message || undefined,
+        // COMMS-2b: only sent when not the default, so old backends see the
+        // same body as before.
+        sender: sender && sender !== "platform" ? sender : undefined,
       })
-    ).data as { queued: string[] };
+    ).data as EmailInvoiceResult;
+  },
+  /** COMMS-2b: the senders a manual invoice email can use. */
+  async emailSenders(): Promise<EmailSenders> {
+    return (await api.get<EmailSenders>(`${B}/email-senders`)).data;
   },
   async thermalInvoice(invoiceId: string, width: 58 | 80 = 80): Promise<FileDownload> {
     return downloadFile(

@@ -25,6 +25,8 @@ export const EVENT_LABEL: Record<string, string> = {
   unpaid: "Unpaid invoice",
   receipt: "Payment receipt",
   renewal: "Renewal",
+  overdue: "Overdue",
+  welcome: "Welcome",
   invoice_email: "Invoice email",
   device_alert: "Device alert",
   test: "Test",
