@@ -34,6 +34,7 @@ import {
   UNKNOWN_LIVENESS,
 } from "@/lib/location-liveness";
 import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
+import { ArubaAccessPointsCard } from "@/components/customer/ArubaAccessPointsCard";
 import { controllerDeviceMetricsReason } from "@/lib/router-vendors";
 import type { LocationLiveness } from "@/lib/location-liveness";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
@@ -806,7 +807,14 @@ export function CustomerDashboardPage() {
             </SectionBoundary>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
-              <WanStatusCardView wan={wan} onManage={() => handleNav("isp-details")} />
+              {/* Aruba Instant On (#397/#399): no WAN/ISP figures -- nothing
+                  here measures that venue's uplink -- so its two cards are the
+                  venue summary and the access points, read from Instant On. */}
+              {nasOnlyVenue ? (
+                <ArubaAccessPointsCard locationId={locationId} />
+              ) : (
+                <WanStatusCardView wan={wan} onManage={() => handleNav("isp-details")} />
+              )}
               {nasOnlyVenue ? (
                 <ArubaInstantOnVenueCard locationId={locationId} />
               ) : (

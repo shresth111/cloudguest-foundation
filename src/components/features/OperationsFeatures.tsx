@@ -11,6 +11,10 @@ import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { formatDateTime, formatRelative } from "@/lib/format";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { useCustomerStore } from "@/stores/customerStore";
+import { locationControllerVendor } from "@/lib/location-liveness";
+import { nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import {
   AlertTriangle,
   Network,
@@ -189,6 +193,12 @@ export function OpenHoursView({
   scope,
 }: { locationId?: string; scope?: PageScope } = {}) {
   const { t } = useTranslation("openHours", { i18n });
+  // The venue's vendor straight off the persisted summary -- no request (the
+  // capabilities read in `useClientControls` is for controller venues and has
+  // nothing to say about Open Hours).
+  const openHoursVendor = locationControllerVendor(
+    useCustomerStore((s) => s.activeLocation)?.liveness,
+  );
   // `demo` itself (a plain isDemo() read, not the SSR-safe useIsDemo()
   // hook) is fine to use in effects/handlers below -- those only ever run
   // client-side. What isn't safe is seeding useState's *initial* value
@@ -702,6 +712,11 @@ export function OpenHoursView({
             )}
             control={<Switch checked={enabled} onCheckedChange={setEnabled} />}
           />
+          {/* Aruba Instant On: the time until closing caps the session time
+              the access point enforces (V1, measured 2026-10-03), so "anyone
+              already online stays online" is not true there. Renders nothing
+              at any other vendor. */}
+          <ControllerControlNotice verdict={nasOnlyLimitVerdict("open-hours", openHoursVendor)} />
           <FormField
             label={t("closedMessageLabel", "Message shown to guests while closed")}
             htmlFor="open-hours-closed-message"

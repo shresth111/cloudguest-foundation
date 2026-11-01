@@ -1774,6 +1774,9 @@ export const customerService = {
             ...toRow(g.latest_session),
             guestId: g.guest_id,
             sessionCount: g.session_count,
+            // The Guests table's "×N" badge and the drawer's "N visits" line
+            // read this; for a grouped row it is the guest's session count.
+            mergedSessionCount: g.session_count,
             deviceCount: g.device_count,
             activeSessionIds: g.active_session_ids,
           }))
