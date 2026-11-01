@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   MButton,
+  MDialog,
   MEmptyState,
   MSeg,
   MTable,
@@ -25,8 +26,9 @@ import {
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import { STOCK_KIND_LABEL, humanize } from "@/lib/isp-partner/apps";
+import { EditLocationDialog } from "@/components/isp-partner/apps/InventoryEdit";
 import { appsService } from "@/services/isp-partner/apps";
-import { STOCK_LOCATION_KINDS } from "@/services/isp-partner/apps-types";
+import { STOCK_LOCATION_KINDS, type StockLocation } from "@/services/isp-partner/apps-types";
 import { ClipboardCheck } from "lucide-react";
 
 export function VendorsCard({ canManage }: { canManage: boolean }) {
@@ -141,6 +143,7 @@ export function LocationsCard({ canManage }: { canManage: boolean }) {
   });
   const [f, setF] = useState({ name: "", kind: "warehouse", holder: "", address: "" });
   const [err, setErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<StockLocation | null>(null);
   const create = useAppsMutation(() =>
     appsService.createLocation({
       name: f.name.trim(),
@@ -159,6 +162,7 @@ export function LocationsCard({ canManage }: { canManage: boolean }) {
             <MTh>Location</MTh>
             <MTh>Kind</MTh>
             <MTh>Carried by</MTh>
+            {canManage && <MTh />}
           </>
         }
       >
@@ -166,10 +170,26 @@ export function LocationsCard({ canManage }: { canManage: boolean }) {
           <MTr key={l.id}>
             <MTd>
               {l.name}
+              {!l.active && (
+                <span className="ml-2">
+                  <MTag label="Not in use" tone="normal" />
+                </span>
+              )}
               {l.address && <p className="text-[11px] text-muted-foreground">{l.address}</p>}
             </MTd>
             <MTd className="text-xs">{STOCK_KIND_LABEL[l.kind] ?? humanize(l.kind)}</MTd>
             <MTd className="text-xs">{l.holder_name ?? "–"}</MTd>
+            {canManage && (
+              <MTd className="text-right">
+                <MButton
+                  variant="ghost"
+                  onClick={() => setEditing(l)}
+                  aria-label={`Edit ${l.name}`}
+                >
+                  Edit
+                </MButton>
+              </MTd>
+            )}
           </MTr>
         ))}
       </MTable>
@@ -224,6 +244,7 @@ export function LocationsCard({ canManage }: { canManage: boolean }) {
         </div>
       )}
       <FormError message={err} />
+      {editing && <EditLocationDialog location={editing} onClose={() => setEditing(null)} />}
     </Card>
   );
 }
@@ -244,6 +265,8 @@ export function CheckoutsCard({ canDecide }: { canDecide: boolean }) {
     refetchInterval: 60_000,
   });
   const approve = useAppsMutation((id: string) => appsService.approveCheckout(id));
+  // P3-SWEEP (GAP #20): the reject reason is asked in a dialog, not window.prompt.
+  const [rejecting, setRejecting] = useState<string | null>(null);
   const reject = useAppsMutation((v: { id: string; note: string }) =>
     appsService.rejectCheckout(v.id, v.note),
   );
@@ -324,14 +347,7 @@ export function CheckoutsCard({ canDecide }: { canDecide: boolean }) {
                     <MButton
                       variant="ghost"
                       disabled={reject.isPending}
-                      onClick={() => {
-                        const note = window.prompt("Why is it rejected?") ?? "";
-                        if (note.trim())
-                          act(
-                            () => reject.mutateAsync({ id: r.id, note: note.trim() }),
-                            "Rejected.",
-                          );
-                      }}
+                      onClick={() => setRejecting(r.id)}
                     >
                       Reject
                     </MButton>
@@ -342,6 +358,63 @@ export function CheckoutsCard({ canDecide }: { canDecide: boolean }) {
           ))}
         </MTable>
       )}
+      {rejecting && (
+        <RejectCheckoutDialog
+          busy={reject.isPending}
+          onClose={() => setRejecting(null)}
+          onReject={(note) =>
+            act(async () => {
+              await reject.mutateAsync({ id: rejecting, note });
+              setRejecting(null);
+            }, "Rejected.")
+          }
+        />
+      )}
     </Card>
+  );
+}
+
+function RejectCheckoutDialog({
+  busy,
+  onClose,
+  onReject,
+}: {
+  busy: boolean;
+  onClose: () => void;
+  onReject: (note: string) => void;
+}) {
+  const [note, setNote] = useState("");
+  return (
+    <MDialog
+      open
+      onClose={onClose}
+      title="Reject the checkout"
+      footer={
+        <>
+          <MButton variant="outline" onClick={onClose}>
+            Keep it waiting
+          </MButton>
+          <MButton disabled={busy || !note.trim()} onClick={() => onReject(note.trim())}>
+            {busy && <Spinner />} Reject
+          </MButton>
+        </>
+      }
+    >
+      <label className="block space-y-1.5 text-sm">
+        <span className="text-xs font-medium text-muted-foreground">
+          Why is it rejected?<span className="text-destructive"> *</span>
+        </span>
+        <textarea
+          className={`${M_INPUT} min-h-20`}
+          maxLength={2000}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          aria-label="Reason"
+        />
+      </label>
+      <p className="mt-2 text-xs text-muted-foreground">
+        The reason is saved on the request; the unit is not checked out.
+      </p>
+    </MDialog>
   );
 }

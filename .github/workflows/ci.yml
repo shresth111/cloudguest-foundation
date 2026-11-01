@@ -2859,6 +2859,9 @@ jobs:
       - name: ISP partner small follow-ups (SMALL-n)
         if: hashFiles('scripts/test-isp-partner-small.mjs') != ''
         run: bun run test:isp-partner-small
+      - name: ISP partner P3 sweep (inventory edit, queued renewals list, 360 cards)
+        if: hashFiles('scripts/test-isp-partner-p3-sweep.mjs') != ''
+        run: bun run test:isp-partner-p3-sweep
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list

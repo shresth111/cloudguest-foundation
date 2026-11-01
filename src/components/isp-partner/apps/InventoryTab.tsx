@@ -53,6 +53,7 @@ import {
   LocationsCard,
   VendorsCard,
 } from "@/components/isp-partner/apps/InventoryAdmin";
+import { EditItemDialog } from "@/components/isp-partner/apps/InventoryEdit";
 import { tr069Service } from "@/services/isp-partner/tr069";
 import { appsService } from "@/services/isp-partner/apps";
 import {
@@ -505,6 +506,7 @@ function Items({ items, error }: { items: InventoryItem[] | undefined; error: un
   const c = appsCan(can);
   const [f, setF] = useState({ name: "", sku: "", category: "ont" });
   const [err, setErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<InventoryItem | null>(null);
   const create = useAppsMutation(() =>
     appsService.createItem({ name: f.name.trim(), sku: f.sku.trim(), category: f.category }),
   );
@@ -522,6 +524,7 @@ function Items({ items, error }: { items: InventoryItem[] | undefined; error: un
                 {UNIT_STATE_LABEL[s]}
               </MTh>
             ))}
+            {c.manage && <MTh />}
           </>
         }
       >
@@ -536,6 +539,17 @@ function Items({ items, error }: { items: InventoryItem[] | undefined; error: un
                 {i.counts?.[s] ?? 0}
               </MTd>
             ))}
+            {c.manage && (
+              <MTd className="text-right">
+                <MButton
+                  variant="ghost"
+                  onClick={() => setEditing(i)}
+                  aria-label={`Edit ${i.name}`}
+                >
+                  Edit
+                </MButton>
+              </MTd>
+            )}
           </MTr>
         ))}
       </MTable>
@@ -580,6 +594,7 @@ function Items({ items, error }: { items: InventoryItem[] | undefined; error: un
         </div>
       )}
       <FormError message={err} />
+      {editing && <EditItemDialog item={editing} onClose={() => setEditing(null)} />}
     </Card>
   );
 }
@@ -638,7 +653,11 @@ function UnitLinks({ unit }: { unit: InventoryUnit }) {
           onChange={setLoc}
           options={[
             ["", "No location"],
-            ...(locations.data ?? []).map((l) => [l.id, l.name] as [string, string]),
+            // P3-SWEEP: a location marked "not in use" is not offered, unless
+            // this unit already sits there.
+            ...(locations.data ?? [])
+              .filter((l) => l.active || l.id === unit.location_id)
+              .map((l) => [l.id, l.name] as [string, string]),
           ]}
         />
         <Select

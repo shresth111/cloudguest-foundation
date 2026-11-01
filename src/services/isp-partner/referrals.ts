@@ -47,9 +47,15 @@ export interface ReferralSettings {
 }
 
 export const referralsService = {
-  async list(q: { status?: ReferralStatus; page?: number }): Promise<ReferralPage> {
+  async list(q: {
+    status?: ReferralStatus;
+    page?: number;
+    /** P3-SWEEP (360 card): referrals where this subscriber is either side. */
+    subscriber_id?: string;
+  }): Promise<ReferralPage> {
     const params: Record<string, string | number> = { page_size: 50 };
     if (q.status) params.status = q.status;
+    if (q.subscriber_id) params.subscriber_id = q.subscriber_id;
     if (q.page) params.page = q.page;
     const { data } = await api.get<ReferralPage>("/isp/referrals", { params });
     return data;

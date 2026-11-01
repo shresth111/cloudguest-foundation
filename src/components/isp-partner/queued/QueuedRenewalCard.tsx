@@ -92,7 +92,8 @@ export function QueuedRenewalCard({ subscriberId }: { subscriberId: string }) {
 function useRefresh(subscriberId: string) {
   const qc = useQueryClient();
   return () => {
-    qc.invalidateQueries({ queryKey: ["isp", "queued", subscriberId] });
+    // P3-SWEEP: the prefix also refreshes the ISP-wide queued renewals page.
+    qc.invalidateQueries({ queryKey: ["isp", "queued"] });
     qc.invalidateQueries({ queryKey: ["isp", "sub360"] });
   };
 }
@@ -216,7 +217,7 @@ function QueueDialog({ subscriberId, onClose }: { subscriberId: string; onClose:
   );
 }
 
-function CancelDialog({
+export function CancelDialog({
   subscriberId,
   row,
   onClose,
