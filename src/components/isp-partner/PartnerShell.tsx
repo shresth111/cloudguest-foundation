@@ -22,6 +22,7 @@ import {
   Users,
   Wallet,
   X,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -46,6 +47,13 @@ const PARTNER_NAV: NavItem[] = [
   { to: "/partner/customers", label: "Customers", icon: Building2, anyOf: ["isp_partner.read"] },
   { to: "/partner/routers", label: "Routers", icon: Router, anyOf: ["isp_partner.read"] },
   { to: "/partner/tr069", label: "TR-069 devices", icon: Cpu, anyOf: ["tr069.read"] },
+  // ADDENDUM_05 J11: the subscriber directory + Subscriber 360.
+  {
+    to: "/partner/subscribers",
+    label: "Subscribers",
+    icon: UserRound,
+    anyOf: ["isp_subscribers.read"],
+  },
   {
     to: "/partner/logs",
     label: "Logs",

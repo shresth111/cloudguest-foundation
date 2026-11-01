@@ -1,7 +1,7 @@
 /** Plans → Speed groups (ADDENDUM_02 §9): table, form drawer, ladder dialog. */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Gauge, Pencil, Plus, Ticket, Trash2, Users } from "lucide-react";
+import { Gauge, Pencil, Plus, Ticket, Trash2, Users, RefreshCcw } from "lucide-react";
 import {
   MButton,
   MDialog,
@@ -17,6 +17,7 @@ import {
 } from "@/components/master/MasterKit";
 import { ErrorBlock, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
+import { PlanSyncDialog } from "@/components/isp-partner/subscribers/PlanSyncDialog";
 import { usePlansMutation, useSpeedGroups } from "@/hooks/isp-partner/usePlans";
 import { plansService } from "@/services/isp-partner/plans";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
@@ -445,6 +446,12 @@ export function SpeedGroupsTab({
   const [editing, setEditing] = useState<SpeedGroup | null | "new">(null);
   const [ladder, setLadder] = useState(false);
   const [deleting, setDeleting] = useState<SpeedGroup | null>(null);
+  // ADDENDUM_05 J19: "apply to existing subscribers".
+  const [syncing, setSyncing] = useState<{
+    kind: "package" | "group";
+    id: string;
+    name: string;
+  } | null>(null);
   const toggle = usePlansMutation((v: { id: string; enabled: boolean }) =>
     plansService.setGroupEnabled(v.id, v.enabled),
   );
@@ -554,6 +561,16 @@ export function SpeedGroupsTab({
                       <Pencil />
                     </MButton>
                   )}
+                  {can("isp_subscribers.read") && (
+                    <MButton
+                      variant="ghost"
+                      title="Apply to existing subscribers"
+                      aria-label={`Apply ${g.name} to existing subscribers`}
+                      onClick={() => setSyncing({ kind: "group", id: g.id, name: g.name })}
+                    >
+                      <RefreshCcw />
+                    </MButton>
+                  )}
                   <MButton
                     variant="ghost"
                     title="View subscribers"
@@ -607,6 +624,7 @@ export function SpeedGroupsTab({
           ))}
         </MTable>
       )}
+      <PlanSyncDialog target={syncing} onClose={() => setSyncing(null)} />
       <GroupDrawer
         open={editing !== null}
         onClose={() => setEditing(null)}
