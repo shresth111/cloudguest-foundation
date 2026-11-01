@@ -21,6 +21,10 @@ import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
 import { CustomerSelect, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { CyclesSelect } from "@/components/isp-partner/plans/CyclesSelect";
+import {
+  BulkDiscountCodeInput,
+  BulkDiscountPreview,
+} from "@/components/isp-partner/subscribers/BulkDiscountPreview";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
@@ -76,6 +80,7 @@ function BulkDialog({
   const [reason, setReason] = useState("");
   const [target, setTarget] = useState("");
   const [cycles, setCycles] = useState(1);
+  const [discountCode, setDiscountCode] = useState("");
   const [preview, setPreview] = useState<BulkResult | null>(null);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -85,7 +90,8 @@ function BulkDialog({
     const run = dry
       ? { dry_run: true }
       : { dry_run: false, bulk_key: idempotencyKey().slice(0, 40) };
-    if (action === "renew") return dir2Service.renew(selection, run, { cycles });
+    if (action === "renew")
+      return dir2Service.renew(selection, run, { cycles, discount_code: discountCode });
     if (action === "move") return dir2Service.move(selection, run, target, reason);
     return dir2Service.status(selection, run, action, reason);
   };
@@ -163,6 +169,9 @@ function BulkDialog({
           {action === "freeze" && " Validity is paused; live sessions are ended."}
         </p>
         {action === "renew" && <CyclesSelect value={cycles} onChange={edit(setCycles)} />}
+        {action === "renew" && (
+          <BulkDiscountCodeInput value={discountCode} onChange={edit(setDiscountCode)} />
+        )}
         {action === "move" && (
           <CustomerSelect
             value={target}
@@ -201,6 +210,7 @@ function BulkDialog({
             )}
           </dl>
         )}
+        {preview?.discount && <BulkDiscountPreview summary={preview.discount} />}
         {typedNeeded && preview && (
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-foreground">
