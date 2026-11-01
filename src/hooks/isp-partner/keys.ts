@@ -38,6 +38,7 @@ export const ispKeys = {
   roles: ["isp", "roles"] as const,
   tr069: ["isp", "tr069"] as const,
   tr069Acs: ["isp", "tr069", "acs"] as const,
+  integrationsStatus: ["isp", "integrations", "status"] as const,
   tr069Customer: (id: string) => ["isp", "tr069", "customer", id] as const,
   tr069Location: (id: string) => ["isp", "tr069", "location", id] as const,
   tr069Script: (routerId: string) => ["isp", "tr069", "script", routerId] as const,
