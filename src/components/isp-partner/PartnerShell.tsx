@@ -25,6 +25,8 @@ import {
   X,
   UserRound,
   Landmark,
+  Cable,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,6 +59,9 @@ const PARTNER_NAV: NavItem[] = [
     icon: UserRound,
     anyOf: ["isp_subscribers.read"],
   },
+  // JAZE-6 Phase 2b: PPPoE sessions / logins / router step (404 page while off).
+  { to: "/partner/pppoe", label: "PPPoE", icon: Cable, anyOf: ["isp_subscribers.read"] },
+  { to: "/partner/fiber", label: "Fiber plant", icon: Network, anyOf: ["isp_partner.read"] },
   {
     to: "/partner/logs",
     label: "Logs",

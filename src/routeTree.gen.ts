@@ -80,11 +80,13 @@ import { Route as PartnerUsersRouteImport } from './routes/partner.users'
 import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
 import { Route as PartnerResetPasswordRouteImport } from './routes/partner.reset-password'
 import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
+import { Route as PartnerPppoeRouteImport } from './routes/partner.pppoe'
 import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging'
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
 import { Route as PartnerForgotPasswordRouteImport } from './routes/partner.forgot-password'
 import { Route as PartnerFinanceRouteImport } from './routes/partner.finance'
+import { Route as PartnerFiberRouteImport } from './routes/partner.fiber'
 import { Route as PartnerComplianceRouteImport } from './routes/partner.compliance'
 import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
@@ -587,6 +589,11 @@ const PartnerReportsRoute = PartnerReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => PartnerRoute,
 } as any)
+const PartnerPppoeRoute = PartnerPppoeRouteImport.update({
+  id: '/pppoe',
+  path: '/pppoe',
+  getParentRoute: () => PartnerRoute,
+} as any)
 const PartnerMessagingRoute = PartnerMessagingRouteImport.update({
   id: '/messaging',
   path: '/messaging',
@@ -610,6 +617,11 @@ const PartnerForgotPasswordRoute = PartnerForgotPasswordRouteImport.update({
 const PartnerFinanceRoute = PartnerFinanceRouteImport.update({
   id: '/finance',
   path: '/finance',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerFiberRoute = PartnerFiberRouteImport.update({
+  id: '/fiber',
+  path: '/fiber',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerComplianceRoute = PartnerComplianceRouteImport.update({
@@ -1520,11 +1532,13 @@ export interface FileRoutesByFullPath {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/compliance': typeof PartnerComplianceRoute
+  '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
+  '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
@@ -1739,11 +1753,13 @@ export interface FileRoutesByTo {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/compliance': typeof PartnerComplianceRoute
+  '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
+  '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
@@ -1963,11 +1979,13 @@ export interface FileRoutesById {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/compliance': typeof PartnerComplianceRoute
+  '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
+  '/partner/pppoe': typeof PartnerPppoeRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/settings': typeof PartnerSettingsRoute
@@ -2189,11 +2207,13 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/partner/billing'
     | '/partner/compliance'
+    | '/partner/fiber'
     | '/partner/finance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
+    | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/settings'
@@ -2408,11 +2428,13 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/partner/billing'
     | '/partner/compliance'
+    | '/partner/fiber'
     | '/partner/finance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
+    | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/settings'
@@ -2631,11 +2653,13 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/partner/billing'
     | '/partner/compliance'
+    | '/partner/fiber'
     | '/partner/finance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
     | '/partner/messaging'
+    | '/partner/pppoe'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/settings'
@@ -3336,6 +3360,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerReportsRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/pppoe': {
+      id: '/partner/pppoe'
+      path: '/pppoe'
+      fullPath: '/partner/pppoe'
+      preLoaderRoute: typeof PartnerPppoeRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/partner/messaging': {
       id: '/partner/messaging'
       path: '/messaging'
@@ -3369,6 +3400,13 @@ declare module '@tanstack/react-router' {
       path: '/finance'
       fullPath: '/partner/finance'
       preLoaderRoute: typeof PartnerFinanceRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/fiber': {
+      id: '/partner/fiber'
+      path: '/fiber'
+      fullPath: '/partner/fiber'
+      preLoaderRoute: typeof PartnerFiberRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/compliance': {
@@ -4731,11 +4769,13 @@ const MasterRouteWithChildren =
 interface PartnerRouteChildren {
   PartnerBillingRoute: typeof PartnerBillingRoute
   PartnerComplianceRoute: typeof PartnerComplianceRoute
+  PartnerFiberRoute: typeof PartnerFiberRoute
   PartnerFinanceRoute: typeof PartnerFinanceRoute
   PartnerForgotPasswordRoute: typeof PartnerForgotPasswordRoute
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
   PartnerMessagingRoute: typeof PartnerMessagingRoute
+  PartnerPppoeRoute: typeof PartnerPppoeRoute
   PartnerReportsRoute: typeof PartnerReportsRoute
   PartnerResetPasswordRoute: typeof PartnerResetPasswordRoute
   PartnerSettingsRoute: typeof PartnerSettingsRoute
@@ -4761,11 +4801,13 @@ interface PartnerRouteChildren {
 const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerBillingRoute: PartnerBillingRoute,
   PartnerComplianceRoute: PartnerComplianceRoute,
+  PartnerFiberRoute: PartnerFiberRoute,
   PartnerFinanceRoute: PartnerFinanceRoute,
   PartnerForgotPasswordRoute: PartnerForgotPasswordRoute,
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
   PartnerMessagingRoute: PartnerMessagingRoute,
+  PartnerPppoeRoute: PartnerPppoeRoute,
   PartnerReportsRoute: PartnerReportsRoute,
   PartnerResetPasswordRoute: PartnerResetPasswordRoute,
   PartnerSettingsRoute: PartnerSettingsRoute,
