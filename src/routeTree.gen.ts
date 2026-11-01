@@ -93,6 +93,7 @@ import { Route as PartnerFiberRouteImport } from './routes/partner.fiber'
 import { Route as PartnerComplianceRouteImport } from './routes/partner.compliance'
 import { Route as PartnerCollectionsRouteImport } from './routes/partner.collections'
 import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
+import { Route as PartnerAuditLogRouteImport } from './routes/partner.audit-log'
 import { Route as PartnerAppsRouteImport } from './routes/partner.apps'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
@@ -659,6 +660,11 @@ const PartnerCollectionsRoute = PartnerCollectionsRouteImport.update({
 const PartnerBillingRoute = PartnerBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerAuditLogRoute = PartnerAuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerAppsRoute = PartnerAppsRouteImport.update({
@@ -1574,6 +1580,7 @@ export interface FileRoutesByFullPath {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/apps': typeof PartnerAppsRoute
+  '/partner/audit-log': typeof PartnerAuditLogRoute
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/collections': typeof PartnerCollectionsRoute
   '/partner/compliance': typeof PartnerComplianceRoute
@@ -1802,6 +1809,7 @@ export interface FileRoutesByTo {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/apps': typeof PartnerAppsRoute
+  '/partner/audit-log': typeof PartnerAuditLogRoute
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/collections': typeof PartnerCollectionsRoute
   '/partner/compliance': typeof PartnerComplianceRoute
@@ -2035,6 +2043,7 @@ export interface FileRoutesById {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/apps': typeof PartnerAppsRoute
+  '/partner/audit-log': typeof PartnerAuditLogRoute
   '/partner/billing': typeof PartnerBillingRoute
   '/partner/collections': typeof PartnerCollectionsRoute
   '/partner/compliance': typeof PartnerComplianceRoute
@@ -2270,6 +2279,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/apps'
+    | '/partner/audit-log'
     | '/partner/billing'
     | '/partner/collections'
     | '/partner/compliance'
@@ -2498,6 +2508,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/apps'
+    | '/partner/audit-log'
     | '/partner/billing'
     | '/partner/collections'
     | '/partner/compliance'
@@ -2730,6 +2741,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/apps'
+    | '/partner/audit-log'
     | '/partner/billing'
     | '/partner/collections'
     | '/partner/compliance'
@@ -3534,6 +3546,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/partner/billing'
       preLoaderRoute: typeof PartnerBillingRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/audit-log': {
+      id: '/partner/audit-log'
+      path: '/audit-log'
+      fullPath: '/partner/audit-log'
+      preLoaderRoute: typeof PartnerAuditLogRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/apps': {
@@ -4902,6 +4921,7 @@ const MasterRouteWithChildren =
 
 interface PartnerRouteChildren {
   PartnerAppsRoute: typeof PartnerAppsRoute
+  PartnerAuditLogRoute: typeof PartnerAuditLogRoute
   PartnerBillingRoute: typeof PartnerBillingRoute
   PartnerCollectionsRoute: typeof PartnerCollectionsRoute
   PartnerComplianceRoute: typeof PartnerComplianceRoute
@@ -4941,6 +4961,7 @@ interface PartnerRouteChildren {
 
 const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerAppsRoute: PartnerAppsRoute,
+  PartnerAuditLogRoute: PartnerAuditLogRoute,
   PartnerBillingRoute: PartnerBillingRoute,
   PartnerCollectionsRoute: PartnerCollectionsRoute,
   PartnerComplianceRoute: PartnerComplianceRoute,

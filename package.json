@@ -47,6 +47,7 @@
     "test:isp-partner-incidents": "node scripts/test-isp-partner-incidents.mjs",
     "test:isp-partner-queued-renewal": "node scripts/test-isp-partner-queued-renewal.mjs",
     "test:isp-partner-referrals": "node scripts/test-isp-partner-referrals.mjs",
+    "test:isp-partner-audit-log": "node scripts/test-isp-partner-audit-log.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",
     "test:ap-inventory-honesty": "node scripts/test-ap-inventory-honesty.mjs",
