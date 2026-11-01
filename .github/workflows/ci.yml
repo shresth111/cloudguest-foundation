@@ -2827,6 +2827,9 @@ jobs:
       - name: ISP partner unused services (LEFTOVERS #8)
         if: hashFiles('scripts/test-isp-partner-unused-services.mjs') != ''
         run: bun run test:isp-partner-unused-services
+      - name: ISP partner collections (COLLECTIONS-1)
+        if: hashFiles('scripts/test-isp-partner-collections.mjs') != ''
+        run: bun run test:isp-partner-collections
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list
