@@ -271,13 +271,36 @@ export const CONTROLLER_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
 ];
 
 /**
- * The extra screens a NAS-only venue (Aruba Instant On) cannot use, on top of
- * the list above. Omada keeps both: its controller has a walled garden and MAC
- * authentication that this platform drives. Instant On holds its own "Allowed
- * domains" list that we cannot write, and has no MAC authentication at all
- * (PM_SPEC §3.2, copy U7 / U8).
+ * Screens a NAS-only venue (Aruba Instant On) loses on top of the list above:
+ * Internet Connection.
+ *
+ * Trusted Devices (`mac-auth`) USED TO BE HERE AND IS NOT. Instant On has no
+ * MAC authentication on a guest network, so a trusted device cannot skip the
+ * AP's redirect -- but it does not need to: the portal asks
+ * `GET /guest/session/trusted-device` and, for a trusted device, posts the
+ * AP login itself, and RADIUS admits the device on the MAC the AP reports
+ * (src/lib/portal-aruba-trusted.ts). The caveat it has there is
+ * `NAS_ONLY_TRUSTED_DEVICES` (src/lib/nas-only-access-rules.ts).
+ *
+ * "Guest Allow-list" (`whitelist`) USED TO BE HERE AND IS NOT. PM_SPEC §3.2
+ * row "Guest Allow-list (whitelist) | Pre-login domains" describes a walled
+ * garden, and greyed this screen with copy U7 ("set in the Instant On app,
+ * under Guest portal > Allowed domains"). But the screen at that nav id is
+ * `WhiteList.tsx`: allow rules by phone number or device MAC, and the
+ * "only people on this list" switch -- `guest_access_rules` /
+ * `device_access_rules` and `whitelist_only_enabled`, decided by the portal
+ * sign-in (`GuestService._enforce_access_control`) for every vendor. That
+ * works at an Instant On venue unchanged, so greying it removed a working
+ * control and pointed the owner at an unrelated setting. It stays live, with
+ * the one caveat it does have there (`NAS_ONLY_ALLOW_LIST`): a change reaches
+ * guests at their next sign-in, never someone already online.
  */
-export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = ["whitelist", "mac-auth"];
+export const NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS: readonly string[] = [
+  // Internet Connection (ISP/WAN details) reads a Wyfy-managed router's
+  // uplink. An Instant On venue has none, so the whole Network section is
+  // locked there (owner decision 2026-10-05).
+  "isp-details",
+];
 
 /**
  * Whether a customer screen works at a controller-managed venue. `vendor` is
@@ -652,8 +675,6 @@ export function controllerUnsupportedHeadline(
   featureId?: string,
 ): string {
   if (!isNasOnlyVendor(vendor)) return CONTROLLER_UNSUPPORTED_HEADLINE;
-  // Trusted Devices is not "elsewhere": Instant On has no MAC authentication.
-  if (featureId === "mac-auth") return "Not available with Aruba Instant On.";
   return "Set up in the Instant On app, not here.";
 }
 
@@ -674,16 +695,10 @@ export function controllerUnsupportedHeadline(
  * with no bytes recorded renders "—" with this, never a measured "0 MB". */
 export const NAS_ONLY_DATA_USAGE_UNREPORTED = "Data usage isn't reported for this venue yet.";
 
-/** PM_SPEC U7 / U8: the two screens only a NAS-only venue loses, each with
- * its own sentence because neither is "set up in the app" in the same way. */
-export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {
-  whitelist:
-    "Websites guests can open before signing in are set in the Instant On app, under " +
-    "Guest portal > Allowed domains.",
-  "mac-auth":
-    "Aruba Instant On can't let devices skip the sign-in page, so trusted devices aren't " +
-    "available here.",
-};
+/** Per-screen copy for a screen only a NAS-only venue loses. Empty since
+ * Trusted Devices went live there (PM_SPEC U8 retired; U7 is not used: see
+ * `NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`). */
+export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {};
 
 export function controllerUnsupportedCopy(
   featureId: string,

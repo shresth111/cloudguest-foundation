@@ -513,6 +513,16 @@ function SidebarEntries({
             )}
             <Icon className="h-[18px] w-[18px] shrink-0" />
             <span className="flex-1 truncate">{label}</span>
+            {/* Aruba #413: a row none of whose screens this venue can use
+                (e.g. Network at an Aruba Instant On venue) says so with a
+                lock, not just a dimmed label. */}
+            {muted && !locked && (
+              <Lock
+                aria-label={controllerReason}
+                data-testid={`sidebar-locked-${key}`}
+                className="ml-auto h-3 w-3 shrink-0 opacity-70 group-data-[collapsible=icon]:hidden"
+              />
+            )}
             {locked && (
               <span
                 className="ml-auto inline-flex shrink-0 items-center gap-1 rounded border border-[var(--wy-border)] bg-[var(--wy-surface-2)] px-1.5 py-px text-[10px] font-semibold text-[var(--wy-text-faint)] group-data-[collapsible=icon]:hidden"

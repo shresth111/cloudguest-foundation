@@ -365,6 +365,24 @@ export interface ControllerVenueFacts {
    * nobody sent.
    */
   controller?: ControllerLiveness | null;
+  /**
+   * NAS-only venues only (Aruba Instant On): whether a Wyfy-managed MikroTik
+   * gateway in front of the access points applies each guest's speed
+   * (`GET /network-integrations/locations/{id}/speed-control`). `true` makes
+   * the venue's Bandwidth setting live; `false`, `null` or absent keep the
+   * fixed "set it in Instant On" answer. Ignored at every other vendor.
+   */
+  perGuestSpeed?: boolean | null;
+  /**
+   * NAS-only venues only (Aruba Instant On): whether every Instant On cloud
+   * control gate is open for this venue's access point
+   * (`GET .../speed-control` -> `instant_on_cloud_control`). `true` makes the
+   * device block live (a persistent Instant On block, read back before it is
+   * reported) and lets the guest network's speed and the mid-session data-cap
+   * cut work. `false`, `null` or absent: those stay off and say what is
+   * needed. Ignored at every other vendor.
+   */
+  instantOnCloudControl?: boolean | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -516,7 +534,8 @@ export function clientControlVerdict(
   if (!venue.controllerManaged) return AVAILABLE(control);
   // A NAS-only venue (Aruba Instant On) has no controller API at all, so
   // there is nothing to ask and nothing the capabilities read could say.
-  if (isNasOnlyVendor(venue.vendor)) return nasOnlyControlVerdict(control);
+  if (isNasOnlyVendor(venue.vendor))
+    return nasOnlyControlVerdict(control, venue.perGuestSpeed, venue.instantOnCloudControl);
 
   const { vendor } = venue;
   // A CONTROLLER THAT IS NOT ANSWERING READS AS "WE COULD NOT ASK".
@@ -726,49 +745,109 @@ export function clientControlVerdict(
 // NAS-only venues (Aruba Instant On): fixed answers, PM_SPEC §3 / §4.
 // ---------------------------------------------------------------------------
 
-/** U1. */
+/** U1, re-measured 2026-10-03: the AP21 ignores the bandwidth attributes sent
+ * at sign-in (512/256 kbps sent, ~200 Mbps measured). */
 export const NAS_ONLY_SPEED =
-  "Speed limits for Aruba Instant On are set in the Instant On app, on the guest network. " +
-  "Wyfy can't change them.";
+  "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set " +
+  "speed limits in the Instant On app, on the guest network.";
+/**
+ * Speed at an Aruba Instant On venue whose guests reach the internet through
+ * a Wyfy-managed MikroTik gateway (the hybrid setup). The limit is a queue per
+ * guest IP on that router, applied when the access point reports the guest
+ * online. A cap, not a promise of that speed.
+ */
+export const NAS_ONLY_GATEWAY_SPEED =
+  "Applied to each guest by your venue's Wyfy gateway router (a MikroTik in front of your " +
+  "Aruba access points) when they come online. This is the most a guest's device can use, " +
+  "not a guaranteed speed.";
 /** U2. */
 export const NAS_ONLY_DISCONNECT =
   "Wyfy can't disconnect a device from Aruba Instant On access points. The guest stays online " +
   "until their session time runs out.";
+/**
+ * The guest drawer's per-device speed at an Aruba Instant On venue. Instant On
+ * has no per-device speed on any path we can reach, so the drawer does not
+ * pretend to set one: it points at the one speed Instant On has, the guest
+ * network's, which is the same for every device on it.
+ */
+export const NAS_ONLY_DEVICE_SPEED =
+  "Aruba Instant On can't give one device its own speed. Set one speed for every device on " +
+  "your guest WiFi under Access Rules → Guest WiFi Limits.";
+/** The same, at a venue whose Wyfy gateway router applies each guest's speed. */
+export const NAS_ONLY_DEVICE_SPEED_GATEWAY =
+  "Each guest's speed comes from your venue's speed setting, applied by your Wyfy gateway " +
+  "router when they come online. Change it under Access Rules → Guest WiFi Limits.";
+/**
+ * Block device at an Aruba Instant On venue with Instant On cloud control ON.
+ * Says what happens (a block on the venue's Instant On site, only reported
+ * once Instant On lists it) and its limits (MAC randomisation, site-wide).
+ * Does not claim the drop of a live device as measured: that is hardware
+ * test step 6 in the PR.
+ */
+export const NAS_ONLY_BLOCK_DEVICE_CLOUD =
+  "Blocks this device on your Instant On site, so it can't use any of the venue's WiFi until " +
+  "you allow it again. We only say it's blocked once Instant On lists it. A phone can come " +
+  "back under a new random Wi-Fi address, so treat it as a deterrent rather than a lock. To " +
+  "stop the person signing in again on any device, block them under Blocked Guests.";
+/**
+ * Block device at an Aruba Instant On venue with Instant On cloud control OFF.
+ * What works (the sign-in block, our own record) and what is needed for the
+ * device half. Never the "can't disconnect" sentence: that answered a
+ * different question.
+ */
+export const NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD =
+  "Blocking under Blocked Guests stops this person signing in again, and that works here " +
+  "now. Keeping this device itself off the WiFi needs Instant On cloud control, which isn't " +
+  "switched on for this venue yet. Ask your Wyfy Guest contact to turn it on.";
 /** U2, the live and qualified half: blocking a sign-in is our own record. */
 export const NAS_ONLY_BLOCK_SIGNIN =
   "Blocking stops this person signing in again. If they're online right now, they stay online " +
   "until their session ends.";
 /**
- * Session timeout is PM_SPEC V1 (unmeasured). Qualified rather than greyed:
- * the field is required on Guest WiFi Limits and it still governs our own
- * session (expiry, and refusing the next sign-in), so greying it would make
- * the screen unsavable and take away a half that works. What is uncertain is
- * only whether the access point drops a connected device on time, and the
- * caveat says exactly that, before the click.
+ * Session timeout is PM_SPEC V1, MEASURED 2026-10-03 on an AP21: the access
+ * point ends the session at the Session-Timeout Wyfy sends
+ * (Acct-Terminate-Cause=Session-Timeout). Still `qualified` rather than plain
+ * `available` because the note is the one place that tells an owner how it
+ * works at this venue -- it renders as a neutral note, not a warning.
  */
 export const NAS_ONLY_SESSION_TIMEOUT =
-  "Wyfy ends the session when the time is up and the guest has to sign in again. Whether " +
-  "Aruba Instant On access points also drop a device that is already connected hasn't been " +
-  "confirmed yet, so it may stay on until it reconnects.";
+  "Enforced. Aruba Instant On access points end the session when the time is up, and the " +
+  "guest has to sign in again.";
 
 /**
  * What a NAS-only venue gets for each control. No capabilities read: there
  * is no controller connection to ask, and the answers do not depend on one.
  *
- *  - disconnect, block-device, speed-*: unavailable. No CoA, no API.
+ *  - disconnect, speed-*: unavailable. No CoA, no per-client rate.
+ *  - block-device: qualified with Instant On cloud control on (a persistent
+ *    Instant On block, read back); unavailable without it, saying what is
+ *    needed and that the sign-in block already works.
  *  - block-signin: qualified. A row in our own database, read by our portal.
- *  - session-timeout: qualified until the V1 hardware check passes.
+ *  - session-timeout: qualified -- enforced by the AP (V1 measured), with a
+ *    neutral note saying so.
  */
-function nasOnlyControlVerdict(control: ClientControlId): ClientControlVerdict {
+function nasOnlyControlVerdict(
+  control: ClientControlId,
+  perGuestSpeed: boolean | null | undefined,
+  cloudControl: boolean | null | undefined,
+): ClientControlVerdict {
   switch (control) {
     case "block-signin":
       return { control, availability: "qualified", reason: NAS_ONLY_BLOCK_SIGNIN };
     case "disconnect":
-    case "block-device":
       return { control, availability: "unavailable", reason: NAS_ONLY_DISCONNECT };
+    case "block-device":
+      // Only `true` counts: an unanswered read is not cloud control.
+      return cloudControl === true
+        ? { control, availability: "qualified", reason: NAS_ONLY_BLOCK_DEVICE_CLOUD }
+        : { control, availability: "unavailable", reason: NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD };
     case "speed-limit":
     case "speed-profile":
-      return { control, availability: "unavailable", reason: NAS_ONLY_SPEED };
+      // Hybrid venue: a Wyfy MikroTik gateway applies the venue's speed per
+      // guest. Only `true` counts -- an unanswered read is not a gateway.
+      return perGuestSpeed === true
+        ? { control, availability: "qualified", reason: NAS_ONLY_GATEWAY_SPEED }
+        : { control, availability: "unavailable", reason: NAS_ONLY_SPEED };
     case "venue-speed-limit":
       return { control, availability: "unavailable", reason: VENUE_SPEED_UNAVAILABLE };
     case "session-timeout":
@@ -816,14 +895,29 @@ export function deviceActionVerdict(
   if (!venue.controllerManaged) {
     return { control: action, availability: "available", reason: null };
   }
-  // Every per-device action is a write to a controller API, which a NAS-only
-  // vendor does not have. PM_SPEC U1 (speed) / U2 (block, disconnect).
+  // A NAS-only venue (Aruba Instant On) has no controller API. Block and
+  // unblock go through Instant On's cloud when cloud control is on for the
+  // venue (a persistent block, read back); per-device speed exists on no path
+  // at all, so it points at the guest network's speed (or the gateway's).
   if (isNasOnlyVendor(venue.vendor)) {
-    return {
-      control: action,
-      availability: "unavailable",
-      reason: action === "speed" || action === "speed-clear" ? NAS_ONLY_SPEED : NAS_ONLY_DISCONNECT,
-    };
+    if (action === "speed" || action === "speed-clear") {
+      return {
+        control: action,
+        availability: "unavailable",
+        reason:
+          venue.perGuestSpeed === true ? NAS_ONLY_DEVICE_SPEED_GATEWAY : NAS_ONLY_DEVICE_SPEED,
+      };
+    }
+    if (venue.instantOnCloudControl !== true) {
+      return {
+        control: action,
+        availability: "unavailable",
+        reason: NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD,
+      };
+    }
+    return action === "block"
+      ? { control: action, availability: "qualified", reason: NAS_ONLY_BLOCK_DEVICE_CLOUD }
+      : { control: action, availability: "available", reason: null };
   }
   const { vendor } = venue;
   // The same normalization as the ladder above, and it must be here too: all

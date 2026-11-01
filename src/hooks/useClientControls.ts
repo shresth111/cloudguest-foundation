@@ -52,6 +52,7 @@ import {
   omadaClientControlsService,
   type ClientSpeedRequest,
 } from "@/services/omada-client-controls.service";
+import { speedControlService } from "@/services/speed-control.service";
 
 export interface ClientControls {
   /** True only when EVERY router at this venue is a vendor controller. */
@@ -70,6 +71,13 @@ export interface ClientControls {
    * control on this itself and end up with a second copy of the ladder.
    */
   controller: ControllerLiveness | null;
+  /** Aruba Instant On only: every Instant On cloud-control gate is open for
+   * this venue (`true`), closed (`false`), or not asked / not NAS-only
+   * (`null`). The verdicts already account for it; exposed for screens that
+   * pick copy (data limit, guest network speed). */
+  instantOnCloudControl: boolean | null;
+  /** NAS-only only: a Wyfy gateway router applies each guest's speed. */
+  perGuestSpeed: boolean | null;
   /** The verdict for one screen-level control. Stable identity per render. */
   verdict: (control: ClientControlId) => ClientControlVerdict;
   /** The verdict for one per-device button, gated on its own capability. */
@@ -105,6 +113,23 @@ export function useClientControls(): ClientControls {
     staleTime: 5 * 60_000,
   });
 
+  // NAS-only venues (Aruba Instant On) only: is a Wyfy MikroTik gateway
+  // applying each guest's speed (the hybrid setup)? One small read; never for
+  // any other vendor, so a MikroTik or Omada venue adds no request.
+  const nasOnly = controllerManaged && isNasOnlyVendor(vendor);
+  // The same read answers whether Instant On cloud control is switched on
+  // for the venue's access point (device block, guest network speed,
+  // mid-session data-cap cut).
+  const { data: speedControlRead, isLoading: perGuestSpeedLoading } = useQuery({
+    queryKey: ["speed-control", locationId],
+    queryFn: () => speedControlService.readSpeedControl(locationId as string),
+    enabled: nasOnly && !!locationId,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const perGuestSpeed = nasOnly ? (speedControlRead?.perGuestSpeed ?? null) : null;
+  const instantOnCloudControl = nasOnly ? (speedControlRead?.instantOnCloudControl ?? null) : null;
+
   const capabilities = read?.capabilities ?? null;
   // `?? null` here too, and it means something DIFFERENT from the line above:
   // a backend older than #289 sends no `controller` block, and that must leave
@@ -117,8 +142,15 @@ export function useClientControls(): ClientControls {
     // asked, which the verdict ladder renders differently from a controller
     // that answered "no". Collapsing the two would blame the venue's hardware
     // for a read of ours that did not come back.
-    () => ({ controllerManaged, vendor, capabilities, controller }),
-    [controllerManaged, vendor, capabilities, controller],
+    () => ({
+      controllerManaged,
+      vendor,
+      capabilities,
+      controller,
+      perGuestSpeed,
+      instantOnCloudControl,
+    }),
+    [controllerManaged, vendor, capabilities, controller, perGuestSpeed, instantOnCloudControl],
   );
 
   return useMemo(
@@ -127,11 +159,24 @@ export function useClientControls(): ClientControls {
       vendor,
       capabilities,
       controller,
+      instantOnCloudControl,
+      perGuestSpeed,
       verdict: (control: ClientControlId) => clientControlVerdict(control, facts),
       deviceVerdict: (action: DeviceActionId) => deviceActionVerdict(action, facts),
-      loading: controllerManaged && isLoading,
+      loading: controllerManaged && (isLoading || (nasOnly && perGuestSpeedLoading)),
     }),
-    [controllerManaged, vendor, capabilities, controller, facts, isLoading],
+    [
+      controllerManaged,
+      vendor,
+      capabilities,
+      controller,
+      instantOnCloudControl,
+      perGuestSpeed,
+      facts,
+      isLoading,
+      nasOnly,
+      perGuestSpeedLoading,
+    ],
   );
 }
 

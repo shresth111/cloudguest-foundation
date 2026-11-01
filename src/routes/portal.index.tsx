@@ -1,6 +1,6 @@
 import { PortalErrorScreen } from "@/components/portal-runtime/PortalErrorScreen";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Wifi } from "lucide-react";
 import { usePortalRuntime } from "@/context/PortalRuntimeContext";
@@ -10,6 +10,13 @@ import { VenueLogo } from "@/components/portal-runtime/VenueLogo";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { buildSessionUrl } from "@/lib/portal-session-url";
 import { isPortalConfigMissing } from "@/lib/portal-guest-errors";
+import {
+  arubaLoginTarget,
+  buildArubaLoginFields,
+  isArubaInstantOnProvider,
+} from "@/lib/portal-aruba-login";
+import { recordArubaTrustedAttempt, shouldTryArubaTrustedLogin } from "@/lib/portal-aruba-trusted";
+import { HOTSPOT_FALLBACK_PASSWORD, submitTopLevelForm } from "@/lib/portal-top-level-form";
 
 export const Route = createFileRoute("/portal/")({
   errorComponent: PortalErrorScreen,
@@ -34,6 +41,9 @@ function PortalLoading() {
     // Same reason as portal.success.tsx: the branch below is a real document
     // navigation, so the language has to travel in the URL.
     language,
+    // Aruba Instant On: which contract, and where the AP takes its login.
+    netProvider,
+    arubaRedirect,
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/" });
   const queryClient = useQueryClient();
@@ -94,6 +104,30 @@ function PortalLoading() {
     enabled: !session && !!deviceMac && liveSessionChecked && !liveSession,
     staleTime: 0,
     retry: 3, // same guest-network reason as the live-session check above (#341)
+  });
+
+  // TRUSTED DEVICES AT AN ARUBA INSTANT ON VENUE. MikroTik admits a trusted
+  // device in RADIUS before it ever reaches this page; Instant On has no MAC
+  // authentication, so the AP only asks RADIUS after a login POST. When the
+  // backend says this device is trusted, the effect below makes that POST
+  // itself instead of showing a sign-in form. The answer is a hint, not a
+  // credential: the AP's RADIUS request carries the device's real MAC and
+  // the backend admits it only on that. Decided once per load (the loop
+  // guard reads storage and the URL) -- see src/lib/portal-aruba-trusted.ts.
+  const [tryTrustedLogin] = useState(
+    () =>
+      isArubaInstantOnProvider(netProvider) &&
+      !!deviceMac &&
+      shouldTryArubaTrustedLogin(deviceMac, window.location.search),
+  );
+  const trustedLoginSubmitted = useRef(false);
+  const trustedCheckEnabled = tryTrustedLogin && !session && liveSessionChecked && !liveSession;
+  const { data: trustedIdentifier, isFetched: trustedChecked } = useQuery({
+    queryKey: ["portal-trusted-device", routerId, deviceMac],
+    queryFn: () => portalRuntimeService.checkTrustedDevice({ routerId, deviceMac: deviceMac! }),
+    enabled: trustedCheckEnabled,
+    staleTime: 0,
+    retry: 1,
   });
 
   useEffect(() => {
@@ -271,6 +305,27 @@ function PortalLoading() {
     // the query, so `endedSessionChecked` stays false forever for it; the
     // `!deviceMac` half of the guard is what stops that stranding the guest
     // on this spinner instead of sending them to sign in.
+    // A trusted device at an Aruba venue: post the AP login now. Closed
+    // venues and every failure fall through to the ordinary screens below.
+    if (!hasSession && config.isOpenNow !== false && trustedCheckEnabled) {
+      if (!trustedChecked || trustedLoginSubmitted.current) return;
+      const apLogin = arubaLoginTarget(arubaRedirect?.switchip);
+      if (trustedIdentifier && deviceMac && "url" in apLogin) {
+        trustedLoginSubmitted.current = true;
+        setGuestIdentifier(trustedIdentifier);
+        submitTopLevelForm(
+          apLogin.url,
+          buildArubaLoginFields({
+            identifier: trustedIdentifier,
+            password: HOTSPOT_FALLBACK_PASSWORD,
+            destination: buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
+          }),
+        );
+        // After the POST, as in portal.success.tsx: storage can throw in the CNA.
+        recordArubaTrustedAttempt(deviceMac);
+        return;
+      }
+    }
     const target = hasSession
       ? "/portal/success"
       : config.isOpenNow === false
@@ -292,6 +347,11 @@ function PortalLoading() {
     hotspotLoginUrl,
     setSession,
     navigate,
+    trustedCheckEnabled,
+    trustedChecked,
+    trustedIdentifier,
+    arubaRedirect,
+    setGuestIdentifier,
     // Read by `buildSessionUrl` on the document-load branch above. Stable
     // for the life of this portal link (they come straight off the URL's
     // search params), so listing them changes nothing at runtime -- it

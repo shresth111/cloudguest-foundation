@@ -16,6 +16,7 @@ import { dashboardRangeWindow } from "@/lib/dashboard-range";
 import type { DashboardRange, DashboardRangeWindow } from "@/lib/dashboard-range";
 import { guestPresence } from "@/lib/guest-presence";
 import { distinctGuestCount } from "@/lib/guest-counts";
+import { canonicalApMac } from "@/lib/aruba-access-points";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
 // see that call site's comment. `isp.service` imports only `api` and the
@@ -104,11 +105,41 @@ interface RawGuestSession {
   guest_identifier?: string | null;
   bytes_downloaded?: number;
   user_agent?: string | null;
+  /** Aruba Instant On sessions only (DASHBOARD_PLAN P0-A2): the access point
+   * the guest signed in through / last roamed to, from RADIUS
+   * Called-Station-Id. Absent or null for every other vendor. */
+  ap_mac?: string | null;
+  ap_name?: string | null;
+  /** `GuestSessionResponse.disconnect_enforced`: true when the venue's
+   * router / controller / Instant On cloud confirmed dropping the device,
+   * false when it was asked and did not, null when nothing was asked. */
+  disconnect_enforced?: boolean | null;
+  /** The session's own timeout, stamped at sign-in. */
+  session_timeout_minutes?: number | null;
 }
 
 /** Minimal shape read from `/connected-devices` for the bulk guest_id ->
  * MAC lookup in getUsers() -- see that method's comment for why this is
  * one bulk fetch per page load rather than one request per row. */
+/** `GET /guest-session-groups` -- one item per guest (backend
+ * `GuestSessionGroupListResponse`). */
+interface RawGuestSessionGroupPage {
+  items: {
+    guest_id: string;
+    guest_identifier?: string | null;
+    session_count: number;
+    active_session_count: number;
+    device_count: number;
+    first_started_at: string;
+    last_started_at: string;
+    bytes_downloaded_total: number;
+    bytes_uploaded_total: number;
+    active_session_ids: string[];
+    latest_session: RawGuestSession;
+  }[];
+  total_items: number;
+  instant_on_cloud_disconnect?: boolean;
+}
 interface RawConnectedDevice {
   id: string;
   mac_address: string;
@@ -337,6 +368,21 @@ export interface CustomerUsersData {
     status: "online" | "offline" | "idle";
     guestId: string | null;
     /** Display-only: how many raw GuestSession rows this one table row represents -- see groupFragmentedVisits()'s own docstring. 1 (or absent) for an ungrouped row. */ mergedSessionCount?: number;
+    /** Aruba Instant On only: the session's access point. Set only when the
+     * backend sent one, so every other venue's rows are unchanged. */
+    apMac?: string;
+    apName?: string | null;
+    /** Grouped rows only (`GET /guest-session-groups`): how many sessions
+     * this guest has at the venue, on how many devices, and every ACTIVE
+     * session a guest-level Disconnect has to end. `id` stays the primary
+     * session's id, so every per-session action is unchanged. */
+    sessionCount?: number;
+    deviceCount?: number;
+    activeSessionIds?: string[];
+    /** `disconnect_enforced` / `session_timeout_minutes` of the row's
+     * session -- read only by the Aruba Instant On "signed out" status. */
+    disconnectEnforced?: boolean | null;
+    sessionTimeoutMinutes?: number | null;
   }[];
   total: number;
   page: number;
@@ -347,6 +393,13 @@ export interface CustomerUsersData {
    *  "how many people" answer. Undefined when the guests lookup failed
    *  (a tile must show "—", never a fabricated session count). */
   uniqueGuests: number | undefined;
+  /** True when the rows are GUESTS (`GET /guest-session-groups`): `total`
+   * then counts people. False on the session-per-row fallback, used only
+   * against a backend that predates the grouped route. */
+  grouped?: boolean;
+  /** Aruba Instant On only: a Disconnect here can drop the device through
+   * the Instant On cloud (every backend gate open). False everywhere else. */
+  instantOnCloudDisconnect?: boolean;
 }
 
 type RawUserRow = CustomerUsersData["users"][number];
@@ -1510,6 +1563,9 @@ export const customerService = {
     status?: string,
     page = 1,
     pageSize = 20,
+    /** Aruba Instant On venues only: narrow to one access point. Undefined
+     * everywhere else, so the request is exactly what it was before. */
+    apMac?: string,
   ): Promise<CustomerUsersData> {
     if (isDemo()) {
       // The venue's demo roster (`@/lib/demo-world`), newest first: one row
@@ -1563,9 +1619,27 @@ export const customerService = {
       // route around -- see listLocations()/getDashboard()'s comments.
       const orgId = await resolveOrgId();
       const orgHeaders = { headers: { "X-Organization-Id": orgId } };
-      const [sessionsResult, devicesResult, guestsResult] = await Promise.allSettled([
-        api.get<{ items: RawGuestSession[]; total_items: number }>("/guest-sessions", {
-          params: { location_id: locationId, page, page_size: pageSize },
+      // One row per GUEST (QA 2026-10-05, Aruba venue: "isme guest baar baar
+      // dikh rahe hai"). This table used to page `/guest-sessions`, one row
+      // per SESSION, so a guest who reconnected six times was six rows under
+      // a "Total guests" tile that counted them once -- at every venue type,
+      // not only Aruba. `/guest-session-groups` groups server-side and pages
+      // by guest, active guests first; the row shows the guest's newest
+      // active session (else newest), and the history is the drawer's
+      // `?guest_id=` listing. A backend without the route (404) falls back
+      // to the old per-session listing below, unchanged.
+      const groupStatus =
+        status === "online" ? "active" : status === "offline" ? "ended" : undefined;
+      const [groupsResult, devicesResult, guestsResult] = await Promise.allSettled([
+        api.get<RawGuestSessionGroupPage>("/guest-session-groups", {
+          params: {
+            location_id: locationId,
+            page,
+            page_size: pageSize,
+            ...(groupStatus ? { status: groupStatus } : {}),
+            ...(search ? { search } : {}),
+            ...(apMac ? { ap_mac: apMac } : {}),
+          },
           ...orgHeaders,
         }),
         // Real MAC lookup: one bulk fetch of this location's connected-device
@@ -1589,8 +1663,24 @@ export const customerService = {
           ...orgHeaders,
         }),
       ]);
-      if (sessionsResult.status === "rejected") throw sessionsResult.reason;
-      const data = sessionsResult.value.data;
+      let grouped = true;
+      let groupPage: RawGuestSessionGroupPage | undefined;
+      let data: { items: RawGuestSession[]; total_items: number } | undefined;
+      if (groupsResult.status === "fulfilled") {
+        groupPage = groupsResult.value.data;
+      } else {
+        const reason = groupsResult.reason as { status?: number } | undefined;
+        if (reason?.status !== 404 && reason?.status !== 405) throw groupsResult.reason;
+        grouped = false;
+        data = (
+          await api.get<{ items: RawGuestSession[]; total_items: number }>("/guest-sessions", {
+            params: apMac
+              ? { location_id: locationId, page, page_size: pageSize, ap_mac: apMac }
+              : { location_id: locationId, page, page_size: pageSize },
+            ...orgHeaders,
+          })
+        ).data;
+      }
       const guestsById = new Map<string, RawGuest>();
       if (guestsResult.status === "fulfilled") {
         for (const g of guestsResult.value.data?.items ?? []) guestsById.set(g.id, g);
@@ -1613,7 +1703,7 @@ export const customerService = {
         }
       }
 
-      let users = (data?.items ?? []).map((s) => {
+      const toRow = (s: RawGuestSession) => {
         const matched = s.guest_id
           ? matchDeviceForSession(devicesByGuest.get(s.guest_id) ?? [], s.started_at)
           : undefined;
@@ -1670,26 +1760,66 @@ export const customerService = {
             : s.status === "paused"
               ? "idle"
               : "offline") as "online" | "offline" | "idle",
+          ...(s.ap_mac ? { apMac: s.ap_mac, apName: s.ap_name ?? null } : {}),
+          ...(s.disconnect_enforced !== undefined
+            ? { disconnectEnforced: s.disconnect_enforced }
+            : {}),
+          ...(s.session_timeout_minutes !== undefined
+            ? { sessionTimeoutMinutes: s.session_timeout_minutes }
+            : {}),
         };
-      });
+      };
+      let users: RawUserRow[] = grouped
+        ? (groupPage?.items ?? []).map((g) => ({
+            ...toRow(g.latest_session),
+            guestId: g.guest_id,
+            sessionCount: g.session_count,
+            // The Guests table's "×N" badge and the drawer's "N visits" line
+            // read this; for a grouped row it is the guest's session count.
+            mergedSessionCount: g.session_count,
+            deviceCount: g.device_count,
+            activeSessionIds: g.active_session_ids,
+          }))
+        : (data?.items ?? []).map(toRow);
       // See groupFragmentedVisits()'s own docstring -- collapses a burst of
       // reconnect-driven fragments (same guest+device, a few minutes apart)
       // into one row before search/status filtering runs, so a filter/
       // search reflects what the guest actually sees, not the raw
       // per-interval row count.
-      users = groupFragmentedVisits(users);
-      if (search) {
+      // Grouped rows are already one per guest.
+      if (!grouped) users = groupFragmentedVisits(users);
+      // The grouped route searches server-side, across every page; this
+      // page-local filter stays for the per-session fallback only.
+      if (search && !grouped) {
         const q = search.toLowerCase();
         users = users.filter((u) => u.name.toLowerCase().includes(q));
       }
       if (status && status !== "all") users = users.filter((u) => u.status === status);
+      // Also applied here, not only as `ap_mac` on the request: a backend
+      // that ignores the parameter must not make the filter look like it
+      // worked while listing every access point's guests.
+      if (apMac) {
+        const want = canonicalApMac(apMac);
+        users = users.filter((u) => !!u.apMac && canonicalApMac(u.apMac) === want);
+      }
       // The people-number is the /guests lookup's own server total (distinct
       // guests on file at this location), independent of the session page's
       // search/status/pagination. A failed guest lookup leaves it undefined
       // rather than substituting a session count under a people label.
       const uniqueGuests =
         guestsResult.status === "fulfilled" ? guestsResult.value.data?.total_items : undefined;
-      return { users, total: data?.total_items ?? users.length, uniqueGuests, page, pageSize };
+      const total = grouped
+        ? (groupPage?.total_items ?? users.length)
+        : (data?.total_items ?? users.length);
+      return {
+        users,
+        total,
+        uniqueGuests,
+        page,
+        pageSize,
+        grouped,
+        instantOnCloudDisconnect: groupPage?.instant_on_cloud_disconnect === true,
+      };
     } catch {
       return { users: [], total: 0, uniqueGuests: 0, page, pageSize };
     }

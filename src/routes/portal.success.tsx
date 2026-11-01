@@ -21,6 +21,7 @@ import {
   persistHotspotSubmit,
 } from "@/context/PortalRuntimeContext";
 import { buildReviewUrl, buildSessionUrl } from "@/lib/portal-session-url";
+import { HOTSPOT_FALLBACK_PASSWORD, submitTopLevelForm } from "@/lib/portal-top-level-form";
 import { nasAuthorizedFromSearch } from "@/lib/portal-nas-state";
 import {
   hotspotGateAlreadyOpen,
@@ -47,6 +48,12 @@ import {
   buildArubaLoginFields,
   isArubaInstantOnProvider,
 } from "@/lib/portal-aruba-login";
+import { portalSsidVerdict, type PortalSsidVerdict } from "@/lib/ssid-tiers";
+import { fetchGuestSsidAccess } from "@/services/ssid-tiers.service";
+import {
+  SsidNeedsPassScreen,
+  SsidUpgradeHintScreen,
+} from "@/components/portal-runtime/SsidTierScreens";
 
 // v4 §6.1: the same "taking longer than expected" threshold
 // portal.index.tsx's own loading screen already uses, for the identical
@@ -73,25 +80,6 @@ export const Route = createFileRoute("/portal/success")({
 // live at ~600ms for 3 cycles) with margin, while staying far short of any
 // real WiFi-reconnect timescale that genuinely needs this POST to re-fire.
 const HOTSPOT_RESUBMIT_COOLDOWN_MS = 10_000;
-
-// Real incident #2, found live at Haldwani: a hardcoded shared
-// "guest"/"welcome123" here only ever worked for a hotspot profile with
-// `use-radius=no` (RouterOS checks its own local `/ip hotspot user`
-// list). Every `use-radius=yes` profile (the real, RADIUS-integrated
-// setup this whole platform is built around -- GuestSession, RadiusNasClient,
-// etc.) forwards the login to `RadiusService.authorize`, which checks
-// whether *this exact username* has a currently-ACTIVE GuestSession --
-// never checks the password at all (RADIUS has no "why", only
-// accept/reject, and this backend's Authorize phase is purely a
-// username-to-session lookup). A hardcoded "guest" username has no
-// session of its own, so it was rejected on every single attempt,
-// silently -- "redirect karne ke baad nahi chal raha hai internet" even
-// after confirming the login succeeded, the router was online, and (a
-// dead end) resetting the local hotspot user's password. The real fix is
-// `guestIdentifier` -- see PortalRuntimeState's own docstring -- the
-// actual phone/email this guest just verified via OTP/password/voucher,
-// which *does* have an active session under that exact identifier.
-const HOTSPOT_FALLBACK_PASSWORD = "welcome123";
 
 // The storage-probe that tells the CNA websheet from ordinary Safari --
 // see @/lib/portal-cna. (It used to be defined here together with the
@@ -130,26 +118,6 @@ function submitHotspotLogin(loginUrl: string, username: string, dst: string) {
     ["password", HOTSPOT_FALLBACK_PASSWORD],
     ["dst", dst],
   ]);
-}
-
-/** A hidden, full-page form POST -- see `submitHotspotLogin` for why it is a
- * top-level navigation and never an iframe or a `fetch`. Shared by the
- * RouterOS and Aruba Instant On gates; only the action and field names
- * differ. */
-function submitTopLevelForm(action: string, fields: Array<[string, string]>) {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = action;
-  form.style.display = "none";
-  for (const [name, value] of fields) {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  }
-  document.body.appendChild(form);
-  form.submit();
 }
 
 /**
@@ -327,6 +295,13 @@ function SuccessPage() {
    * before the fresh authorize call had even been answered.
    */
   const [radiusFailure, setRadiusFailure] = useState<RadiusAuthorizeFailure | null>(null);
+  // Speed tiers by WiFi network (Aruba Instant On): what the backend said
+  // about the network (`network` on the AP's redirect) this guest is on.
+  // `needs-pass` replaces the AP's generic "Login error" with the voucher
+  // path; an upgrade hint is shown once before the login POST. The ref is
+  // the session id already checked, so the check runs once per sign-in.
+  const [ssidGate, setSsidGate] = useState<PortalSsidVerdict | null>(null);
+  const ssidChecked = useRef<string | null>(null);
 
   // Our own login (OTP/password/voucher) only just created a session in
   // this platform's own database -- the NAS's own gate is a completely
@@ -542,7 +517,7 @@ function SuccessPage() {
 
   /**
    * Open the Aruba AP's gate: a top-level form POST of the verified
-   * identifier to `https://<switchip>/cgi-bin/login`.
+   * identifier to `https://<switchip>/swarm.cgi` (Instant On: the `post` host).
    *
    * Every way this cannot work ends on the failure screen, never on the
    * spinner and never with a POST to a host we do not trust:
@@ -559,6 +534,26 @@ function SuccessPage() {
     const target = arubaLoginTarget(arubaRedirect?.switchip);
     if ("refused" in target) {
       failRadius("not-authorized");
+      return;
+    }
+    // SPEED TIERS BY WIFI NETWORK. Ask once per sign-in whether this guest
+    // may use the network the AP named. Any failure proceeds (`null` ->
+    // "proceed"): the RADIUS hub is the enforcement point, this only lets
+    // the portal explain a refusal instead of the AP's generic error.
+    const ssid = arubaText(arubaRedirect?.essid);
+    const sessionId = session?.sessionId;
+    if (ssid && sessionId && ssidChecked.current !== sessionId) {
+      ssidChecked.current = sessionId;
+      hotspotLoginSubmitted.current = true;
+      void fetchGuestSsidAccess(sessionId, ssid).then((access) => {
+        hotspotLoginSubmitted.current = false;
+        const verdict = portalSsidVerdict(access);
+        if (verdict.kind === "needs-pass" || verdict.upgrade.length > 0) {
+          setSsidGate(verdict);
+          return;
+        }
+        submitArubaLogin();
+      });
       return;
     }
     hotspotLoginSubmitted.current = true;
@@ -942,6 +937,21 @@ function SuccessPage() {
   }
 
   if (!session) return null;
+
+  if (ssidGate?.kind === "needs-pass") {
+    return <SsidNeedsPassScreen network={ssidGate.network} portalSearch={portalSearch} />;
+  }
+  if (ssidGate?.kind === "proceed" && ssidGate.upgrade.length > 0) {
+    return (
+      <SsidUpgradeHintScreen
+        networks={ssidGate.upgrade}
+        onContinue={() => {
+          setSsidGate(null);
+          submitArubaLogin();
+        }}
+      />
+    );
+  }
 
   /**
    * NAME REQUIRED AT SIGN-IN: the one "Your name" screen, between the code

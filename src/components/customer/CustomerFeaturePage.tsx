@@ -33,6 +33,8 @@ import { CUSTOMER_NAVS, customerFeatureHref } from "@/lib/customerNav";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import { ChangePasswordDialog } from "@/components/features/ChangePasswordDialog";
 import { TwoFactorDialog } from "@/components/features/TwoFactorDialog";
 import AssistantWidget from "@/components/features/AssistantWidget";
@@ -340,11 +342,18 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "portal" && <PortalPage locationId={locationId} scope={pageScope} />}
               {feature === "vouchers" && <VouchersPage locationId={locationId} scope={pageScope} />}
               {feature === "policies" && <PoliciesHub locationId={locationId} scope={pageScope} />}
-              {/* Allow-list and Trusted Devices are live everywhere except a
-                  NAS-only venue (Aruba Instant On), where `controllerGated`
-                  is true for them and the notice below renders instead. */}
+              {/* Guest Allow-list is live everywhere. At a NAS-only venue
+                  (Aruba Instant On) it carries one caveat above it: rules are
+                  decided at sign-in, and nothing can take an Instant On guest
+                  who is already online off the network. */}
               {feature === "whitelist" && !controllerGated && (
-                <WhiteList locationId={locationId} scope={pageScope} />
+                <>
+                  <ControllerControlNotice
+                    verdict={nasOnlyLimitVerdict("allow-list", controllerVendor)}
+                    className="mb-4 mt-0"
+                  />
+                  <WhiteList locationId={locationId} scope={pageScope} />
+                </>
               )}
               {feature === "devices" && (
                 // Fleet strip + inventory, then how the hardware has been
@@ -382,7 +391,11 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 Unlike "audit" above, old links don't need a fallback branch:
                 /background-image redirects to /guest-portal at beforeLoad,
                 so nothing reaches this switch with that id. */}
-              {feature === "isp-details" && <IspDetailsView locationId={locationId} />}
+              {/* Locked at an Aruba Instant On venue (no Wyfy-managed uplink);
+                  the gated notice below renders instead. */}
+              {feature === "isp-details" && !controllerGated && (
+                <IspDetailsView locationId={locationId} />
+              )}
               {/* No "network-integrations" branch -- FIX-PLAN FE-0. Backend
                   `074d719` moved every `network_integrations.*` route to
                   ScopeType.GLOBAL and `rbac.seed`'s RETIRED_NON_GLOBAL_MODULES
@@ -398,8 +411,17 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                 <NetworkActivityLog masked={masked} scope={pageScope} />
               )}
               {feature === "netlogs" && <NetLogsView locationId={locationId} scope={pageScope} />}
+              {/* Trusted Devices is live at an Aruba Instant On venue too: the
+                  portal signs a trusted device in by itself there, so it
+                  carries a caveat saying what the owner will see. */}
               {feature === "mac-auth" && !controllerGated && (
-                <MacAuthView locationId={locationId} scope={pageScope} />
+                <>
+                  <ControllerControlNotice
+                    verdict={nasOnlyLimitVerdict("trusted-devices", controllerVendor)}
+                    className="mb-4 mt-0"
+                  />
+                  <MacAuthView locationId={locationId} scope={pageScope} />
+                </>
               )}
               {/* The RouterOS screens. On a controller-managed venue
                   the view is NOT MOUNTED -- this is not a disabled form over

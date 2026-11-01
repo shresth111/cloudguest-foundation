@@ -67,6 +67,9 @@ import {
 import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
 import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { ArubaGuestSpeedControl } from "@/components/customer/ArubaGuestSpeedControl";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { NAS_ONLY_LIMITS_FOOTER, nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import { resolveOrgId } from "@/services/customer.service";
 import {
   createPolicyWithRules,
@@ -326,6 +329,24 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const speedAsking = clientControls.loading;
   const speedUsable = !speedAsking && speedVerdict.availability !== "unavailable";
   const sessionTimeoutVerdict = clientControls.verdict("session-timeout");
+  // NAS-ONLY VENUES (Aruba Instant On) -- see lib/nas-only-access-rules.ts.
+  // At every other vendor these verdicts are `available` with a null reason,
+  // `nasOnlyVenue` is false, and nothing below renders or saves differently.
+  const nasOnlyVenue = isNasOnlyVendor(clientControls.vendor);
+  // The one exception at a NAS-only venue: speed, when a Wyfy MikroTik gateway
+  // sits in front of the access points (the Aruba + MikroTik hybrid) and the
+  // backend says it is applying each guest's speed. Without a gateway the
+  // venue's speed is the guest network's (ArubaGuestSpeedControl below).
+  const nasOnlySpeedLive = nasOnlyVenue && speedUsable;
+  const showBandwidth = !nasOnlyVenue || nasOnlySpeedLive;
+  // With Instant On cloud control on, a guest who reaches the cap is taken off
+  // the WiFi mid-session; off, they are refused at the next sign-in.
+  const dataLimitVerdict = nasOnlyLimitVerdict("data-limit", clientControls.vendor, {
+    cloudControl: clientControls.instantOnCloudControl === true,
+  });
+  const dataLimitUsable = dataLimitVerdict.availability !== "unavailable";
+  const idleTimeoutVerdict = nasOnlyLimitVerdict("idle-timeout", clientControls.vendor);
+  const dailyLimitVerdict = nasOnlyLimitVerdict("daily-limit", clientControls.vendor);
   // TOTAL VENUE SPEED -- gated like the speed above it, by the same ladder.
   // Where the venue's hardware cannot hold all guests to a combined total,
   // the control is greyed with one line saying so and a save leaves whatever
@@ -562,21 +583,24 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
 
   // Put one saved row into the form -- every control, and the data-limit
   // panel's own three pieces of state, which live outside `f`.
-  const showRow = useCallback((p: Policy) => {
-    setEditingId(p.id);
-    setF(limitsFormFromRow(p));
-    setErrs({});
-    if (p.dataLimit) {
-      setDataLimitOpen(true);
-      setDlQuota(String(p.dataLimit.quota));
-      setDlUnit(p.dataLimit.unit);
-      setDlResets(p.dataLimit.resets);
-    } else {
-      setDataLimitOpen(false);
-      setDlQuota("");
-    }
-    shownFor.current = prefillKey(p);
-  }, []);
+  const showRow = useCallback(
+    (p: Policy) => {
+      setEditingId(p.id);
+      setF(limitsFormFromRow(p));
+      setErrs({});
+      if (p.dataLimit && dataLimitUsable) {
+        setDataLimitOpen(true);
+        setDlQuota(String(p.dataLimit.quota));
+        setDlUnit(p.dataLimit.unit);
+        setDlResets(p.dataLimit.resets);
+      } else {
+        setDataLimitOpen(false);
+        setDlQuota("");
+      }
+      shownFor.current = prefillKey(p);
+    },
+    [dataLimitUsable],
+  );
 
   // THE FORM OPENS ON THE CHOSEN VENUE'S CURRENT VALUES.
   //
@@ -719,9 +743,17 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
     setSaving(true);
     // `validate()` has already refused a non-positive quota, so this cannot
     // produce the accidental zero-cap described there.
-    const dataLimit = dataLimitOpen
-      ? { quota: parseFloat(dlQuota), unit: dlUnit, resets: dlResets }
-      : null;
+    //
+    // A GREYED DATA LIMIT DOES NOT WRITE EITHER -- the same rule the Bandwidth
+    // field follows. Where the control cannot be opened, "closed" is not the
+    // owner choosing "no limit": the honest write is what is already held.
+    const heldDataLimit =
+      policies.find((p) => p.businessUnit === f.businessUnit)?.dataLimit ?? null;
+    const dataLimit = !dataLimitUsable
+      ? heldDataLimit
+      : dataLimitOpen
+        ? { quota: parseFloat(dlQuota), unit: dlUnit, resets: dlResets }
+        : null;
 
     if (demo) {
       setTimeout(() => {
@@ -997,9 +1029,11 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
               { location: f.businessUnit, actual: row.venueSpeed },
             )
           : targetLocationId
-            ? dataLimit
-              ? `Limits saved for ${f.businessUnit} — speed and the data limit reach guests online now; the rest apply as each guest next connects.`
-              : `Limits saved for ${f.businessUnit} — speed reaches guests online now; the rest apply as each guest next connects.`
+            ? nasOnlyVenue
+              ? `Limits saved for ${f.businessUnit} — they take effect the next time each guest signs in.`
+              : dataLimit
+                ? `Limits saved for ${f.businessUnit} — speed and the data limit reach guests online now; the rest apply as each guest next connects.`
+                : `Limits saved for ${f.businessUnit} — speed reaches guests online now; the rest apply as each guest next connects.`
             : "Limits saved, but not applied to any location — reopen this page from the location you want them on.",
       );
       setTimeout(() => setToast(null), venueKept ? 2500 : 6000);
@@ -1221,25 +1255,31 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     else in this section and the next still works at a
                     controller venue and stays editable -- which is exactly
                     why this screen is NOT replaced wholesale. */}
-                <div>
-                  <Select
-                    id="bw"
-                    label="Bandwidth"
-                    required
-                    disabled={!speedUsable}
-                    value={f.bandwidth}
-                    onChange={(v) => setField("bandwidth", v)}
-                    options={optionsWithCurrent(BANDWIDTH, f.bandwidth)}
-                    placeholder="Choose bandwidth"
-                    caption="Maximum speed per guest device."
-                    err={errs.bandwidth}
-                  />
-                  {/* Suppressed while the capabilities read is still in
+                {/* Not rendered at a NAS-only venue (Aruba Instant On) without
+                    the hybrid gateway: there the speed is the guest network's,
+                    set in the control under this grid, so a greyed dropdown
+                    would be a dead input. */}
+                {showBandwidth && (
+                  <div>
+                    <Select
+                      id="bw"
+                      label="Bandwidth"
+                      required
+                      disabled={!speedUsable}
+                      value={f.bandwidth}
+                      onChange={(v) => setField("bandwidth", v)}
+                      options={optionsWithCurrent(BANDWIDTH, f.bandwidth)}
+                      placeholder="Choose bandwidth"
+                      caption="Maximum speed per guest device."
+                      err={errs.bandwidth}
+                    />
+                    {/* Suppressed while the capabilities read is still in
                     flight. The control above is already greyed for the same
                     reason; a sentence would be an answer, and we do not have
                     one yet. */}
-                  {!speedAsking && <ControllerControlNotice verdict={speedVerdict} />}
-                </div>
+                    {!speedAsking && <ControllerControlNotice verdict={speedVerdict} />}
+                  </div>
+                )}
                 <Select
                   id="dp"
                   label="Devices Per User"
@@ -1303,12 +1343,23 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 the device: the accounting arrives from RADIUS at a MikroTik
                 venue and from the Omada usage backfill at a controller one, so
                 there is no vendor gate to render here and none is faked. */}
+              {/* Aruba without the hybrid gateway: the one speed Instant On
+                  has -- the guest network's, the same for every device on it
+                  -- set through Instant On's cloud and read back. With cloud
+                  control off it says what is needed; it never pretends to
+                  save. */}
+              {nasOnlyVenue && !nasOnlySpeedLive && !speedAsking && (
+                <div data-testid="nas-only-not-here" className="mt-4">
+                  <ArubaGuestSpeedControl locationId={locationId} demo={demo} />
+                </div>
+              )}
               <button
                 type="button"
+                disabled={!dataLimitUsable}
                 onClick={() => setDataLimitOpen((prev) => !prev)}
-                aria-expanded={dataLimitOpen}
+                aria-expanded={dataLimitOpen && dataLimitUsable}
                 aria-controls="data-limit-panel"
-                className="mt-4 flex w-full items-center justify-between rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
+                className="mt-4 flex w-full items-center justify-between rounded-[var(--wy-radius)] border border-dashed border-[var(--wy-border-strong)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--wy-surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
               >
                 <span className="flex items-center gap-2 text-sm font-medium text-[var(--wy-text)]">
                   <Plus className="h-4 w-4 text-[var(--wy-accent)]" /> Add a data limit{" "}
@@ -1321,7 +1372,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 />
               </button>
 
-              {dataLimitOpen && (
+              <ControllerControlNotice verdict={dataLimitVerdict} />
+
+              {dataLimitOpen && dataLimitUsable && (
                 <>
                   {/* Said here, in full, once. This is the only setting on the
                     form that ends a session someone is currently using, and
@@ -1329,12 +1382,14 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     operator. Burying either half behind the (?) tooltip
                     pattern would be hiding the part that generates the support
                     call. */}
-                  <p className="mt-3 text-xs text-[var(--wy-text-muted)]">
-                    Each guest gets this much data per period. When they reach it their session ends
-                    and they are signed out — at a controller-managed venue the controller cuts the
-                    device off, and a device that reconnects lands back on the sign-in page. They
-                    cannot sign in again until the period resets.
-                  </p>
+                  {!nasOnlyVenue && (
+                    <p className="mt-3 text-xs text-[var(--wy-text-muted)]">
+                      Each guest gets this much data per period. When they reach it their session
+                      ends and they are signed out — at a controller-managed venue the controller
+                      cuts the device off, and a device that reconnects lands back on the sign-in
+                      page. They cannot sign in again until the period resets.
+                    </p>
+                  )}
                   <div id="data-limit-panel" className="mt-4 grid gap-4 sm:grid-cols-3">
                     <div>
                       <label
@@ -1439,26 +1494,34 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   />
                   <ControllerControlNotice verdict={sessionTimeoutVerdict} />
                 </div>
-                <Select
-                  id="it"
-                  label="Idle Timeout"
-                  required
-                  value={f.idleTimeout}
-                  onChange={(v) => setField("idleTimeout", v)}
-                  options={IDLE_TIMEOUT}
-                  placeholder="Choose idle timeout"
-                  caption="Sign a device out after this much inactivity."
-                  err={errs.idleTimeout}
-                />
-                <Select
-                  id="dl"
-                  label="Maximum Daily Session Limit"
-                  value={f.dailyLimit}
-                  onChange={(v) => setField("dailyLimit", v)}
-                  options={DAILY_LIMIT}
-                  placeholder="Choose daily limit"
-                  caption="Total time one guest may be online per day."
-                />
+                {/* Live everywhere. At a NAS-only venue each carries a
+                    sentence saying how far it reaches. */}
+                <div>
+                  <Select
+                    id="it"
+                    label="Idle Timeout"
+                    required
+                    value={f.idleTimeout}
+                    onChange={(v) => setField("idleTimeout", v)}
+                    options={IDLE_TIMEOUT}
+                    placeholder="Choose idle timeout"
+                    caption="Sign a device out after this much inactivity."
+                    err={errs.idleTimeout}
+                  />
+                  <ControllerControlNotice verdict={idleTimeoutVerdict} />
+                </div>
+                <div>
+                  <Select
+                    id="dl"
+                    label="Maximum Daily Session Limit"
+                    value={f.dailyLimit}
+                    onChange={(v) => setField("dailyLimit", v)}
+                    options={DAILY_LIMIT}
+                    placeholder="Choose daily limit"
+                    caption="Total time one guest may be online per day."
+                  />
+                  <ControllerControlNotice verdict={dailyLimitVerdict} />
+                </div>
               </div>
             </div>
           </div>
@@ -1513,10 +1576,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   count are still resolved at sign-in and stay where they
                   were. "usually within a minute" and not "immediately": the
                   write goes to the venue's hardware and is not instant. */}
-              {t(
-                "limitsApplyNote",
-                "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",
-              )}
+              {nasOnlyVenue
+                ? NAS_ONLY_LIMITS_FOOTER
+                : t(
+                    "limitsApplyNote",
+                    "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",
+                  )}
               <Tooltip
                 id="save-immediate-effect"
                 text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com."
@@ -1586,7 +1651,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs font-medium">Location</TableHead>
-                    <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                    {showBandwidth && (
+                      <TableHead className="text-xs font-medium">Bandwidth</TableHead>
+                    )}
                     <TableHead className="text-xs font-medium">
                       {t("venueSpeed.column", "Venue speed")}
                     </TableHead>
@@ -1616,18 +1683,20 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                           this cell would still promise it. `—` with the reason
                           on hover is the same posture `lastContactLabel` takes
                           for a measurement we do not have. */}
-                      <TableCell>
-                        {speedUsable ? (
-                          p.bandwidth
-                        ) : (
-                          <span
-                            className="text-[var(--wy-text-faint)]"
-                            title={speedVerdict.reason ?? undefined}
-                          >
-                            Not applied here
-                          </span>
-                        )}
-                      </TableCell>
+                      {showBandwidth && (
+                        <TableCell>
+                          {speedUsable ? (
+                            p.bandwidth
+                          ) : (
+                            <span
+                              className="text-[var(--wy-text-faint)]"
+                              title={speedVerdict.reason ?? undefined}
+                            >
+                              Not applied here
+                            </span>
+                          )}
+                        </TableCell>
+                      )}
                       {/* Same posture as the Bandwidth cell beside it: where
                           this venue cannot apply a total, the stored number
                           is not restated as if something enforced it. "No

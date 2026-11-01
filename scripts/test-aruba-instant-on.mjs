@@ -14,7 +14,7 @@
  *      sentence byte-for-byte, and a MikroTik venue's controls are all live.
  *   2. NO CONTROL IS SILENTLY LIVE AT AN ARUBA VENUE (AC1-7). Speed, per-guest
  *      disconnect / device block / speed and the network/security screens are
- *      `unavailable` with the spec's copy (U0/U1/U2/U6/U7/U8), never a
+ *      `unavailable` with the spec's copy (U0/U1/U2/U6/U7; U8 retired), never a
  *      controller sentence that says "we could not reach it".
  *   3. NO "OFFLINE" FOR AN ARUBA ROW (§0.4 item 5). `no_controller_api` is
  *      "Set up in Instant On", tone neutral, never a fault -- with or without
@@ -88,7 +88,7 @@ const src = (p) => readFileSync(join(ROOT, p), "utf8");
 const U0 =
   "Your WiFi runs on Aruba Instant On access points. This is set up in the Instant On app, not here.";
 const U1 =
-  "Speed limits for Aruba Instant On are set in the Instant On app, on the guest network. Wyfy can't change them.";
+  "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set speed limits in the Instant On app, on the guest network.";
 const U2 =
   "Wyfy can't disconnect a device from Aruba Instant On access points. The guest stays online until their session time runs out.";
 const U2_BLOCK =
@@ -97,8 +97,6 @@ const U6 =
   "Traffic charts need a Wyfy-managed router. Your Aruba access points report guest sign-ins, not traffic.";
 const U7 =
   "Websites guests can open before signing in are set in the Instant On app, under Guest portal > Allowed domains.";
-const U8 =
-  "Aruba Instant On can't let devices skip the sign-in page, so trusted devices aren't available here.";
 
 // ---------------------------------------------------------------------------
 console.log("\n1. Omada and MikroTik are unchanged (AC1-8)");
@@ -222,10 +220,26 @@ eq(
 console.log("\n3. Customer screens greyed with the spec's copy (AC1-7)");
 // ---------------------------------------------------------------------------
 eq("U0 / U9: generic gated-screen reason", RV.controllerVenueFeatureReason(ARUBA), U0);
-for (const id of [...RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS, "whitelist", "mac-auth"]) {
+for (const id of RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS) {
   eq(`"${id}" is greyed at an Aruba venue`, RV.featureAppliesToControllerVenue(id, ARUBA), false);
 }
-for (const id of ["reports", "network-activity", "isp-details", "vouchers", "portal", "users"]) {
+// Guest Allow-list is allow rules by phone/MAC + "only people on this list",
+// decided at the portal sign-in for every vendor -- it works at an Instant On
+// venue. U7 (Allowed domains) described a walled garden this screen is not.
+// See router-vendors.ts NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS and
+// scripts/test-aruba-access-rules.mjs.
+for (const id of [
+  "reports",
+  "network-activity",
+  "vouchers",
+  "portal",
+  "users",
+  "whitelist",
+  "policies",
+  // Trusted Devices: the portal signs a trusted device in by itself there
+  // (src/lib/portal-aruba-trusted.ts); U8 is retired.
+  "mac-auth",
+]) {
   eq(`"${id}" stays live at an Aruba venue`, RV.featureAppliesToControllerVenue(id, ARUBA), true);
 }
 check(
@@ -240,12 +254,50 @@ check(
     (id) => !/Omada|controller/i.test(RV.controllerUnsupportedCopy(id, "Office", ARUBA) ?? ""),
   ),
 );
-eq("U7: Guest Allow-list", RV.controllerUnsupportedCopy("whitelist", "Office", ARUBA), U7);
-eq("U8: Trusted Devices", RV.controllerUnsupportedCopy("mac-auth", "Office", ARUBA), U8);
 eq(
-  "Trusted Devices headline does not say 'set up in the app' (Instant On has no MAC auth)",
-  RV.controllerUnsupportedHeadline(ARUBA, "mac-auth"),
-  "Not available with Aruba Instant On.",
+  "Guest Allow-list has no gated-screen copy at Aruba (it is live; U7 is not used)",
+  RV.controllerUnsupportedCopy("whitelist", "Office", ARUBA),
+  null,
+);
+check(
+  "U7 is not offered for any screen",
+  !Object.values(RV.NAS_ONLY_FEATURE_COPY).includes(U7) &&
+    !RV.NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.includes("whitelist"),
+);
+eq(
+  "Trusted Devices has no gated-screen copy at Aruba (it is live)",
+  RV.controllerUnsupportedCopy("mac-auth", "Office", ARUBA),
+  null,
+);
+check(
+  "Internet Connection is the one screen lost only at a NAS-only venue",
+  RV.NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS.join(",") === "isp-details" &&
+    Object.keys(RV.NAS_ONLY_FEATURE_COPY).length === 0,
+);
+eq(
+  "Internet Connection is greyed at an Aruba venue (the whole Network section is locked)",
+  RV.featureAppliesToControllerVenue("isp-details", ARUBA),
+  false,
+);
+check(
+  "its panel opens with U0 and names the screen",
+  (RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? "").startsWith(U0) &&
+    /Internet connection details/.test(
+      RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? "",
+    ),
+);
+const lockSidebarSrc = src("src/components/customer/CustomerSidebar.tsx");
+check(
+  // Console sidebar (2026-11-01): one row per screen or section, so the
+  // lock sits on the row -- a section row whose every tab is unusable here.
+  "the sidebar marks a row none of whose screens this venue can use with a lock",
+  /muted && !locked && \(\s*<Lock/.test(lockSidebarSrc) && /sidebar-locked-/.test(lockSidebarSrc),
+);
+check(
+  "Internet Connection is not mounted when gated",
+  /feature === "isp-details" && !controllerGated/.test(
+    src("src/components/customer/CustomerFeaturePage.tsx"),
+  ),
 );
 eq(
   "other headlines name the app",
@@ -290,13 +342,46 @@ eq("Bandwidth reason is U1", v("speed-limit").reason, U1);
 eq("Access-tier speed: unavailable, U1", v("speed-profile").reason, U1);
 eq("Disconnect: unavailable", v("disconnect").availability, "unavailable");
 eq("Disconnect reason is U2", v("disconnect").reason, U2);
-eq("Block on the network: unavailable, U2", v("block-device").reason, U2);
+// 2026-10-05: block-device at Aruba follows Instant On cloud control. Off:
+// unavailable, saying what is needed and that the sign-in block works (never
+// the "can't disconnect" sentence). On: live, with what the block does.
+eq(
+  "Block on the network, cloud control off: unavailable, says what is needed",
+  v("block-device").reason,
+  CC.NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD,
+);
+check(
+  "Block on the network never says 'can't disconnect'",
+  !/can't disconnect/.test(v("block-device").reason ?? ""),
+);
+{
+  const on = CC.clientControlVerdict("block-device", {
+    ...ARUBA_VENUE,
+    instantOnCloudControl: true,
+  });
+  check(
+    "Block on the network, cloud control on: qualified, with the Instant On caveat",
+    on.availability === "qualified" && on.reason === CC.NAS_ONLY_BLOCK_DEVICE_CLOUD,
+    JSON.stringify(on),
+  );
+}
 eq("Block sign-in: qualified (our own record)", v("block-signin").availability, "qualified");
 eq("Block sign-in reason is U2's block sentence", v("block-signin").reason, U2_BLOCK);
-eq("Session timeout: qualified until V1", v("session-timeout").availability, "qualified");
+eq(
+  "Session timeout: a neutral note (enforced, V1 measured)",
+  v("session-timeout").availability,
+  "qualified",
+);
 check(
-  "session-timeout caveat says the AP drop is unconfirmed",
-  /hasn't been confirmed/.test(v("session-timeout").reason ?? ""),
+  "session-timeout note says the access point ends the session (V1 measured 2026-10-03)",
+  /^Enforced\./.test(v("session-timeout").reason ?? "") &&
+    /end the session when the time is up/.test(v("session-timeout").reason ?? "") &&
+    !/hasn't been confirmed/.test(v("session-timeout").reason ?? ""),
+);
+check(
+  "speed says not supported through sign-in, and never promises a future fix",
+  /aren't supported through sign-in/.test(CC.NAS_ONLY_SPEED) &&
+    !/soon|coming|future|yet\b/i.test(CC.NAS_ONLY_SPEED),
 );
 check(
   "no control at an Aruba venue is plain `available`",
@@ -312,10 +397,47 @@ check(
 );
 for (const a of ["block", "unblock", "speed", "speed-clear"]) {
   const d = CC.deviceActionVerdict(a, ARUBA_VENUE);
+  const want = a.startsWith("speed")
+    ? CC.NAS_ONLY_DEVICE_SPEED
+    : CC.NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD;
   check(
-    `per-device ${a}: unavailable with ${a.startsWith("speed") ? "U1" : "U2"}`,
-    d.availability === "unavailable" && d.reason === (a.startsWith("speed") ? U1 : U2),
+    `per-device ${a}, cloud control off: unavailable with the right sentence`,
+    d.availability === "unavailable" && d.reason === want,
     JSON.stringify(d),
+  );
+}
+{
+  const cloud = { ...ARUBA_VENUE, instantOnCloudControl: true };
+  const d = (a, venue = cloud) => CC.deviceActionVerdict(a, venue);
+  check(
+    "per-device block, cloud control on: qualified with the Instant On caveat",
+    d("block").availability === "qualified" && d("block").reason === CC.NAS_ONLY_BLOCK_DEVICE_CLOUD,
+  );
+  check(
+    "per-device unblock, cloud control on: available",
+    d("unblock").availability === "available",
+  );
+  check(
+    "per-device speed, cloud control on: still unavailable (no per-device rate exists)",
+    d("speed").availability === "unavailable" && d("speed").reason === CC.NAS_ONLY_DEVICE_SPEED,
+  );
+  check(
+    "per-device speed at a hybrid-gateway venue points at the gateway",
+    d("speed", { ...ARUBA_VENUE, perGuestSpeed: true }).reason === CC.NAS_ONLY_DEVICE_SPEED_GATEWAY,
+  );
+  check(
+    "only an explicit true opens cloud control",
+    d("block", { ...ARUBA_VENUE, instantOnCloudControl: null }).availability === "unavailable",
+  );
+  check(
+    "MikroTik ignores the flag",
+    CC.deviceActionVerdict("block", {
+      controllerManaged: false,
+      vendor: "mikrotik",
+      capabilities: null,
+      controller: null,
+      instantOnCloudControl: true,
+    }).availability === "available",
   );
 }
 
@@ -627,6 +749,49 @@ eq("a numeric SSID survives as a number", cap.essid, 5);
 eq("and renders back to text", LOGIN.arubaText(cap.essid), "5");
 check("unknown keys are not captured", !("foo" in LOGIN.captureArubaRedirect({ foo: "bar" })));
 
+// Instant On 3.4.2, MEASURED on the AP21 (2026-10-03): no `switchip`; the AP
+// login host arrives as `post`. It must be captured as the login host, still
+// pass the allowlist, and the login must go to /swarm.cgi.
+const io = LOGIN.captureArubaRedirect({
+  cmd: "login",
+  network: "WYFY_ARUBA",
+  site: "inhouse-office",
+  post: "captive-2022.aio.cloudauth.net",
+  url: "http://captive.apple.com/hotspot-detect.html",
+});
+eq("Instant On: `post` becomes the login host", io.switchip, "captive-2022.aio.cloudauth.net");
+eq(
+  "Instant On: login goes to https://<post>/swarm.cgi",
+  LOGIN.arubaLoginTarget(io.switchip).url,
+  "https://captive-2022.aio.cloudauth.net/swarm.cgi",
+);
+eq(
+  "an explicit switchip still wins over post",
+  LOGIN.captureArubaRedirect({
+    switchip: "securelogin.arubanetworks.com",
+    post: "captive-2022.aio.cloudauth.net",
+  }).switchip,
+  "securelogin.arubanetworks.com",
+);
+eq(
+  "a recovered `post` (second-`?` join) also works",
+  LOGIN.captureArubaRedirect({}, { post: "captive-2022.aio.cloudauth.net" }).switchip,
+  "captive-2022.aio.cloudauth.net",
+);
+check(
+  "an untrusted `post` host is still refused",
+  "refused" in
+    LOGIN.arubaLoginTarget(LOGIN.captureArubaRedirect({ post: "evil.example.com" }).switchip),
+);
+eq(
+  // /swarm.cgi, measured on the AP21 (2026-10-03). /cgi-bin/login also
+  // worked there; the staging-only experiment that switched to it is not
+  // carried to main.
+  "ARUBA_LOGIN_PATH is /swarm.cgi",
+  LOGIN.ARUBA_LOGIN_PATH,
+  "/swarm.cgi",
+);
+
 // The real search schema: what TanStack hands it after JSON-parsing values.
 const parsed = SEARCH.portalSearchSchema.parse({
   organizationId: "11111111-1111-1111-1111-111111111111",
@@ -723,10 +888,15 @@ check(
   /enabled:[\s\S]{0,200}!isNasOnlyVendor\(vendor\)/.test(hook),
 );
 const users = src("src/routes/users.tsx");
+// 2026-10-05: Disconnect is LIVE at a NAS-only venue (owner: "isme disconnect
+// wala feature bhi add krdo"), with its own Aruba copy -- the behaviour is
+// pinned by scripts/test-aruba-live-session-actions.mjs. Here: the venue
+// question is still asked of the same vendor helper, and the Aruba branch of
+// the confirm dialog is reached only through it.
 check(
-  "Guests: Disconnect is greyed only for a NAS-only vendor",
-  /const disconnectUnsupported = isNasOnlyVendor\(clientControls\.vendor\)/.test(users) &&
-    /hidden=\{disconnectUnsupported\}/.test(users),
+  "Guests: the Aruba Disconnect branch is gated on the NAS-only vendor helper",
+  /const nasOnlyVenue = isNasOnlyVendor\(clientControls\.vendor\)/.test(users) &&
+    /if \(nasOnlyVenue\) \{/.test(users),
 );
 const featurePage = src("src/components/customer/CustomerFeaturePage.tsx");
 check(
@@ -735,26 +905,27 @@ check(
     /feature === "mac-auth" && !controllerGated/.test(featurePage),
 );
 check(
+  "Trusted Devices carries the NAS-only caveat above it",
+  /nasOnlyLimitVerdict\("trusted-devices", controllerVendor\)/.test(featurePage),
+);
+check(
+  "Allow-list carries the NAS-only caveat above it",
+  /nasOnlyLimitVerdict\("allow-list", controllerVendor\)/.test(featurePage),
+);
+check(
   "the feature page passes the vendor to the gate",
   /featureAppliesToControllerVenue\(\s*feature,\s*locationControllerVendor/.test(featurePage),
 );
 const sidebar = src("src/components/customer/CustomerSidebar.tsx");
-// Every call to the gate, in the sidebar and in the section tab bar, passes
-// the vendor -- a call without it would keep Allow-list and Trusted Devices
-// live at a NAS-only venue. (One shared helper in the sidebar since it became
-// sections with tabs; one per tab in SectionTabs.)
-{
-  const tabs = src("src/components/customer/console/SectionTabs.tsx");
-  const calls = (code) => code.match(/featureAppliesToControllerVenue\([^)]*\)/g) ?? [];
-  const all = [...calls(sidebar), ...calls(tabs)];
-  check(
-    "the sidebar and the section tabs pass the vendor to the gate",
-    calls(sidebar).length >= 1 &&
-      calls(tabs).length >= 1 &&
-      all.every((c) => /, controllerVendor\)$/.test(c)),
-    all.join(" ; "),
-  );
-}
+check(
+  "the sidebar passes the vendor to the gate",
+  // Every call site passes it (the console sidebar has one `unsupported`
+  // helper that every row and section reads).
+  (sidebar.match(/featureAppliesToControllerVenue\([\w.]+, controllerVendor\)/g) ?? []).length ===
+    (sidebar.match(/featureAppliesToControllerVenue\(/g) ?? []).length &&
+    (sidebar.match(/featureAppliesToControllerVenue\([\w.]+, controllerVendor\)/g) ?? []).length >=
+      1,
+);
 
 // The Master-only modules may only be imported from Master surfaces.
 function walk(dir) {
@@ -773,10 +944,11 @@ eq(
   // The setup panel, and Router Fleet's Add / Remove Instant On site dialogs
   // (both Master-only; test-aruba-add-site.mjs pins that no customer surface
   // imports the dialogs).
-  "the Aruba Master service is imported only by the setup panel and the fleet's site dialogs",
+  "the Aruba Master service is imported only by the setup panel (and its speed-gateway section) and the fleet's site dialogs",
   JSON.stringify(serviceUsers.sort()),
   JSON.stringify([
     "src/components/routers/ArubaInstantOnSetupPanel.tsx",
+    "src/components/routers/ArubaSpeedGatewaySection.tsx",
     "src/components/routers/InstantOnSiteDialogs.tsx",
   ]),
 );
@@ -971,17 +1143,31 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
   }
 
   const dashPage = src("src/components/customer/CustomerDashboardPage.tsx");
+  // 2026-10-05 redesign: at a NAS-only venue the access points take the
+  // Bandwidth card's slot, and the Internet Connection + hardware row is not
+  // rendered at all (the venue card no longer repeats the status bar).
+  // Console dashboard (2026-11-01): at a NAS-only venue the access points
+  // take the Internet Connection card's slot and the venue card takes the
+  // hardware card's; nothing on that row reads a WAN or a router.
   check(
-    "dashboard: the venue card replaces the hardware card only at a NAS-only venue",
-    /nasOnlyVenue \? \(\s*<ArubaInstantOnVenueCard locationId=\{locationId\} \/>\s*\) : \(\s*<DeviceStatusCard/.test(
+    "dashboard: the access points take the Bandwidth card's slot at a NAS-only venue",
+    /nasOnlyVenue \? \(\s*<ArubaAccessPointsCard locationId=\{locationId\} \/>\s*\) : \(\s*<BandwidthUtilizationCard/.test(
       dashPage,
     ),
   );
   check(
-    "dashboard: bandwidth gives way to U6 only at a NAS-only venue",
-    /nasOnlyVenue \? \([\s\S]{0,400}controllerDeviceMetricsReason\("aruba_instant_on"\)[\s\S]{0,200}\) : \(\s*<BandwidthUtilizationCard/.test(
+    "dashboard: the WAN card renders only at a non-NAS-only venue",
+    /\{!nasOnlyVenue && \(\s*<WanStatusCardView/.test(dashPage),
+  );
+  check(
+    "dashboard: the hardware card gives way to the venue card only at a NAS-only venue",
+    /nasOnlyVenue \? \(\s*<ArubaInstantOnVenueCard locationId=\{locationId\} \/>\s*\) : \(\s*<DeviceStatusCardView/.test(
       dashPage,
     ),
+  );
+  check(
+    "dashboard: no dead 'Bandwidth' card at Aruba",
+    !/aruba-traffic-unsupported/.test(dashPage),
   );
   check(
     "dashboard: the gate is locationIsNasOnly",
@@ -1008,7 +1194,7 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
   const usersSrc = src("src/routes/users.tsx");
   check(
     "Guests: '0 MB' becomes — with U5 only at a NAS-only venue",
-    /disconnectUnsupported && download === "0 MB"/.test(usersSrc) &&
+    /nasOnlyVenue && download === "0 MB"/.test(usersSrc) &&
       (usersSrc.match(/sessionDataCell\(/g) ?? []).length >= 2,
   );
 }

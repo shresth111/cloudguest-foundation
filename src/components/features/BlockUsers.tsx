@@ -49,6 +49,8 @@ import {
 } from "@/lib/block-outcome";
 import { blockScope, blockScopeConfirmation } from "@/lib/block-scope";
 import { useClientControls } from "@/hooks/useClientControls";
+import { NAS_ONLY_BLOCK_SIGNIN } from "@/lib/omada-client-controls";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 
 // `identifier` holds a phone number, an email address, or a MAC (see
@@ -687,7 +689,9 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       // from a controller, and is just as worth keeping on screen: "cut off
       // on 1 of 2 routers" is the sentence an owner acts on.
       const sentences =
-        mode === "device" ? routerBlockSentences(created) : blockDeviceSentences(created);
+        mode === "device"
+          ? routerBlockSentences(created, { nasOnly: isNasOnlyVendor(clientControls.vendor) })
+          : blockDeviceSentences(created);
       setDeviceResult(
         sentences.length > 0
           ? {
@@ -711,8 +715,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
       if (reloadedCount !== null && reloadedCount > countBefore) {
         setTextarea("");
         setShowModal(false);
+        // At a NAS-only venue (Aruba Instant On) this is the expected outcome
+        // for anyone online, not a fault: the backend refuses the live half
+        // with copy U2 (409), because nothing can take a device off an
+        // Instant On access point. Say what is true instead of "check".
         setToast(
-          "Saved, but we could not confirm they were taken off the WiFi — they may still be online. Check the list below.",
+          isNasOnlyVendor(clientControls.vendor)
+            ? `Saved. ${NAS_ONLY_BLOCK_SIGNIN}`
+            : "Saved, but we could not confirm they were taken off the WiFi — they may still be online. Check the list below.",
         );
         setTimeout(() => setToast(null), 6500);
         return;
@@ -780,7 +790,9 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         // The backend takes the binding off each router BEFORE the rule
         // stops applying, and says per router whether it came off.
         const updated = await guestService.deactivateDeviceRule(id, orgId ?? undefined);
-        setToast(unblockRouterMessage(updated));
+        setToast(
+          unblockRouterMessage(updated, { nasOnly: isNasOnlyVendor(clientControls.vendor) }),
+        );
         setTimeout(() => setToast(null), 6500);
       } else if (row.kind === "device" && orgId) {
         const created = await guestService.createAccessRule({
@@ -795,7 +807,9 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             b.id === id ? toBlockedUser(created, nameForLocation(created.locationId)) : b,
           ),
         );
-        const sentences = routerBlockSentences([created]);
+        const sentences = routerBlockSentences([created], {
+          nasOnly: isNasOnlyVendor(clientControls.vendor),
+        });
         setDeviceResult(sentences.length ? { sentences, reasons: [], at: Date.now() } : null);
       } else if (row.status === "Blocked") {
         const updated = await guestService.deactivateAccessRule(
