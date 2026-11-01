@@ -117,9 +117,17 @@ export function SubscriberDirectoryPage() {
         description="Everyone on your network, across all your customers."
         actions={
           can("isp_subscribers.update") ? (
-            <MButton onClick={() => setAdding(true)}>
-              <Plus /> Add subscriber
-            </MButton>
+            <>
+              <MButton variant="outline" onClick={() => setAdding(true)}>
+                Quick add
+              </MButton>
+              {/* ONBOARD-1: the full one-page form. */}
+              <Link to="/partner/subscribers/new">
+                <MButton>
+                  <Plus /> Add subscriber
+                </MButton>
+              </Link>
+            </>
           ) : undefined
         }
       />
