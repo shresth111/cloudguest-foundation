@@ -14,6 +14,7 @@ import {
 } from "@/components/master/MasterKit";
 import { Card, ErrorBlock } from "@/components/isp-partner/kit";
 import { CountersCard } from "@/components/isp-partner/compliance/CountersCard";
+import { SubscriberOpsCard } from "@/components/isp-partner/dashboard/SubscriberOpsCard";
 import { useIspOverview } from "@/hooks/isp-partner/useIsp";
 import { formatAgo, formatBytes, formatDateTime, formatNumber } from "@/lib/isp-partner/format";
 import type { IspAttentionItem } from "@/services/isp-partner/types";
@@ -65,7 +66,7 @@ export function OverviewPage() {
           o ? `Updated ${formatDateTime(o.generated_at)}. Refreshes every minute.` : undefined
         }
       />
-      <CountersCard />
+      <SubscriberOpsCard fallback={<CountersCard />} />
       {q.error && !o ? (
         <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="the overview" />
       ) : (
