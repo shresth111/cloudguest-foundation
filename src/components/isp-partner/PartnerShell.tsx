@@ -30,6 +30,7 @@ import {
   Blocks as AppsIcon,
   HandCoins,
   TrendingUp,
+  Siren,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -68,6 +69,8 @@ const PARTNER_NAV: NavItem[] = [
   // JAZE-6 Phase 2b: PPPoE sessions / logins / router step (404 page while off).
   { to: "/partner/pppoe", label: "PPPoE", icon: Cable, anyOf: ["isp_subscribers.read"] },
   { to: "/partner/fiber", label: "Fiber plant", icon: Network, anyOf: ["isp_partner.read"] },
+  // INCIDENTS-1: outages + network health (flag-gated page).
+  { to: "/partner/incidents", label: "Incidents", icon: Siren, anyOf: ["isp_incidents.read"] },
   {
     to: "/partner/logs",
     label: "Logs",

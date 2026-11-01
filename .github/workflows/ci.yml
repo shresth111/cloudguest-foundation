@@ -2833,6 +2833,9 @@ jobs:
       - name: ISP partner revenue hub + churn risk (REVENUE-HUB)
         if: hashFiles('scripts/test-isp-partner-revenue.mjs') != ''
         run: bun run test:isp-partner-revenue
+      - name: ISP partner incidents (INCIDENTS-1)
+        if: hashFiles('scripts/test-isp-partner-incidents.mjs') != ''
+        run: bun run test:isp-partner-incidents
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list

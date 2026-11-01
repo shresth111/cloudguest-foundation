@@ -1411,6 +1411,15 @@ const TRIGGER_LABEL: Record<Trigger, { title: string; params: string }> = {
     title: "Welcome (new subscriber, once)",
     params: "{{1}} name · {{2}} username · {{3}} plan",
   },
+  // INCIDENTS-1: sent only when staff broadcast from an incident.
+  outage: {
+    title: "Outage notice (from an incident)",
+    params: "{{1}} name · {{2}} area · {{3}} down since",
+  },
+  restored: {
+    title: "Service restored (from an incident)",
+    params: "{{1}} name · {{2}} area · {{3}} back at",
+  },
 };
 
 function AutomationTab() {
