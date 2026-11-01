@@ -49,6 +49,7 @@ import {
   type ZoneLedger,
 } from "@/services/isp-partner/finance";
 import { plansService } from "@/services/isp-partner/plans";
+import { CommsHub } from "@/components/isp-partner/finance/CommsHub";
 
 export type FinanceTab =
   | "template"
@@ -1668,7 +1669,8 @@ export function FinancePage({ tab, onTab }: { tab: FinanceTab; onTab: (t: Financ
         {active === "deposits" && <DepositsTab />}
         {active === "zones" && <ZonesTab />}
         {active === "automation" && <AutomationTab />}
-        {active === "messages" && <MessagesTab />}
+        {/* COMMS-2: unified log + templates + receipts; the JAZE-4 log while off. */}
+        {active === "messages" && <CommsHub fallback={<MessagesTab />} />}
       </div>
     </>
   );
