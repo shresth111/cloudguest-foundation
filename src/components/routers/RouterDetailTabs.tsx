@@ -2566,7 +2566,7 @@ const CLOCK_NTP_SERVERS = ["216.239.35.0", "162.159.200.1"];
  * ladder as `WAN_DHCP_GW_POLL_ATTEMPTS` for the same reason: a `:for` loop
  * cannot express "attempt, and only wait if it did not work" while keeping
  * every `do={}` body to a single statement. */
-const CLOCK_NTP_POLL_ATTEMPTS = 5;
+const CLOCK_NTP_POLL_ATTEMPTS = 8;
 const CLOCK_NTP_POLL_DELAY = "4s";
 
 /** The floor the clock chunk's date sanity check uses. This is a FLOOR,
@@ -2584,6 +2584,36 @@ const CLOCK_NTP_POLL_DELAY = "4s";
  * scheduler's stored copy and the pasted copy differ by whatever ran
  * first. */
 const CLOCK_SANITY_MIN_YEAR = 2025;
+
+/** Fallback floor (YYYYMMDD) for the clock chunk's DATE check, used only
+ * when `generatedAt` cannot be parsed. Normally the floor is the day
+ * before the script was generated -- see `clockDateFloor`. */
+const CLOCK_SANITY_MIN_DATE = 20261001;
+
+/** The clock chunk's second PASS signal: the router's date, as YYYYMMDD, is
+ * at or past the day BEFORE this script was generated.
+ *
+ * WHY: RouterOS steps the clock on the first good NTP reply but keeps
+ * reporting `status: waiting` (or started/reached) for minutes before it
+ * says `synchronized`. Measured live 2026-11-01 on a hEX: the chunk printed
+ * `NTP client status: waiting`, `Router clock reads: 2026-11-01`, FAILED and
+ * stopped the import -- while the log said `ntp change time Jul/29/2026
+ * 16:52:07 => ...`, i.e. NTP had already set the right date. TLS and the
+ * heartbeat need a correct DATE, not a disciplined clock.
+ *
+ * Why the generation date and not a year: a battery-less hEX boots to its
+ * last saved time or the RouterOS build date (that one booted to
+ * Jul/29/2026), which passes any year floor. A router cannot legitimately
+ * be earlier than the day the script was generated. One day of slack covers
+ * the UTC (`generatedAt`) vs Asia/Kolkata (router) offset. `generatedAt` is
+ * a declared input, so the generator stays pure. */
+function clockDateFloor(generatedAt: string): number {
+  const t = Date.parse(generatedAt);
+  if (Number.isNaN(t)) return CLOCK_SANITY_MIN_DATE;
+  const d = new Date(t - 24 * 60 * 60 * 1000);
+  const n = d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+  return Math.max(n, CLOCK_SANITY_MIN_DATE);
+}
 
 /** Every WAN interface name this script references is taken literally,
  * exactly once, from whatever the "WAN N interface" field currently says
@@ -2852,35 +2882,44 @@ function buildPreflightChunk(): RouterSetupScriptChunk {
   };
 }
 
-function buildClockNtpChunk(): RouterSetupScriptChunk {
+function buildClockNtpChunk(generatedAt: string): RouterSetupScriptChunk {
   const serverList = CLOCK_NTP_SERVERS.join(",");
-  const notSynced = `$clkStatus != "synchronized"`;
+  const minDate = clockDateFloor(generatedAt);
+  // THE WAIT, on its own entered line: poll until NTP says synchronized OR
+  // the date has MOVED since the first read (NTP stepped the clock). Same
+  // `:for ... :if ... :delay` shape as the portal-file wait. A separate line
+  // because the verdict line is already near the QA length cap; the only
+  // local it uses (`clkW0`) is bound on this same line. A RouterOS that
+  // cannot read `status` just waits on the date alone.
+  const waitLine = `:local clkW0 [:tostr [/system clock get date]]; :for clkTry from=1 to=${CLOCK_NTP_POLL_ATTEMPTS} do={ :if ([:tostr [/system clock get date]] = $clkW0) do={ :do { :if ([:tostr [/system ntp client get status]] != "synchronized") do={ :delay ${CLOCK_NTP_POLL_DELAY} } } on-error={ :delay ${CLOCK_NTP_POLL_DELAY} } } }`;
   const readStatus = `:do { :set clkStatus [:tostr [/system ntp client get status]] } on-error={ :set clkStatus "unreadable" }`;
-  const verdictStatements: string[] = [`:local clkStatus "unreadable"`, readStatus];
-  // Unrolled try/wait ladder, not a `:for` loop -- a loop cannot express
-  // "attempt, and only wait if it did not work" with one statement per
-  // `do={}` body. The SAME primitive as the DHCP and PPPoE gateway polls
-  // in the "WAN Routing" chunk, not a third hand-written copy of the same
-  // shape; see `buildBoundedRetryLadder`'s own docstring.
-  verdictStatements.push(
-    ...buildBoundedRetryLadder({
-      attempt: readStatus,
-      unresolved: notSynced,
-      attempts: CLOCK_NTP_POLL_ATTEMPTS,
-      delay: CLOCK_NTP_POLL_DELAY,
-    }),
-  );
-  verdictStatements.push(
+  const verdictStatements: string[] = [
+    `:local clkStatus "unreadable"`,
+    readStatus,
     `:local clkDate [:tostr [/system clock get date]]`,
-    `:local clkYear 0`,
-    `:do { :set clkYear (0 + [:tonum [:pick $clkDate 0 4]]) } on-error={ :set clkYear 0 }`,
-    `:if ($clkYear < ${CLOCK_SANITY_MIN_YEAR}) do={ :do { :set clkYear (0 + [:tonum [:pick $clkDate 7 11]]) } on-error={ :set clkYear 0 } }`,
+    // Date -> YYYYMMDD number, for BOTH spellings RouterOS uses:
+    //   v7.10+          `2026-11-01`  (dash at 4)
+    //   v6 and v7 <7.10 `nov/01/2026` (slash at 3)
+    // The format is chosen by an explicit test, NOT "try ISO, fall back on
+    // error": measured on CHR 7.20.1, `(0 + [:tonum "nov/1/20"])` does NOT
+    // raise, it quietly yields 0, so an on-error fallback never runs. The
+    // day goes through `"1" . dd - 100` so no zero-padded string ever meets
+    // `:tonum`. Verified on CHR 6.49.18, 7.8 and 7.20.1.
+    `:local clkNum 0`,
+    `:if ([:pick $clkDate 4 5] = "-") do={ :do { :set clkNum (0 + [:tonum ([:pick $clkDate 0 4] . [:pick $clkDate 5 7] . [:pick $clkDate 8 10])]) } on-error={ :set clkNum 0 } }`,
+    `:if ([:pick $clkDate 3 4] = "/") do={ :do { :set clkNum ((10000 * [:tonum [:pick $clkDate 7 11]]) + (100 * (1 + ([:find "janfebmaraprmayjunjulaugsepoctnovdec" [:pick $clkDate 0 3] -1] / 3))) + ([:tonum ("1" . [:pick $clkDate 4 6])] - 100)) } on-error={ :set clkNum 0 } }`,
+    `:if ([:typeof $clkNum] != "num") do={ :set clkNum 0 }`,
+    `:local clkYear ($clkNum / 10000)`,
     `:local clkVerdict "FAIL"`,
     `:if ($clkStatus = "synchronized" && $clkYear >= ${CLOCK_SANITY_MIN_YEAR}) do={ :set clkVerdict "PASS" }`,
+    `:if ($clkNum >= ${minDate}) do={ :set clkVerdict "PASS" }`,
+  ];
+  verdictStatements.push(
     `:put ("  NTP client status:  " . $clkStatus)`,
     `:put ("  Router clock reads: " . $clkDate)`,
-    `:if ($clkVerdict = "PASS") do={ :put "  RESULT: PASS -- clock is set and NTP is synchronised." }`,
-    `:if ($clkVerdict = "PASS") do={ :log info ("cloudguest-clock: NTP synchronised, clock reads " . $clkDate) }`,
+    `:if ($clkVerdict = "PASS" && $clkStatus = "synchronized") do={ :put "  RESULT: PASS -- clock is set and NTP is synchronised." }`,
+    `:if ($clkVerdict = "PASS" && $clkStatus != "synchronized") do={ :put "  RESULT: PASS -- the date is correct. NTP set the clock; it reports synchronized a few minutes later, which is normal." }`,
+    `:if ($clkVerdict = "PASS") do={ :log info ("cloudguest-clock: clock OK (status=" . $clkStatus . ", clock reads " . $clkDate . ")") }`,
     `:if ($clkVerdict != "PASS") do={ :put "  RESULT: FAIL -- THE CLOCK IS NOT SET. Do not paste Heartbeat yet." }`,
     `:if ($clkVerdict != "PASS") do={ :put "  This router has no battery-backed clock, so it boots with a" }`,
     `:if ($clkVerdict != "PASS") do={ :put "  wrong date every single time until NTP works. A wrong date" }`,
@@ -2920,7 +2959,8 @@ function buildClockNtpChunk(): RouterSetupScriptChunk {
     // Preflight chunk's RouterOS 6 stop at the top of the file.
     `:do { [[:parse "/system ntp client set enabled=yes servers=${serverList}"]] } on-error={ :do { [[:parse "/system ntp client set enabled=yes primary-ntp=${CLOCK_NTP_SERVERS[0]} secondary-ntp=${CLOCK_NTP_SERVERS[1]}"]] } on-error={ :log warning "cloudguest-clock: the NTP client would accept neither the RouterOS 7 (servers=) nor the RouterOS 6 (primary-ntp=) syntax -- configure NTP by hand in WinBox under System > NTP Client" } }`,
     `:put "===================================================="`,
-    `:put "  CLOCK / NTP CHECK"`,
+    `:put "  CLOCK / NTP CHECK (waits up to ~30s for NTP)"`,
+    waitLine,
     // The `:error` is appended INSIDE this `;`-joined line, not placed on
     // one of its own: `$clkVerdict` is bound by the statements above it and
     // the RouterOS console runs each ENTERED LINE as its own program, so a
@@ -6679,7 +6719,7 @@ export function buildRouterSetupScriptChunks(opts: {
   // connectivity check does: it configures nothing about WAN or routing,
   // and a technician who brought their own WAN up by hand has exactly the
   // same dead clock on exactly the same battery-less hardware.
-  chunks.push(buildClockNtpChunk());
+  chunks.push(buildClockNtpChunk(generatedAt));
 
   if (!lan.ok) {
     // REFUSE, LOUDLY, RATHER THAN INVENT A SUBNET. Everything this chunk

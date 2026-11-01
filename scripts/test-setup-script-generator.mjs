@@ -2226,6 +2226,27 @@ for (const [variant, opts] of VARIANTS) {
       "date is the backstop -- a verdict computed from only one of them passes a router with an " +
       "unreadable status and a 1970 clock",
   );
+  // 2026-11-01, live hEX: status "waiting", clock already 2026-11-01 (NTP
+  // had stepped it), and the chunk FAILED and stopped the import. A correct
+  // DATE is what TLS needs; it must pass on its own.
+  check(
+    `${variant}: a correct date PASSES even before NTP reports "synchronized"`,
+    /:if \(\$clkNum >= \d{8}\) do=\{ :set clkVerdict "PASS" \}/.test(s),
+    "RouterOS steps the clock first and says synchronized minutes later -- requiring the " +
+      "status alone false-FAILs a router whose clock is already right",
+  );
+  check(
+    `${variant}: parses BOTH RouterOS date spellings (2026-11-01 and nov/01/2026)`,
+    s.includes('[:pick $clkDate 4 5] = "-"') && s.includes('[:pick $clkDate 3 4] = "/"'),
+    "v7.10+ prints ISO, v6 and v7 before 7.10 print mon/dd/yyyy",
+  );
+  check(
+    `${variant}: waits for NTP to step the clock before judging it`,
+    /:for clkTry from=1 to=\d+ do=\{ :if \(\[:tostr \[\/system clock get date\]\] = \$clkW0\)/.test(
+      s,
+    ),
+    "judged immediately after enabling NTP, the clock has not had a chance to move",
+  );
   check(
     `${variant}: prints an explicit FAIL verdict, not just a status line`,
     /RESULT: FAIL/.test(s) && /RESULT: PASS/.test(s),
@@ -2241,6 +2262,26 @@ for (const [variant, opts] of VARIANTS) {
     `${variant}: says WHY it matters in the failure output, not just that it failed`,
     /HTTPS certificate validation/.test(s) && /OFFLINE in Master console/.test(s),
     'a bare "FAIL" trains people to continue anyway; naming the consequence is what stops them',
+  );
+}
+
+// The date floor is the day before generation, not a year: a battery-less
+// hEX booted to Jul/29/2026, which passes any 2026 year floor.
+{
+  const clk = (at) =>
+    buildRouterSetupScriptChunks({ ...BASE, wans: [DHCP_WAN], generatedAt: at }).find((c) =>
+      c.label.startsWith("Clock"),
+    ).script;
+  check(
+    "clock floor = the day BEFORE generatedAt (UTC vs Asia/Kolkata slack)",
+    clk("2026-11-01T10:00:00.000Z").includes("$clkNum >= 20261031") &&
+      clk("2027-03-01T00:30:00.000Z").includes("$clkNum >= 20270228"),
+    "a router cannot legitimately be earlier than the day its script was generated",
+  );
+  check(
+    "a boot-time Jul/29/2026 clock does NOT pass the floor for a Nov 2026 script",
+    !clk("2026-11-01T10:00:00.000Z").includes("$clkNum >= 2026072"),
+    "that is the exact stale date the live hEX booted with",
   );
 }
 
