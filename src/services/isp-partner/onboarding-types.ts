@@ -70,6 +70,8 @@ export interface OnboardingBody {
     issue_invoice: boolean;
     paid_now?: boolean;
     payment?: { mode: string; reference?: string | null } | null;
+    /** DISCOUNT-WIRE: a JAZE-5 code on the first invoice. */
+    discount_code?: string;
   } | null;
 }
 

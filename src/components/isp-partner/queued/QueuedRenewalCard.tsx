@@ -1,6 +1,8 @@
 /** Subscriber 360: "Queue next plan" (QUEUED-RENEWAL). Pay or bill now; the
  * chosen plan starts when today's ends. Hidden while the feature is off (the
  * list 404s). Uses the JAZE-1 renew/revert keys. */
+import { DiscountCodeField } from "@/components/isp-partner/discounts/DiscountCodeField";
+import { discountField } from "@/lib/isp-partner/discount-apply";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -108,6 +110,7 @@ function QueueDialog({ subscriberId, onClose }: { subscriberId: string; onClose:
   const [paid, setPaid] = useState(false);
   const [mode, setMode] = useState("cash");
   const [reference, setReference] = useState("");
+  const [code, setCode] = useState("");
   const [key] = useState(queueKey);
   const m = useMutation({
     mutationFn: () =>
@@ -117,6 +120,7 @@ function QueueDialog({ subscriberId, onClose }: { subscriberId: string; onClose:
         paid_now: paid,
         payment: paid ? { mode, reference: reference.trim() || undefined } : undefined,
         idempotency_key: key,
+        ...discountField(code),
       }),
     onSuccess: (r) => {
       toast.success(`${r.queued.package.name} queued from ${formatDateTime(r.queued.starts_at)}`);
@@ -169,6 +173,14 @@ function QueueDialog({ subscriberId, onClose }: { subscriberId: string; onClose:
             ))}
           </select>
         </MField>
+        <DiscountCodeField
+          value={code}
+          onChange={setCode}
+          pricePaise={active.find((p) => p.id === packageId)?.price_paise}
+          includesGst={!!active.find((p) => p.id === packageId)?.price_includes_gst}
+          cycles={cycles}
+          packageId={packageId || null}
+        />
         {can("isp_billing.execute") && (
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
