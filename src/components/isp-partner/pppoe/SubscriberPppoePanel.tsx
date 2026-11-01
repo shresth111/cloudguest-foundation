@@ -22,7 +22,7 @@ import {
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { PppoeSessionTable } from "@/components/isp-partner/pppoe/PppoeSessionTable";
 import { usePppoeCredential, usePppoeMutation } from "@/hooks/isp-partner/usePppoe";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { isNotFound, ispErrorMessage } from "@/lib/isp-partner/errors";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import {
   authResultLabel,
@@ -50,6 +50,8 @@ function draftOf(c: Configured | null): CredentialDraft {
 export function SubscriberPppoePanel({ subscriberId }: { subscriberId: string }) {
   const q = usePppoeCredential(subscriberId);
   if (q.isLoading) return <LoadingBlock />;
+  // Feature off (ISP_PPPOE_ENABLED) = 404: say nothing on a shared page.
+  if (isNotFound(q.error)) return null;
   if (q.error || !q.data)
     return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="the PPPoE login" />;
   // Keyed on the subscriber only: the form seeds once and is re-seeded from

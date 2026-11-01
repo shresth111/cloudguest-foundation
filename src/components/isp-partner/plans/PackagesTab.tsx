@@ -2,7 +2,15 @@
  * "duplicate with a different validity" dialog, enable/disable, delete. */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Copy, Network, Package as PackageIcon, Pencil, Plus, Trash2, RefreshCcw } from "lucide-react";
+import {
+  Copy,
+  Network,
+  Package as PackageIcon,
+  Pencil,
+  Plus,
+  Trash2,
+  RefreshCcw,
+} from "lucide-react";
 import {
   MButton,
   MDialog,

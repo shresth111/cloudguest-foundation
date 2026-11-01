@@ -34,6 +34,10 @@ import {
 } from "@/lib/isp-partner/subscribers360";
 import { subscribers360Service } from "@/services/isp-partner/subscribers360";
 import type { Subscriber360 } from "@/services/isp-partner/subscribers360-types";
+import { SubscriberNetworkPanel } from "@/components/isp-partner/network/SubscriberNetworkPanel";
+import { SubscriberKycPanel } from "@/components/isp-partner/compliance/SubscriberKycPanel";
+import { SubscriberPppoePanel } from "@/components/isp-partner/pppoe/SubscriberPppoePanel";
+import { SubscriberFiberCard } from "@/components/isp-partner/fiber/SubscriberFiberCard";
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -395,6 +399,12 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
           <Ledger id={s.id} />
         </Card>
       </div>
+
+      {/* Other lanes' panels (JAZE-2 network, JAZE-3 KYC, JAZE-6 PPPoE/fiber). */}
+      <SubscriberNetworkPanel subscriber={s} />
+      {can("isp_partner.read") && <SubscriberKycPanel subscriberId={s.id} />}
+      <SubscriberPppoePanel subscriberId={s.id} />
+      <SubscriberFiberCard subscriberId={s.id} />
 
       <Card title="Timeline">
         {s.timeline.length === 0 ? (

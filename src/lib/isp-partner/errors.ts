@@ -25,6 +25,9 @@ const MESSAGES: Record<string, string> = {
   ISP_CUSTOMER_NOT_FOUND: "That customer does not exist, or you do not have access to it.",
   ISP_LOCATION_NOT_FOUND: "That location does not exist, or you do not have access to it.",
   ISP_ROUTER_NOT_FOUND: "That router does not exist, or you do not have access to it.",
+  // JAZE-6: the BE text names the management tunnel (QA-023: partner UI never does).
+  ISP_PPPOE_ROUTER_NOT_READY:
+    "Finish this router's main setup first, then generate the PPPoE script.",
   ISP_PORTAL_CONFIG_NOT_FOUND: "That portal does not exist, or you do not have access to it.",
   ISP_USER_NOT_FOUND: "That user does not exist in your ISP.",
   ISP_CUSTOMER_LIMIT: "Your ISP has reached its customer limit. Contact Wyfy Guest to raise it.",
