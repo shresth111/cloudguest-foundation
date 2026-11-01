@@ -51,5 +51,20 @@ eq("no zone login offered", /password|sign[- ]?in|invite/i.test(ui), false);
 eq("PAID/UNPAID badge", ui.includes('"PAID"') && ui.includes('"UNPAID"'), true);
 const fin = read("src/components/isp-partner/finance/FinancePage.tsx");
 eq("JAZE-4 ledger kept", fin.includes("<ZonesTab />") && fin.includes("<FranchisePanel />"), true);
+// FINISH: a settlement's GST tax invoice
+const svc = read("src/services/isp-partner/franchise.ts");
+eq(
+  "invoice action posts to the settlement",
+  svc.includes("`/isp/franchise/settlements/${id}/invoice`"),
+  true,
+);
+eq("settlement carries its invoice", /invoice\?: SettlementInvoice \| null;/.test(svc), true);
+eq(
+  "cell shows the invoice + its PDF",
+  ui.includes("<SettlementInvoiceCell") && ui.includes("billingService.invoicePdf"),
+  true,
+);
+eq("issue only for managers", /return manage \? \(/.test(ui), true);
+eq("nothing billed -> no invoice action", ui.includes("Nothing billed"), true);
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);

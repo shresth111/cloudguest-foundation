@@ -36,7 +36,12 @@ import { saveBlob } from "@/lib/isp-partner/download";
 import { isoDay } from "@/lib/isp-partner/format";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
 import { chargeDayError, previewIspShare, rangeError } from "@/lib/isp-partner/franchise";
-import { franchiseService, type ZoneWallet } from "@/services/isp-partner/franchise";
+import {
+  franchiseService,
+  type Settlement,
+  type ZoneWallet,
+} from "@/services/isp-partner/franchise";
+import { billingService } from "@/services/isp-partner/billing";
 
 const fk = (...k: unknown[]) => ["isp", "franchise", ...k] as const;
 
@@ -208,6 +213,61 @@ function RevenueDialog({ z, onClose }: { z: ZoneWallet; onClose: () => void }) {
   );
 }
 
+/** FINISH: the settlement's GST tax invoice (number, GST split, PDF), or the
+ * action that issues it for a settlement from before invoicing existed. */
+function SettlementInvoiceCell({
+  s,
+  manage,
+  busy,
+  onIssue,
+}: {
+  s: Settlement;
+  manage: boolean;
+  busy: boolean;
+  onIssue: () => void;
+}) {
+  const inv = s.invoice;
+  if (!inv) {
+    if (s.billed_paise <= 0) return <span className="text-muted-foreground">Nothing billed</span>;
+    return manage ? (
+      <MButton variant="outline" disabled={busy} onClick={onIssue}>
+        Issue tax invoice
+      </MButton>
+    ) : (
+      <span className="text-muted-foreground">Not invoiced</span>
+    );
+  }
+  const tax =
+    inv.igst_paise > 0
+      ? `IGST ${formatRupees(inv.igst_paise)}`
+      : `CGST ${formatRupees(inv.cgst_paise)} + SGST ${formatRupees(inv.sgst_paise)}`;
+  return (
+    <div className="flex items-center gap-1">
+      <div>
+        <p className="font-mono">{inv.number}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {tax}
+          {inv.buyer_gstin ? ` · ${inv.buyer_gstin}` : " · no GSTIN (B2C)"}
+        </p>
+      </div>
+      <MButton
+        variant="ghost"
+        aria-label={`Download tax invoice ${inv.number}`}
+        onClick={async () => {
+          try {
+            const f = await billingService.invoicePdf({ id: inv.id, number: inv.number });
+            saveBlob(f.blob, f.filename);
+          } catch (e) {
+            toast.error(ispErrorMessage(e));
+          }
+        }}
+      >
+        <Download />
+      </MButton>
+    </div>
+  );
+}
+
 function ChargesSettlementsDialog({ z, onClose }: { z: ZoneWallet; onClose: () => void }) {
   const qc = useQueryClient();
   const { can } = usePartner();
@@ -356,6 +416,7 @@ function ChargesSettlementsDialog({ z, onClose }: { z: ZoneWallet; onClose: () =
                   <MTh>Period</MTh>
                   <MTh className="text-right">ISP share billed</MTh>
                   <MTh className="text-right">Closing balance</MTh>
+                  <MTh>Tax invoice</MTh>
                   <MTh className="text-right">PDF</MTh>
                 </>
               }
@@ -371,6 +432,16 @@ function ChargesSettlementsDialog({ z, onClose }: { z: ZoneWallet; onClose: () =
                   </MTd>
                   <MTd className="text-right text-xs tabular-nums">
                     {formatRupees(s.closing_paise)}
+                  </MTd>
+                  <MTd className="text-xs">
+                    <SettlementInvoiceCell
+                      s={s}
+                      manage={manage}
+                      busy={busy}
+                      onIssue={() =>
+                        act(() => franchiseService.invoiceSettlement(s.id), "Tax invoice issued.")
+                      }
+                    />
                   </MTd>
                   <MTd className="text-right">
                     <MButton
