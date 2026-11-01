@@ -593,7 +593,14 @@ export function ContactCard({ s }: S) {
 
 // ------------------------------------------------------------ raise ticket
 
-export function RaiseTicketDialog({ s, onClose }: S & { onClose: () => void }) {
+export function RaiseTicketDialog({
+  s,
+  onClose,
+  onCreated,
+}: S & {
+  onClose: () => void;
+  /** SMALL-3: told the new ticket's id */ onCreated?: (id: string) => void;
+}) {
   const { can } = usePartner();
   const types = useTicketTypes(true);
   const staff = useIspUsers({ page_size: 100, status: "active" });
@@ -641,6 +648,7 @@ export function RaiseTicketDialog({ s, onClose }: S & { onClose: () => void }) {
               try {
                 const t = await create.mutateAsync(undefined);
                 toast.success(`Ticket ${t.number} raised.`);
+                onCreated?.(t.id);
                 onClose();
               } catch (err) {
                 const fe = (err as { formErrors?: typeof errors }).formErrors;

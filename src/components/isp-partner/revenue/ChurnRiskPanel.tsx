@@ -15,6 +15,7 @@ import { formatRupees } from "@/lib/isp-partner/money";
 import { REASON_LABEL, REASON_ORDER, scoreTone } from "@/lib/isp-partner/revenue";
 import type { RevFilters, RiskReason } from "@/services/isp-partner/revenue-types";
 import { WinBackActions } from "@/components/isp-partner/revenue/WinBackActions";
+import { SaveRateCard } from "@/components/isp-partner/revenue/SaveRateCard";
 
 export function ChurnRiskPanel({
   filters,
@@ -35,6 +36,7 @@ export function ChurnRiskPanel({
 
   return (
     <div className="space-y-4">
+      <SaveRateCard />
       <Card title="Subscribers at risk">
         {sum.error ? (
           <ErrorBlock error={sum.error} onRetry={() => sum.refetch()} what="the risk counts" />
