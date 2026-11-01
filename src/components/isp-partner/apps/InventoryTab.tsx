@@ -541,7 +541,11 @@ function Items({ items, error }: { items: InventoryItem[] | undefined; error: un
             ))}
             {c.manage && (
               <MTd className="text-right">
-                <MButton variant="ghost" onClick={() => setEditing(i)} aria-label={`Edit ${i.name}`}>
+                <MButton
+                  variant="ghost"
+                  onClick={() => setEditing(i)}
+                  aria-label={`Edit ${i.name}`}
+                >
                   Edit
                 </MButton>
               </MTd>

@@ -16,9 +16,7 @@ function QueuedRenewalsRoute() {
   return (
     <QueuedRenewalsPage
       search={search}
-      onSearch={(next) =>
-        navigate({ to: "/partner/queued-renewals", search: next, replace: true })
-      }
+      onSearch={(next) => navigate({ to: "/partner/queued-renewals", search: next, replace: true })}
     />
   );
 }

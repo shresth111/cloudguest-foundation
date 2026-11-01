@@ -2853,6 +2853,9 @@ jobs:
       - name: ISP partner audit log (AUDIT-LOG)
         if: hashFiles('scripts/test-isp-partner-audit-log.mjs') != ''
         run: bun run test:isp-partner-audit-log
+      - name: ISP partner P3 sweep (inventory edit, queued renewals list, 360 cards)
+        if: hashFiles('scripts/test-isp-partner-p3-sweep.mjs') != ''
+        run: bun run test:isp-partner-p3-sweep
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list
