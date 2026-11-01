@@ -2836,6 +2836,9 @@ jobs:
       - name: ISP partner incidents (INCIDENTS-1)
         if: hashFiles('scripts/test-isp-partner-incidents.mjs') != ''
         run: bun run test:isp-partner-incidents
+      - name: ISP partner queued renewal (QUEUED-RENEWAL)
+        if: hashFiles('scripts/test-isp-partner-queued-renewal.mjs') != ''
+        run: bun run test:isp-partner-queued-renewal
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list

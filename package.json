@@ -45,6 +45,7 @@
     "test:isp-partner-collections": "node scripts/test-isp-partner-collections.mjs",
     "test:isp-partner-revenue": "node scripts/test-isp-partner-revenue.mjs",
     "test:isp-partner-incidents": "node scripts/test-isp-partner-incidents.mjs",
+    "test:isp-partner-queued-renewal": "node scripts/test-isp-partner-queued-renewal.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",
     "test:ap-inventory-honesty": "node scripts/test-ap-inventory-honesty.mjs",
