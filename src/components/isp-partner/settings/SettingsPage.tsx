@@ -3,6 +3,7 @@
  * has no edit endpoint for it yet) and the ISP-wide ACS credential, with a
  * rotate that warns existing CPEs must be reconfigured.
  */
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MButton, MDialog, MSectionHeader } from "@/components/master/MasterKit";
@@ -96,7 +97,20 @@ export function SettingsPage() {
   const { me, can } = usePartner();
   return (
     <>
-      <MSectionHeader eyebrow="Settings" title="Settings" />
+      <MSectionHeader
+        eyebrow="Settings"
+        title="Settings"
+        actions={
+          can("isp_partner.read") && (
+            <Link
+              to="/partner/settings/integrations"
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Integrations status
+            </Link>
+          )
+        }
+      />
       <Card title="ISP profile">
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
           <dt className="text-muted-foreground">Name</dt>

@@ -171,6 +171,7 @@ import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$meth
 import { Route as PartnerTr069CpeIdRouteImport } from './routes/partner.tr069.$cpeId'
 import { Route as PartnerSubscribersNewRouteImport } from './routes/partner.subscribers.new'
 import { Route as PartnerSubscribersSubscriberIdRouteImport } from './routes/partner.subscribers.$subscriberId'
+import { Route as PartnerSettingsIntegrationsRouteImport } from './routes/partner.settings_.integrations'
 import { Route as PartnerRoutersIspRouterIdRouteImport } from './routes/partner.routers.$ispRouterId'
 import { Route as PartnerPayTokenRouteImport } from './routes/partner.pay.$token'
 import { Route as PartnerLocationsIspLocationIdRouteImport } from './routes/partner.locations.$ispLocationId'
@@ -1079,6 +1080,12 @@ const PartnerSubscribersSubscriberIdRoute =
     path: '/subscribers/$subscriberId',
     getParentRoute: () => PartnerRoute,
   } as any)
+const PartnerSettingsIntegrationsRoute =
+  PartnerSettingsIntegrationsRouteImport.update({
+    id: '/settings_/integrations',
+    path: '/settings/integrations',
+    getParentRoute: () => PartnerRoute,
+  } as any)
 const PartnerRoutersIspRouterIdRoute =
   PartnerRoutersIspRouterIdRouteImport.update({
     id: '/routers/$ispRouterId',
@@ -1636,6 +1643,7 @@ export interface FileRoutesByFullPath {
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/settings/integrations': typeof PartnerSettingsIntegrationsRoute
   '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
   '/partner/subscribers/new': typeof PartnerSubscribersNewRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
@@ -1857,6 +1865,7 @@ export interface FileRoutesByTo {
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/settings/integrations': typeof PartnerSettingsIntegrationsRoute
   '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
   '/partner/subscribers/new': typeof PartnerSubscribersNewRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
@@ -2087,6 +2096,7 @@ export interface FileRoutesById {
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/pay/$token': typeof PartnerPayTokenRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/settings_/integrations': typeof PartnerSettingsIntegrationsRoute
   '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
   '/partner/subscribers/new': typeof PartnerSubscribersNewRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
@@ -2317,6 +2327,7 @@ export interface FileRouteTypes {
     | '/partner/locations/$ispLocationId'
     | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
+    | '/partner/settings/integrations'
     | '/partner/subscribers/$subscriberId'
     | '/partner/subscribers/new'
     | '/partner/tr069/$cpeId'
@@ -2538,6 +2549,7 @@ export interface FileRouteTypes {
     | '/partner/locations/$ispLocationId'
     | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
+    | '/partner/settings/integrations'
     | '/partner/subscribers/$subscriberId'
     | '/partner/subscribers/new'
     | '/partner/tr069/$cpeId'
@@ -2767,6 +2779,7 @@ export interface FileRouteTypes {
     | '/partner/locations/$ispLocationId'
     | '/partner/pay/$token'
     | '/partner/routers/$ispRouterId'
+    | '/partner/settings_/integrations'
     | '/partner/subscribers/$subscriberId'
     | '/partner/subscribers/new'
     | '/partner/tr069/$cpeId'
@@ -4021,6 +4034,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerSubscribersSubscriberIdRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/settings_/integrations': {
+      id: '/partner/settings_/integrations'
+      path: '/settings/integrations'
+      fullPath: '/partner/settings/integrations'
+      preLoaderRoute: typeof PartnerSettingsIntegrationsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/partner/routers/$ispRouterId': {
       id: '/partner/routers/$ispRouterId'
       path: '/routers/$ispRouterId'
@@ -4825,6 +4845,7 @@ interface PartnerRouteChildren {
   PartnerLocationsIspLocationIdRoute: typeof PartnerLocationsIspLocationIdRoute
   PartnerPayTokenRoute: typeof PartnerPayTokenRoute
   PartnerRoutersIspRouterIdRoute: typeof PartnerRoutersIspRouterIdRoute
+  PartnerSettingsIntegrationsRoute: typeof PartnerSettingsIntegrationsRoute
   PartnerSubscribersSubscriberIdRoute: typeof PartnerSubscribersSubscriberIdRoute
   PartnerSubscribersNewRoute: typeof PartnerSubscribersNewRoute
   PartnerTr069CpeIdRoute: typeof PartnerTr069CpeIdRoute
@@ -4859,6 +4880,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerLocationsIspLocationIdRoute: PartnerLocationsIspLocationIdRoute,
   PartnerPayTokenRoute: PartnerPayTokenRoute,
   PartnerRoutersIspRouterIdRoute: PartnerRoutersIspRouterIdRoute,
+  PartnerSettingsIntegrationsRoute: PartnerSettingsIntegrationsRoute,
   PartnerSubscribersSubscriberIdRoute: PartnerSubscribersSubscriberIdRoute,
   PartnerSubscribersNewRoute: PartnerSubscribersNewRoute,
   PartnerTr069CpeIdRoute: PartnerTr069CpeIdRoute,
