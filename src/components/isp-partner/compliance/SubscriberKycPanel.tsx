@@ -295,7 +295,10 @@ export function SubscriberKycPanel({ subscriberId }: { subscriberId: string }) {
                   <MButton
                     variant="ghost"
                     disabled={remove.isPending}
-                    onClick={() => remove.mutate(d.id)}
+                    onClick={() => {
+                      setErr(null);
+                      remove.mutate(d.id, { onError: (e) => setErr(ispErrorMessage(e)) });
+                    }}
                   >
                     Remove
                   </MButton>
@@ -361,7 +364,14 @@ export function SubscriberKycPanel({ subscriberId }: { subscriberId: string }) {
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           {editable && !kyc?.caf_number && (
-            <MButton variant="outline" disabled={caf.isPending} onClick={() => caf.mutate("")}>
+            <MButton
+              variant="outline"
+              disabled={caf.isPending}
+              onClick={() => {
+                setErr(null);
+                caf.mutate("", { onError: (e) => setErr(ispErrorMessage(e)) });
+              }}
+            >
               Assign next CAF number
             </MButton>
           )}

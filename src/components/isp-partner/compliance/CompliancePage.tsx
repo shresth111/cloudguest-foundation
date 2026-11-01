@@ -12,6 +12,7 @@ import { NatFeedView } from "@/components/isp-partner/compliance/NatFeedView";
 import { SubscriberKycPanel } from "@/components/isp-partner/compliance/SubscriberKycPanel";
 import { useComplianceMutation, useComplianceSettings } from "@/hooks/isp-partner/useCompliance";
 import { useSubscribers } from "@/hooks/isp-partner/usePlans";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { complianceService, type ComplianceSettings } from "@/services/isp-partner/compliance";
 
@@ -58,7 +59,8 @@ export function CompliancePage() {
 function KycTab() {
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
-  const subs = useSubscribers({ search: search || undefined, page: 1, page_size: 20 });
+  const debounced = useDebouncedValue(search.trim(), 300);
+  const subs = useSubscribers({ search: debounced || undefined, page: 1, page_size: 20 });
   return (
     <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
       <Card title="Subscriber">
