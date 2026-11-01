@@ -12,6 +12,7 @@
  * domains -- so this console never derives a URL or hardcodes the hub's
  * address (the backend reads it from `CLOUDGUEST_HUB_RADIUS_PUBLIC_ADDRESS`).
  */
+import { toArubaSharedListener, type ArubaSharedListener } from "@/lib/aruba-shared-listener";
 
 /** Instant On asks for the external portal in separate boxes. */
 export interface ArubaPortalUrl {
@@ -45,6 +46,9 @@ export interface ArubaSetupStatus {
   /** Null whenever `gaps` is non-empty. */
   portalUrl: ArubaPortalUrl | null;
   gaps: string[];
+  /** The IP-independent alternative (shared listener, ports 1912/1913).
+   * Null on a backend that predates it. */
+  sharedListener: ArubaSharedListener | null;
 }
 
 /** `POST /platform/radius/nas/register-public/{router_id}`, and the rotate
@@ -102,6 +106,7 @@ export function toArubaSetupStatus(raw: any): ArubaSetupStatus {
     gaps: Array.isArray(raw?.gaps)
       ? raw.gaps.filter((g: unknown): g is string => typeof g === "string")
       : [],
+    sharedListener: toArubaSharedListener(raw?.shared_listener),
   };
 }
 
