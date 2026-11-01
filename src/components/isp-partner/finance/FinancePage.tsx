@@ -36,6 +36,7 @@ import {
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { isNotFound, ispErrorMessage } from "@/lib/isp-partner/errors";
+import { isoDay } from "@/lib/isp-partner/format";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
 import {
   financeService,
@@ -79,7 +80,7 @@ function QueryState({
 }) {
   if (q.isLoading) return <Spinner />;
   if (q.error && isNotFound(q.error)) return <NotOn what={what} />;
-  if (q.error) return <ErrorBlock message={ispErrorMessage(q.error)} onRetry={() => q.refetch()} />;
+  if (q.error) return <ErrorBlock error={q.error} what={what} onRetry={() => void q.refetch()} />;
   return null;
 }
 
@@ -982,7 +983,9 @@ function DepositsTab() {
 // zones (labels only)
 // ---------------------------------------------------------------------------
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Local calendar day: toISOString() is the UTC day, a day behind in IST
+// before 05:30. /finance/zones/revenue takes plain `date` params.
+const today = () => isoDay(new Date());
 const monthStart = () => `${today().slice(0, 8)}01`;
 
 function ZoneDialog({ zone, onClose }: { zone: ZoneLedger; onClose: () => void }) {
@@ -1618,7 +1621,9 @@ function MessagesTab() {
           </MTr>
         ))}
       </MTable>
-      {q.data && q.data.pages > 1 && <Pager page={page} pages={q.data.pages} onPage={setPage} />}
+      {q.data && q.data.pages > 1 && (
+        <Pager page={page} pages={q.data.pages} total={q.data.total} onPage={setPage} />
+      )}
     </div>
   );
 }
