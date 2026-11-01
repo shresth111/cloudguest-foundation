@@ -28,6 +28,7 @@ import {
   Cable,
   Network,
   Blocks as AppsIcon,
+  HandCoins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -79,6 +80,13 @@ const PARTNER_NAV: NavItem[] = [
   },
   { to: "/partner/invoices", label: "Invoices", icon: Receipt, anyOf: ["isp_invoices.read"] },
   { to: "/partner/billing", label: "Billing", icon: Wallet, anyOf: ["isp_billing.read"] },
+  // COLLECTIONS-1: overdue, promises, field cash + handovers (flag-gated page).
+  {
+    to: "/partner/collections",
+    label: "Collections",
+    icon: HandCoins,
+    anyOf: ["isp_collections.read"],
+  },
   // JAZE-4: finance tools (every tab answers "not switched on" until its flag is on).
   {
     to: "/partner/finance",

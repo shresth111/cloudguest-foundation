@@ -88,6 +88,7 @@ import { Route as PartnerForgotPasswordRouteImport } from './routes/partner.forg
 import { Route as PartnerFinanceRouteImport } from './routes/partner.finance'
 import { Route as PartnerFiberRouteImport } from './routes/partner.fiber'
 import { Route as PartnerComplianceRouteImport } from './routes/partner.compliance'
+import { Route as PartnerCollectionsRouteImport } from './routes/partner.collections'
 import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
 import { Route as PartnerAppsRouteImport } from './routes/partner.apps'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
@@ -630,6 +631,11 @@ const PartnerFiberRoute = PartnerFiberRouteImport.update({
 const PartnerComplianceRoute = PartnerComplianceRouteImport.update({
   id: '/compliance',
   path: '/compliance',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerCollectionsRoute = PartnerCollectionsRouteImport.update({
+  id: '/collections',
+  path: '/collections',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerBillingRoute = PartnerBillingRouteImport.update({
@@ -1551,6 +1557,7 @@ export interface FileRoutesByFullPath {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/apps': typeof PartnerAppsRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/collections': typeof PartnerCollectionsRoute
   '/partner/compliance': typeof PartnerComplianceRoute
   '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
@@ -1775,6 +1782,7 @@ export interface FileRoutesByTo {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/apps': typeof PartnerAppsRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/collections': typeof PartnerCollectionsRoute
   '/partner/compliance': typeof PartnerComplianceRoute
   '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
@@ -2004,6 +2012,7 @@ export interface FileRoutesById {
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/apps': typeof PartnerAppsRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/collections': typeof PartnerCollectionsRoute
   '/partner/compliance': typeof PartnerComplianceRoute
   '/partner/fiber': typeof PartnerFiberRoute
   '/partner/finance': typeof PartnerFinanceRoute
@@ -2235,6 +2244,7 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/partner/apps'
     | '/partner/billing'
+    | '/partner/collections'
     | '/partner/compliance'
     | '/partner/fiber'
     | '/partner/finance'
@@ -2459,6 +2469,7 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/partner/apps'
     | '/partner/billing'
+    | '/partner/collections'
     | '/partner/compliance'
     | '/partner/fiber'
     | '/partner/finance'
@@ -2687,6 +2698,7 @@ export interface FileRouteTypes {
     | '/master/traffic-flow'
     | '/partner/apps'
     | '/partner/billing'
+    | '/partner/collections'
     | '/partner/compliance'
     | '/partner/fiber'
     | '/partner/finance'
@@ -3451,6 +3463,13 @@ declare module '@tanstack/react-router' {
       path: '/compliance'
       fullPath: '/partner/compliance'
       preLoaderRoute: typeof PartnerComplianceRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/collections': {
+      id: '/partner/collections'
+      path: '/collections'
+      fullPath: '/partner/collections'
+      preLoaderRoute: typeof PartnerCollectionsRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/billing': {
@@ -4827,6 +4846,7 @@ const MasterRouteWithChildren =
 interface PartnerRouteChildren {
   PartnerAppsRoute: typeof PartnerAppsRoute
   PartnerBillingRoute: typeof PartnerBillingRoute
+  PartnerCollectionsRoute: typeof PartnerCollectionsRoute
   PartnerComplianceRoute: typeof PartnerComplianceRoute
   PartnerFiberRoute: typeof PartnerFiberRoute
   PartnerFinanceRoute: typeof PartnerFinanceRoute
@@ -4862,6 +4882,7 @@ interface PartnerRouteChildren {
 const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerAppsRoute: PartnerAppsRoute,
   PartnerBillingRoute: PartnerBillingRoute,
+  PartnerCollectionsRoute: PartnerCollectionsRoute,
   PartnerComplianceRoute: PartnerComplianceRoute,
   PartnerFiberRoute: PartnerFiberRoute,
   PartnerFinanceRoute: PartnerFinanceRoute,

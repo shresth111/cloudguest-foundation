@@ -42,6 +42,7 @@
     "test:isp-partner-unused-services": "node scripts/test-isp-partner-unused-services.mjs",
     "test:isp-master-list": "node scripts/test-isp-master-list.mjs",
     "test:isp-partner-leftovers": "node scripts/test-isp-partner-leftovers.mjs",
+    "test:isp-partner-collections": "node scripts/test-isp-partner-collections.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",
     "test:ap-inventory-honesty": "node scripts/test-ap-inventory-honesty.mjs",
