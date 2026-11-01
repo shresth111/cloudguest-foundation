@@ -82,6 +82,7 @@ import { Route as PartnerRevenueRouteImport } from './routes/partner.revenue'
 import { Route as PartnerResetPasswordRouteImport } from './routes/partner.reset-password'
 import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
 import { Route as PartnerReferralsRouteImport } from './routes/partner.referrals'
+import { Route as PartnerQueuedRenewalsRouteImport } from './routes/partner.queued-renewals'
 import { Route as PartnerPppoeRouteImport } from './routes/partner.pppoe'
 import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging'
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
@@ -605,6 +606,11 @@ const PartnerReportsRoute = PartnerReportsRouteImport.update({
 const PartnerReferralsRoute = PartnerReferralsRouteImport.update({
   id: '/referrals',
   path: '/referrals',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerQueuedRenewalsRoute = PartnerQueuedRenewalsRouteImport.update({
+  id: '/queued-renewals',
+  path: '/queued-renewals',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerPppoeRoute = PartnerPppoeRouteImport.update({
@@ -1592,6 +1598,7 @@ export interface FileRoutesByFullPath {
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/pppoe': typeof PartnerPppoeRoute
+  '/partner/queued-renewals': typeof PartnerQueuedRenewalsRoute
   '/partner/referrals': typeof PartnerReferralsRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
@@ -1821,6 +1828,7 @@ export interface FileRoutesByTo {
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/pppoe': typeof PartnerPppoeRoute
+  '/partner/queued-renewals': typeof PartnerQueuedRenewalsRoute
   '/partner/referrals': typeof PartnerReferralsRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
@@ -2055,6 +2063,7 @@ export interface FileRoutesById {
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/pppoe': typeof PartnerPppoeRoute
+  '/partner/queued-renewals': typeof PartnerQueuedRenewalsRoute
   '/partner/referrals': typeof PartnerReferralsRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
@@ -2291,6 +2300,7 @@ export interface FileRouteTypes {
     | '/partner/logs'
     | '/partner/messaging'
     | '/partner/pppoe'
+    | '/partner/queued-renewals'
     | '/partner/referrals'
     | '/partner/reports'
     | '/partner/reset-password'
@@ -2520,6 +2530,7 @@ export interface FileRouteTypes {
     | '/partner/logs'
     | '/partner/messaging'
     | '/partner/pppoe'
+    | '/partner/queued-renewals'
     | '/partner/referrals'
     | '/partner/reports'
     | '/partner/reset-password'
@@ -2753,6 +2764,7 @@ export interface FileRouteTypes {
     | '/partner/logs'
     | '/partner/messaging'
     | '/partner/pppoe'
+    | '/partner/queued-renewals'
     | '/partner/referrals'
     | '/partner/reports'
     | '/partner/reset-password'
@@ -3469,6 +3481,13 @@ declare module '@tanstack/react-router' {
       path: '/referrals'
       fullPath: '/partner/referrals'
       preLoaderRoute: typeof PartnerReferralsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/queued-renewals': {
+      id: '/partner/queued-renewals'
+      path: '/queued-renewals'
+      fullPath: '/partner/queued-renewals'
+      preLoaderRoute: typeof PartnerQueuedRenewalsRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/pppoe': {
@@ -4933,6 +4952,7 @@ interface PartnerRouteChildren {
   PartnerLogsRoute: typeof PartnerLogsRoute
   PartnerMessagingRoute: typeof PartnerMessagingRoute
   PartnerPppoeRoute: typeof PartnerPppoeRoute
+  PartnerQueuedRenewalsRoute: typeof PartnerQueuedRenewalsRoute
   PartnerReferralsRoute: typeof PartnerReferralsRoute
   PartnerReportsRoute: typeof PartnerReportsRoute
   PartnerResetPasswordRoute: typeof PartnerResetPasswordRoute
@@ -4973,6 +4993,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerLogsRoute: PartnerLogsRoute,
   PartnerMessagingRoute: PartnerMessagingRoute,
   PartnerPppoeRoute: PartnerPppoeRoute,
+  PartnerQueuedRenewalsRoute: PartnerQueuedRenewalsRoute,
   PartnerReferralsRoute: PartnerReferralsRoute,
   PartnerReportsRoute: PartnerReportsRoute,
   PartnerResetPasswordRoute: PartnerResetPasswordRoute,

@@ -18,6 +18,7 @@ import { collectionsService } from "@/services/isp-partner/collections";
 import { fiberService } from "@/services/isp-partner/fiber";
 import { incidentsService } from "@/services/isp-partner/incidents";
 import { pppoeService } from "@/services/isp-partner/pppoe";
+import { queuedRenewalService } from "@/services/isp-partner/queued-renewal";
 import { referralsService } from "@/services/isp-partner/referrals";
 
 const PROBES: Record<NavFlagPath, () => Promise<unknown>> = {
@@ -26,6 +27,7 @@ const PROBES: Record<NavFlagPath, () => Promise<unknown>> = {
   "/partner/referrals": () => referralsService.settings(),
   "/partner/pppoe": () => pppoeService.status(),
   "/partner/fiber": () => fiberService.nodes({ page: 1, page_size: 1 }),
+  "/partner/queued-renewals": () => queuedRenewalService.list({ page: 1, page_size: 1 }),
 };
 
 const PATHS = Object.keys(NAV_FLAG_PATHS) as NavFlagPath[];

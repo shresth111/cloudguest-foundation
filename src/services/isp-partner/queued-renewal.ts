@@ -2,6 +2,7 @@
  * Create wraps the JAZE-1 renew (same invoice), cancel wraps the JAZE-1
  * revert (credit note); nothing here moves money itself. */
 import api from "@/services/api";
+import { cleanParams } from "@/services/isp-partner/isp";
 
 export interface QueuedRenewal {
   id: string;
@@ -25,6 +26,25 @@ export interface QueuedRenewal {
   cancel_reason: string | null;
   outcome: { credit_note_number?: string | null; voided_receipts?: string[] };
   created_at: string;
+  /** P3-SWEEP: only on the ISP-wide list. */
+  subscriber?: { id: string; identifier: string; name: string | null };
+}
+
+/** P3-SWEEP: `GET /isp/queued-renewals` (isp_subscribers.read). */
+export interface QueuedListQuery {
+  status?: "pending" | "active" | "cancelled" | "all";
+  q?: string;
+  package_id?: string;
+  starts_within_days?: number;
+  page?: number;
+  page_size?: number;
+}
+
+export interface QueuedPage {
+  items: QueuedRenewal[];
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 export interface QueuedList {
@@ -35,6 +55,13 @@ export interface QueuedList {
 }
 
 export const queuedRenewalService = {
+  /** P3-SWEEP: ISP-wide list, zone-scoped per subscriber. */
+  async list(q: QueuedListQuery): Promise<QueuedPage> {
+    const { data } = await api.get<QueuedPage>("/isp/queued-renewals", {
+      params: cleanParams(q),
+    });
+    return data;
+  },
   async forSubscriber(subscriberId: string): Promise<QueuedList> {
     const { data } = await api.get<QueuedList>(`/isp/subscribers/${subscriberId}/queued-renewals`);
     return data;

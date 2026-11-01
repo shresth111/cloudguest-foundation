@@ -32,6 +32,7 @@ import {
   TrendingUp,
   Siren,
   Gift,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -88,6 +89,13 @@ const PARTNER_NAV: NavItem[] = [
     anyOf: ["isp_plans.read", "isp_coupons.read", "isp_subscribers.read"],
   },
   { to: "/partner/invoices", label: "Invoices", icon: Receipt, anyOf: ["isp_invoices.read"] },
+  // P3-SWEEP: ISP-wide queued renewals (hidden while its flag is off).
+  {
+    to: "/partner/queued-renewals",
+    label: "Queued renewals",
+    icon: CalendarClock,
+    anyOf: ["isp_subscribers.read"],
+  },
   { to: "/partner/billing", label: "Billing", icon: Wallet, anyOf: ["isp_billing.read"] },
   // COLLECTIONS-1: overdue, promises, field cash + handovers (flag-gated page).
   {

@@ -11,6 +11,8 @@ export const NAV_FLAG_PATHS = {
   "/partner/referrals": "isp_referrals.read",
   "/partner/pppoe": "isp_partner.read",
   "/partner/fiber": "isp_partner.read",
+  // P3-SWEEP: answers 404 ISP_QUEUED_RENEWAL_DISABLED while off.
+  "/partner/queued-renewals": "isp_subscribers.read",
 } as const;
 
 export type NavFlagPath = keyof typeof NAV_FLAG_PATHS;
