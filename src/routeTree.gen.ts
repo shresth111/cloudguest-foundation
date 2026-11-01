@@ -84,6 +84,7 @@ import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
 import { Route as PartnerLoginRouteImport } from './routes/partner.login'
 import { Route as PartnerForgotPasswordRouteImport } from './routes/partner.forgot-password'
+import { Route as PartnerComplianceRouteImport } from './routes/partner.compliance'
 import { Route as PartnerBillingRouteImport } from './routes/partner.billing'
 import { Route as MasterTrafficFlowRouteImport } from './routes/master.traffic-flow'
 import { Route as MasterTicketsRouteImport } from './routes/master.tickets'
@@ -602,6 +603,11 @@ const PartnerLoginRoute = PartnerLoginRouteImport.update({
 const PartnerForgotPasswordRoute = PartnerForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerComplianceRoute = PartnerComplianceRouteImport.update({
+  id: '/compliance',
+  path: '/compliance',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerBillingRoute = PartnerBillingRouteImport.update({
@@ -1501,6 +1507,7 @@ export interface FileRoutesByFullPath {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/compliance': typeof PartnerComplianceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -1717,6 +1724,7 @@ export interface FileRoutesByTo {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/compliance': typeof PartnerComplianceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -1938,6 +1946,7 @@ export interface FileRoutesById {
   '/master/tickets': typeof MasterTicketsRoute
   '/master/traffic-flow': typeof MasterTrafficFlowRoute
   '/partner/billing': typeof PartnerBillingRoute
+  '/partner/compliance': typeof PartnerComplianceRoute
   '/partner/forgot-password': typeof PartnerForgotPasswordRoute
   '/partner/login': typeof PartnerLoginRoute
   '/partner/logs': typeof PartnerLogsRoute
@@ -2161,6 +2170,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/compliance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -2377,6 +2387,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/compliance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -2597,6 +2608,7 @@ export interface FileRouteTypes {
     | '/master/tickets'
     | '/master/traffic-flow'
     | '/partner/billing'
+    | '/partner/compliance'
     | '/partner/forgot-password'
     | '/partner/login'
     | '/partner/logs'
@@ -3326,6 +3338,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/partner/forgot-password'
       preLoaderRoute: typeof PartnerForgotPasswordRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/compliance': {
+      id: '/partner/compliance'
+      path: '/compliance'
+      fullPath: '/partner/compliance'
+      preLoaderRoute: typeof PartnerComplianceRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/billing': {
@@ -4673,6 +4692,7 @@ const MasterRouteWithChildren =
 
 interface PartnerRouteChildren {
   PartnerBillingRoute: typeof PartnerBillingRoute
+  PartnerComplianceRoute: typeof PartnerComplianceRoute
   PartnerForgotPasswordRoute: typeof PartnerForgotPasswordRoute
   PartnerLoginRoute: typeof PartnerLoginRoute
   PartnerLogsRoute: typeof PartnerLogsRoute
@@ -4700,6 +4720,7 @@ interface PartnerRouteChildren {
 
 const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerBillingRoute: PartnerBillingRoute,
+  PartnerComplianceRoute: PartnerComplianceRoute,
   PartnerForgotPasswordRoute: PartnerForgotPasswordRoute,
   PartnerLoginRoute: PartnerLoginRoute,
   PartnerLogsRoute: PartnerLogsRoute,
