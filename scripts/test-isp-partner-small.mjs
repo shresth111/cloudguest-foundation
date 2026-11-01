@@ -87,5 +87,37 @@ console.log("SMALL-2 customer invoice discount");
   has("gross is 0 while the probe is off", hook, "if (!status) return 0;");
 }
 
+// ---------------------------------------------------------------- SMALL-3
+console.log("SMALL-3 win-back save rate");
+{
+  const svc = src("src/services/isp-partner/winback.ts");
+  has("records to the BE action log", svc, '"/isp/revenue/churn-risk/actions"');
+  has("reads the save rate", svc, '"/isp/revenue/churn-risk/save-rate"');
+  lacks("revenue service stays read-only", src("src/services/isp-partner/revenue.ts"), "api.post");
+  const hook = src("src/hooks/isp-partner/useWinback.ts");
+  has("recording is best effort (never fails the action)", hook, ".catch(() => {");
+  has("recording refreshes the rate", hook, "invalidateQueries({ queryKey: SAVE_RATE_KEY })");
+  const card = src("src/components/isp-partner/revenue/SaveRateCard.tsx");
+  has("card hides on 404/403", card, "if (q.isError || !q.data) return null;");
+  has(
+    "rate shows a dash before anything is decided",
+    src("src/lib/isp-partner/winback.ts"),
+    'r === null ? "–"',
+  );
+  const panel = src("src/components/isp-partner/revenue/ChurnRiskPanel.tsx");
+  has("card on the Churn risk tab", panel, "<SaveRateCard />");
+  const wb = src("src/components/isp-partner/revenue/WinBackActions.tsx");
+  for (const a of ["offer_renew", "ticket", "whatsapp_share"]) {
+    has(`records ${a}`, wb, `action: "${a}"`);
+  }
+  ok(
+    "offer is logged before the renewal runs",
+    wb.indexOf('action: "offer_renew"') < wb.indexOf("await run.mutateAsync(undefined);"),
+  );
+  has("ticket logged only once created, with its id", wb, "onCreated={(ticketId) =>");
+  const tk = src("src/components/isp-partner/subscribers/workbench/Workbench.tsx");
+  has("ticket dialog reports the new id", tk, "onCreated?.(t.id);");
+}
+
 console.log(`\n${checks - failures}/${checks} checks passed`);
 if (failures) process.exit(1);
