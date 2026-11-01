@@ -2762,6 +2762,71 @@ jobs:
       - name: ISP partner setup script TR-069 step (off = byte-identical)
         if: hashFiles('scripts/test-isp-setup-extra-chunks.mjs') != ''
         run: node scripts/test-isp-setup-extra-chunks.mjs
+      # LEFTOVERS: the per-lane ISP partner suites (each pure node + esbuild,
+      # no network); same `if: hashFiles` registration as the steps above.
+      - name: ISP partner Apps (JAZE-5 + APPS-2)
+        if: hashFiles('scripts/test-isp-partner-apps.mjs') != ''
+        run: bun run test:isp-partner-apps
+      - name: ISP partner CAF-2 workbench
+        if: hashFiles('scripts/test-isp-partner-caf.mjs') != ''
+        run: bun run test:isp-partner-caf
+      - name: ISP partner COMMS-2 hub
+        if: hashFiles('scripts/test-isp-partner-comms.mjs') != ''
+        run: bun run test:isp-partner-comms
+      - name: ISP partner COMMS-2b senders
+        if: hashFiles('scripts/test-isp-partner-comms2b.mjs') != ''
+        run: bun run test:isp-partner-comms2b
+      - name: ISP partner compliance (JAZE-3)
+        if: hashFiles('scripts/test-isp-partner-compliance.mjs') != ''
+        run: bun run test:isp-partner-compliance
+      - name: ISP partner dashboard (DASH-1)
+        if: hashFiles('scripts/test-isp-partner-dashboard.mjs') != ''
+        run: bun run test:isp-partner-dashboard
+      - name: ISP partner plain date params
+        if: hashFiles('scripts/test-isp-partner-date-params.mjs') != ''
+        run: bun run test:isp-partner-date-params
+      - name: ISP partner finance tools (JAZE-4)
+        if: hashFiles('scripts/test-isp-partner-finance.mjs') != ''
+        run: bun run test:isp-partner-finance
+      - name: ISP partner FRANCHISE-2
+        if: hashFiles('scripts/test-isp-partner-franchise.mjs') != ''
+        run: bun run test:isp-partner-franchise
+      - name: ISP partner integrations status
+        if: hashFiles('scripts/test-isp-partner-integrations.mjs') != ''
+        run: bun run test:isp-partner-integrations
+      - name: ISP partner invoices
+        if: hashFiles('scripts/test-isp-partner-invoices.mjs') != ''
+        run: bun run test:isp-partner-invoices
+      - name: ISP partner IPDR-2 LEA trace
+        if: hashFiles('scripts/test-isp-partner-ipdr-lea.mjs') != ''
+        run: bun run test:isp-partner-ipdr-lea
+      - name: ISP partner network rules (JAZE-2)
+        if: hashFiles('scripts/test-isp-partner-jaze2.mjs') != ''
+        run: bun run test:isp-partner-jaze2
+      - name: ISP partner NETMON-2
+        if: hashFiles('scripts/test-isp-partner-netmon.mjs') != ''
+        run: bun run test:isp-partner-netmon
+      - name: ISP partner ONBOARD-1
+        if: hashFiles('scripts/test-isp-partner-onboard.mjs') != ''
+        run: bun run test:isp-partner-onboard
+      - name: ISP partner PPPoE
+        if: hashFiles('scripts/test-isp-partner-pppoe.mjs') != ''
+        run: bun run test:isp-partner-pppoe
+      - name: ISP partner subscriber 360
+        if: hashFiles('scripts/test-isp-partner-sub360.mjs') != ''
+        run: bun run test:isp-partner-sub360
+      - name: ISP partner 360 workbench (SUB360-2)
+        if: hashFiles('scripts/test-isp-partner-sub360-workbench.mjs') != ''
+        run: bun run test:isp-partner-sub360-workbench
+      - name: ISP partner zones (ZONE-1)
+        if: hashFiles('scripts/test-isp-partner-zones.mjs') != ''
+        run: bun run test:isp-partner-zones
+      - name: ISP master list
+        if: hashFiles('scripts/test-isp-master-list.mjs') != ''
+        run: bun run test:isp-master-list
+      - name: ISP links single flight
+        if: hashFiles('scripts/test-isp-links-single-flight.mjs') != ''
+        run: bun run test:isp-single-flight
 
   # ---------------------------------------------------------------------------
   # Slack
