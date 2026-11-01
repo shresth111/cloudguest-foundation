@@ -2,6 +2,8 @@
  * LEFTOVERS FE: lead -> onboarding prefill (`formFromLead`, `lead_id` in the
  * built body), the thermal payment slip request, and static checks on where
  * they are mounted. `@/services/api` is replaced with a recorder.
+ * BULKBAR: the directory bulk bar is hidden with nothing ticked, "all
+ * matching" takes two steps, and Block / Move above 10 need a typed confirm.
  *
  * Run: node scripts/test-isp-partner-leftovers.mjs
  */
@@ -27,6 +29,7 @@ const outfile = join(outdir, "left.mjs");
 await build({
   stdin: {
     contents: `export * from "@/lib/isp-partner/onboarding";
+               export * from "@/lib/isp-partner/bulkbar";
                export { financeService } from "@/services/isp-partner/finance";
                export { calls } from "@/services/api";`,
     resolveDir: ROOT,
@@ -141,6 +144,101 @@ const route = readFileSync(join(ROOT, "src/routes/partner.subscribers.new.tsx"),
 eq("route validates lead_id as a uuid", /\^\[0-9a-f-\]\{36\}\$/.test(route), true);
 const leads = readFileSync(join(ROOT, "src/components/isp-partner/apps/LeadsTab.tsx"), "utf8");
 eq("leads link to onboarding", /search=\{\{ lead_id: l\.id \}\}/.test(leads), true);
+
+// BULKBAR (founder-approved proposal #3): directory bulk bar rules.
+eq("bulk bar hidden with 0 selected", m.bulkBarVisible(0), false);
+eq("bulk bar shown with 1 selected", m.bulkBarVisible(1), true);
+const pageOnly = { scope: "selected", allOnPage: false, selectedCount: 3, total: 1234 };
+const pageAll = { scope: "selected", allOnPage: true, selectedCount: 25, total: 1234 };
+eq(
+  "all-matching not offered before the page is ticked",
+  m.canOfferSelectAllMatching(pageOnly),
+  false,
+);
+eq("one click cannot jump to all-matching", m.scopeAfterSelectAllMatching(pageOnly), "selected");
+eq(
+  "all-matching offered after ticking the page (step 1)",
+  m.canOfferSelectAllMatching(pageAll),
+  true,
+);
+eq("step 2 switches to the filter", m.scopeAfterSelectAllMatching(pageAll), "filter");
+eq(
+  "not offered when the page is everything",
+  m.canOfferSelectAllMatching({ ...pageAll, total: 25 }),
+  false,
+);
+eq(
+  "not offered with nothing ticked",
+  m.canOfferSelectAllMatching({ ...pageAll, selectedCount: 0 }),
+  false,
+);
+eq("block 11 needs a typed confirm", m.needsTypedConfirm("block", 11), true);
+eq("block 10 does not", m.needsTypedConfirm("block", 10), false);
+eq("move 11 needs a typed confirm", m.needsTypedConfirm("move", 11), true);
+eq("unblock 500 keeps a normal confirm", m.needsTypedConfirm("unblock", 500), false);
+eq("unfreeze 500 keeps a normal confirm", m.needsTypedConfirm("unfreeze", 500), false);
+eq("no apply without a dry run", m.canApply("unblock", null, ""), false);
+eq("no apply when nobody is eligible", m.canApply("freeze", { eligible: 0 }, ""), false);
+eq("block 11: blank confirm refused", m.canApply("block", { eligible: 11 }, ""), false);
+eq("block 11: wrong count refused", m.canApply("block", { eligible: 11 }, "12"), false);
+eq("block 11: count accepted", m.canApply("block", { eligible: 11 }, " 11 "), true);
+eq(
+  "block 1234: Indian-grouped count accepted",
+  m.canApply("block", { eligible: 1234 }, "1,234"),
+  true,
+);
+eq("block 11: the word accepted", m.canApply("block", { eligible: 11 }, "block"), true);
+eq("block 11: another word refused", m.canApply("block", { eligible: 11 }, "MOVE"), false);
+eq("freeze 50 applies after the dry run", m.canApply("freeze", { eligible: 50 }, ""), true);
+eq("destructive set", [...m.DESTRUCTIVE_ACTIONS].sort(), ["block", "freeze", "move", "renew"]);
+{
+  const page = readFileSync(
+    join(ROOT, "src/components/isp-partner/subscribers/SubscriberDirectoryPage.tsx"),
+    "utf8",
+  );
+  const bar = readFileSync(
+    join(ROOT, "src/components/isp-partner/subscribers/DirectoryBulkBar.tsx"),
+    "utf8",
+  );
+  eq(
+    "page mounts the bar only when bulkBarVisible",
+    /barOpen = dir2\.available && bulkBarVisible\(selected\.size\)/.test(page) &&
+      /\{barOpen && \(\s*<DirectoryBulkBar/.test(page),
+    true,
+  );
+  eq("bar is keyed by the filters", /key=\{filterKey\}/.test(page), true);
+  eq(
+    "filter change clears the selection",
+    /useEffect\(\(\) => \{\s*setSelected\(new Set\(\)\);\s*\}, \[filterKey\]\)/.test(page),
+    true,
+  );
+  eq(
+    "export stays available without a selection",
+    /<DirectoryExportButtons filter=\{dirFilter\} \/>/.test(page),
+    true,
+  );
+  eq(
+    "apply button gated by canApply",
+    /disabled=\{busy \|\| !canApply\(action, preview, typed\)\}/.test(bar),
+    true,
+  );
+  eq(
+    "success clears the selection",
+    /onDone=\{done\}/.test(bar) && /const done = \(\) => \{[^}]*onClear\(\)/.test(bar),
+    true,
+  );
+  eq(
+    "all-matching label uses the dry-run count",
+    /Select all \$\{matched\.toLocaleString/.test(bar) && /dry_run: true/.test(bar),
+    true,
+  );
+  eq(
+    "bottom sheet on a phone, inline from sm",
+    /fixed inset-x-0 bottom-0/.test(bar) && /sm:static/.test(bar),
+    true,
+  );
+  eq("no always-on scope select left", /All matching the filters<\/option>/.test(bar), false);
+}
 
 console.log(`\n${checks - failures}/${checks} passed`);
 if (failures) process.exit(1);
