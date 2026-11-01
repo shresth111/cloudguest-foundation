@@ -1,6 +1,8 @@
 /** Plans → Packages (ADDENDUM_02 §9): table, create/edit drawer,
  * "duplicate with a different validity" dialog, enable/disable, delete. */
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Copy,
@@ -39,6 +41,23 @@ import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partne
 import { DEFAULT_VALIDITY_DAYS, formatKbps, previewPackageName } from "@/lib/isp-partner/plans";
 import type { IspPackage, PackageBody, PackageType } from "@/services/isp-partner/plans-types";
 import { PackagePolicyDrawer } from "@/components/isp-partner/network/PackagePolicyDrawer";
+import { PolicyFields, type PolicyErrors } from "@/components/isp-partner/network/PolicyFields";
+import { GroupDrawer } from "@/components/isp-partner/plans/SpeedGroupsTab";
+import { networkService } from "@/services/isp-partner/network";
+import { networkKeys } from "@/hooks/isp-partner/useNetwork";
+import { formToPolicyBody, policyToForm, type PolicyForm } from "@/lib/isp-partner/network";
+import { packageMetaKeys, usePackageMetaMap } from "@/hooks/isp-partner/usePackageMeta";
+import {
+  CONNECTION_KIND_LABEL,
+  PACKAGE_KIND_LABEL,
+  packageMetaService,
+  type ConnectionKind,
+  type PackageKind,
+} from "@/services/isp-partner/package-meta";
+
+type NewGroupTarget = "speed" | "fup_fallback_speed_group_id" | "boost_speed_group_id";
+type FollowUp = { pkg: IspPackage; failed: { step: "rules" | "labels"; message: string }[] };
+const RULE_DEFAULTS = JSON.stringify(policyToForm(null));
 
 function PackageDrawer({
   open,
@@ -69,6 +88,18 @@ function PackageDrawer({
   const save = usePlansMutation((body: PackageBody) =>
     pkg ? plansService.updatePackage(pkg.id, body) : plansService.createPackage(body),
   );
+  const qc = useQueryClient();
+  const meta = usePackageMetaMap();
+  const [rules, setRules] = useState<PolicyForm>(() => policyToForm(null));
+  const [ruleErrors, setRuleErrors] = useState<PolicyErrors>({});
+  const [newGroupFor, setNewGroupFor] = useState<NewGroupTarget | null>(null);
+  const [kind, setKind] = useState<PackageKind | "">("");
+  const [conn, setConn] = useState<ConnectionKind | "">("");
+  const [followUp, setFollowUp] = useState<FollowUp | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const setRule = <K extends keyof PolicyForm>(k: K, v: PolicyForm[K]) =>
+    setRules((f) => ({ ...f, [k]: v }));
+  const rulesTouched = !pkg && JSON.stringify(rules) !== RULE_DEFAULTS;
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +114,71 @@ function PackageDrawer({
     setNameTouched(!!pkg);
     setError(null);
     setFieldErrors({});
+    setRules(policyToForm(null));
+    setRuleErrors({});
+    setFollowUp(null);
+    const m = pkg ? meta.map.get(pkg.id) : undefined;
+    setKind(m?.package_type ?? "");
+    setConn(m?.connection_type ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open only
   }, [open, pkg, presetGroupId, defaultValidity]);
+
+  /** Steps after the package itself exists. Never re-creates the package. */
+  const runFollowUps = async (
+    saved: IspPackage,
+    steps: ("rules" | "labels")[],
+  ): Promise<FollowUp["failed"]> => {
+    const failed: FollowUp["failed"] = [];
+    for (const step of steps) {
+      try {
+        if (step === "rules") {
+          const res = formToPolicyBody(rules);
+          if (!res.ok) throw new Error("Fix the highlighted network rules.");
+          const policy = await networkService.putPolicy(saved.id, res.body);
+          qc.setQueryData(networkKeys.policy(saved.id), policy);
+        } else {
+          await packageMetaService.put(saved.id, {
+            package_type: kind || null,
+            connection_type: conn || null,
+          });
+          await qc.invalidateQueries({ queryKey: packageMetaKeys.all });
+        }
+      } catch (err) {
+        failed.push({
+          step,
+          message: ispErrorMessage(
+            err,
+            step === "rules" ? "The network rules were not saved." : "The labels were not saved.",
+          ),
+        });
+      }
+    }
+    return failed;
+  };
+
+  const labelsChanged = () => {
+    if (!meta.available) return false;
+    const m = pkg ? meta.map.get(pkg.id) : undefined;
+    return (
+      (kind || null) !== (m?.package_type ?? null) ||
+      (conn || null) !== (m?.connection_type ?? null)
+    );
+  };
+
+  const retryFollowUps = async () => {
+    if (!followUp) return;
+    setRetrying(true);
+    const failed = await runFollowUps(
+      followUp.pkg,
+      followUp.failed.map((f) => f.step),
+    );
+    setRetrying(false);
+    if (failed.length) setFollowUp({ ...followUp, failed });
+    else {
+      toast.success("Saved.");
+      onClose();
+    }
+  };
 
   const group = (groups.data?.items ?? []).find((g) => g.id === groupId);
   const suggested =
@@ -103,7 +198,15 @@ function PackageDrawer({
     if (c !== null && (!Number.isInteger(c) || c <= 0))
       errs.data_cap_mb = "Whole MB, or empty for no cap.";
     setFieldErrors(errs);
-    if (Object.keys(errs).length || p === null) return;
+    // Rules are checked before the package is created, so a typo in them
+    // never leaves a half-configured package behind.
+    let rulesOk = true;
+    if (rulesTouched) {
+      const res = formToPolicyBody(rules);
+      setRuleErrors(res.ok ? {} : res.errors);
+      rulesOk = res.ok;
+    }
+    if (Object.keys(errs).length || p === null || !rulesOk) return;
     setError(null);
     const body: PackageBody = {
       speed_group_id: groupId,
@@ -115,23 +218,30 @@ function PackageDrawer({
       max_devices: d,
       name: nameTouched && name.trim() ? name.trim() : null,
     };
+    let saved: IspPackage;
     try {
       if (pkg && inUse) {
         // Group and validity are fixed once in use (409 otherwise): send the rest.
-        await save.mutateAsync({
+        saved = await save.mutateAsync({
           ...body,
           speed_group_id: pkg.speed_group.id,
           validity_days: pkg.validity_days,
         });
       } else {
-        await save.mutateAsync(body);
+        saved = await save.mutateAsync(body);
       }
-      toast.success(pkg ? "Package saved." : "Package created.");
-      onClose();
     } catch (err) {
       setFieldErrors(ispFieldErrors(err));
       setError(ispErrorMessage(err, "Could not save the package."));
+      return;
     }
+    const steps: ("rules" | "labels")[] = [];
+    if (rulesTouched) steps.push("rules");
+    if (labelsChanged()) steps.push("labels");
+    const failed = steps.length ? await runFollowUps(saved, steps) : [];
+    toast.success(pkg ? "Package saved." : "Package created.");
+    if (failed.length) setFollowUp({ pkg: saved, failed });
+    else onClose();
   };
 
   return (
@@ -141,19 +251,68 @@ function PackageDrawer({
       title={pkg ? `Edit ${pkg.name}` : "Add package"}
       subtitle="What you sell: a speed, a validity and a price."
       footer={
-        <div className="flex justify-end gap-2">
-          <MButton variant="outline" onClick={onClose}>
-            Cancel
-          </MButton>
-          <MButton onClick={submit} disabled={save.isPending}>
-            {save.isPending && <Spinner />} Save
-          </MButton>
-        </div>
+        followUp ? (
+          <div className="flex justify-end gap-2">
+            <MButton variant="outline" onClick={onClose}>
+              Done, fix later
+            </MButton>
+            <MButton onClick={retryFollowUps} disabled={retrying}>
+              {retrying && <Spinner />} Retry
+            </MButton>
+          </div>
+        ) : (
+          <div className="flex justify-end gap-2">
+            <MButton variant="outline" onClick={onClose}>
+              Cancel
+            </MButton>
+            <MButton onClick={submit} disabled={save.isPending}>
+              {save.isPending && <Spinner />} Save
+            </MButton>
+          </div>
+        )
       }
     >
-      <div className="space-y-3">
+      {followUp && (
+        <div
+          role="alert"
+          className="mb-3 space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs"
+        >
+          <p className="font-semibold text-foreground">
+            {followUp.pkg.name} was {pkg ? "saved" : "created"}, but not everything was saved:
+          </p>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {followUp.failed.map((f) => (
+              <li key={f.step}>
+                <span className="font-medium">
+                  {f.step === "rules" ? "Network rules" : "Package and connection type"}:
+                </span>{" "}
+                {f.message}
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground">
+            Retry now, or close and set them later
+            {followUp.failed.some((f) => f.step === "rules")
+              ? " from the package's Network rules button"
+              : ""}
+            . The package itself is kept.
+          </p>
+        </div>
+      )}
+      <fieldset disabled={!!followUp} className="space-y-3">
         <label className="block space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Speed group</span>
+          <span className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Speed group</span>
+            {!inUse && (
+              <button
+                type="button"
+                onClick={() => setNewGroupFor("speed")}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                <Plus className="h-3 w-3" /> New speed template
+              </button>
+            )}
+          </span>
           <select
             className={M_INPUT}
             value={groupId}
@@ -224,8 +383,88 @@ function PackageDrawer({
             nameTouched ? undefined : "Suggested from the group, type and validity. Edit to change."
           }
         />
+        {meta.available && (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Package type</span>
+              <select
+                className={M_INPUT}
+                value={kind}
+                onChange={(e) => setKind(e.target.value as PackageKind | "")}
+              >
+                <option value="">Not set</option>
+                {(Object.keys(PACKAGE_KIND_LABEL) as PackageKind[]).map((k) => (
+                  <option key={k} value={k}>
+                    {PACKAGE_KIND_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Connection type</span>
+              <select
+                className={M_INPUT}
+                value={conn}
+                onChange={(e) => setConn(e.target.value as ConnectionKind | "")}
+              >
+                <option value="">Not set</option>
+                {(Object.keys(CONNECTION_KIND_LABEL) as ConnectionKind[]).map((k) => (
+                  <option key={k} value={k}>
+                    {CONNECTION_KIND_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="col-span-2 -mt-1 text-[11px] text-muted-foreground">
+              Labels for filtering and reports. They do not change speeds or billing.
+            </p>
+          </div>
+        )}
+        {!pkg && (
+          <details
+            className="rounded-lg border border-border p-3"
+            open={rulesTouched || Object.keys(ruleErrors).length > 0}
+          >
+            <summary className="cursor-pointer text-sm font-medium">
+              Network rules (optional)
+            </summary>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Fair usage, night boost, device binding and timeouts. Leave closed to keep the
+              defaults; you can change them later from Network rules.
+            </p>
+            <div className="mt-3 space-y-3">
+              <PolicyFields
+                form={rules}
+                set={setRule}
+                errors={ruleErrors}
+                groups={groups.data?.items ?? []}
+                onNewGroup={(field) => setNewGroupFor(field)}
+              />
+            </div>
+          </details>
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          Billing plan and the base + GST = total preview are in{" "}
+          <Link
+            to="/partner/finance"
+            search={{ tab: "packages" }}
+            className="font-medium text-primary hover:underline"
+          >
+            Finance → Package billing
+          </Link>
+          .
+        </p>
         <FormError message={error} />
-      </div>
+      </fieldset>
+      <GroupDrawer
+        open={newGroupFor !== null}
+        group={null}
+        onClose={() => setNewGroupFor(null)}
+        onSaved={(g) => {
+          if (newGroupFor === "speed") setGroupId(g.id);
+          else if (newGroupFor) setRule(newGroupFor, g.id);
+        }}
+      />
     </MDrawer>
   );
 }
@@ -321,11 +560,18 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
   const [groupId, setGroupId] = useState(groupFilter ?? "");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
+  // PKG-2 labels. The list API pages by 25; with a label filter on we read
+  // the first 100 packages and filter all of them, so a filter never hides
+  // a match that sits on another page.
+  const meta = usePackageMetaMap();
+  const [kindFilter, setKindFilter] = useState<PackageKind | "">("");
+  const [connFilter, setConnFilter] = useState<ConnectionKind | "">("");
+  const labelFilter = meta.available && !!(kindFilter || connFilter);
   const q = usePackages({
     speed_group_id: groupId || undefined,
     status: status || undefined,
-    page,
-    page_size: 25,
+    page: labelFilter ? 1 : page,
+    page_size: labelFilter ? 100 : 25,
   });
   const [editing, setEditing] = useState<IspPackage | null | "new">(null);
   const [duplicating, setDuplicating] = useState<IspPackage | null>(null);
@@ -342,7 +588,18 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
     plansService.setPackageEnabled(v.id, v.enabled),
   );
   const remove = usePlansMutation((id: string) => plansService.deletePackage(id));
-  const data = q.data;
+  const raw = q.data;
+  const data = useMemo(() => {
+    if (!raw || !labelFilter) return raw;
+    const items = raw.items.filter((p) => {
+      const m = meta.map.get(p.id);
+      return (
+        (!kindFilter || m?.package_type === kindFilter) &&
+        (!connFilter || m?.connection_type === connFilter)
+      );
+    });
+    return { ...raw, items, total: items.length, page: 1, pages: 1 };
+  }, [raw, labelFilter, kindFilter, connFilter, meta.map]);
 
   return (
     <div className="space-y-3">
@@ -376,6 +633,36 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
           <option value="active">Active</option>
           <option value="disabled">Disabled</option>
         </select>
+        {meta.available && (
+          <>
+            <select
+              className={`${M_INPUT} w-auto`}
+              value={kindFilter}
+              onChange={(e) => setKindFilter(e.target.value as PackageKind | "")}
+              aria-label="Package type"
+            >
+              <option value="">Any package type</option>
+              {(Object.keys(PACKAGE_KIND_LABEL) as PackageKind[]).map((k) => (
+                <option key={k} value={k}>
+                  {PACKAGE_KIND_LABEL[k]}
+                </option>
+              ))}
+            </select>
+            <select
+              className={`${M_INPUT} w-auto`}
+              value={connFilter}
+              onChange={(e) => setConnFilter(e.target.value as ConnectionKind | "")}
+              aria-label="Connection type"
+            >
+              <option value="">Any connection</option>
+              {(Object.keys(CONNECTION_KIND_LABEL) as ConnectionKind[]).map((k) => (
+                <option key={k} value={k}>
+                  {CONNECTION_KIND_LABEL[k]}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
         {can("isp_plans.create") && (
           <MButton className="ml-auto" onClick={() => setEditing("new")}>
             <Plus /> Add package
@@ -383,6 +670,11 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
         )}
       </div>
       <FormError message={actionError} />
+      {labelFilter && raw && raw.total > raw.items.length && (
+        <p className="text-[11px] text-muted-foreground">
+          Filtering the first {raw.items.length} of {raw.total} packages by label.
+        </p>
+      )}
       {q.error && !data ? (
         <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="packages" />
       ) : data && data.items.length === 0 ? (
@@ -417,7 +709,19 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
                   ↓{formatKbps(p.speed_group.download_kbps)} / ↑
                   {formatKbps(p.speed_group.upload_kbps)}
                 </MTd>
-                <MTd className="text-xs capitalize">{p.type}</MTd>
+                <MTd className="text-xs">
+                  <span className="capitalize">{p.type}</span>
+                  {(() => {
+                    const m = meta.map.get(p.id);
+                    const tags = [
+                      m?.package_type && PACKAGE_KIND_LABEL[m.package_type],
+                      m?.connection_type && CONNECTION_KIND_LABEL[m.connection_type],
+                    ].filter(Boolean);
+                    return tags.length ? (
+                      <p className="text-[10px] text-muted-foreground">{tags.join(" · ")}</p>
+                    ) : null;
+                  })()}
+                </MTd>
                 <MTd className="text-right tabular-nums">{p.validity_days} d</MTd>
                 <MTd className="text-right tabular-nums">
                   {formatRupees(p.price_paise)}

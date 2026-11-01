@@ -46,10 +46,13 @@ export function GroupDrawer({
   open,
   onClose,
   group,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   group: SpeedGroup | null;
+  /** PKG-2: the package form selects the group it just created. */
+  onSaved?: (group: SpeedGroup) => void;
 }) {
   const [name, setName] = useState("");
   const [unit, setUnit] = useState<Unit>("mbps");
@@ -134,13 +137,14 @@ export function GroupDrawer({
     if (Object.keys(errs).length || d === null || u === null) return;
     setError(null);
     try {
-      await save.mutateAsync({
+      const saved = await save.mutateAsync({
         name: name.trim(),
         download_kbps: d,
         upload_kbps: u,
         burst,
         priority: p,
       });
+      onSaved?.(saved);
       toast.success(
         group
           ? "Speed group saved. New speeds apply at each guest's next login."
