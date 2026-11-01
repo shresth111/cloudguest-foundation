@@ -14,6 +14,7 @@ import { Info, Pencil } from "lucide-react";
 import { MButton, MSectionHeader, MTag } from "@/components/master/MasterKit";
 import { RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
 import { Card, ErrorBlock, LoadingBlock } from "@/components/isp-partner/kit";
+import { PartnerAccountingSetupStep } from "@/components/isp-partner/routers/PartnerAccountingSetupStep";
 import { PartnerTr069SetupStep } from "@/components/isp-partner/routers/PartnerTr069SetupStep";
 import { PartnerWordingScope } from "@/components/isp-partner/routers/PartnerWordingScope";
 import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDrawer";
@@ -54,6 +55,7 @@ function SetupScript({ routerId }: { routerId: string }) {
           </p>
         </div>
       </div>
+      <PartnerAccountingSetupStep routerId={routerId} />
       <PartnerTr069SetupStep routerId={routerId} locationId={device.data.locationId} />
       {/* QA-023 / D11: no tunnel-technology wording or tunnel address in the partner
           UI. The management IP is the router's tunnel address, so the

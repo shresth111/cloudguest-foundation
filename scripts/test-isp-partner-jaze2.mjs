@@ -137,6 +137,37 @@ eq("optical good tone", m.opticalTone("good"), "online");
 eq("optical bad tone", m.opticalTone("bad"), "offline");
 eq("event label", m.enforcementEventLabel({ kind: "fup_throttle" }).startsWith("FUP"), true);
 eq("unknown event label", m.enforcementEventLabel({ kind: "new_kind" }), "new kind");
+// ENFORCE-1: PPPoE refusals (detail starts "pppoe: ") read as refused logins
+eq(
+  "pppoe mac refusal label",
+  m.enforcementEventLabel({ kind: "mac_reject", detail: "pppoe: AA:00:00:00:00:02" }),
+  "PPPoE login refused: device MAC not bound",
+);
+eq(
+  "pppoe concurrency label",
+  m.enforcementEventLabel({ kind: "concurrency", detail: "pppoe: 1 live, limit 1" }),
+  "PPPoE login refused: too many devices at once",
+);
+eq(
+  "pppoe ip label",
+  m.enforcementEventLabel({ kind: "ip_reject", detail: "pppoe: no static IP bound" }),
+  "PPPoE login refused: no static IP assigned",
+);
+eq(
+  "hotspot mac label unchanged",
+  m.enforcementEventLabel({ kind: "mac_reject", detail: "AA:00:00:00:00:02" }),
+  "Session ended: device MAC not bound",
+);
+eq(
+  "pppoe non-refusal keeps its label",
+  m.enforcementEventLabel({ kind: "mac_bound", detail: "pppoe: AA" }),
+  "Device MAC bound",
+);
+eq(
+  "string detail shown as is",
+  m.enforcementEventDetail("pppoe: 1 live, limit 1"),
+  "1 live, limit 1",
+);
 eq(
   "event detail skips objects",
   m.enforcementEventDetail({ mac: "AA", nested: { x: 1 }, n: null }),

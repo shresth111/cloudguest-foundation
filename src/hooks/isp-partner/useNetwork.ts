@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { networkService } from "@/services/isp-partner/network";
 import { retryUnless4xx } from "@/hooks/isp-partner/useIsp";
+import { ispErrorStatus } from "@/lib/isp-partner/errors";
 import type { IpBindingBody, PackagePolicyBody } from "@/services/isp-partner/network-types";
 
 export const networkKeys = {
@@ -18,9 +19,30 @@ export const networkKeys = {
   history: (routerId: string, hours: number) =>
     ["isp", "network", "router", routerId, "history", hours] as const,
   sessions: (routerId: string) => ["isp", "network", "router", routerId, "sessions"] as const,
+  enforcementScript: (routerId: string) =>
+    ["isp", "network", "router", routerId, "enforcement-script"] as const,
   tr069Summary: ["isp", "network", "tr069", "summary"] as const,
   optical: (cpeId: string) => ["isp", "network", "tr069", "optical", cpeId] as const,
 };
+
+/** ENFORCE-1: null while enforcement is off (the endpoint answers 404). */
+export function useEnforcementSetupChunk(routerId: string) {
+  return useQuery({
+    queryKey: networkKeys.enforcementScript(routerId),
+    queryFn: async () => {
+      try {
+        return await networkService.enforcementScript(routerId);
+      } catch (e) {
+        if (ispErrorStatus(e) === 404) return null;
+        throw e;
+      }
+    },
+    retry: retryUnless4xx,
+    enabled: !!routerId,
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
 
 export function usePackagePolicy(packageId: string | null) {
   return useQuery({

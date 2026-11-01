@@ -257,13 +257,36 @@ export const ENFORCEMENT_EVENT_LABEL: Record<string, string> = {
   reauth: "Session ended so the new speed applies",
 };
 
-export function enforcementEventLabel(e: Pick<EnforcementEvent, "kind">): string {
+/** ENFORCE-1: on PPPoE the same rules refuse the login instead of ending a
+ * session. The backend marks those events with a "pppoe: " detail. */
+export const PPPOE_REFUSAL_LABEL: Record<string, string> = {
+  mac_reject: "PPPoE login refused: device MAC not bound",
+  ip_reject: "PPPoE login refused: no static IP assigned",
+  concurrency: "PPPoE login refused: too many devices at once",
+};
+
+function isPppoeEvent(detail: unknown): boolean {
+  if (typeof detail === "string") return detail.startsWith("pppoe:");
+  if (detail && typeof detail === "object")
+    return Object.values(detail as Record<string, unknown>).some(
+      (v) => typeof v === "string" && v.startsWith("pppoe:"),
+    );
+  return false;
+}
+
+export function enforcementEventLabel(
+  e: Pick<EnforcementEvent, "kind"> & { detail?: unknown },
+): string {
+  if (isPppoeEvent(e.detail) && PPPOE_REFUSAL_LABEL[e.kind]) return PPPOE_REFUSAL_LABEL[e.kind];
   return ENFORCEMENT_EVENT_LABEL[e.kind] ?? e.kind.replace(/_/g, " ");
 }
 
 /** A short "key: value" line from an event's detail, skipping nested values. */
-export function enforcementEventDetail(detail: Record<string, unknown> | null): string {
+export function enforcementEventDetail(detail: Record<string, unknown> | string | null): string {
   if (!detail) return "";
+  // The backend stores detail as a short string (JAZE-2 record_event);
+  // Object.entries on a string would spell it out letter by letter.
+  if (typeof detail === "string") return detail.replace(/^pppoe:\s*/, "");
   return Object.entries(detail)
     .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
     .map(([k, v]) => `${k.replace(/_/g, " ")}: ${String(v)}`)
