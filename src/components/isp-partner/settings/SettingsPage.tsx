@@ -13,6 +13,7 @@ import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { roleLabel } from "@/lib/isp-partner/format";
 import { InvoiceSettingsCard } from "@/components/isp-partner/settings/InvoiceSettingsCard";
 import { ZonesCard } from "@/components/isp-partner/settings/ZonesCard";
+import { ZoneTreeCard } from "@/components/isp-partner/zones/ZoneTreeCard";
 
 function AcsCard() {
   const q = useTr069Acs();
@@ -132,6 +133,7 @@ export function SettingsPage() {
       {can("tr069.manage") && <AcsCard />}
       {can("isp_invoices.read") && <InvoiceSettingsCard />}
       {can("isp_zones.read") && <ZonesCard />}
+      {can("isp_zones.read") && <ZoneTreeCard />}
     </>
   );
 }

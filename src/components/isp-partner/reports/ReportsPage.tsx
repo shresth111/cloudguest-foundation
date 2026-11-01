@@ -5,6 +5,7 @@ import { MSectionHeader, MSeg } from "@/components/master/MasterKit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { ReportsView } from "@/components/isp-partner/reports/ReportsView";
 import { BillingReports } from "@/components/isp-partner/reports/BillingReports";
+import { ZoneTotalsCard } from "@/components/isp-partner/zones/ZoneTotalsCard";
 
 export function ReportsPage() {
   const { can } = usePartner();
@@ -28,6 +29,7 @@ export function ReportsPage() {
         />
       )}
       {tab === "money" && showMoney ? <BillingReports /> : <ReportsView />}
+      {tab === "money" && showMoney && can("isp_zones.read") && <ZoneTotalsCard />}
     </>
   );
 }

@@ -38,6 +38,7 @@ import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { roleLabel } from "@/lib/isp-partner/format";
 import { MEmptyState } from "@/components/master/MasterKit";
 import { NatFeedBanner } from "@/components/isp-partner/compliance/NatFeedBanner";
+import { ZoneSwitcher } from "@/components/isp-partner/zones/ZoneSwitcher";
 
 interface NavItem {
   to: string;
@@ -202,6 +203,7 @@ export function PartnerShell({ children }: { children: ReactNode }) {
             </button>
             <p className="truncate text-sm font-semibold tracking-tight">{me.isp.name}</p>
             <div className="ml-auto flex items-center gap-1.5">
+              <ZoneSwitcher />
               <ThemeToggle />
               <div className="relative">
                 <button
