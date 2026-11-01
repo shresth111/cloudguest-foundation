@@ -121,6 +121,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as PortalAuthIndexRouteImport } from './routes/portal.auth.index'
 import { Route as PartnerTr069IndexRouteImport } from './routes/partner.tr069.index'
+import { Route as PartnerSubscribersIndexRouteImport } from './routes/partner.subscribers.index'
 import { Route as PartnerRoutersIndexRouteImport } from './routes/partner.routers.index'
 import { Route as PartnerPlansIndexRouteImport } from './routes/partner.plans.index'
 import { Route as PartnerInvoicesIndexRouteImport } from './routes/partner.invoices.index'
@@ -163,6 +164,7 @@ import { Route as PreviewPortalDemoRouteImport } from './routes/preview.portal.d
 import { Route as PreviewPortalLocationIdRouteImport } from './routes/preview.portal.$locationId'
 import { Route as PortalAuthMethodRouteImport } from './routes/portal.auth.$method'
 import { Route as PartnerTr069CpeIdRouteImport } from './routes/partner.tr069.$cpeId'
+import { Route as PartnerSubscribersSubscriberIdRouteImport } from './routes/partner.subscribers.$subscriberId'
 import { Route as PartnerRoutersIspRouterIdRouteImport } from './routes/partner.routers.$ispRouterId'
 import { Route as PartnerLocationsIspLocationIdRouteImport } from './routes/partner.locations.$ispLocationId'
 import { Route as PartnerInvoicesInvoiceIdRouteImport } from './routes/partner.invoices.$invoiceId'
@@ -790,6 +792,11 @@ const PartnerTr069IndexRoute = PartnerTr069IndexRouteImport.update({
   path: '/tr069/',
   getParentRoute: () => PartnerRoute,
 } as any)
+const PartnerSubscribersIndexRoute = PartnerSubscribersIndexRouteImport.update({
+  id: '/subscribers/',
+  path: '/subscribers/',
+  getParentRoute: () => PartnerRoute,
+} as any)
 const PartnerRoutersIndexRoute = PartnerRoutersIndexRouteImport.update({
   id: '/routers/',
   path: '/routers/',
@@ -1029,6 +1036,12 @@ const PartnerTr069CpeIdRoute = PartnerTr069CpeIdRouteImport.update({
   path: '/tr069/$cpeId',
   getParentRoute: () => PartnerRoute,
 } as any)
+const PartnerSubscribersSubscriberIdRoute =
+  PartnerSubscribersSubscriberIdRouteImport.update({
+    id: '/subscribers/$subscriberId',
+    path: '/subscribers/$subscriberId',
+    getParentRoute: () => PartnerRoute,
+  } as any)
 const PartnerRoutersIspRouterIdRoute =
   PartnerRoutersIspRouterIdRouteImport.update({
     id: '/routers/$ispRouterId',
@@ -1575,6 +1588,7 @@ export interface FileRoutesByFullPath {
   '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
@@ -1617,6 +1631,7 @@ export interface FileRoutesByFullPath {
   '/partner/invoices/': typeof PartnerInvoicesIndexRoute
   '/partner/plans/': typeof PartnerPlansIndexRoute
   '/partner/routers/': typeof PartnerRoutersIndexRoute
+  '/partner/subscribers/': typeof PartnerSubscribersIndexRoute
   '/partner/tr069/': typeof PartnerTr069IndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
@@ -1787,6 +1802,7 @@ export interface FileRoutesByTo {
   '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
@@ -1829,6 +1845,7 @@ export interface FileRoutesByTo {
   '/partner/invoices': typeof PartnerInvoicesIndexRoute
   '/partner/plans': typeof PartnerPlansIndexRoute
   '/partner/routers': typeof PartnerRoutersIndexRoute
+  '/partner/subscribers': typeof PartnerSubscribersIndexRoute
   '/partner/tr069': typeof PartnerTr069IndexRoute
   '/portal/auth': typeof PortalAuthIndexRoute
   '/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
@@ -2008,6 +2025,7 @@ export interface FileRoutesById {
   '/partner/invoices/$invoiceId': typeof PartnerInvoicesInvoiceIdRoute
   '/partner/locations/$ispLocationId': typeof PartnerLocationsIspLocationIdRoute
   '/partner/routers/$ispRouterId': typeof PartnerRoutersIspRouterIdRoute
+  '/partner/subscribers/$subscriberId': typeof PartnerSubscribersSubscriberIdRoute
   '/partner/tr069/$cpeId': typeof PartnerTr069CpeIdRoute
   '/portal/auth/$method': typeof PortalAuthMethodRoute
   '/preview/portal/$locationId': typeof PreviewPortalLocationIdRoute
@@ -2050,6 +2068,7 @@ export interface FileRoutesById {
   '/partner/invoices/': typeof PartnerInvoicesIndexRoute
   '/partner/plans/': typeof PartnerPlansIndexRoute
   '/partner/routers/': typeof PartnerRoutersIndexRoute
+  '/partner/subscribers/': typeof PartnerSubscribersIndexRoute
   '/partner/tr069/': typeof PartnerTr069IndexRoute
   '/portal/auth/': typeof PortalAuthIndexRoute
   '/_authenticated/workspace/locations/$locationId': typeof AuthenticatedWorkspaceLocationsLocationIdRoute
@@ -2229,6 +2248,7 @@ export interface FileRouteTypes {
     | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
     | '/partner/routers/$ispRouterId'
+    | '/partner/subscribers/$subscriberId'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
@@ -2271,6 +2291,7 @@ export interface FileRouteTypes {
     | '/partner/invoices/'
     | '/partner/plans/'
     | '/partner/routers/'
+    | '/partner/subscribers/'
     | '/partner/tr069/'
     | '/portal/auth/'
     | '/workspace/locations/$locationId'
@@ -2441,6 +2462,7 @@ export interface FileRouteTypes {
     | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
     | '/partner/routers/$ispRouterId'
+    | '/partner/subscribers/$subscriberId'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
@@ -2483,6 +2505,7 @@ export interface FileRouteTypes {
     | '/partner/invoices'
     | '/partner/plans'
     | '/partner/routers'
+    | '/partner/subscribers'
     | '/partner/tr069'
     | '/portal/auth'
     | '/workspace/locations/$locationId'
@@ -2661,6 +2684,7 @@ export interface FileRouteTypes {
     | '/partner/invoices/$invoiceId'
     | '/partner/locations/$ispLocationId'
     | '/partner/routers/$ispRouterId'
+    | '/partner/subscribers/$subscriberId'
     | '/partner/tr069/$cpeId'
     | '/portal/auth/$method'
     | '/preview/portal/$locationId'
@@ -2703,6 +2727,7 @@ export interface FileRouteTypes {
     | '/partner/invoices/'
     | '/partner/plans/'
     | '/partner/routers/'
+    | '/partner/subscribers/'
     | '/partner/tr069/'
     | '/portal/auth/'
     | '/_authenticated/workspace/locations/$locationId'
@@ -3562,6 +3587,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PartnerTr069IndexRouteImport
       parentRoute: typeof PartnerRoute
     }
+    '/partner/subscribers/': {
+      id: '/partner/subscribers/'
+      path: '/subscribers'
+      fullPath: '/partner/subscribers/'
+      preLoaderRoute: typeof PartnerSubscribersIndexRouteImport
+      parentRoute: typeof PartnerRoute
+    }
     '/partner/routers/': {
       id: '/partner/routers/'
       path: '/routers'
@@ -3854,6 +3886,13 @@ declare module '@tanstack/react-router' {
       path: '/tr069/$cpeId'
       fullPath: '/partner/tr069/$cpeId'
       preLoaderRoute: typeof PartnerTr069CpeIdRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/subscribers/$subscriberId': {
+      id: '/partner/subscribers/$subscriberId'
+      path: '/subscribers/$subscriberId'
+      fullPath: '/partner/subscribers/$subscriberId'
+      preLoaderRoute: typeof PartnerSubscribersSubscriberIdRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/routers/$ispRouterId': {
@@ -4647,11 +4686,13 @@ interface PartnerRouteChildren {
   PartnerInvoicesInvoiceIdRoute: typeof PartnerInvoicesInvoiceIdRoute
   PartnerLocationsIspLocationIdRoute: typeof PartnerLocationsIspLocationIdRoute
   PartnerRoutersIspRouterIdRoute: typeof PartnerRoutersIspRouterIdRoute
+  PartnerSubscribersSubscriberIdRoute: typeof PartnerSubscribersSubscriberIdRoute
   PartnerTr069CpeIdRoute: typeof PartnerTr069CpeIdRoute
   PartnerCustomersIndexRoute: typeof PartnerCustomersIndexRoute
   PartnerInvoicesIndexRoute: typeof PartnerInvoicesIndexRoute
   PartnerPlansIndexRoute: typeof PartnerPlansIndexRoute
   PartnerRoutersIndexRoute: typeof PartnerRoutersIndexRoute
+  PartnerSubscribersIndexRoute: typeof PartnerSubscribersIndexRoute
   PartnerTr069IndexRoute: typeof PartnerTr069IndexRoute
   PartnerCustomersIspCustomerIdFeatureRoute: typeof PartnerCustomersIspCustomerIdFeatureRoute
   PartnerPlansCouponsCouponBatchIdRoute: typeof PartnerPlansCouponsCouponBatchIdRoute
@@ -4672,11 +4713,13 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerInvoicesInvoiceIdRoute: PartnerInvoicesInvoiceIdRoute,
   PartnerLocationsIspLocationIdRoute: PartnerLocationsIspLocationIdRoute,
   PartnerRoutersIspRouterIdRoute: PartnerRoutersIspRouterIdRoute,
+  PartnerSubscribersSubscriberIdRoute: PartnerSubscribersSubscriberIdRoute,
   PartnerTr069CpeIdRoute: PartnerTr069CpeIdRoute,
   PartnerCustomersIndexRoute: PartnerCustomersIndexRoute,
   PartnerInvoicesIndexRoute: PartnerInvoicesIndexRoute,
   PartnerPlansIndexRoute: PartnerPlansIndexRoute,
   PartnerRoutersIndexRoute: PartnerRoutersIndexRoute,
+  PartnerSubscribersIndexRoute: PartnerSubscribersIndexRoute,
   PartnerTr069IndexRoute: PartnerTr069IndexRoute,
   PartnerCustomersIspCustomerIdFeatureRoute:
     PartnerCustomersIspCustomerIdFeatureRoute,
