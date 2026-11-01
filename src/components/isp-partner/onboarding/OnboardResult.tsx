@@ -104,6 +104,18 @@ export function OnboardResult({
             switched off on this platform.
           </p>
         )}
+        {result.task && (
+          <p className="mt-2 text-xs">
+            Installation task created ({result.task.status}).{" "}
+            <Link
+              to="/partner/apps"
+              search={{ tab: "tasks" }}
+              className="text-primary hover:underline"
+            >
+              Open tasks
+            </Link>
+          </p>
+        )}
         {result.invoice && (
           <p className="mt-2 text-xs">
             Invoice{" "}

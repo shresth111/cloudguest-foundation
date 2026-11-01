@@ -298,6 +298,24 @@ eq(
   undefined,
 );
 
+console.log("APPS-2 install task");
+eq(
+  "sent when Apps is on (default true)",
+  m.buildOnboarding(base, { ...all, features: { ...all.features, install_task: true } }).body
+    .create_install_task,
+  true,
+);
+eq(
+  "unticked -> false",
+  m.buildOnboarding(
+    { ...base, create_install_task: false },
+    { ...all, features: { ...all.features, install_task: true } },
+  ).body.create_install_task,
+  false,
+);
+eq("not sent while Apps is off", "create_install_task" in m.buildOnboarding(base, all).body, false);
+eq("task step label", m.stepLabel("task"), "Installation task");
+
 console.log("step 2 uploads");
 const f = (kind, key) => ({ kind, key, file: { name: key } });
 eq(

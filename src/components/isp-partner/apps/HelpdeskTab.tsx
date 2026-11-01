@@ -36,6 +36,7 @@ import {
 } from "@/components/isp-partner/apps/appsKit";
 import { TicketDetailDrawer } from "@/components/isp-partner/apps/TicketDetailDrawer";
 import { TicketTypesCard } from "@/components/isp-partner/apps/TicketTypesCard";
+import { EscalationCard } from "@/components/isp-partner/apps/EscalationCard";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
@@ -59,7 +60,7 @@ import {
   type TicketTypeFull,
 } from "@/services/isp-partner/apps-types";
 
-type View = "queue" | "breached" | "stats" | "types";
+type View = "queue" | "breached" | "stats" | "escalation" | "types";
 
 export function HelpdeskTab() {
   const { can } = usePartner();
@@ -79,12 +80,14 @@ export function HelpdeskTab() {
           { value: "queue", label: "Queue" },
           { value: "breached", label: "SLA breached" },
           { value: "stats", label: "TAT & stats" },
+          { value: "escalation", label: "Escalation" },
           { value: "types", label: "Ticket types" },
         ]}
       />
       {view === "queue" && <Queue types={types.data ?? []} breachedOnly={false} />}
       {view === "breached" && <Queue types={types.data ?? []} breachedOnly />}
       {view === "stats" && <Stats />}
+      {view === "escalation" && <EscalationCard types={types.data ?? []} canManage={c.manage} />}
       {view === "types" && <TicketTypesCard canManage={c.manage} />}
     </div>
   );

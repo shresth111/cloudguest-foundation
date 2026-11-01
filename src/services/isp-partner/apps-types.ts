@@ -110,7 +110,9 @@ export type TaskStatus =
   | "in_progress"
   | "completed"
   | "rejected"
-  | "cancelled";
+  | "cancelled"
+  /** APPS-2: signed off by a supervisor */
+  | "approved";
 export const TASK_KINDS: TaskKind[] = ["install", "repair", "survey", "removal", "other"];
 export const TASK_STATUSES: TaskStatus[] = [
   "unclaimed",
@@ -119,6 +121,7 @@ export const TASK_STATUSES: TaskStatus[] = [
   "completed",
   "rejected",
   "cancelled",
+  "approved",
 ];
 
 export interface TaskView {
@@ -143,6 +146,8 @@ export interface TaskView {
   completion_note: string | null;
   rejected_reason: string | null;
   created_at: string;
+  /** APPS-2: the latest supervisor decision (null = none yet) */
+  approval?: TaskApproval | null;
 }
 
 export interface TaskQuery {
@@ -185,6 +190,8 @@ export interface Announcement {
   send_email: boolean;
   status: "draft" | "sent" | string;
   sent_at: string | null;
+  /** APPS-2: a draft with this set goes out automatically */
+  scheduled_at?: string | null;
   created_at: string;
 }
 
@@ -194,6 +201,7 @@ export interface AnnouncementBody {
   audience?: "all" | "selected";
   customer_ids?: string[];
   send_email?: boolean;
+  scheduled_at?: string | null;
 }
 
 // ---------------------------------------------------------------- discounts
@@ -263,7 +271,7 @@ export interface InventoryItem {
   counts: Record<UnitState, number>;
 }
 
-export interface InventoryUnit {
+export interface InventoryUnit extends Partial<UnitMeta> {
   id: string;
   item_id: string;
   item_name: string;
@@ -289,6 +297,8 @@ export interface InventoryUnitDetail extends InventoryUnit {
 }
 
 export interface UnitQuery {
+  /** APPS-2 stock location (`location_id` is a reserved scope-alias name) */
+  stock_location_id?: string;
   item_id?: string;
   state?: UnitState;
   isp_customer_id?: string;
@@ -358,6 +368,8 @@ export interface Lead {
   converted_subscriber_id: string | null;
   converted_at: string | null;
   created_at: string;
+  /** APPS-2 timers */
+  sla?: LeadSla | null;
 }
 
 export interface LeadDetail extends Lead {
@@ -387,4 +399,122 @@ export interface LeadBody {
   feasibility_note?: string | null;
   dropped_reason?: string | null;
   notes?: string | null;
+}
+
+// ---------------------------------------------------------------- APPS-2
+// (BE `apps2_router.py`; same ISP_APPS_ENABLED flag)
+
+export interface AppsSettings {
+  lead_contact_sla_minutes: number;
+  lead_convert_sla_days: number;
+}
+
+export interface EscalationRule {
+  id: string;
+  name: string;
+  type_id: string | null;
+  priority: TicketPriority | null;
+  after_minutes: number;
+  escalate_to_role: string | null;
+  escalate_to_user_id: string | null;
+  escalate_to_name: string | null;
+  notify_telegram: boolean;
+  active: boolean;
+}
+
+export interface EscalationRuleBody {
+  name?: string;
+  type_id?: string | null;
+  priority?: TicketPriority | null;
+  after_minutes?: number;
+  escalate_to_role?: string | null;
+  escalate_to_user_id?: string | null;
+  notify_telegram?: boolean;
+  active?: boolean;
+}
+
+export interface Escalation {
+  id: string;
+  ticket_id: string;
+  ticket_number: string;
+  subject: string;
+  customer_name: string | null;
+  ticket_status: string;
+  rule_id: string;
+  rule_name: string;
+  escalated_at: string;
+  to_role: string | null;
+  to_user_id: string | null;
+  to_user_name: string | null;
+  /** sent | failed | off (Telegram alerts off / no bot) | none (rule says no) */
+  telegram_status: string;
+  telegram_error: string | null;
+}
+
+export interface TaskApproval {
+  decision: "approved" | "rejected";
+  note: string | null;
+  decided_by_name: string | null;
+  decided_at: string;
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  contact_name: string | null;
+  phone: string | null;
+  email: string | null;
+  gstin: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
+export type StockLocationKind = "warehouse" | "office" | "technician_bag";
+export const STOCK_LOCATION_KINDS: StockLocationKind[] = ["warehouse", "office", "technician_bag"];
+
+export interface StockLocation {
+  id: string;
+  name: string;
+  kind: StockLocationKind | string;
+  holder_user_id: string | null;
+  holder_name: string | null;
+  address: string | null;
+  active: boolean;
+}
+
+export interface UnitMeta {
+  vendor_id: string | null;
+  vendor_name: string | null;
+  location_id: string | null;
+  location_name: string | null;
+  location_kind: string | null;
+  tr069_device_id: string | null;
+  tr069_serial: string | null;
+  pending_checkout_id: string | null;
+}
+
+export interface Checkout {
+  id: string;
+  unit_id: string;
+  serial: string | null;
+  isp_customer_id: string;
+  customer_name: string | null;
+  subscriber_id: string | null;
+  task_id: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled" | string;
+  note: string | null;
+  requested_by_name: string | null;
+  requested_at: string;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+}
+
+export interface LeadSla {
+  contact_due_at: string;
+  first_contacted_at: string | null;
+  contact_state: "met" | "met_late" | "breached" | "pending" | string;
+  convert_due_at: string;
+  convert_state: "done" | "breached" | "pending" | string;
+  age_minutes: number;
 }

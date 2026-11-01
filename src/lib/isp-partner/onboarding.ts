@@ -170,6 +170,8 @@ export interface OnboardForm {
   payment_reference: string;
   // welcome
   welcome_whatsapp: boolean;
+  // APPS-2
+  create_install_task: boolean;
 }
 
 export function emptyOnboardForm(): OnboardForm {
@@ -228,6 +230,7 @@ export function emptyOnboardForm(): OnboardForm {
     payment_mode: "cash",
     payment_reference: "",
     welcome_whatsapp: true,
+    create_install_task: true,
   };
 }
 
@@ -242,7 +245,7 @@ export type FormSection =
   | "invoice";
 
 export interface BuildContext {
-  features: { pppoe: boolean; static_ip: boolean; kyc: boolean };
+  features: { pppoe: boolean; static_ip: boolean; kyc: boolean; install_task?: boolean };
   /** Permissions the caller holds (the API re-checks). */
   can: { kyc: boolean; invoice: boolean; pay: boolean };
 }
@@ -410,6 +413,10 @@ export function buildOnboarding(f: OnboardForm, ctx: BuildContext): Built {
     }
   }
 
+  // APPS-2 install task: only sent while Apps is on (the API skips it then
+  // anyway); explicit false when the box is unticked
+  if (ctx.features.install_task) body.create_install_task = f.create_install_task;
+
   // first invoice
   if (ctx.can.invoice && f.issue_invoice) {
     const paid = ctx.can.pay && f.paid_now;
@@ -472,6 +479,7 @@ export const STEP_LABEL: Record<string, string> = {
   caf: "CAF number",
   invoice: "First invoice",
   payment: "Payment",
+  task: "Installation task",
 };
 
 export function stepLabel(step: unknown): string {

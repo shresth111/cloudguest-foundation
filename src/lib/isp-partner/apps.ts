@@ -39,9 +39,11 @@ export const TASK_STATUS_LABEL: Record<string, string> = {
   unclaimed: "Unclaimed",
   assigned: "Assigned",
   in_progress: "In progress",
-  completed: "Completed",
+  // APPS-2: completed tasks wait for a supervisor's sign-off
+  completed: "Awaiting approval",
   rejected: "Rejected",
   cancelled: "Cancelled",
+  approved: "Approved",
 };
 export const LEAD_STATUS_LABEL: Record<string, string> = {
   new: "New",
@@ -79,9 +81,11 @@ export function tone(v: string | null | undefined): string {
     case "feasibility_pending":
     case "install_scheduled":
       return "active";
+    case "completed":
+      return "pending";
     case "resolved":
     case "closed":
-    case "completed":
+    case "approved":
     case "converted":
     case "feasible":
       return "paid";
@@ -185,7 +189,10 @@ export const TASK_NEXT: Record<string, string[]> = {
   assigned: ["in_progress", "completed", "rejected", "unclaimed", "cancelled"],
   in_progress: ["completed", "rejected", "assigned", "cancelled"],
   rejected: ["unclaimed", "assigned", "cancelled"],
+  // completed -> approved / back to the assignee: supervisor actions
+  // (approve / send back), not a plain status move
   completed: [],
+  approved: [],
   cancelled: [],
 };
 
@@ -193,11 +200,13 @@ export function taskNext(status: string): string[] {
   return TASK_NEXT[status] ?? [];
 }
 
-export type TaskView = "unclaimed" | "mine" | "all";
+export type TaskView = "unclaimed" | "mine" | "approval" | "all";
 
 export function taskQuery(view: TaskView, extra: Partial<TaskQuery> = {}): TaskQuery {
   if (view === "unclaimed") return { ...extra, status: "unclaimed", mine: undefined };
   if (view === "mine") return { ...extra, mine: true };
+  // APPS-2: completed tasks waiting for a supervisor
+  if (view === "approval") return { ...extra, status: "completed", mine: undefined };
   return { ...extra, mine: undefined };
 }
 
@@ -419,3 +428,106 @@ export function leadStatusBody(
   }
   return { body: { status: target as LeadBody["status"] } };
 }
+
+// ---------------------------------------------------------------- APPS-2
+
+/** A completed task waits for a supervisor (approve / send back). */
+export function canDecideTask(status: string): boolean {
+  return status === "completed";
+}
+
+export const ISP_ROLE_LABEL: Record<string, string> = {
+  "isp-owner": "Owner",
+  "isp-admin": "Admin",
+  "isp-noc": "NOC",
+  "isp-technician": "Technician",
+  "isp-billing": "Billing",
+  "isp-viewer": "Viewer",
+};
+
+export function escalationRuleBody(d: {
+  name: string;
+  hours: string;
+  type_id: string;
+  priority: string;
+  role: string;
+  user: string;
+  telegram: boolean;
+}): { body: import("@/services/isp-partner/apps-types").EscalationRuleBody } | { error: string } {
+  const name = d.name.trim();
+  if (!name) return { error: "Give the rule a name." };
+  const m = slaMinutes(d.hours);
+  if (m === null || m === "bad") return { error: "After: hours between 0.1 and 1440." };
+  if (!d.role && !d.user) return { error: "Escalate to a role, a staff member, or both." };
+  if (d.role && !(d.role in ISP_ROLE_LABEL)) return { error: "Pick one of the staff roles." };
+  return {
+    body: {
+      name,
+      after_minutes: m,
+      type_id: d.type_id || null,
+      priority: (d.priority || null) as never,
+      escalate_to_role: d.role || null,
+      escalate_to_user_id: d.user || null,
+      notify_telegram: d.telegram,
+    },
+  };
+}
+
+export const TELEGRAM_STATUS_LABEL: Record<string, string> = {
+  sent: "Telegram sent",
+  failed: "Telegram failed",
+  off: "Telegram off",
+  none: "No Telegram",
+};
+
+/** "Contact due in 2 h", "Contact overdue 30 min", "Contacted late", ... */
+export function leadSlaText(
+  sla: { contact_state: string; contact_due_at: string; convert_state: string } | null | undefined,
+  now: number = Date.now(),
+): string {
+  if (!sla) return "–";
+  const fmt = (ms: number) => {
+    const m = Math.round(Math.abs(ms) / 60_000);
+    return m < 60 ? `${m} min` : m < 2880 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`;
+  };
+  const diff = Date.parse(sla.contact_due_at) - now;
+  switch (sla.contact_state) {
+    case "pending":
+      return `Contact due in ${fmt(diff)}`;
+    case "breached":
+      return `Contact overdue ${fmt(diff)}`;
+    case "met_late":
+      return "Contacted late";
+    default:
+      return sla.convert_state === "breached" ? "Conversion overdue" : "On track";
+  }
+}
+
+export function leadSlaTone(
+  sla: { contact_state: string; convert_state: string } | null | undefined,
+): string {
+  if (!sla) return "normal";
+  if (sla.contact_state === "breached" || sla.convert_state === "breached") return "failed";
+  if (sla.contact_state === "pending") return "pending";
+  return "normal";
+}
+
+/** `datetime-local` -> ISO, only if it is in the future. */
+export function scheduleIso(local: string, now: number = Date.now()): string | null | "past" {
+  if (!local) return null;
+  const t = new Date(local).getTime();
+  if (Number.isNaN(t)) return null;
+  return t <= now ? "past" : new Date(t).toISOString();
+}
+
+/** Checking a unit out to a customer: approvers move it directly, everyone
+ * else files a request (the API answers 409 ISP_APPS_CHECKOUT_APPROVAL). */
+export function checkoutRoute(canManage: boolean): "direct" | "request" {
+  return canManage ? "direct" : "request";
+}
+
+export const STOCK_KIND_LABEL: Record<string, string> = {
+  warehouse: "Warehouse",
+  office: "Office",
+  technician_bag: "Technician bag",
+};

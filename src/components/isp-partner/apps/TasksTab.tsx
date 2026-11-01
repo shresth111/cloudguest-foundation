@@ -41,6 +41,7 @@ import { formatDateTime } from "@/lib/isp-partner/format";
 import {
   TASK_STATUS_LABEL,
   appsCan,
+  canDecideTask,
   humanize,
   taskNext,
   taskQuery,
@@ -58,6 +59,7 @@ export function TasksTab() {
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const [acting, setActing] = useState<TaskView | null>(null);
+  const [deciding, setDeciding] = useState<TaskView | null>(null);
   const q = taskQuery(view, { kind: (kind || undefined) as TaskBody["kind"], page, page_size: 25 });
   const list = useQuery({
     queryKey: appsKeys.list("tasks", q),
@@ -78,6 +80,7 @@ export function TasksTab() {
           options={[
             { value: "unclaimed", label: "Unclaimed" },
             { value: "mine", label: "Mine" },
+            { value: "approval", label: "Awaiting approval" },
             { value: "all", label: "All" },
           ]}
         />
@@ -167,6 +170,14 @@ export function TasksTab() {
                         Update
                       </MButton>
                     )}
+                  {c.manage && canDecideTask(t.status) && (
+                    <MButton variant="outline" onClick={() => setDeciding(t)}>
+                      Review
+                    </MButton>
+                  )}
+                  {t.approval?.decision === "rejected" && t.status !== "completed" && (
+                    <p className="text-[11px] text-rose-600">Sent back: {t.rejected_reason}</p>
+                  )}
                 </MTd>
               </MTr>
             ))}
@@ -185,6 +196,7 @@ export function TasksTab() {
       {acting && (
         <TaskStatusDialog task={acting} meId={me.user.id} onClose={() => setActing(null)} />
       )}
+      {deciding && <TaskReviewDialog task={deciding} onClose={() => setDeciding(null)} />}
     </div>
   );
 }
@@ -344,6 +356,65 @@ function TaskStatusDialog({
         {target === "rejected" && (
           <TextField label="Why" required value={reason} onChange={setReason} />
         )}
+        <FormError message={err} />
+      </div>
+    </MDialog>
+  );
+}
+
+/** APPS-2: a supervisor signs a completed task off, or sends it back to
+ * the assignee with what needs redoing. */
+function TaskReviewDialog({ task, onClose }: { task: TaskView; onClose: () => void }) {
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const approve = useAppsMutation(() => appsService.approveTask(task.id, note.trim() || null));
+  const back = useAppsMutation(() => appsService.sendBackTask(task.id, note.trim()));
+  const run = async (fn: () => Promise<unknown>, ok: string) => {
+    setErr(null);
+    try {
+      await fn();
+      toast.success(ok);
+      onClose();
+    } catch (e) {
+      setErr(ispErrorMessage(e));
+    }
+  };
+  return (
+    <MDialog
+      open
+      onClose={onClose}
+      title={`Review: ${task.title}`}
+      footer={
+        <>
+          <MButton variant="outline" onClick={onClose}>
+            Cancel
+          </MButton>
+          <MButton
+            variant="outline"
+            disabled={back.isPending || approve.isPending}
+            onClick={() => {
+              if (!note.trim()) return setErr("Say what needs redoing.");
+              run(() => back.mutateAsync(undefined), "Sent back to the assignee.");
+            }}
+          >
+            Send back
+          </MButton>
+          <MButton
+            disabled={approve.isPending || back.isPending}
+            onClick={() => run(() => approve.mutateAsync(undefined), "Approved.")}
+          >
+            {approve.isPending && <Spinner />} Approve
+          </MButton>
+        </>
+      }
+    >
+      <div className="space-y-3 text-sm">
+        <p className="text-xs text-muted-foreground">
+          {task.assignee_name ?? "The assignee"} marked this done
+          {task.completed_at ? ` on ${formatDateTime(task.completed_at)}` : ""}.
+          {task.completion_note ? ` Note: ${task.completion_note}` : ""}
+        </p>
+        <TextField label="Note (needed to send it back)" value={note} onChange={setNote} />
         <FormError message={err} />
       </div>
     </MDialog>
