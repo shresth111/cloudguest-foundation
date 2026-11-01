@@ -5,7 +5,8 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
+import { Download, Printer } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
 import { CustomerSelect, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import {
@@ -18,6 +19,7 @@ import {
 } from "@/hooks/isp-partner/useBilling";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { billingService, newIdempotencyKey } from "@/services/isp-partner/billing";
+import { financeService } from "@/services/isp-partner/finance";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
 import { isoDay } from "@/lib/isp-partner/format";
 import { saveBlob } from "@/lib/isp-partner/download";
@@ -55,6 +57,39 @@ export function ReceiptButton({ payment }: { payment: Pick<IspPayment, "id" | "r
       }}
     >
       {busy ? <Spinner /> : <Download />} Receipt
+    </MButton>
+  );
+}
+
+/** LEFTOVERS 7.3: the 80 mm thermal payment slip (JAZE-4
+ * `/finance/payments/{id}/thermal.pdf`). Shown only while finance tools are
+ * on -- the same template probe the invoice actions use (404 = off). */
+export function ThermalReceiptButton({
+  payment,
+}: {
+  payment: Pick<IspPayment, "id" | "receipt_number">;
+}) {
+  const probe = useQuery({
+    queryKey: ["isp", "finance", "template"],
+    queryFn: financeService.template,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const [busy, setBusy] = useState(false);
+  if (!probe.isSuccess) return null;
+  return (
+    <MButton
+      variant="ghost"
+      disabled={busy}
+      title="80 mm receipt slip"
+      aria-label={`80 mm slip for ${payment.receipt_number}`}
+      onClick={async () => {
+        setBusy(true);
+        await download(() => financeService.thermalReceipt(payment.id, 80));
+        setBusy(false);
+      }}
+    >
+      {busy ? <Spinner /> : <Printer />}
     </MButton>
   );
 }
