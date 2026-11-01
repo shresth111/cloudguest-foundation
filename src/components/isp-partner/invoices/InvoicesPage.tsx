@@ -204,8 +204,11 @@ export function InvoicesPage({
   const to = filters.to || defTo;
   const query: InvoiceListQuery = useMemo(
     () => ({
-      since: new Date(`${from}T00:00:00`).toISOString(),
-      until: new Date(new Date(`${to}T00:00:00`).getTime() + 86_400_000).toISOString(),
+      // The API takes calendar dates (YYYY-MM-DD, `until` inclusive on the
+      // issue date). An ISO datetime is a 422 outside UTC (IST midnight is
+      // 18:30Z the day before): the P0 "Request validation failed".
+      since: from,
+      until: to,
       status: filters.status || undefined,
       bill_to_kind: filters.billTo || undefined,
       zone_id: filters.zone || undefined,
