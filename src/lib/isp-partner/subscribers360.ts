@@ -98,6 +98,25 @@ export function idempotencyKey(): string {
   return `s360-${r.slice(0, 24)}`;
 }
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** API ISO timestamp (UTC) -> `<input type="datetime-local">` value in the
+ * browser's zone. Slicing the ISO string would show UTC wall-clock and shift
+ * the time by the zone offset on every save. */
+export function isoToLocalInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(
+    d.getHours(),
+  )}:${pad2(d.getMinutes())}`;
+}
+
+/** API ISO timestamp -> `<input type="date">` value (local calendar day). */
+export function isoToLocalDate(iso: string | null | undefined): string {
+  return isoToLocalInput(iso).slice(0, 10);
+}
+
 /** Lat/long text inputs -> numbers (or null), range-checked. */
 export function parseCoord(v: string, kind: "lat" | "lon"): number | null | "invalid" {
   const t = v.trim();

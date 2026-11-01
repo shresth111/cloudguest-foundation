@@ -4,6 +4,7 @@
  */
 import { M_INPUT } from "@/components/master/MasterKit";
 import { TextField } from "@/components/isp-partner/kit";
+import { isoToLocalDate, isoToLocalInput } from "@/lib/isp-partner/subscribers360";
 import type { SubscriberProfile } from "@/services/isp-partner/subscribers360-types";
 
 export type ProfileDraft = Record<
@@ -47,7 +48,7 @@ export function emptyDraft(p?: SubscriberProfile | null): ProfileDraft {
     install_pincode: s(p?.install_pincode),
     latitude: s(p?.latitude),
     longitude: s(p?.longitude),
-    installed_at: p?.installed_at ? p.installed_at.slice(0, 10) : "",
+    installed_at: isoToLocalDate(p?.installed_at),
     user_type: p?.user_type ?? "home",
     connection_type: s(p?.connection_type),
     ont_serial: s(p?.ont_serial),
@@ -61,7 +62,7 @@ export function emptyDraft(p?: SubscriberProfile | null): ProfileDraft {
     billing_anchor_day: s(p?.billing_anchor_day),
     after_due_action: p?.after_due_action ?? "suspend",
     exclude_reminders: p?.exclude_reminders ?? false,
-    activation_at: p?.activation_at ? p.activation_at.slice(0, 16) : "",
+    activation_at: isoToLocalInput(p?.activation_at),
     comments: s(p?.comments),
   };
 }

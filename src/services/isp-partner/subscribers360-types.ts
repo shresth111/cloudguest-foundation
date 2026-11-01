@@ -75,6 +75,15 @@ export interface TimelineEvent {
 }
 
 export interface Subscriber360 extends SubscriberDetail {
+  /** `plans_service.subscriber_detail` contact block. */
+  gstin?: string | null;
+  address?: string | null;
+  state_code?: string | null;
+  reminder_opt_in?: {
+    email?: boolean | null;
+    sms?: boolean | null;
+    whatsapp?: boolean | null;
+  } | null;
   display_state: DisplayState | string;
   profile: SubscriberProfile;
   hold: {

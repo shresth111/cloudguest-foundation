@@ -3,7 +3,7 @@
  * block, freeze, move, note, edit profile. Each calls one JAZE-1 endpoint;
  * the API re-checks state and permission, so a stale button only errors.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
 import { CustomerSelect, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
@@ -414,8 +414,8 @@ function NoteDialog({ s, onClose }: Props) {
 }
 
 function ProfileDialog({ s, onClose }: Props) {
+  // Seeded once per open: a background refetch must not wipe edits.
   const [draft, setDraft] = useState(() => emptyDraft(s.profile));
-  useEffect(() => setDraft(emptyDraft(s.profile)), [s.profile]);
   const m = useSub360Mutation((body: Record<string, unknown>) => svc.putProfile(s.id, body));
   const { error, setError, run } = useRun(onClose);
   return (
