@@ -70,7 +70,7 @@
   "unblockDevice": "Allow device",
   "deviceSpeedProfile": "Speed profile",
   "deviceSpeedProfilePlaceholder": "Choose a speed profile",
-  "deviceSpeedNoProfiles": "No speed profiles yet. Create one under Access Rules and it will appear here.",
+  "deviceSpeedNoProfiles": "No speed profiles yet. Create one under Network → Usage Limits and it will appear here.",
   "applyDeviceSpeed": "Apply speed",
   "clearDeviceSpeed": "Remove limit",
   "deviceActionError": "Couldn’t reach the venue’s controller. Nothing was changed.",

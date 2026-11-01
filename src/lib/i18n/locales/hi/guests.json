@@ -70,7 +70,7 @@
   "unblockDevice": "डिवाइस को अनुमति दें",
   "deviceSpeedProfile": "स्पीड प्रोफ़ाइल",
   "deviceSpeedProfilePlaceholder": "स्पीड प्रोफ़ाइल चुनें",
-  "deviceSpeedNoProfiles": "अभी कोई स्पीड प्रोफ़ाइल नहीं है। एक्सेस नियम में एक बनाएँ, वह यहाँ दिखेगी।",
+  "deviceSpeedNoProfiles": "अभी कोई स्पीड प्रोफ़ाइल नहीं है। नेटवर्क → उपयोग सीमाएँ में एक बनाएँ, वह यहाँ दिखेगी।",
   "applyDeviceSpeed": "स्पीड लागू करें",
   "clearDeviceSpeed": "लिमिट हटाएँ",
   "deviceActionError": "यहाँ के कंट्रोलर तक नहीं पहुँच पाए। कुछ नहीं बदला गया।",

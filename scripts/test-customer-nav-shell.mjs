@@ -381,8 +381,8 @@ console.log("\nthe sidebar is grouped by task");
         "guests=users,teams,vouchers,reports",
         "marketing=campaigns,marketing",
         "login-page=portal,business-hours",
-        "network=devices,isp-details,traffic-lens,dhcp,vlans,port-forwarding,voip",
-        "security=security,blocking,firewall,policies,whitelist,mac-auth",
+        "network=devices,isp-details,traffic-lens,policies,dhcp,vlans,port-forwarding,voip",
+        "security=security,blocking,firewall,whitelist,mac-auth",
         "logs=admin-logs,network-activity,netlogs",
         "help=tickets,how-it-works",
       ].join(" | "),
@@ -519,8 +519,7 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
   check(
     "the Security group is Security Score, Block Websites, Firewall, then who-may-connect",
     security &&
-      security.items.map((i) => i.id).join(",") ===
-        "security,blocking,firewall,policies,whitelist,mac-auth",
+      security.items.map((i) => i.id).join(",") === "security,blocking,firewall,whitelist,mac-auth",
     security ? security.items.map((i) => i.id).join(",") : "missing",
   );
   const score = CUSTOMER_NAVS.find((n) => n.id === "security");
@@ -556,12 +555,20 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "the same screen reachable as a row and as a tab is two homes for one setting",
   );
   check(
-    "the Network section is Devices, the uplink and Traffic Lens, then the four Advanced settings",
+    "the Network section is Devices, the uplink, Traffic Lens and Usage Limits, then the four Advanced settings",
     (CUSTOMER_NAV_GROUPS.find((g) => g.id === "network")?.items ?? [])
       .map((i) => `${i.id}${i.tabMenu ? `[${i.tabMenu.id}]` : ""}${i.tabGroup ? "|" : ""}`)
       .join(",") ===
-      "devices,isp-details,traffic-lens,dhcp[advanced],vlans[advanced],port-forwarding[advanced],voip[advanced]",
+      "devices,isp-details,traffic-lens,policies,dhcp[advanced],vlans[advanced],port-forwarding[advanced],voip[advanced]",
   );
+  // Owner's call 2026-11-01: Access Rules became "Usage Limits" and moved
+  // from Security to Network. Same id and /policies URL.
+  check(
+    "Usage Limits (was Access Rules) is labelled for the job and is owner-only",
+    CUSTOMER_NAVS.find((n) => n.id === "policies")?.label === "Usage Limits" &&
+      CUSTOMER_NAVS.find((n) => n.id === "policies")?.roles.join(",") === "owner",
+  );
+  check("Usage Limits still lives at /policies", customerFeatureHref("policies") === "/policies");
   // Old links must keep working: a bookmark to the old address is a
   // redirect to the tab it became, behind the same session guards.
   const redirectSrc = strip(readFileSync(join(ROOT, "src/routes/website-blocking.tsx"), "utf8"));
@@ -1415,9 +1422,9 @@ console.log("\nOffers first, one Advanced dropdown, and unblock is findable");
   const network = owner.find((g) => g.id === "network");
   const entries = sectionTabEntries(network.items);
   check(
-    "Network's tab bar is Devices, Internet Connection, Traffic Lens, then ONE Advanced menu",
+    "Network's tab bar is Devices, Internet Connection, Traffic Lens, Usage Limits, then ONE Advanced menu",
     entries.map((e) => (e.kind === "menu" ? `menu:${e.menu.id}` : e.item.id)).join(",") ===
-      "devices,isp-details,traffic-lens,menu:advanced",
+      "devices,isp-details,traffic-lens,policies,menu:advanced",
     entries.map((e) => e.kind).join(","),
   );
   const adv = entries.find((e) => e.kind === "menu");
@@ -1443,7 +1450,7 @@ console.log("\nOffers first, one Advanced dropdown, and unblock is findable");
       const one = sectionTabEntries(
         network.items.filter((i) => i.id !== "vlans" && i.id !== "voip" && i.id !== "dhcp"),
       );
-      return one.length === 4 && one[3].kind === "menu" && one[3].items.length === 1;
+      return one.length === 5 && one[4].kind === "menu" && one[4].items.length === 1;
     })(),
   );
   check(

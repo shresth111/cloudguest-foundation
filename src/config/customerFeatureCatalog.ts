@@ -12,7 +12,7 @@ import {
   Megaphone,
   Palette,
   Ticket,
-  ShieldCheck,
+  Gauge,
   Shield,
   Fingerprint,
   Sun,
@@ -103,6 +103,9 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     items: [
       { id: "devices", label: "Devices", icon: Monitor },
       { id: "isp-details", label: "Internet Connection", icon: Globe },
+      // Formerly "Access Rules" under Security; moved 2026-11-01 with
+      // customerNav.ts's Network group.
+      { id: "policies", label: "Usage Limits", icon: Gauge },
       { id: "dhcp", label: "IP Addresses", icon: Server },
       { id: "vlans", label: "Network Zones", icon: Network },
       { id: "port-forwarding", label: "Port Forwarding", icon: Share2 },
@@ -128,8 +131,8 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
       { id: "blocking", label: "Blocking", icon: Ban },
       { id: "firewall", label: "Firewall", icon: BrickWall },
       // Moved in from the retired "Access & Policy" group, after the three
-      // above, matching customerNav.ts's Security group.
-      { id: "policies", label: "Access Rules", icon: ShieldCheck },
+      // above, matching customerNav.ts's Security group. ("policies" was
+      // here too, as Access Rules; it is Network -> Usage Limits now.)
       // Renamed from "Always Allowed" (founder QA). "Always" promised a
       // bypass of the sign-in page that this list has never provided -- a
       // WHITELIST rule is inert while the portal default-allows everyone,

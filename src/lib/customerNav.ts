@@ -29,6 +29,7 @@ import {
   ShieldAlert,
   Send,
   Waypoints,
+  Gauge,
   Logs,
 } from "lucide-react";
 
@@ -350,6 +351,24 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         roles: ["owner"],
         keywords: ["traffic", "netflow", "bandwidth", "apps", "top sites"],
       },
+      // "Usage Limits", formerly "Access Rules" under Security (owner's
+      // call, 2026-11-01): the page sets each guest's speed, time, device
+      // and data limits plus access tiers -- network behaviour, not
+      // security. Same id, same /policies URL, same permission key.
+      {
+        id: "policies",
+        label: "Usage Limits",
+        icon: Gauge,
+        roles: ["owner"],
+        keywords: [
+          "access rules",
+          "policies",
+          "time limit",
+          "speed limit",
+          "data limit",
+          "access tiers",
+        ],
+      },
       // The router-configuration screens, folded into ONE "Advanced ▾" tab
       // (owner's call, 2026-10-31): set once by whoever installed the
       // network and rarely opened again, so they stay one click away for a
@@ -464,21 +483,16 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         roles: ["owner"],
         keywords: ["rules", "block port", "filter"],
       },
-      // "Who may connect", after a divider in the tab bar.
-      {
-        id: "policies",
-        label: "Access Rules",
-        icon: ShieldCheck,
-        roles: ["owner"],
-        keywords: ["policies", "time limit", "speed limit", "data limit"],
-        tabGroup: { id: "who-can-connect", label: "Who can connect" },
-      },
+      // "Who may connect", after a divider in the tab bar. "Usage Limits"
+      // (was Access Rules) moved to Network on 2026-11-01 (owner's call), so
+      // the divider now starts at Guest Allow-list.
       {
         id: "whitelist",
         label: "Guest Allow-list",
         icon: Shield,
         roles: ["owner"],
         keywords: ["whitelist", "allow list", "walled garden", "allowed sites"],
+        tabGroup: { id: "who-can-connect", label: "Who can connect" },
       },
       {
         id: "mac-auth",
