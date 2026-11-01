@@ -71,6 +71,7 @@ const k = {
   mrr_paise: 80000,
   arpu_paise: null,
   active: 0,
+  pending: 4,
   expired: 1,
   churned: 2,
   other: 0,
@@ -92,6 +93,8 @@ eq("MRR opens the active list", byKey.mrr.metric, "active");
 eq("churn rate opens the lost list", byKey.churn_rate.metric, "lost");
 eq("collection rate opens the uncollected list", byKey.collection_rate.metric, "uncollected");
 eq("churned opens churned", byKey.churned.metric, "churned");
+eq("ACTIVE-ALIGN: pending tile opens the pending list", byKey.pending.metric, "pending");
+eq("ACTIVE-ALIGN: pending tile shows the Overview's pending count", byKey.pending.value, "4");
 eq("dues total has no single list (ageing tiles do)", byKey.dues.metric, null);
 eq("ARPU with nobody active is a dash", byKey.arpu.value, "–");
 eq("churn rate with no base is a dash", byKey.churn_rate.value, "–");
@@ -105,6 +108,7 @@ eq(
   "METRIC_LABEL covers every list metric",
   [
     "active",
+    "pending",
     "expired",
     "churned",
     "other",
