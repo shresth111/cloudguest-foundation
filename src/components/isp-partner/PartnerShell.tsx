@@ -27,6 +27,7 @@ import {
   Landmark,
   Cable,
   Network,
+  Blocks as AppsIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -38,6 +39,7 @@ import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { roleLabel } from "@/lib/isp-partner/format";
 import { MEmptyState } from "@/components/master/MasterKit";
 import { NatFeedBanner } from "@/components/isp-partner/compliance/NatFeedBanner";
+import { useAppsEnabled } from "@/hooks/isp-partner/useApps";
 import { ZoneSwitcher } from "@/components/isp-partner/zones/ZoneSwitcher";
 
 interface NavItem {
@@ -93,6 +95,8 @@ const PARTNER_NAV: NavItem[] = [
     icon: ShieldCheck,
     anyOf: ["isp_partner.read"],
   },
+  // APPS-FE: JAZE-5 Apps (hidden while ISP_APPS_ENABLED is off, see below).
+  { to: "/partner/apps", label: "Apps", icon: AppsIcon, anyOf: ["isp_apps.read"] },
   { to: "/partner/users", label: "Staff users", icon: Users, anyOf: ["isp_partner.assign"] },
   { to: "/partner/settings", label: "Settings", icon: Settings },
 ];
@@ -106,7 +110,10 @@ export function PartnerShell({ children }: { children: ReactNode }) {
   const [mobile, setMobile] = useState(false);
   const [menu, setMenu] = useState(false);
 
-  const nav = PARTNER_NAV.filter((n) => !n.anyOf || n.anyOf.some((p) => can(p)));
+  const apps = useAppsEnabled();
+  const nav = PARTNER_NAV.filter(
+    (n) => (!n.anyOf || n.anyOf.some((p) => can(p))) && (n.to !== "/partner/apps" || apps.enabled),
+  );
   // QA-017: a page whose nav item this role cannot see is not mounted on a
   // direct URL either, so it never fires a request that can only 403 (and
   // land in Staff Activity as permission_denied).
