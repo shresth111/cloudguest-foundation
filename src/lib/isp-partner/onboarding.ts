@@ -168,6 +168,8 @@ export interface OnboardForm {
   paid_now: boolean;
   payment_mode: string;
   payment_reference: string;
+  /** DISCOUNT-WIRE: optional JAZE-5 code on the first invoice. */
+  discount_code: string;
   // welcome
   welcome_whatsapp: boolean;
   // APPS-2
@@ -230,6 +232,7 @@ export function emptyOnboardForm(): OnboardForm {
     issue_invoice: true,
     paid_now: false,
     payment_mode: "cash",
+    discount_code: "",
     payment_reference: "",
     welcome_whatsapp: true,
     create_install_task: true,
@@ -430,6 +433,7 @@ export function buildOnboarding(f: OnboardForm, ctx: BuildContext): Built {
       issue_invoice: true,
       paid_now: paid,
       payment: paid ? { mode: f.payment_mode, reference: nz(f.payment_reference) } : null,
+      ...(f.discount_code?.trim() ? { discount_code: f.discount_code.trim() } : {}),
     };
   }
   return { body };

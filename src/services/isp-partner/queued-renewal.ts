@@ -47,6 +47,8 @@ export const queuedRenewalService = {
       paid_now: boolean;
       payment?: { mode: string; reference?: string };
       idempotency_key: string;
+      /** DISCOUNT-WIRE: a JAZE-5 code (only while the BE applies codes). */
+      discount_code?: string;
     },
   ): Promise<{ queued: QueuedRenewal; repeat: boolean }> {
     const { data } = await api.post<{ queued: QueuedRenewal; repeat: boolean }>(

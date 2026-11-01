@@ -2,6 +2,7 @@
  * minimum bill, uses, dates), a preview against an amount, and each code's
  * redemptions. Managers only write; the code, kind and value are fixed once
  * created (the PATCH model has no such fields). */
+import { useDiscountApply } from "@/hooks/isp-partner/useDiscountApply";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -40,6 +41,7 @@ export function DiscountsTab() {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Discount | "new" | null>(null);
   const [usage, setUsage] = useState<Discount | null>(null);
+  const applies = useDiscountApply().enabled;
   const list = useQuery({
     queryKey: appsKeys.list("discounts", { onlyActive, page }),
     queryFn: () => appsService.discounts({ active: onlyActive || undefined, page }),
@@ -65,11 +67,12 @@ export function DiscountsTab() {
           </MButton>
         )}
       </div>
-      {/* GAP-SWEEP: nothing in billing calls the JAZE-5 discount hook yet, so a
-          code never changes an invoice. Say so instead of implying it does. */}
+      {/* GAP-SWEEP: while billing does not apply codes, say so. DISCOUNT-WIRE:
+          with ISP_DISCOUNT_APPLY_ENABLED on (probe 200) codes do apply. */}
       <p className="text-xs text-muted-foreground">
-        Codes can be created, previewed and tracked here. Renewals, recharges and new subscribers do
-        not apply them to invoices yet.
+        {applies
+          ? "Codes apply before GST when entered on a recharge, a renewal, a queued renewal or a new subscriber's first invoice. Cancelling or reverting that invoice gives the use back."
+          : "Codes can be created, previewed and tracked here. Renewals, recharges and new subscribers do not apply them to invoices yet."}
       </p>
       {list.error && !list.data ? (
         <ErrorBlock error={list.error} onRetry={() => list.refetch()} what="discount codes" />
@@ -77,7 +80,11 @@ export function DiscountsTab() {
         <MEmptyState
           icon={BadgePercent}
           title="No discount codes"
-          description="A code will reduce an invoice's taxable amount once billing applies codes."
+          description={
+            applies
+              ? "A code reduces an invoice's taxable amount when staff enter it."
+              : "A code will reduce an invoice's taxable amount once billing applies codes."
+          }
         />
       ) : (
         <>

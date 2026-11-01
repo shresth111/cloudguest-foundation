@@ -9,6 +9,7 @@
  * is created, and the form points at the section to fix. Files go up in
  * step 2, after the subscriber exists (see OnboardResult).
  */
+import { DiscountCodeField } from "@/components/isp-partner/discounts/DiscountCodeField";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -768,6 +769,15 @@ function OnboardFormView({
             checked={f.issue_invoice}
             onChange={set("issue_invoice")}
           />
+          {f.issue_invoice && (
+            <DiscountCodeField
+              value={f.discount_code}
+              onChange={set("discount_code")}
+              pricePaise={rupeesToPaise(f.override_price) ?? pkg?.price_paise}
+              includesGst={!!pkg?.price_includes_gst}
+              packageId={pkg?.id}
+            />
+          )}
           {f.issue_invoice && canPay && (
             <>
               <Check label="Payment received now" checked={f.paid_now} onChange={set("paid_now")} />

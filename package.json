@@ -45,6 +45,7 @@
     "test:isp-partner-collections": "node scripts/test-isp-partner-collections.mjs",
     "test:isp-partner-revenue": "node scripts/test-isp-partner-revenue.mjs",
     "test:isp-partner-sync-now": "node scripts/test-isp-partner-sync-now.mjs",
+    "test:isp-partner-discount-apply": "node scripts/test-isp-partner-discount-apply.mjs",
     "test:isp-partner-incidents": "node scripts/test-isp-partner-incidents.mjs",
     "test:isp-partner-queued-renewal": "node scripts/test-isp-partner-queued-renewal.mjs",
     "test:isp-partner-gap-sweep": "node scripts/test-isp-partner-gap-sweep.mjs",

@@ -182,13 +182,16 @@ export interface RechargeBody {
   payment: {
     mode: string;
     reference: string | null;
-    amount_paise: number;
+    /** null: the invoice's balance (used with a discount code). */
+    amount_paise: number | null;
     received_at: string | null;
   } | null;
   po_number: string | null;
   idempotency_key: string;
   /** BILL-2: renew for N cycles (sent only when > 1). */
   cycles?: number;
+  /** DISCOUNT-WIRE: a JAZE-5 code (only while the BE applies codes). */
+  discount_code?: string;
 }
 
 export interface RechargeResult {

@@ -3,6 +3,8 @@
  * block, freeze, move, note, edit profile. Each calls one JAZE-1 endpoint;
  * the API re-checks state and permission, so a stale button only errors.
  */
+import { DiscountCodeField } from "@/components/isp-partner/discounts/DiscountCodeField";
+import { discountField } from "@/lib/isp-partner/discount-apply";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
@@ -83,6 +85,7 @@ function RenewDialog({ s, onClose, canPay }: Props) {
   const [reference, setReference] = useState("");
   const [key] = useState(idempotencyKey);
   const [cycles, setCycles] = useState(1);
+  const [code, setCode] = useState("");
   const m = useSub360Mutation(() =>
     svc.renew(s.id, {
       package_id: pkg || undefined,
@@ -90,6 +93,7 @@ function RenewDialog({ s, onClose, canPay }: Props) {
       payment: paid ? { mode, reference: reference.trim() || null } : null,
       idempotency_key: key,
       ...(cycles > 1 ? { cycles } : {}),
+      ...discountField(code),
     }),
   );
   const { error, run } = useRun(onClose);
@@ -131,6 +135,14 @@ function RenewDialog({ s, onClose, canPay }: Props) {
           date, whichever is later.
         </p>
         <CyclesSelect value={cycles} onChange={setCycles} validityDays={chosen?.validity_days} />
+        <DiscountCodeField
+          value={code}
+          onChange={setCode}
+          pricePaise={override ?? chosen?.price_paise}
+          includesGst={!!chosen?.price_includes_gst}
+          cycles={cycles}
+          packageId={chosen?.id}
+        />
         {canPay && (
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />

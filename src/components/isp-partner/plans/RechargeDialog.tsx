@@ -20,6 +20,8 @@ import { formatDate } from "@/lib/isp-partner/format";
 import { whatsappShareUrl } from "@/lib/isp-partner/invoices";
 import { rechargePreview } from "@/lib/isp-partner/plans";
 import { CyclesSelect } from "@/components/isp-partner/plans/CyclesSelect";
+import { DiscountCodeField } from "@/components/isp-partner/discounts/DiscountCodeField";
+import { discountField } from "@/lib/isp-partner/discount-apply";
 import {
   PAYMENT_MODE_LABEL,
   formatRupees,
@@ -50,6 +52,7 @@ export function RechargeDialog({
   const [po, setPo] = useState("");
   const [key, setKey] = useState(newIdempotencyKey);
   const [cycles, setCycles] = useState(1);
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<RechargeResult | null>(null);
   const run = useInvoiceMutation(
@@ -70,6 +73,7 @@ export function RechargeDialog({
       setError(null);
       setDone(null);
       setCycles(1);
+      setCode("");
     }
   }, [subscriber, canTakePayment]);
 
@@ -85,9 +89,11 @@ export function RechargeDialog({
   const submit = async () => {
     if (!pkg) return setError("Pick a package.");
     let payment = null;
+    const discounted = !!code.trim();
     if (paidNow) {
-      const p = parseRupeesToPaise(amount);
-      if (p === null || p <= 0) return setError("Enter the amount received.");
+      // with a code the BE takes the invoice's own (discounted) total
+      const p = discounted ? null : parseRupeesToPaise(amount);
+      if (!discounted && (p === null || p <= 0)) return setError("Enter the amount received.");
       if (modeNeedsReference(mode) && !reference.trim())
         return setError("UPI and bank transfers need the UTR / reference.");
       payment = { mode, reference: reference.trim() || null, amount_paise: p, received_at: null };
@@ -103,6 +109,7 @@ export function RechargeDialog({
           po_number: po.trim() || null,
           idempotency_key: key,
           ...(cycles > 1 ? { cycles } : {}),
+          ...discountField(code),
         },
       });
       setDone(res);
@@ -210,6 +217,14 @@ export function RechargeDialog({
             </select>
           </label>
           <CyclesSelect value={cycles} onChange={setCycles} validityDays={pkg?.validity_days} />
+          <DiscountCodeField
+            value={code}
+            onChange={setCode}
+            pricePaise={pkg?.price_paise}
+            includesGst={!!pkg?.price_includes_gst}
+            cycles={cycles}
+            packageId={pkg?.id}
+          />
           {pkg && (
             <p className="rounded-lg bg-muted/50 p-2 text-xs">
               {pkg.validity_days * cycles} days
@@ -251,7 +266,13 @@ export function RechargeDialog({
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <TextField label="Amount received (₹)" value={amount} onChange={setAmount} />
+                {code.trim() ? (
+                  <p className="self-end text-xs text-muted-foreground">
+                    Amount received: the invoice total after the discount.
+                  </p>
+                ) : (
+                  <TextField label="Amount received (₹)" value={amount} onChange={setAmount} />
+                )}
                 <TextField
                   label={modeNeedsReference(mode) ? "UTR / reference" : "Reference (optional)"}
                   required={modeNeedsReference(mode)}

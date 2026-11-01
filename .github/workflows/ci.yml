@@ -2838,6 +2838,9 @@ jobs:
       - name: ISP partner coupon sync now (BE-HARDEN)
         if: hashFiles('scripts/test-isp-partner-sync-now.mjs') != ''
         run: bun run test:isp-partner-sync-now
+      - name: ISP partner discount codes on invoices (DISCOUNT-WIRE)
+        if: hashFiles('scripts/test-isp-partner-discount-apply.mjs') != ''
+        run: bun run test:isp-partner-discount-apply
       - name: ISP partner incidents (INCIDENTS-1)
         if: hashFiles('scripts/test-isp-partner-incidents.mjs') != ''
         run: bun run test:isp-partner-incidents
