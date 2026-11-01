@@ -18,7 +18,14 @@ export interface TrafficCard {
   status: string;
   last_seen_ist: string | null;
   readable: boolean;
-  reason: "not_set_up" | "offline" | "monitoring_off" | "poll_failed" | "no_data_yet" | null;
+  reason:
+    | "not_set_up"
+    | "offline"
+    | "monitoring_off"
+    | "poll_failed"
+    | "no_data_yet"
+    | "controller_managed"
+    | null;
   hint: string | null;
   wan_interface: string | null;
   wan_basis: "name" | "busiest" | "none";

@@ -3,7 +3,8 @@
  * Fiber plant) hide only on their flag-off answer, never on a 403 / 5xx /
  * stale zone; the shell wires the probe in next to Apps and Revenue. The
  * discount-code tab does not claim codes change invoices (no billing path
- * applies them yet).
+ * applies them yet). CI-INTEG: controller-managed venues (Omada / Aruba) have
+ * their own NAT-feed state, netmon reason and incidents-health count.
  *
  * Run: node scripts/test-isp-partner-gap-sweep.mjs
  */
@@ -94,6 +95,35 @@ eq(
   "no claim that codes reduce an invoice today",
   /Codes reduce the taxable amount/.test(disc),
   false,
+);
+
+console.log("controller-managed venues (CI-INTEG)");
+const nat = readFileSync(
+  join(ROOT, "src/components/isp-partner/compliance/NatFeedView.tsx"),
+  "utf8",
+);
+const natType = readFileSync(join(ROOT, "src/services/isp-partner/compliance.ts"), "utf8");
+eq("NAT state type has not_applicable", /\| "not_applicable"/.test(natType), true);
+eq(
+  "NAT view labels, tones and explains not_applicable",
+  (nat.match(/not_applicable:/g) ?? []).length,
+  3,
+);
+eq(
+  "not_applicable help names no platform internals",
+  /not_applicable:[^,]*\b(tunnel|wireguard|vpn)\b/i.test(nat),
+  false,
+);
+const nm = readFileSync(join(ROOT, "src/lib/isp-partner/netmon.ts"), "utf8");
+eq("netmon reason label for controller_managed", /controller_managed: "/.test(nm), true);
+const inc = readFileSync(
+  join(ROOT, "src/components/isp-partner/incidents/IncidentsPage.tsx"),
+  "utf8",
+);
+eq(
+  "incidents health says controller venues are not counted",
+  /routers_controller_managed/.test(inc),
+  true,
 );
 
 console.log(`\n${checks - failures}/${checks} passed`);

@@ -83,6 +83,8 @@ export interface NetworkHealth {
   routers_up: number;
   routers_down: number;
   routers_not_reporting: number;
+  /** CI-INTEG: Omada / Aruba venues, kept out of up/down and health %. */
+  routers_controller_managed?: number;
   health_percent: number | null;
   basis: string;
   open_incidents: number;

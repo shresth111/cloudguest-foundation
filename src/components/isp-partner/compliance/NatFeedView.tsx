@@ -12,6 +12,7 @@ export const FEED_LABEL: Record<NatFeedState, string> = {
   never_received: "Never received",
   not_configured: "Not set up",
   router_offline: "Router offline",
+  not_applicable: "Not applicable",
 };
 const FEED_TONE: Record<NatFeedState, string> = {
   ok: "active",
@@ -19,6 +20,7 @@ const FEED_TONE: Record<NatFeedState, string> = {
   never_received: "failed",
   not_configured: "pending",
   router_offline: "offline",
+  not_applicable: "pending",
 };
 const FEED_HELP: Record<NatFeedState, string> = {
   ok: "",
@@ -28,6 +30,8 @@ const FEED_HELP: Record<NatFeedState, string> = {
     "Flow export is set up but no NAT translation has ever arrived. Run the setup script again.",
   not_configured: "Flow export has not been applied on this router yet.",
   router_offline: "The router is offline; its NAT feed resumes when it reconnects.",
+  not_applicable:
+    "This venue is run through its vendor controller (Omada or Aruba Instant On). NAT logs for it are kept on that equipment, not sent here.",
 };
 
 export function NatFeedView() {
