@@ -632,7 +632,7 @@ function AssignmentDialog({
             <Callout tone="warn" role="note" className="wy-console text-xs">
               {NOT_SUPPORTED_YET}. An assignment to an organization, location or router is saved but
               never reaches a device, so new ones cannot be created here. Guest speed is set under
-              Access Rules → Guest WiFi Limits.
+              Network → Usage Limits → Guest WiFi Limits.
             </Callout>
           )}
         </DialogHeader>

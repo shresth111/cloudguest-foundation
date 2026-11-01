@@ -89,7 +89,7 @@ export default function PoliciesHub({
       {/* One header: the icon tile, the second title and the shield
           illustration are gone (design review §2 issue 1). */}
       <PageHeader
-        title={scope?.title ?? t("nav:customerItem.policies", "Access Rules")}
+        title={scope?.title ?? t("nav:customerItem.policies", "Usage Limits")}
         venue={scope?.venue}
         description={t("subtitle", "Set usage limits and access tiers for this location.")}
       />
@@ -99,7 +99,7 @@ export default function PoliciesHub({
           hand-made edge fade are gone with the pill bar. */}
       <SubTabs
         idPrefix="access-rules"
-        ariaLabel={t("nav:customerItem.policies", "Access Rules")}
+        ariaLabel={t("nav:customerItem.policies", "Usage Limits")}
         value={tab}
         onChange={setTab}
         options={ACCESS_TABS.map((item) => {

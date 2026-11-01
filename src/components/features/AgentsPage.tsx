@@ -691,7 +691,7 @@ export function AgentsPage({ locationId, scope }: { locationId?: string; scope?:
           <div className="space-y-3">
             <Callout tone="info">
               Default Staff Role is a Read-Only role &amp; can't be modified. Its permissions are
-              limited to Dashboard, Access Rules &amp; Guest Allow-list by default.
+              limited to Dashboard, Usage Limits &amp; Guest Allow-list by default.
             </Callout>
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr] [&>*]:min-w-0">
               <div className="space-y-3">
