@@ -71,15 +71,8 @@ import {
   stateChanges,
   uptimePercent,
 } from "./isp-model";
-import {
-  FailoverBanner,
-  LinkStatus,
-  STATUS_TEXT,
-  fmtClock,
-  ispColor,
-  useIspT,
-  useStatusWord,
-} from "./isp-ui";
+import { FailoverBanner, LinkStatus } from "./isp-ui";
+import { STATUS_TEXT, fmtClock, ispColor, useIspT, useStatusWord } from "./isp-shared";
 import { IspLinkCard } from "./IspLinkCard";
 import { IspHistoryPanel } from "./IspHistoryPanel";
 import { IspPathDiagram } from "./IspPathDiagram";

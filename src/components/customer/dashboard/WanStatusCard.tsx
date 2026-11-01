@@ -16,13 +16,15 @@ import {
   LinkStatus,
   PlanMeter,
   RoleChips,
+} from "@/components/customer/isp/isp-ui";
+import {
   STATUS_TEXT,
   fmtClock,
   fmtDuration,
   fmtNum,
   ispColor,
   useIspT,
-} from "@/components/customer/isp/isp-ui";
+} from "@/components/customer/isp/isp-shared";
 
 /** Oldest -> newest, left to right -- the same "last dozen real checks as
  * ticks" reading the Internet Connection page uses, so the two surfaces

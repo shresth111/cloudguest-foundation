@@ -69,10 +69,8 @@ import {
 } from "@/components/customer/dashboard/overview/console-ui";
 import { buildTopology } from "@/components/customer/dashboard/overview/topology-model";
 import { TopologyMap } from "@/components/customer/dashboard/overview/TopologyMap";
-import {
-  SeriesChart,
-  toActivityPoints,
-} from "@/components/customer/dashboard/overview/ActivityChart";
+import { SeriesChart } from "@/components/customer/dashboard/overview/ActivityChart";
+import { toActivityPoints } from "@/components/customer/dashboard/overview/activity-points";
 import { RecentGuestsTable } from "@/components/customer/dashboard/overview/RecentGuestsTable";
 import { formatRelative, intlLocale } from "@/lib/format";
 

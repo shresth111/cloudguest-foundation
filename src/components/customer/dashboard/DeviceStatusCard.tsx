@@ -20,13 +20,13 @@ import {
   topAttention,
   type FleetBucket,
 } from "@/components/customer/devices/fleet-model";
+import { BucketDot } from "@/components/customer/devices/ui";
 import {
   BUCKET_TEXT,
-  BucketDot,
   useBucketLabel,
   useDevicesT,
   useRowWords,
-} from "@/components/customer/devices/ui";
+} from "@/components/customer/devices/ui-shared";
 
 /**
  * The Overview's "Network Hardware" card: a compact summary of the Devices

@@ -30,7 +30,7 @@ import {
 import i18n from "@/lib/i18n";
 import { bucketLabel } from "@/lib/dashboard-range";
 import type { DashboardSeries } from "@/services/customer.service";
-import { CONSOLE_TOOLTIP_STYLE } from "./console-ui";
+import { CONSOLE_TOOLTIP_STYLE } from "./console-shared";
 import { intlLocale } from "@/lib/format";
 
 export interface ActivityPoint {
@@ -39,18 +39,6 @@ export interface ActivityPoint {
   bucketStart: string;
   online: number;
   arrivals: number;
-}
-
-/** Pure: buckets -> chart rows. Drops nothing, invents nothing. */
-export function toActivityPoints(s: DashboardSeries | undefined): ActivityPoint[] {
-  if (!s || !Array.isArray(s.series)) return [];
-  return s.series.map((b, i) => ({
-    i,
-    label: bucketLabel(b.bucketStart, s.bucket ?? "hour"),
-    bucketStart: b.bucketStart,
-    online: Number.isFinite(b.online) ? b.online : 0,
-    arrivals: Number.isFinite(b.arrivals) ? b.arrivals : 0,
-  }));
 }
 
 export function SeriesChart({

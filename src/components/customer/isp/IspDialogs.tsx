@@ -7,7 +7,7 @@
  * docs/design/console-tokens.md).
  */
 import { useEffect, useState } from "react";
-import { useIspT } from "./isp-ui";
+import { useIspT } from "./isp-shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,7 @@ import type {
   IspRoutingRule,
   IspRoutingRuleType,
 } from "@/types/isp";
+import { LINK_TYPES, linkTypeLabel } from "./isp-link-types";
 
 /* ---------- ISP Details ----------
  * Real per-router WAN uplink model (`app.domains.isp`): an ISP link belongs
@@ -54,24 +55,6 @@ import type {
 
 /** `label` is the English fallback; render through `linkTypeLabel` so it
  * follows the dashboard language. */
-// i18n-ignore-start: English fallbacks; rendered through `linkTypeLabel` (dialog.linkType.*)
-export const LINK_TYPES: { value: string; label: string }[] = [
-  { value: "fiber", label: "Fiber" },
-  { value: "dsl", label: "DSL" },
-  { value: "cable", label: "Cable" },
-  { value: "wireless_4g", label: "4G Wireless" },
-  { value: "wireless_5g", label: "5G Wireless" },
-  { value: "satellite", label: "Satellite" },
-  { value: "leased_line", label: "Leased Line" },
-  { value: "other", label: "Other" },
-];
-// i18n-ignore-end
-
-/** A link type's name in the active language (`dialog.linkType.<value>`). */
-export function linkTypeLabel(t: (k: string, d: string) => string, value: string): string {
-  const known = LINK_TYPES.find((x) => x.value === value);
-  return known ? t(`dialog.linkType.${value}`, known.label) : value.replace(/_/g, " ");
-}
 
 /** A routing-rule type's match-field label in the active language. */
 function ruleFieldLabel(t: (k: string, d: string) => string, type: IspRoutingRuleType): string {

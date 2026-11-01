@@ -20,11 +20,6 @@ export const INSIGHT_PRIMARY = "var(--wy-series-1)";
 /** Series slot 2, same order as the activity chart. */
 export const INSIGHT_SECONDARY = "var(--wy-series-2)";
 
-/** `INSIGHT_PRIMARY` at `alpha` (0-1) over transparent. */
-export function primaryAt(alpha: number): string {
-  return `color-mix(in srgb, ${INSIGHT_PRIMARY} ${Math.round(alpha * 100)}%, transparent)`;
-}
-
 export function CardHead({
   icon,
   title,

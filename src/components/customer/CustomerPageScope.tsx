@@ -47,17 +47,6 @@ export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
   "campaigns",
 ]);
 
-/** The title + venue a screen's own PageHeader shows: the same nav label
- * (and translation) the scope line below would have shown. */
-export function useCustomerPageScope(featureId: string, locationName?: string): PageScope {
-  const { t } = useTranslation("nav", { i18n });
-  const item = CUSTOMER_NAVS.find((n) => n.id === featureId);
-  return {
-    title: item ? t(`customerItem.${item.id}`, item.label) : featureId,
-    venue: locationName,
-  };
-}
-
 /**
  * The scope line every customer feature page sits under: what this screen
  * is, and which venue it is showing you.

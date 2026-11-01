@@ -22,9 +22,11 @@ import {
 } from "lucide-react";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { STATUS_TEXT, STATUS_VAR, StatusDot, type OverviewStatus } from "./console-ui";
+import { StatusDot, type OverviewStatus } from "./console-ui";
+import { STATUS_TEXT, STATUS_VAR } from "./console-shared";
 import type { TopoFact, TopoKind, TopoNode, TopologyModel } from "./topology-model";
 import { formatRelative } from "@/lib/format";
+import { relativeTime } from "./topology-time";
 
 const NODE_W = 236;
 const NODE_H = 46;
@@ -57,13 +59,6 @@ const KIND_ICON: Record<TopoKind, typeof Globe> = {
   clients: Users,
   more: MoreHorizontal,
 };
-
-/** "2 min ago" / "2 मिनट पहले" -- the console's shared formatter. An
- * unparseable value is shown as-is rather than as a dash. */
-export function relativeTime(iso: string, lang: string, now = Date.now()): string {
-  if (!Number.isFinite(new Date(iso).getTime())) return iso;
-  return formatRelative(iso, lang, { now, style: "short" });
-}
 
 function useWidth<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);

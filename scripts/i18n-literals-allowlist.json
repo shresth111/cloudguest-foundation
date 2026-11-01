@@ -68,7 +68,7 @@
     "not verifiable": 1,
     "Next step:": 2
   },
-  "src/components/customer/dashboard/insights/InsightCard.tsx": {
+  "src/components/customer/dashboard/insights/insight-color.ts": {
     "color-mix(in srgb, {x} {x}%, transparent)": 1
   },
   "src/components/customer/dashboard/insights/insights.format.ts": {

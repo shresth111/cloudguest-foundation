@@ -20,8 +20,8 @@ import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import {
   CustomerPageScope,
   OWN_PAGE_HEADER_FEATURES,
-  useCustomerPageScope,
 } from "@/components/customer/CustomerPageScope";
+import { useCustomerPageScope } from "@/components/customer/use-page-scope";
 import { SectionTabs } from "@/components/customer/console/SectionTabs";
 import {
   CustomerCommandPalette,

@@ -27,7 +27,7 @@ import {
 import { Activity, AlertTriangle, RotateCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyState, SegmentedControl } from "@/components/customer/console";
-import { CONSOLE_TOOLTIP_STYLE } from "@/components/customer/dashboard/overview/console-ui";
+import { CONSOLE_TOOLTIP_STYLE } from "@/components/customer/dashboard/overview/console-shared";
 import type { IspHealthCheckSummary, IspLink } from "@/types/isp";
 import {
   incidentsFromSummary,
@@ -36,7 +36,7 @@ import {
   type HistoryRow,
   type Incident,
 } from "./isp-model";
-import { fmtClock, fmtDuration, fmtNum, ispColor, STATUS_BG, useIspT } from "./isp-ui";
+import { fmtClock, fmtDuration, fmtNum, ispColor, STATUS_BG, useIspT } from "./isp-shared";
 import type { IspRange } from "./isp.demo";
 import type { Loadable } from "./useIspHistory";
 import { formatDate, formatHour, formatTime, intlLocale } from "@/lib/format";

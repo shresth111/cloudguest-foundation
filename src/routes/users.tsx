@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import { useFormat } from "@/lib/useFormat";
 import i18n from "@/lib/i18n";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
-import { useCustomerPageScope } from "@/components/customer/CustomerPageScope";
+import { useCustomerPageScope } from "@/components/customer/use-page-scope";
 import {
   DataTable,
   EmptyState,

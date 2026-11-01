@@ -12,13 +12,13 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import {
   CardHead,
-  primaryAt,
   InsightCard,
   InsightDemoNote,
   InsightEmpty,
   InsightError,
   InsightSkeleton,
 } from "./InsightCard";
+import { primaryAt } from "./insight-color";
 import { usePeakHours } from "./useInsights";
 import {
   DEFAULT_INSIGHT_RANGE_DAYS,

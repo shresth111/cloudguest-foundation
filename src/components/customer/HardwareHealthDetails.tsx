@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import i18n from "@/lib/i18n";
 import { formatWhen } from "@/lib/format";
-import { useDevicesT } from "@/components/customer/devices/ui";
+import { useDevicesT } from "@/components/customer/devices/ui-shared";
 import {
   healthFacts,
   healthTimeline,

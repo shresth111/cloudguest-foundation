@@ -21,15 +21,8 @@ import i18n from "@/lib/i18n";
 import { formatDuration as formatSpan, formatWhen as formatWhenIn } from "@/lib/format";
 import { HardwareHealthDetails } from "@/components/customer/HardwareHealthDetails";
 import type { InventoryRow } from "./fleet-model";
-import {
-  BUCKET_TEXT,
-  BucketDot,
-  MONO,
-  relTime,
-  useBucketLabel,
-  useDevicesT,
-  useRowWords,
-} from "./ui";
+import { BucketDot, MONO } from "./ui";
+import { BUCKET_TEXT, relTime, useBucketLabel, useDevicesT, useRowWords } from "./ui-shared";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (

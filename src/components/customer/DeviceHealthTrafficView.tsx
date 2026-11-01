@@ -57,11 +57,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Panel } from "@/components/customer/console";
-import {
-  CONSOLE_TOOLTIP_STYLE,
-  PanelTitle,
-  StatusDot,
-} from "@/components/customer/dashboard/overview/console-ui";
+import { PanelTitle, StatusDot } from "@/components/customer/dashboard/overview/console-ui";
+import { CONSOLE_TOOLTIP_STYLE } from "@/components/customer/dashboard/overview/console-shared";
 import { useDeviceHealthHistory, useLocationDevices } from "@/hooks/useDeviceHealth";
 import {
   formatMbps,
@@ -80,7 +77,7 @@ import {
   isNasOnlyVendor,
 } from "@/lib/router-vendors";
 import { SHOW_ROUTER_TRAFFIC_EVENT } from "@/components/customer/devices/fleet-model";
-import { useDevicesT } from "@/components/customer/devices/ui";
+import { useDevicesT } from "@/components/customer/devices/ui-shared";
 import { Trans } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { formatDuration, formatTime, formatWhen } from "@/lib/format";

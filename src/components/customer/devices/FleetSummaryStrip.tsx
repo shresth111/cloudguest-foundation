@@ -19,7 +19,8 @@ import {
   type InventoryFilter,
   type InventoryRow,
 } from "./fleet-model";
-import { BUCKET_TEXT, BucketDot, useBucketLabel, useDevicesT, useKindLabel } from "./ui";
+import { BucketDot } from "./ui";
+import { BUCKET_TEXT, useBucketLabel, useDevicesT, useKindLabel } from "./ui-shared";
 
 const KIND_ICON: Record<FleetKind, typeof Router> = {
   router: Router,

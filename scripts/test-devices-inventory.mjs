@@ -64,8 +64,8 @@ writeFileSync(
    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
    export * as fm from "${p("src/components/customer/devices/fleet-model.ts")}";
    export { HardwareInventory } from "${p("src/components/customer/devices/HardwareInventory.tsx")}";
-   export { ConnectedDevicesPanel, toConnectedRows, queryConnectedRows }
-     from "${p("src/components/customer/devices/ConnectedDevicesPanel.tsx")}";
+   export { ConnectedDevicesPanel } from "${p("src/components/customer/devices/ConnectedDevicesPanel.tsx")}";
+   export { toConnectedRows, queryConnectedRows } from "${p("src/components/customer/devices/connected-rows.ts")}";
    export { DeviceStatusCardView } from "${p("src/components/customer/dashboard/DeviceStatusCard.tsx")}";
    export { withDemoHealth, demoRouterDevices } from "${p("src/components/customer/devices/demo-fixtures.ts")}";
    export { customerKeys } from "${p("src/hooks/useCustomerDashboard.ts")}";

@@ -29,18 +29,15 @@ import {
   type InventorySort,
   type InventorySortKey,
 } from "./fleet-model";
+import { BucketDot, Chip, MONO, SortHeader } from "./ui";
 import {
   BUCKET_TEXT,
-  BucketDot,
-  Chip,
-  MONO,
-  SortHeader,
   relTime,
   useBucketLabel,
   useDevicesT,
   useRowWords,
   useKindLabel,
-} from "./ui";
+} from "./ui-shared";
 
 function TypeIcon({ row, className }: { row: InventoryRow; className?: string }) {
   const meta =

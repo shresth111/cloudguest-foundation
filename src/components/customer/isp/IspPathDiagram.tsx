@@ -14,7 +14,7 @@ import { IspProviderIcon } from "@/components/icons/isp";
 import type { RouterDevice } from "@/types/router";
 import type { IspLink } from "@/types/isp";
 import { linkStatus, type FailoverState } from "./isp-model";
-import { STATUS_TEXT, ispColor, useIspT, useStatusWord } from "./isp-ui";
+import { STATUS_TEXT, ispColor, useIspT, useStatusWord } from "./isp-shared";
 
 function Node({
   icon,

@@ -32,10 +32,7 @@ export function useLocationDevices(locationId?: string) {
       // shows everywhere else. Real sessions never reach this branch.
       if (isDemo()) {
         const loc = useCustomerStore.getState().activeLocation;
-        return demoRouterDevices(
-          locationId!,
-          loc?.id === locationId ? loc?.liveness?.routers : [],
-        );
+        return demoRouterDevices(locationId!, loc?.id === locationId ? loc?.liveness?.routers : []);
       }
       const organizationId = await resolveOrgId();
       return routerService.listForLocation(locationId!, organizationId);

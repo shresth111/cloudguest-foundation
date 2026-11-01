@@ -10,20 +10,9 @@ import { cn } from "@/lib/utils";
 import { IspProviderIcon } from "@/components/icons/isp";
 import type { IspHealthCheck, IspHealthCheckSummary, IspLink } from "@/types/isp";
 import { linkStatus, stateSince, uptimePercent } from "./isp-model";
-import {
-  CheckTicks,
-  LatencySpark,
-  LinkStatus,
-  PlanMeter,
-  RoleChips,
-  fmtAgo,
-  fmtClock,
-  fmtDuration,
-  fmtNum,
-  ispColor,
-  useIspT,
-} from "./isp-ui";
-import { linkTypeLabel } from "./IspDialogs";
+import { CheckTicks, LatencySpark, LinkStatus, PlanMeter, RoleChips } from "./isp-ui";
+import { fmtAgo, fmtClock, fmtDuration, fmtNum, ispColor, useIspT } from "./isp-shared";
+import { linkTypeLabel } from "./isp-link-types";
 import type { Loadable } from "./useIspHistory";
 import type { IspRange } from "./isp.demo";
 
