@@ -307,7 +307,7 @@ export function LiveBarSlot({ s, fallback }: S & { fallback: ReactNode }) {
   if (!wb.data) return <>{fallback}</>;
   const live = wb.data.live;
   const online = live.length > 0;
-  const canAct = can("isp_subscribers.update");
+  const canAct = can("isp_subscribers.disconnect"); // RBAC-FIX R1: session control
   const end = async (x?: WorkbenchLive) => {
     setBusy(x?.session_id ?? "all");
     try {

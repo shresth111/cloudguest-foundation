@@ -212,6 +212,8 @@ export function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canE
 }
 
 function MacBlock({ subscriberId, canEdit }: { subscriberId: string; canEdit: boolean }) {
+  const { can } = usePartner();
+  const canDisconnect = can("isp_subscribers.disconnect");
   const q = useMacBindings(subscriberId);
   const [mac, setMac] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -249,15 +251,18 @@ function MacBlock({ subscriberId, canEdit }: { subscriberId: string; canEdit: bo
                       await remove.mutateAsync(b.id);
                       // SUB360-2: offer to end that device's live session now.
                       toast.success(`${b.mac} removed.`, {
-                        action: {
-                          label: "Disconnect now",
-                          onClick: () => {
-                            disconnectRemovedMac(subscriberId, b.mac).then(
-                              (msg) => toast.success(msg),
-                              (err) => toast.error(ispErrorMessage(err)),
-                            );
-                          },
-                        },
+                        // RBAC-FIX R1: only roles that may end sessions get the offer.
+                        action: canDisconnect
+                          ? {
+                              label: "Disconnect now",
+                              onClick: () => {
+                                disconnectRemovedMac(subscriberId, b.mac).then(
+                                  (msg) => toast.success(msg),
+                                  (err) => toast.error(ispErrorMessage(err)),
+                                );
+                              },
+                            }
+                          : undefined,
                       });
                     } catch (err) {
                       setError(ispErrorMessage(err));

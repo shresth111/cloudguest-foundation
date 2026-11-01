@@ -34,9 +34,10 @@ const TABS: { value: ComplianceTab; label: string; perm?: string }[] = [
   // IPDR-2 (own flag; "not switched on" while off). LEA trace: owner/admin key.
   { value: "lea", label: "LEA trace", perm: "isp_ipdr.export" },
   { value: "retention", label: "Retention", perm: "isp_ipdr.read" },
-  { value: "kyc", label: "KYC & CAF" },
+  // RBAC-FIX R3: KYC/CAF detail is owner/admin/billing (+ confined technician).
+  { value: "kyc", label: "KYC & CAF", perm: "isp_subscribers.kyc" },
   // CAF-2: the CAF workbench (its own flag; says "not switched on" while off).
-  { value: "caf", label: "CAF workbench" },
+  { value: "caf", label: "CAF workbench", perm: "isp_subscribers.kyc" },
   { value: "filings", label: "TRAI & AGR" },
   { value: "reports", label: "Reports" },
   { value: "settings", label: "Settings" },

@@ -63,6 +63,8 @@ export function SubscriberPppoePanel({ subscriberId }: { subscriberId: string })
 function CredentialCard({ subscriberId, cred }: { subscriberId: string; cred: PppoeCredential }) {
   const { can } = usePartner();
   const editable = can("isp_subscribers.update");
+  // RBAC-FIX R1: ending a session has its own key (noc/technician yes, billing no).
+  const canDisconnect = can("isp_subscribers.disconnect");
   const c = cred.configured ? cred : null;
   const [draft, setDraft] = useState<CredentialDraft>(() => draftOf(c));
   const [err, setErr] = useState<string | null>(null);
@@ -183,12 +185,14 @@ function CredentialCard({ subscriberId, cred }: { subscriberId: string; cred: Pp
           </div>
         )}
         <FormError message={err} />
-        {editable && (
+        {(editable || canDisconnect) && (
           <div className="mt-3 flex flex-wrap gap-2">
-            <MButton onClick={onSave} disabled={save.isPending}>
-              {save.isPending ? <Spinner /> : <KeyRound />} {c ? "Save" : "Create PPPoE login"}
-            </MButton>
-            {c && (
+            {editable && (
+              <MButton onClick={onSave} disabled={save.isPending}>
+                {save.isPending ? <Spinner /> : <KeyRound />} {c ? "Save" : "Create PPPoE login"}
+              </MButton>
+            )}
+            {editable && c && (
               <MButton
                 variant="outline"
                 disabled={toggle.isPending}
@@ -210,7 +214,7 @@ function CredentialCard({ subscriberId, cred }: { subscriberId: string; cred: Pp
                 {c.status === "active" ? "Disable" : "Enable"}
               </MButton>
             )}
-            {c?.online && (
+            {canDisconnect && c?.online && (
               <MButton
                 variant="outline"
                 disabled={kick.isPending}

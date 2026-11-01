@@ -291,7 +291,7 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
         s={s}
         fallback={
           <>
-            <LiveBar s={s} canAct={update} />
+            <LiveBar s={s} canAct={can("isp_subscribers.disconnect")} />
 
             {s.live_sessions.length > 0 && (
               <MTable
@@ -428,7 +428,7 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
 
       {/* Other lanes' panels (JAZE-2 network, JAZE-3 KYC, JAZE-6 PPPoE/fiber). */}
       <SubscriberNetworkPanel subscriber={s} />
-      {can("isp_partner.read") && <SubscriberKycPanel subscriberId={s.id} />}
+      {can("isp_subscribers.kyc") && <SubscriberKycPanel subscriberId={s.id} />}
       <SubscriberPppoePanel subscriberId={s.id} />
       <SubscriberFiberCard subscriberId={s.id} />
 
