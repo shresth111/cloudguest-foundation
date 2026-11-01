@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
+import { normalizeGuestIdentifier } from "@/lib/portal-guest-identifier";
 import type { OmadaRedirectCapture } from "@/lib/portal-authorize-body";
 import type { OmadaRadiusRedirect } from "@/lib/portal-radius-authorize";
 
@@ -885,8 +886,11 @@ export function PortalRuntimeProvider({
   }, []);
 
   const setGuestIdentifier = useCallback((v: string | undefined) => {
-    setGuestIdentifierState(v);
-    persistIdentifier(v);
+    // Same spelling the login request sent -- see portal-guest-identifier.ts.
+    // This value is the username the hotspot login posts to the router.
+    const normalized = v === undefined ? undefined : normalizeGuestIdentifier(v);
+    setGuestIdentifierState(normalized);
+    persistIdentifier(normalized);
   }, []);
 
   // Applies a returning guest's persisted language choice right after
