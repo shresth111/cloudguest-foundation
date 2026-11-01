@@ -13,6 +13,7 @@ import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { label, tone } from "@/lib/isp-partner/apps";
 import type { FileDownload } from "@/services/isp-partner/isp";
 
+// eslint-disable-next-line react-refresh/only-export-components -- shared query keys; moving it would touch every importer (CI-INTEG warning ratchet)
 export const appsKeys = {
   all: ["isp", "apps"] as const,
   probe: ["isp", "apps", "probe"] as const,

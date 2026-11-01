@@ -32,6 +32,7 @@ export type ProfileDraft = Record<
   string
 > & { install_same_as_billing: boolean; exclude_reminders: boolean };
 
+// eslint-disable-next-line react-refresh/only-export-components -- shared draft helper; moving it would touch every importer (CI-INTEG warning ratchet)
 export function emptyDraft(p?: SubscriberProfile | null): ProfileDraft {
   const s = (v: unknown) => (v === null || v === undefined ? "" : String(v));
   const op = p?.override_price_paise;
