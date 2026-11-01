@@ -31,6 +31,7 @@ import {
   HandCoins,
   TrendingUp,
   Siren,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -68,6 +69,8 @@ const PARTNER_NAV: NavItem[] = [
   },
   // JAZE-6 Phase 2b: PPPoE sessions / logins / router step (404 page while off).
   { to: "/partner/pppoe", label: "PPPoE", icon: Cable, anyOf: ["isp_subscribers.read"] },
+  // REFERRAL-1: referral credits (flag-gated page).
+  { to: "/partner/referrals", label: "Referrals", icon: Gift, anyOf: ["isp_referrals.read"] },
   { to: "/partner/fiber", label: "Fiber plant", icon: Network, anyOf: ["isp_partner.read"] },
   // INCIDENTS-1: outages + network health (flag-gated page).
   { to: "/partner/incidents", label: "Incidents", icon: Siren, anyOf: ["isp_incidents.read"] },

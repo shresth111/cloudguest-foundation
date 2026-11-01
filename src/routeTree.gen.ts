@@ -81,6 +81,7 @@ import { Route as PartnerSettingsRouteImport } from './routes/partner.settings'
 import { Route as PartnerRevenueRouteImport } from './routes/partner.revenue'
 import { Route as PartnerResetPasswordRouteImport } from './routes/partner.reset-password'
 import { Route as PartnerReportsRouteImport } from './routes/partner.reports'
+import { Route as PartnerReferralsRouteImport } from './routes/partner.referrals'
 import { Route as PartnerPppoeRouteImport } from './routes/partner.pppoe'
 import { Route as PartnerMessagingRouteImport } from './routes/partner.messaging'
 import { Route as PartnerLogsRouteImport } from './routes/partner.logs'
@@ -598,6 +599,11 @@ const PartnerResetPasswordRoute = PartnerResetPasswordRouteImport.update({
 const PartnerReportsRoute = PartnerReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => PartnerRoute,
+} as any)
+const PartnerReferralsRoute = PartnerReferralsRouteImport.update({
+  id: '/referrals',
+  path: '/referrals',
   getParentRoute: () => PartnerRoute,
 } as any)
 const PartnerPppoeRoute = PartnerPppoeRouteImport.update({
@@ -1579,6 +1585,7 @@ export interface FileRoutesByFullPath {
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/pppoe': typeof PartnerPppoeRoute
+  '/partner/referrals': typeof PartnerReferralsRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/revenue': typeof PartnerRevenueRoute
@@ -1806,6 +1813,7 @@ export interface FileRoutesByTo {
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/pppoe': typeof PartnerPppoeRoute
+  '/partner/referrals': typeof PartnerReferralsRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/revenue': typeof PartnerRevenueRoute
@@ -2038,6 +2046,7 @@ export interface FileRoutesById {
   '/partner/logs': typeof PartnerLogsRoute
   '/partner/messaging': typeof PartnerMessagingRoute
   '/partner/pppoe': typeof PartnerPppoeRoute
+  '/partner/referrals': typeof PartnerReferralsRoute
   '/partner/reports': typeof PartnerReportsRoute
   '/partner/reset-password': typeof PartnerResetPasswordRoute
   '/partner/revenue': typeof PartnerRevenueRoute
@@ -2272,6 +2281,7 @@ export interface FileRouteTypes {
     | '/partner/logs'
     | '/partner/messaging'
     | '/partner/pppoe'
+    | '/partner/referrals'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/revenue'
@@ -2499,6 +2509,7 @@ export interface FileRouteTypes {
     | '/partner/logs'
     | '/partner/messaging'
     | '/partner/pppoe'
+    | '/partner/referrals'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/revenue'
@@ -2730,6 +2741,7 @@ export interface FileRouteTypes {
     | '/partner/logs'
     | '/partner/messaging'
     | '/partner/pppoe'
+    | '/partner/referrals'
     | '/partner/reports'
     | '/partner/reset-password'
     | '/partner/revenue'
@@ -3438,6 +3450,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/partner/reports'
       preLoaderRoute: typeof PartnerReportsRouteImport
+      parentRoute: typeof PartnerRoute
+    }
+    '/partner/referrals': {
+      id: '/partner/referrals'
+      path: '/referrals'
+      fullPath: '/partner/referrals'
+      preLoaderRoute: typeof PartnerReferralsRouteImport
       parentRoute: typeof PartnerRoute
     }
     '/partner/pppoe': {
@@ -4894,6 +4913,7 @@ interface PartnerRouteChildren {
   PartnerLogsRoute: typeof PartnerLogsRoute
   PartnerMessagingRoute: typeof PartnerMessagingRoute
   PartnerPppoeRoute: typeof PartnerPppoeRoute
+  PartnerReferralsRoute: typeof PartnerReferralsRoute
   PartnerReportsRoute: typeof PartnerReportsRoute
   PartnerResetPasswordRoute: typeof PartnerResetPasswordRoute
   PartnerRevenueRoute: typeof PartnerRevenueRoute
@@ -4932,6 +4952,7 @@ const PartnerRouteChildren: PartnerRouteChildren = {
   PartnerLogsRoute: PartnerLogsRoute,
   PartnerMessagingRoute: PartnerMessagingRoute,
   PartnerPppoeRoute: PartnerPppoeRoute,
+  PartnerReferralsRoute: PartnerReferralsRoute,
   PartnerReportsRoute: PartnerReportsRoute,
   PartnerResetPasswordRoute: PartnerResetPasswordRoute,
   PartnerRevenueRoute: PartnerRevenueRoute,
