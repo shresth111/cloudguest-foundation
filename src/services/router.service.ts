@@ -57,6 +57,7 @@ const DEMO_ROUTERS: RouterDevice[] = [
     controllerState: null,
     controllerStateReason: null,
     controllerLastContactedAt: null,
+    lastRadiusAt: null,
     vendorClaimIsContradicted: false,
     settings: {},
     createdAt: new Date(Date.now() - 90 * 86400000).toISOString(),
@@ -86,6 +87,7 @@ const DEMO_ROUTERS: RouterDevice[] = [
     controllerState: null,
     controllerStateReason: null,
     controllerLastContactedAt: null,
+    lastRadiusAt: null,
     vendorClaimIsContradicted: false,
     settings: {},
     createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
@@ -116,6 +118,7 @@ interface BackendRouter {
   controller_state?: string | null;
   controller_state_reason?: string | null;
   controller_last_contacted_at?: string | null;
+  last_radius_at?: string | null;
   vendor_claim_is_contradicted?: boolean | null;
   settings: Record<string, unknown>;
   created_at: string;
@@ -184,6 +187,7 @@ function toRouter(r: BackendRouter, locationName: string, organizationName: stri
     controllerState: isControllerState(r.controller_state) ? r.controller_state : null,
     controllerStateReason: r.controller_state_reason ?? null,
     controllerLastContactedAt: r.controller_last_contacted_at ?? null,
+    lastRadiusAt: r.last_radius_at ?? null,
     vendorClaimIsContradicted: r.vendor_claim_is_contradicted === true,
     settings: r.settings,
     createdAt: r.created_at,

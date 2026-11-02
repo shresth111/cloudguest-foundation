@@ -24,6 +24,7 @@ import {
   vendorLabel,
   vendorOptionsFor,
 } from "@/lib/router-vendors";
+import { fleetRowAddressLabel } from "@/lib/fleet-row-verdicts";
 import { OmadaGuidedSetupPanel } from "@/components/routers/OmadaGuidedSetupPanel";
 import {
   ArubaInstantOnSetupPanel,
@@ -2039,9 +2040,8 @@ export function RouterSetupDrilldown({
         <div>
           <p className="text-lg font-semibold tracking-tight">{router.name}</p>
           <p className="font-mono text-xs text-muted-foreground">
-            {router.model} ·{" "}
-            {router.managementIpAddress ?? router.publicIpAddress ?? "IP not yet assigned"} ·{" "}
-            {router.organizationName} / {router.locationName}
+            {router.model} · {fleetRowAddressLabel(router)} · {router.organizationName} /{" "}
+            {router.locationName}
           </p>
         </div>
         {/* An Instant On row has no agent, so it never checks in and

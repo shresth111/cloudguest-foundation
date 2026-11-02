@@ -1273,6 +1273,67 @@ console.log("\nRouter Fleet: a NAS-only row is never 'No integration' (prod test
   );
 }
 
+console.log("\nRouter Fleet: an Aruba row reads its real RADIUS signal");
+{
+  const FV = await bundle("src/lib/fleet-row-verdicts.ts", "fleet-row-verdicts-radius.mjs");
+  const now = new Date("2026-11-02T04:00:00Z");
+  const sixDaysAgo = "2026-10-27T04:00:00Z";
+
+  eq("no RADIUS yet: Last seen says so", FV.nasOnlyLastSeenLabel(null, now), "No RADIUS yet");
+  eq("absent field reads the same", FV.nasOnlyLastSeenLabel(undefined, now), "No RADIUS yet");
+  eq(
+    "with data: the real age",
+    FV.nasOnlyLastSeenLabel("2026-11-02T03:56:00Z", now),
+    "Last RADIUS 4 minutes ago",
+  );
+  eq(
+    "an old stamp is only old, never offline",
+    FV.nasOnlyLastSeenLabel(sixDaysAgo, now),
+    "Last RADIUS 6 days ago",
+  );
+  eq(
+    "an unreadable stamp does not read as never",
+    FV.nasOnlyLastSeenLabel("not-a-date", now),
+    "Last RADIUS time unknown",
+  );
+  eq("badge, none yet", FV.nasOnlyRadiusBadge(null).label, "No RADIUS recorded");
+  eq("badge, with data", FV.nasOnlyRadiusBadge(sixDaysAgo).label, "RADIUS received");
+  for (const at of [null, sixDaysAgo]) {
+    const badge = FV.nasOnlyRadiusBadge(at);
+    eq(`badge stays neutral (${at})`, badge.tone, "normal");
+    check(`badge makes no up or down claim (${at})`, !/online|offline|down/i.test(badge.label));
+    check(
+      `Last seen makes no up or down claim (${at})`,
+      !/online|offline|down/i.test(FV.nasOnlyLastSeenLabel(at, now)),
+    );
+  }
+
+  const address = (vendor, managementIpAddress, publicIpAddress) =>
+    FV.fleetRowAddressLabel({ vendor, managementIpAddress, publicIpAddress });
+  eq("Aruba, no IP on file", address("aruba_instant_on", null, null), "No tunnel IP");
+  eq("Aruba, public IP on file", address("aruba_instant_on", null, "203.0.113.9"), "203.0.113.9");
+  eq("MikroTik wording unchanged", address("mikrotik", null, null), "IP not yet assigned");
+  eq("Omada wording unchanged", address("tplink_omada", null, null), "IP not yet assigned");
+  eq("management IP still wins", address("mikrotik", "10.20.0.8", "203.0.113.9"), "10.20.0.8");
+
+  const fleet = src("src/routes/master.routers.tsx");
+  check(
+    "the fleet row reads last_radius_at only for a NAS-only row in not-applicable",
+    /live\.state === "not-applicable" && isNasOnlyVendor\(r\.vendor\)\) \{\s+return nasOnlyLastSeenLabel\(r\.lastRadiusAt, now\)/.test(
+      fleet,
+    ),
+  );
+  check(
+    "no fleet surface keeps its own 'IP not yet assigned' fallback",
+    !/"IP not yet assigned"/.test(fleet) &&
+      !/"IP not yet assigned"/.test(src("src/components/routers/RouterSetupScriptAdvanced.tsx")),
+  );
+  check(
+    "the service maps the wire field",
+    /lastRadiusAt: r\.last_radius_at \?\? null/.test(src("src/services/router.service.ts")),
+  );
+}
+
 console.log("\nSetup page header: an Aruba row never says 'Awaiting check-in'");
 {
   const S = SETUP;

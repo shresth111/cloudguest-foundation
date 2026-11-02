@@ -50,6 +50,10 @@ export interface RouterDevice {
    * liveness timestamp and never comparable with `lastSeenAt`: nothing
    * heartbeats a controller. Rendered as "Last contacted the controller". */
   controllerLastContactedAt: string | null;
+  /** NAS-only rows (Aruba Instant On) only: the last RADIUS packet the shared
+   * listener matched to this row. An old or null value means no recent RADIUS,
+   * never offline. Master wording only; customer screens do not name RADIUS. */
+  lastRadiusAt: string | null;
   /** The row's vendor says controller; its own data says an agent has run on
    * it. Also the reason `controllerState` is null on such a row. */
   vendorClaimIsContradicted: boolean;

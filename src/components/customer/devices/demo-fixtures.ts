@@ -54,6 +54,7 @@ export function demoRouterDevices(
       controllerState: null,
       controllerStateReason: null,
       controllerLastContactedAt: null,
+      lastRadiusAt: null,
       vendorClaimIsContradicted: false,
       settings: {},
       createdAt: now,

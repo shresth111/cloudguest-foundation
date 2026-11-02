@@ -210,6 +210,7 @@ function toRouterDevice(s: VenueRouterSeed): RouterDevice {
     controllerState: null,
     controllerStateReason: null,
     controllerLastContactedAt: null,
+    lastRadiusAt: null,
     vendorClaimIsContradicted: false,
     settings: {},
     createdAt: ago(90 * 24 * 60),

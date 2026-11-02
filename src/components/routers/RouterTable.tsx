@@ -56,7 +56,8 @@ import {
   MissingCredentialsBadge,
   ControllerManagedBadge,
 } from "./RouterStatusBadge";
-import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
+import { isControllerManaged, isNasOnlyVendor, routerVendorLabel } from "@/lib/router-vendors";
+import { nasOnlyLastSeenLabel } from "@/lib/fleet-row-verdicts";
 import {
   canDecommissionRouter,
   canReinstateRouter,
@@ -141,7 +142,12 @@ function toCsv(rows: RouterDevice[]) {
       controller ? "Not measured here" : (r.healthStatus ?? "unknown"),
       // Matches the Last seen cell. An empty cell reads as "never seen",
       // which is a measurement claim nobody made.
-      controller ? "Not measured here" : (r.lastSeenAt ?? ""),
+      // A NAS-only row has one real signal, its last RADIUS packet.
+      isNasOnlyVendor(r.vendor)
+        ? (r.lastRadiusAt ?? "No RADIUS yet")
+        : controller
+          ? "Not measured here"
+          : (r.lastSeenAt ?? ""),
     ]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`)
       .join(",");
@@ -589,7 +595,11 @@ export function RouterTable() {
                       {/* `relative(null)` is "Never" -- a measurement claim,
                           and the wrong one. Nothing here ever checks a
                           controller, so there is no "never" to report. */}
-                      {isControllerManaged(r.vendor) ? "Not measured here" : relative(r.lastSeenAt)}
+                      {isNasOnlyVendor(r.vendor)
+                        ? nasOnlyLastSeenLabel(r.lastRadiusAt, new Date())
+                        : isControllerManaged(r.vendor)
+                          ? "Not measured here"
+                          : relative(r.lastSeenAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <RowActions

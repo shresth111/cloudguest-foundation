@@ -550,5 +550,61 @@ check(
     .startsWith("Last check-in "),
 );
 
+// ---------------------------------------------------------------------------
+// Aruba Instant On: the rendered fleet row, with and without RADIUS.
+// ---------------------------------------------------------------------------
+
+console.log("\nmaster Router Fleet: an Aruba row says what RADIUS says");
+
+const ARUBA = {
+  ...BASE_ROUTER,
+  id: "r-aruba",
+  name: "Sarvesh Office AP",
+  model: "AP21",
+  vendor: "aruba_instant_on",
+  publicIpAddress: null,
+  managementIpAddress: null,
+  lastRadiusAt: null,
+};
+const fleetArubaQuiet = renderFleet([ARUBA]);
+const fleetArubaHeard = renderFleet([
+  { ...ARUBA, lastRadiusAt: new Date(Date.now() - 4 * 60_000).toISOString() },
+]);
+
+check("aruba-no-data-last-seen", /No RADIUS yet/.test(fleetArubaQuiet));
+check("aruba-no-data-status", /No RADIUS recorded/.test(fleetArubaQuiet));
+check("aruba-no-tunnel-ip-wording", /No tunnel IP/.test(fleetArubaQuiet));
+check(
+  "aruba-no-promised-ip",
+  !/IP not yet assigned/.test(fleetArubaQuiet) && !/IP not yet assigned/.test(fleetArubaHeard),
+);
+check("aruba-with-data-last-seen", /Last RADIUS 4 minutes ago/.test(fleetArubaHeard));
+check("aruba-with-data-status", /RADIUS received/.test(fleetArubaHeard));
+check(
+  "aruba-row-is-never-not-measured-in-last-seen",
+  !/Not measured here/.test(fleetArubaQuiet) && !/Not measured here/.test(fleetArubaHeard),
+);
+// The row only: the summary tiles above it are labelled "Offline" on every fleet.
+const arubaRow = (html) => {
+  const start = html.indexOf("Sarvesh Office AP");
+  return html.slice(start, html.indexOf("</tr>", start));
+};
+check("aruba-row-found", arubaRow(fleetArubaQuiet).includes("No RADIUS yet"));
+check(
+  "aruba-never-offline-from-silence",
+  !/Offline|Online|Never heard from this router/.test(arubaRow(fleetArubaQuiet)) &&
+    !/Offline|Online/.test(arubaRow(fleetArubaHeard)),
+);
+check(
+  "omada-row-keeps-its-words-beside-aruba",
+  /Not measured here/.test(renderFleet([ARUBA, OMADA])) &&
+    /IP not yet assigned|203\.0\.113\.9|192\.168\.88\.1/.test(renderFleet([ARUBA, OMADA])),
+);
+
+const adminListAruba = renderCustomerList([
+  { ...ARUBA, lastRadiusAt: new Date(Date.now() - 4 * 60_000).toISOString() },
+]);
+check("aruba-operator-list-last-seen", /Last RADIUS 4 minutes ago/.test(adminListAruba));
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
