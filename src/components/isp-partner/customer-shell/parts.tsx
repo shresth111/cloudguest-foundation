@@ -19,7 +19,7 @@ import {
   useSetCustomerAddon,
 } from "@/components/isp-partner/customer-shell/addons";
 import type { PartnerAddonKey } from "@/components/isp-partner/customer-shell/nav";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { Card } from "@/components/isp-partner/kit";
 import { RouterSelect } from "@/components/isp-partner/workspace/RouterSelect";
 
@@ -68,7 +68,7 @@ export function AddonLocked({
                   { key: addon, enabled: true },
                   {
                     onSuccess: () => toast.success(`${label} switched on for this customer.`),
-                    onError: (e) => toast.error(ispErrorMessage(e)),
+                    onError: (e) => ispToastError(e),
                   },
                 )
               }

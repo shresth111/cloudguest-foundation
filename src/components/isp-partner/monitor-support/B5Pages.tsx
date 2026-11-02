@@ -36,6 +36,7 @@ import {
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import type { PartnerSlotProps } from "@/components/isp-partner/customer-shell/slots";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDate } from "@/lib/isp-partner/format";
 import { monitorSupportService as svc } from "@/services/isp-partner/monitor-support";
 import { M_FILTER } from "@/components/isp-partner/ui/classes";
@@ -52,7 +53,7 @@ function VenueAlerts({ locationId }: { locationId: string }) {
     mutationFn: ({ id, op }: { id: string; op: "ack" | "resolve" }) =>
       op === "ack" ? svc.acknowledge(id) : svc.resolve(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: k("venue-alerts", locationId) }),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => ispToastError(e),
   });
   if (q.isLoading) return <LoadingBlock />;
   if (q.error || !q.data)
@@ -248,7 +249,7 @@ function TicketThread({ ticketId }: { ticketId: string }) {
       setMsg("");
       qc.invalidateQueries({ queryKey: k("replies", ticketId) });
     },
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => ispToastError(e),
   });
   return (
     <div className="space-y-2 rounded-lg border border-border p-3">

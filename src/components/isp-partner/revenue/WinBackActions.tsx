@@ -20,6 +20,7 @@ import { RaiseTicketDialog } from "@/components/isp-partner/subscribers/workbenc
 import { useAppsEnabled } from "@/hooks/isp-partner/useApps";
 import { useSub360Mutation, useSubscriber360 } from "@/hooks/isp-partner/useSubscriber360";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { whatsappShareUrl, waNumber } from "@/lib/isp-partner/invoices";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
 import { offerRenewalSteps, winbackText } from "@/lib/isp-partner/revenue";
@@ -165,7 +166,7 @@ export function WinBackActions({ item }: { item: RiskItem }) {
       }
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (e) {
-      toast.error(ispErrorMessage(e));
+      ispToastError(e);
     } finally {
       setBusy(false);
     }

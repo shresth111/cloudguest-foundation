@@ -25,6 +25,7 @@ import {
 import { networkService } from "@/services/isp-partner/network";
 import { disconnectRemovedMac } from "@/services/isp-partner/workbench";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatBytes, formatDate, formatDateTime } from "@/lib/isp-partner/format";
 import {
   enforcementEventDetail,
@@ -258,7 +259,7 @@ function MacBlock({ subscriberId, canEdit }: { subscriberId: string; canEdit: bo
                               onClick: () => {
                                 disconnectRemovedMac(subscriberId, b.mac).then(
                                   (msg) => toast.success(msg),
-                                  (err) => toast.error(ispErrorMessage(err)),
+                                  (err) => ispToastError(err),
                                 );
                               },
                             }

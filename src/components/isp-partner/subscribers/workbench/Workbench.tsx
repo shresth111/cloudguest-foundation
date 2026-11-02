@@ -39,6 +39,7 @@ import { useIspUsers } from "@/hooks/isp-partner/useIsp";
 import { useSub360Mutation, useSubscriberLedger } from "@/hooks/isp-partner/useSubscriber360";
 import { useTicketTypes, useWorkbench } from "@/hooks/isp-partner/useWorkbench";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatBytes, formatDate, formatDateTime, formatDuration } from "@/lib/isp-partner/format";
 import { formatRupees } from "@/lib/isp-partner/money";
 import {
@@ -319,7 +320,7 @@ export function LiveBarSlot({ s, fallback }: S & { fallback: ReactNode }) {
       );
       wb.refetch();
     } catch (err) {
-      toast.error(ispErrorMessage(err));
+      ispToastError(err);
     } finally {
       setBusy(null);
     }

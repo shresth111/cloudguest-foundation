@@ -8,7 +8,6 @@
  */
 import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { Download, ScrollText } from "lucide-react";
 import {
   MButton,
@@ -33,7 +32,7 @@ import {
 } from "@/hooks/isp-partner/useIsp";
 import { ispKeys } from "@/hooks/isp-partner/keys";
 import { ispService } from "@/services/isp-partner/isp";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDateTime, formatNumber } from "@/lib/isp-partner/format";
 import { formatDateTimeSeconds } from "@/lib/isp-partner/time-seconds";
 import { ExactRange, type ExactWindow } from "@/components/isp-partner/log-views/ExactRange";
@@ -69,7 +68,7 @@ function useExport() {
       const { blob, filename } = await fn();
       saveBlob(blob, filename);
     } catch (err) {
-      toast.error(ispErrorMessage(err, "The export failed."));
+      ispToastError(err, "The export failed.");
     } finally {
       setBusy(null);
     }

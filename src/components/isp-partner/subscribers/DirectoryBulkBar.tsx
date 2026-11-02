@@ -28,6 +28,7 @@ import {
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { idempotencyKey } from "@/lib/isp-partner/subscribers360";
 import {
   dir2Service,
@@ -240,7 +241,7 @@ export function DirectoryExportButtons({ filter }: { filter: DirFilter }) {
       const { blob, filename } = await dir2Service.exportDirectory(filter, format);
       saveBlob(blob, filename);
     } catch (e) {
-      toast.error(ispErrorMessage(e));
+      ispToastError(e);
     }
   };
   return (

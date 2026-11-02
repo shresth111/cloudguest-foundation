@@ -6,7 +6,7 @@ import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
 import { CustomerSelect, FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { useFiberMutation, useFiberNodes } from "@/hooks/isp-partner/useFiber";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispFormMessage } from "@/lib/isp-partner/form-errors";
 import {
   KIND_LABEL,
   STATUS_LABEL,
@@ -63,7 +63,19 @@ export function FiberNodeDialog({
       onSaved?.(out);
       onClose();
     } catch (e) {
-      setErr(ispErrorMessage(e));
+      setErr(
+        ispFormMessage(e, {
+          name: "Name",
+          code: "Code",
+          kind: "Type",
+          parent_id: "Upstream node",
+          parent_port: "Upstream port",
+          port_count: "Ports",
+          latitude: "Latitude",
+          longitude: "Longitude",
+          isp_customer_id: "Customer",
+        }),
+      );
     }
   };
 

@@ -16,7 +16,7 @@ import {
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { CafExtrasFields } from "@/components/isp-partner/compliance/caf/CafExtrasFields";
 import { saveBlob } from "@/lib/isp-partner/download";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispFormMessage } from "@/lib/isp-partner/form-errors";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import {
   MISSING_LABEL,
@@ -32,6 +32,20 @@ import {
   type ApplicantCategory,
   type CafSubscriberPrefill,
 } from "@/services/isp-partner/caf";
+
+/** Backend field -> label, for errors named in the form message. */
+const CAF_LABELS: Record<string, string> = {
+  caf_number: "CAF number",
+  applicant_type: "Applicant type",
+  id_proof_type: "ID proof type",
+  id_number: "ID number",
+  address_proof_type: "Address proof type",
+  date_of_birth: "Date of birth",
+  pin_code: "PIN code",
+  installed_at: "Installed on",
+  kind: "Document type",
+  file: "File",
+};
 
 const ID_LABEL: Record<string, string> = {
   aadhaar: "Aadhaar",
@@ -99,7 +113,7 @@ function Body({
       await fn();
       if (done) toast.success(done);
     } catch (e) {
-      setErr(ispErrorMessage(e));
+      setErr(ispFormMessage(e, CAF_LABELS));
     } finally {
       setBusy("");
     }

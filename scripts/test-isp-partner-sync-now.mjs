@@ -32,7 +32,8 @@ has("gated on the route's key", btn, 'if (!can("isp_subscribers.update")) return
 has("toast shows the count", btn, "toast.success(syncToast(r.applied))");
 has("refetches the 360 directory", btn, 'queryKey: ["isp", "sub360"]');
 has("refetches Plans -> Subscribers", btn, 'queryKey: ["isp", "plans", "subscribers"]');
-has("failure toasts", btn, "toast.error(");
+// ERROR-COPY: failures toast through ispToastError (worded, with a support reference).
+has("failure toasts", btn, "ispToastError(");
 // the toast text (pure; copied by regex from the component so it stays in sync)
 const lib = src("src/lib/isp-partner/sync-now.ts");
 const body = lib.match(/export function syncToast\(applied: number\): string \{([\s\S]*?)\n\}/)[1];

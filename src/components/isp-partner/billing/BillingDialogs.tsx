@@ -22,6 +22,7 @@ import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { billingService, newIdempotencyKey } from "@/services/isp-partner/billing";
 import { financeService } from "@/services/isp-partner/finance";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { isoDay } from "@/lib/isp-partner/format";
 import { saveBlob } from "@/lib/isp-partner/download";
 import {
@@ -41,7 +42,7 @@ async function download(fn: () => Promise<{ blob: Blob; filename: string }>) {
     const { blob, filename } = await fn();
     saveBlob(blob, filename);
   } catch (err) {
-    toast.error(ispErrorMessage(err, "The download failed."));
+    ispToastError(err, "The download failed.");
   }
 }
 

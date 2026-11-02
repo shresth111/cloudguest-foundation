@@ -8,7 +8,8 @@ import { Card, ErrorBlock, FormError, Spinner, TextField } from "@/components/is
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useInvoiceMutation, useZones } from "@/hooks/isp-partner/useInvoices";
 import { zonesService } from "@/services/isp-partner/invoices";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispFormMessage } from "@/lib/isp-partner/form-errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import type { Zone, ZoneBody } from "@/services/isp-partner/invoices-types";
 
 export function ZonesCard() {
@@ -92,7 +93,7 @@ export function ZonesCard() {
                         await remove.mutateAsync(z.id);
                         toast.success(`${z.name} deleted.`);
                       } catch (err) {
-                        toast.error(ispErrorMessage(err));
+                        ispToastError(err);
                       }
                     }}
                   >
@@ -133,7 +134,7 @@ export function ZonesCard() {
                   toast.success("Zone saved.");
                   setEditing(null);
                 } catch (err) {
-                  setError(ispErrorMessage(err));
+                  setError(ispFormMessage(err, { name: "Zone name", state_code: "State code" }));
                 }
               }}
             >

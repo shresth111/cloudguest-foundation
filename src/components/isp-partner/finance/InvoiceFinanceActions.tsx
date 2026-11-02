@@ -9,6 +9,7 @@ import { MButton, MDialog, MSeg } from "@/components/master/MasterKit";
 import { FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { financeService } from "@/services/isp-partner/finance";
 import {
@@ -76,7 +77,7 @@ export function InvoiceFinanceActions({ invoiceId, live }: { invoiceId: string; 
         toast.success(r.url);
       }
     },
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => ispToastError(e),
   });
   if (!probe.isSuccess) return null;
   return (
@@ -90,7 +91,7 @@ export function InvoiceFinanceActions({ invoiceId, live }: { invoiceId: string; 
             const { blob, filename } = await financeService.thermalInvoice(invoiceId, 80);
             saveBlob(blob, filename);
           } catch (err) {
-            toast.error(ispErrorMessage(err, "The download failed."));
+            ispToastError(err, "The download failed.");
           } finally {
             setPrinting(false);
           }

@@ -34,6 +34,7 @@ import {
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { billingService } from "@/services/isp-partner/billing";
 import { ispErrorCode, ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { INVOICE_STATUS_LABEL } from "@/lib/isp-partner/money";
 import type { BillingSettings } from "@/services/isp-partner/billing-types";
@@ -62,7 +63,7 @@ function ExportButton({ kind }: { kind: "invoices" | "payments" | "dues" }) {
           );
           saveBlob(blob, filename);
         } catch (err) {
-          toast.error(ispErrorMessage(err, "The export failed."));
+          ispToastError(err, "The export failed.");
         } finally {
           setBusy(false);
         }
@@ -140,7 +141,7 @@ function InvoicesPanel({ overdueOnly }: { overdueOnly: boolean }) {
                         : `${res.created.length} invoice(s) created.`,
                     );
                   } catch (err) {
-                    toast.error(ispErrorMessage(err));
+                    ispToastError(err);
                   }
                 }}
               >

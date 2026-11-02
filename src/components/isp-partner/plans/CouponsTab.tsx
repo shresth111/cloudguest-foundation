@@ -33,6 +33,7 @@ import { useIspCustomerLocations, useIspCustomerOptions } from "@/hooks/isp-part
 import { plansService } from "@/services/isp-partner/plans";
 import { ispService } from "@/services/isp-partner/isp";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { formatDate } from "@/lib/isp-partner/format";
 import { LAYOUT_LABEL, formatKbps } from "@/lib/isp-partner/plans";
@@ -48,7 +49,7 @@ export function BatchDownloads({ batchId }: { batchId: string }) {
       const { blob, filename } = await fn();
       saveBlob(blob, filename);
     } catch (err) {
-      toast.error(ispErrorMessage(err, "The download failed."));
+      ispToastError(err, "The download failed.");
     } finally {
       setBusy(null);
     }
@@ -231,7 +232,7 @@ export function CouponGeneratorDrawer({
                     setFixedCount(count);
                     toast.success(`Coupon sign-in turned on at ${count} location(s).`);
                   } catch (err) {
-                    toast.error(ispErrorMessage(err, "Could not turn on coupon sign-in."));
+                    ispToastError(err, "Could not turn on coupon sign-in.");
                   } finally {
                     setFixing(false);
                   }

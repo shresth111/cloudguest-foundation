@@ -22,7 +22,7 @@ import {
   useSubscriber360,
   useSubscriberLedger,
 } from "@/hooks/isp-partner/useSubscriber360";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatBytes, formatDate, formatDateTime, formatDuration } from "@/lib/isp-partner/format";
 import { formatRupees, INVOICE_STATUS_LABEL } from "@/lib/isp-partner/money";
 import { relativeValidity } from "@/lib/isp-partner/plans";
@@ -120,7 +120,7 @@ function LiveBar({ s, canAct }: { s: Subscriber360; canAct: boolean }) {
                     : `${r.sessions_ended} session(s) ended.`,
                 );
               } catch (err) {
-                toast.error(ispErrorMessage(err));
+                ispToastError(err);
               }
             }}
           >
@@ -216,7 +216,7 @@ export function Subscriber360Page({ subscriberId }: { subscriberId: string }) {
       await fn();
       toast.success(ok);
     } catch (err) {
-      toast.error(ispErrorMessage(err));
+      ispToastError(err);
     }
   };
   const btn = (k: ActionKind, label: string, show: boolean) =>

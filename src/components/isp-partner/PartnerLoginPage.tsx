@@ -32,6 +32,7 @@ import {
   PasswordInput,
 } from "@/components/isp-partner/auth/PartnerAuthKit";
 import { RESET_DONE } from "@/lib/isp-partner/password-reset";
+import { ispPlainMessage } from "@/lib/isp-partner/errors";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -84,7 +85,7 @@ export function PartnerLoginPage() {
       if (isPasswordChangeRequired(err)) {
         setNeedsNewPassword(true);
       } else {
-        setError(requestErrorOf(err)?.message || "Sign-in failed.");
+        setError(ispPlainMessage(err, "Sign-in failed."));
       }
     } finally {
       setBusy(false);
@@ -107,7 +108,7 @@ export function PartnerLoginPage() {
       await login({ email: email.trim(), password, newPassword });
       finish();
     } catch (err) {
-      setError(requestErrorOf(err)?.message || "Could not set the new password.");
+      setError(ispPlainMessage(err, "Could not set the new password."));
     } finally {
       setBusy(false);
     }
