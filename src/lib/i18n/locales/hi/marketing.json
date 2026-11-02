@@ -73,8 +73,10 @@
     "previewEmpty": "अभी कोई banner नहीं है — Edit से जोड़ें, फिर दोबारा preview करें।",
     "saved": "Banner save हो गया",
     "saveFailed": "Banner save नहीं हो सका — connection जाँचकर दोबारा कोशिश करें।",
-    "imageNasOnly": "यह दिखते समय guests अभी online नहीं होते। किसी दूसरी site पर रखी image तब तक load नहीं होगी, जब तक उस site का domain Instant On app में guest network पर allowed न हो।"
-    "saveFailed": "Banner save नहीं हो सका — connection जाँचकर दोबारा कोशिश करें।"
+    "imageNasOnly": "यह दिखते समय guests अभी online नहीं होते। किसी दूसरी site पर रखी image तब तक load नहीं होगी, जब तक उस site का domain Instant On app में guest network पर allowed न हो।",
+    "surveySaved": "Survey save हो गया",
+    "surveySaveFailed": "Survey save नहीं हो सका — connection जाँचकर दोबारा कोशिश करें।",
+    "saveDetails": "जानकारी save करें"
   },
   "picker": {
     "optInOff": "किसी को संदेश नहीं भेजा जा सकता क्योंकि आपके WiFi पेज पर ऑप्ट-इन बंद है, इसलिए कोई अतिथि सहमति नहीं दे सकता। इसे Guest Messaging, Audience में चालू करें।",
@@ -100,8 +102,5 @@
     "noWorker": "यह अभियान शुरू नहीं हुआ क्योंकि भेजने वाली सेवा ने इसे नहीं उठाया। कुछ नहीं भेजा गया। सहायता से संपर्क करें।",
     "dispatchFailed": "हमारी ओर की गड़बड़ी के कारण यह अभियान शुरू नहीं हो सका। कुछ नहीं भेजा गया। सहायता से संपर्क करें।",
     "notConfigured": "यह चैनल चालू नहीं है, इसलिए कुछ नहीं भेजा गया। {{reason}}"
-    "surveySaved": "Survey save हो गया",
-    "surveySaveFailed": "Survey save नहीं हो सका — connection जाँचकर दोबारा कोशिश करें।",
-    "saveDetails": "जानकारी save करें"
   }
 }

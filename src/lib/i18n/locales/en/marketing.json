@@ -73,8 +73,10 @@
     "previewEmpty": "No banner configured yet — use Edit to add one, then preview again.",
     "saved": "Banner saved",
     "saveFailed": "Could not save the banner — check the connection and try again.",
-    "imageNasOnly": "Guests aren't online yet when they see this. An image hosted on another site won't load unless that site's domain is allowed on the guest network in the Instant On app."
-    "saveFailed": "Could not save the banner — check the connection and try again."
+    "imageNasOnly": "Guests aren't online yet when they see this. An image hosted on another site won't load unless that site's domain is allowed on the guest network in the Instant On app.",
+    "surveySaved": "Survey saved",
+    "surveySaveFailed": "Could not save the survey — check the connection and try again.",
+    "saveDetails": "Save details"
   },
   "picker": {
     "optInOff": "Nobody can be messaged because the opt-in on your WiFi page is off, so no guest can agree to hear from you. Turn it on under Guest Messaging, Audience.",
@@ -100,8 +102,5 @@
     "noWorker": "This campaign didn't start because the sending service didn't pick it up. Nothing was sent. Contact support.",
     "dispatchFailed": "This campaign couldn't start because of an error on our side. Nothing was sent. Contact support.",
     "notConfigured": "This channel isn't live, so nothing was sent. {{reason}}"
-    "surveySaved": "Survey saved",
-    "surveySaveFailed": "Could not save the survey — check the connection and try again.",
-    "saveDetails": "Save details"
   }
 }
