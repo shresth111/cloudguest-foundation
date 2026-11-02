@@ -50,7 +50,9 @@
     "acrossSessions_one": "{{formatted}} सेशन के हिसाब से",
     "acrossSessions_other": "{{formatted}} सेशन के हिसाब से",
     "uptime": "अपटाइम",
-    "uptimeFooter": "मुख्य इंटरनेट लाइन, पिछले 24 घंटे"
+    "uptimeFooter": "मुख्य इंटरनेट लाइन, पिछले 24 घंटे",
+    "guestDataToday": "आज का guest data",
+    "guestDataTodayFooter": "आधी रात से download + upload"
   },
   "guestsOnline": {
     "title": "ऑनलाइन मेहमान",

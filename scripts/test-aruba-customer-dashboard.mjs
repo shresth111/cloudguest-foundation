@@ -524,6 +524,7 @@ for (const venue of ["mikrotik", "omada"]) {
   check(`${venue}: no aruba-* element`, !/data-testid="aruba-/.test(r.html));
   check(`${venue}: Internet Connection card still there`, /Internet Connection/.test(t));
   check(`${venue}: Bandwidth card still there`, /\bBandwidth\b/.test(t));
+  check(`${venue}: keeps the Uptime KPI`, /\bUptime\b/.test(t) && !/Guest data today/.test(t));
   await done(r);
 }
 
@@ -539,6 +540,13 @@ console.log("\n2. Aruba: no router-only figure, access points instead");
     !has(r.html, "aruba-traffic-unsupported") && !/Wyfy-managed router/.test(t),
   );
   check("the access points card is on the page", has(r.html, "aruba-access-points-card"));
+  check("no Uptime KPI: no main line is measured here", !/\bUptime\b/.test(t));
+  check(
+    "Guest data today has a measured value and says what it counts",
+    /Guest data today\s*[\d.]+\s*[KMGT]?B\b/i.test(t) &&
+      /Download \+ upload since midnight/.test(t),
+    t.slice(0, 400),
+  );
   const verdicts = await r.page.$$eval('[data-testid="aruba-ap-verdict"]', (els) =>
     els.map((e) => e.textContent),
   );
@@ -554,6 +562,11 @@ console.log("\n2. Aruba: no router-only figure, access points instead");
   const r = await render(ROOT, "aruba", "dashboard", { mode: "ap-fail" });
   const t = await text(r.page);
   check("failed AP read: card says unavailable", has(r.html, "aruba-ap-unavailable"));
+  check(
+    "failed AP read: Guest data today says it couldn't load, with no stand-in value",
+    /Guest data today\s*(—\s*)?Couldn't load/.test(t),
+    t.slice(0, 400),
+  );
   check("failed AP read: still no Internet card", !/Internet Connection/.test(t));
   await done(r);
 }
