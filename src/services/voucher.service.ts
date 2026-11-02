@@ -44,6 +44,7 @@ interface BackendVoucherBatch {
   code_length: number;
   code_prefix: string | null;
   validity_minutes: number;
+  session_timeout_minutes?: number | null;
   batch_expires_at: string | null;
   max_uses_per_voucher: number;
   data_limit_mb: number | null;
@@ -133,6 +134,7 @@ function toBatch(b: BackendVoucherBatch): VoucherBatch {
     codeLength: b.code_length,
     codePrefix: b.code_prefix,
     validityMinutes: b.validity_minutes,
+    sessionTimeoutMinutes: b.session_timeout_minutes ?? null,
     batchExpiresAt: b.batch_expires_at,
     maxUsesPerVoucher: b.max_uses_per_voucher,
     dataLimitMb: b.data_limit_mb,
@@ -235,6 +237,9 @@ export const voucherService = {
         code_length: payload.codeLength,
         code_prefix: payload.codePrefix ?? null,
         validity_minutes: payload.validityMinutes,
+        ...(payload.sessionTimeoutMinutes
+          ? { session_timeout_minutes: payload.sessionTimeoutMinutes }
+          : {}),
         batch_expires_at: payload.batchExpiresAt ?? null,
         max_uses_per_voucher: payload.maxUsesPerVoucher,
         data_limit_mb: payload.dataLimitMb ?? null,

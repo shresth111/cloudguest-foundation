@@ -145,6 +145,7 @@
     "test:aruba-shared-listener": "node scripts/test-aruba-shared-listener.mjs",
     "test:aruba-add-site": "node scripts/test-aruba-add-site.mjs",
     "test:aruba-access-rules": "node scripts/test-aruba-access-rules.mjs",
+    "test:voucher-session-timeout": "node scripts/test-voucher-session-timeout.mjs",
     "test:campaign-edit": "node scripts/test-campaign-edit.mjs",
     "test:aruba-ssid-tiers": "node scripts/test-aruba-ssid-tiers.mjs",
     "test:aruba-ssid-tier-guests": "node scripts/test-aruba-ssid-tier-guests.mjs",

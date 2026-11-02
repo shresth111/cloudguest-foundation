@@ -38,6 +38,8 @@ import {
   type PageScope,
 } from "@/components/customer/console";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { useCustomerStore } from "@/stores/customerStore";
 import { voucherService } from "@/services/voucher.service";
 import { resolveOrgId } from "@/services/customer.service";
 import type {
@@ -146,6 +148,13 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
     maxUses: 1,
     codeLen: 8,
   });
+  // Aruba Instant On venues only: the backend ignores it at any other vendor.
+  const nasOnlyVenue = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
+  const [sessionTimeoutMin, setSessionTimeoutMin] = useState("");
+  const sessionTimeout = nasOnlyVenue && sessionTimeoutMin ? parseInt(sessionTimeoutMin, 10) : null;
+  const sessionTimeoutInvalid =
+    sessionTimeout !== null &&
+    (!Number.isInteger(sessionTimeout) || sessionTimeout < 1 || sessionTimeout > form.validMin);
   const [planOpts] = useState([
     { v: "1h", l: "1 Hour" },
     { v: "24h", l: "24 Hours" },
@@ -338,6 +347,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
         codeLength: form.codeLen,
         codePrefix: form.prefix,
         validityMinutes: form.validMin,
+        sessionTimeoutMinutes: sessionTimeout,
         maxUsesPerVoucher: form.maxUses,
         dataLimitMb: form.dataLimit || null,
       });
@@ -458,7 +468,18 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                       }
                     />
                   </FormField>
-                  <FormField label={t("v.validityMin")} htmlFor="voucher-validity">
+                  <FormField
+                    label={t("v.validityMin")}
+                    htmlFor="voucher-validity"
+                    hint={
+                      nasOnlyVenue
+                        ? t(
+                            "v.validityAruba",
+                            "The guest's session ends after this time unless you set a shorter session timeout. 1440 minutes is 24 hours.",
+                          )
+                        : undefined
+                    }
+                  >
                     <Input
                       id="voucher-validity"
                       type="number"
@@ -473,6 +494,37 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                       }
                     />
                   </FormField>
+                  {nasOnlyVenue && (
+                    <FormField
+                      label={t("v.sessionTimeoutMin", "Session timeout (minutes, optional)")}
+                      htmlFor="voucher-session-timeout"
+                      wide
+                    >
+                      <Input
+                        id="voucher-session-timeout"
+                        type="number"
+                        min={1}
+                        max={form.validMin}
+                        value={sessionTimeoutMin}
+                        aria-invalid={sessionTimeoutInvalid}
+                        onChange={(e) => setSessionTimeoutMin(e.target.value)}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t(
+                          "v.sessionTimeoutHint",
+                          "How long each login lasts. Blank means the full validity. Every login uses one of Max Uses, so raise Max Uses to allow more logins.",
+                        )}
+                      </p>
+                      {sessionTimeoutInvalid && (
+                        <p className="mt-1 text-xs text-destructive" role="alert">
+                          {t(
+                            "v.sessionTimeoutInvalid",
+                            "Must be between 1 minute and the validity.",
+                          )}
+                        </p>
+                      )}
+                    </FormField>
+                  )}
                   <FormField label={t("v.codePrefix")} htmlFor="voucher-prefix">
                     <Input
                       id="voucher-prefix"
@@ -525,7 +577,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                   <Button variant="outline" onClick={() => setOpen(false)}>
                     {t("v.cancel")}
                   </Button>
-                  <Button onClick={handleGenerate}>
+                  <Button onClick={handleGenerate} disabled={sessionTimeoutInvalid}>
                     {t("v.generateN", { count: Number(form.quantity) || 0 })}
                   </Button>
                 </DialogFooter>

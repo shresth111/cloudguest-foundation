@@ -79,6 +79,10 @@
     "email": "ईमेल",
     "provenance": "डिवाइस MAC और IP नेटवर्क दर्ज करता है — हर कोड के सबसे हाल के सेशन से। जो कोड एक से ज़्यादा बार चला, उस पर <b>+N</b> बैज दिखता है और वह दूसरे डिवाइस पर भी चला हो सकता है। मेहमान ने लॉगिन पेज पर जो ख़ुद लिखा, वह यहाँ नहीं दिखाया जाता।",
     "vouchersGeneratedFor_one": "{{businessUnit}} के लिए {{count}} वाउचर बना",
-    "vouchersGeneratedFor_other": "{{businessUnit}} के लिए {{count}} वाउचर बने"
+    "vouchersGeneratedFor_other": "{{businessUnit}} के लिए {{count}} वाउचर बने",
+    "sessionTimeoutMin": "सत्र का समय (मिनट, वैकल्पिक)",
+    "sessionTimeoutHint": "हर लॉगिन कितनी देर चलेगा। खाली छोड़ने पर पूरी वैधता लागू होगी। हर लॉगिन में अधिकतम उपयोगों में से एक खर्च होता है, इसलिए ज़्यादा लॉगिन के लिए उसे बढ़ाएँ।",
+    "sessionTimeoutInvalid": "यह 1 मिनट से वैधता के बीच होना चाहिए।",
+    "validityAruba": "Session timeout कम न रखा हो, तो guest का session इतने समय बाद खत्म होता है। 1440 मिनट यानी 24 घंटे।"
   }
 }
