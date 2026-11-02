@@ -93,6 +93,7 @@
     "test:session-router-name": "node scripts/test-session-router-name.mjs",
     "test:diagnostics-verdict": "node scripts/test-diagnostics-verdict.mjs",
     "test:connection-verdicts": "node scripts/test-connection-verdicts.mjs",
+    "test:guest-lookup-match": "node scripts/test-guest-lookup-match.mjs",
     "format": "prettier --write .",
     "measure:portal-contrast": "node scripts/measure-portal-contrast.mjs",
     "test:isp-single-flight": "node scripts/test-isp-links-single-flight.mjs",
