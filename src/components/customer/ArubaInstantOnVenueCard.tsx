@@ -17,6 +17,8 @@
  * hours, plus `/guests`), the same query and cache entry the dashboard home
  * already reads -- no new endpoint.
  */
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { Panel, StatusBadge } from "@/components/customer/console";
 import { useCustomerDashboard } from "@/hooks/useCustomerDashboard";
 import { CONTROLLER_STATE_COPY, CONTROLLER_STATE_NEXT_STEP } from "@/lib/router-vendors";
@@ -39,6 +41,7 @@ function Stat({ label, value, testId }: { label: string; value: string; testId: 
 }
 
 export function ArubaInstantOnVenueCard({ locationId }: { locationId: string }) {
+  const { t } = useTranslation("dashboard", { i18n });
   const { data, isError, isLoading } = useCustomerDashboard(locationId);
   const copy = CONTROLLER_STATE_COPY.no_controller_api;
   const stats = isLoading
@@ -48,7 +51,7 @@ export function ArubaInstantOnVenueCard({ locationId }: { locationId: string }) 
     <div className="h-full" data-testid="aruba-venue-card">
       <Panel
         className="h-full"
-        title="Aruba Instant On access points"
+        title={t("aruba.venueTitle", "Aruba Instant On access points")}
         actions={
           // Neutral grey on purpose: "set up in Instant On" is not a fault
           // and not a health claim (PM_SPEC §2.3).
@@ -60,13 +63,27 @@ export function ArubaInstantOnVenueCard({ locationId }: { locationId: string }) 
       >
         <p className="text-xs text-[var(--wy-text-muted)]">{copy.sentence}</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <Stat label="Guests online now" value={stats.online} testId="aruba-online" />
-          <Stat label="Sign-ins today" value={stats.today} testId="aruba-today" />
-          <Stat label="Last guest sign-in" value={stats.lastSignIn} testId="aruba-last" />
+          <Stat
+            label={t("aruba.guestsOnlineNow", "Guests online now")}
+            value={stats.online}
+            testId="aruba-online"
+          />
+          <Stat
+            label={t("aruba.signInsToday", "Sign-ins today")}
+            value={stats.today}
+            testId="aruba-today"
+          />
+          <Stat
+            label={t("aruba.lastSignIn", "Last guest sign-in")}
+            value={stats.lastSignIn}
+            testId="aruba-last"
+          />
         </div>
         <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
           <div>
-            <p className="mb-1 font-medium text-[var(--wy-text)]">Managed here, in Wyfy</p>
+            <p className="mb-1 font-medium text-[var(--wy-text)]">
+              {t("aruba.managedHere", "Managed here, in Wyfy")}
+            </p>
             <ul className="list-disc space-y-0.5 pl-4 text-[var(--wy-text-muted)]">
               {ARUBA_VENUE_IN_WYFY.map((x) => (
                 <li key={x}>{x}</li>
@@ -74,7 +91,9 @@ export function ArubaInstantOnVenueCard({ locationId }: { locationId: string }) 
             </ul>
           </div>
           <div>
-            <p className="mb-1 font-medium text-[var(--wy-text)]">Managed in the Instant On app</p>
+            <p className="mb-1 font-medium text-[var(--wy-text)]">
+              {t("aruba.managedInApp", "Managed in the Instant On app")}
+            </p>
             <ul className="list-disc space-y-0.5 pl-4 text-[var(--wy-text-muted)]">
               {ARUBA_VENUE_IN_INSTANT_ON.map((x) => (
                 <li key={x}>{x}</li>

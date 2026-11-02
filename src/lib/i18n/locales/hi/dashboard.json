@@ -230,5 +230,20 @@
   },
   "liveness": {
     "raiseTicket": "सपोर्ट टिकट बनाएँ"
+  },
+  "aruba": {
+    "venueTitle": "Aruba Instant On access points",
+    "guestsOnlineNow": "अभी online guests",
+    "signInsToday": "आज के sign-ins",
+    "lastSignIn": "पिछला guest sign-in",
+    "managedHere": "यहीं, Wyfy में manage होता है",
+    "managedInApp": "Instant On app में manage होता है",
+    "managedWhere": "क्या कहाँ manage होता है",
+    "hereInWyfy": "यहीं, Wyfy में",
+    "inInstantOnApp": "Instant On app में",
+    "accessPoints": "Access points",
+    "apCount_one": "{{count}} access point",
+    "apCount_other": "{{count}} access points",
+    "dataToday": "आज का data"
   }
 }

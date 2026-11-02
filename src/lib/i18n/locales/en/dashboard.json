@@ -230,5 +230,20 @@
   },
   "liveness": {
     "raiseTicket": "Raise a support ticket"
+  },
+  "aruba": {
+    "venueTitle": "Aruba Instant On access points",
+    "guestsOnlineNow": "Guests online now",
+    "signInsToday": "Sign-ins today",
+    "lastSignIn": "Last guest sign-in",
+    "managedHere": "Managed here, in Wyfy",
+    "managedInApp": "Managed in the Instant On app",
+    "managedWhere": "What's managed where",
+    "hereInWyfy": "Here, in Wyfy",
+    "inInstantOnApp": "In the Instant On app",
+    "accessPoints": "Access points",
+    "apCount_one": "{{count}} access point",
+    "apCount_other": "{{count}} access points",
+    "dataToday": "data today"
   }
 }
