@@ -2733,6 +2733,14 @@ jobs:
             "aruba-ssid-tier-guests" 17 \
             "aruba ssid tier guests: all checks passed" \
             bun run test:aruba-ssid-tier-guests
+      # The access point alert switch on the Alerts page: Aruba only, off until
+      # turned on, and MikroTik and Omada show nothing and request nothing.
+      - name: aruba silence alert
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-silence-alert" 20 \
+            "aruba silence alert: all checks passed" \
+            bun run test:aruba-silence-alert
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \

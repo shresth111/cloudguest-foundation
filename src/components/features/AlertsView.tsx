@@ -25,6 +25,9 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { useFormat } from "@/lib/useFormat";
+import { ArubaSilenceAlertCard } from "@/components/customer/ArubaSilenceAlertCard";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { useCustomerStore } from "@/stores/customerStore";
 
 interface AlertRow {
   sev: string;
@@ -70,6 +73,7 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
   // strictly post-mount.
   const { t } = useTranslation("alerts", { i18n });
   const fmt = useFormat();
+  const nasOnlyVenue = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -173,6 +177,7 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
           loading={loading}
         />
       </div>
+      {nasOnlyVenue && !isDemo() && <ArubaSilenceAlertCard />}
       <Panel flush title={t("recent", "Recent alerts")}>
         {loading ? (
           <div className="px-4 py-4">

@@ -17,5 +17,14 @@
     "open": "खुला",
     "acknowledged": "देख लिया",
     "resolved": "ठीक हो गया"
+  },
+  "silence": {
+    "switch": "Access points के report बंद करने पर मुझे alert करें",
+    "body": "अगर guests जुड़े रहते हुए आपके Aruba Instant On access points 30 मिनट तक चुप हो जाएँ, या कोई एक 2 घंटे चुप रहे जबकि venue का दूसरा guests को चला रहा हो, तो इस page पर alert दिखेगा। यह आपके सभी Aruba venues पर लागू है।",
+    "limits": "Guests नहीं तो traffic नहीं, इसलिए शांत venue पर alert नहीं आता, और बिना guests वाली outage पर भी नहीं आएगा। Wyfy बिजली जाने और internet जाने में फ़र्क नहीं कर सकता; Instant On app देखें।",
+    "turnedOn": "Access point alert चालू है।",
+    "turnedOff": "Access point alert बंद है।",
+    "saveFailed": "यह alert बदला नहीं जा सका। कुछ नहीं बदला। दोबारा कोशिश करें।",
+    "loadFailed": "यह alert चालू है या नहीं, पता नहीं चल सका। दोबारा कोशिश के लिए page reload करें।"
   }
 }
