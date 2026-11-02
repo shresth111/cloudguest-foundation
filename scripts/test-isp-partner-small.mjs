@@ -138,5 +138,23 @@ console.log("SMALL-4 MRR history + DSO");
   has("empty DSO is a dash", src("src/lib/isp-partner/mrr-history.ts"), '? "–"');
 }
 
+// ---------------------------------------------------------------- SMALL-5
+console.log("SMALL-5 auto incidents");
+{
+  const svc = src("src/services/isp-partner/incident-auto.ts");
+  has("own prefix (never /incidents/{id})", svc, 'const BASE = "/isp/incident-auto";');
+  const card = src("src/components/isp-partner/incidents/AutoIncidentsCard.tsx");
+  has("card hides while the flag 404s", card, "if (q.isError || !q.data) return null;");
+  has("only incidents.manage edits", card, 'can("isp_incidents.manage")');
+  has("says auto-resolved get no automatic grace", card, "never get automatic grace");
+  has("says controller venues are skipped", card, "vendor controller are skipped");
+  const lib = src("src/lib/isp-partner/incident-auto.ts");
+  has("minutes validated 1..240 like the BE", lib, "n < 1 || n > 240");
+  const page = src("src/components/isp-partner/incidents/IncidentsPage.tsx");
+  has("card on the incidents page", page, "<AutoIncidentsCard />");
+  has("Auto tag on auto-opened rows", page, '<MTag label="Auto" tone="info" />');
+  lacks("no tunnel wording", card, "WireGuard");
+}
+
 console.log(`\n${checks - failures}/${checks} checks passed`);
 if (failures) process.exit(1);
