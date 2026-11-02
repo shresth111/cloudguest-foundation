@@ -187,6 +187,8 @@ export const ISP_ERROR_COPY_EN: Record<string, string> = {
   // -- billing --------------------------------------------------------------
   "code.ISP_BILLING_NOT_CONFIGURED":
     "Billing is not set up yet. Fill in Billing → Settings (legal name, state, invoice prefix) first.",
+  "code.ISP_PLAN_FIELD_REQUIRED":
+    "This customer's plan needs a plan name, an amount and a billing cycle. Fill in the highlighted field.",
   "code.ISP_INVOICE_NOT_FOUND": GONE("invoice"),
   "code.ISP_PAYMENT_NOT_FOUND": GONE("payment"),
   "code.ISP_INVOICE_VOID": "This invoice is cancelled, so it cannot be changed or paid.",
