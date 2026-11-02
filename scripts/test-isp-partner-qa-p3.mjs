@@ -69,9 +69,14 @@ check(
 
 // QA-013: router refusals are worded for an ISP; no raw UUIDs.
 const b4 = read("src/components/isp-partner/security-ops/B4Pages.tsx");
-check("credential wording replaced", /connection credentials\|management or public IP/.test(b4));
-check("UUIDs replaced", /replace\(UUID_RE, "this router"\)/.test(b4));
-check("category platform config explained", /Website categories are not available/.test(b4));
+// The wording lives in lib/isp-partner/b4-messages.ts since the ERROR-COPY fix.
+const b4Msgs = read("src/lib/isp-partner/b4-messages.ts");
+check(
+  "credential wording replaced",
+  /connection credentials\|management or public IP/.test(b4Msgs),
+);
+check("UUIDs replaced", /replace\(UUID_RE, "this router"\)/.test(b4Msgs));
+check("category platform config explained", /Website categories are not available/.test(b4Msgs));
 check("B4 pages render the friendly error", (b4.match(/<B4Error/g) || []).length >= 8);
 
 // Billing on Guest Messaging: /guest-sessions refused locally, not audited.
