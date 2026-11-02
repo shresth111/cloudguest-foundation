@@ -453,6 +453,8 @@ export interface GuestSignals {
   } | null;
   /** Zone A's answer -- an outage outranks everything about one guest. */
   venue: VenueStatus;
+  /** Aruba Instant On: nothing here measures the venue's internet line. */
+  nasOnly?: boolean;
   now?: number;
 }
 
@@ -603,6 +605,37 @@ export function guestVerdict(signals: GuestSignals): GuestVerdict {
         "Ask them to wake their phone and open a website. If it asks them to log in again, that's normal — a sleeping phone gets signed out.",
       checked: ["Their session", "When we last saw traffic from them"],
       notChecked: [NOT_YET_CHECKABLE[2]],
+    };
+  }
+
+  // Aruba Instant On: there is no router or ISP reading behind this page, so
+  // "healthy" would be a claim about an internet line nothing measured. State
+  // what the sign-in records show, and say what they can't.
+  if (signals.nasOnly) {
+    const signedIn = humanizeAge(now - new Date(session.startedAt).getTime());
+    const used =
+      session.bytesDownloaded > 0
+        ? `${formatGb(session.bytesDownloaded)} downloaded`
+        : "no data reported yet";
+    return {
+      finding: "wireless-boundary",
+      tone: "neutral",
+      confidence: "medium",
+      headline: "This guest is signed in. Wyfy can't check the internet from here.",
+      meaning:
+        `They have an active session: signed in ${signedIn} ago, ${used}. They aren't blocked ` +
+        "and haven't hit a limit. This doesn't show that the internet is working, because " +
+        "Wyfy doesn't measure the line at an Aruba Instant On venue.",
+      action:
+        "Ask them to turn WiFi off and on, then open a website. If other guests have the same " +
+        "problem, check the access point and the internet line in the Instant On app.",
+      checked: ["Whether they're blocked here", "Their session", "Their data allowance"],
+      notChecked: [
+        "Your internet connection — Wyfy doesn't measure the line at an Aruba Instant On venue.",
+        NOT_YET_CHECKABLE[0],
+        NOT_YET_CHECKABLE[1],
+        NOT_YET_CHECKABLE[2],
+      ],
     };
   }
 

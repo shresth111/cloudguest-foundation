@@ -588,6 +588,24 @@ const has = (html, testid) => html.includes(`data-testid="${testid}"`);
 const text = (page) => page.evaluate(() => document.body.innerText);
 const posts = (calls) => calls.filter((c) => c.method === "post");
 
+console.log("\nA2. Fix a Problem lookup at Aruba makes no internet claim");
+{
+  const r = await render(ROOT, "aruba", "fix");
+  const t = await text(r.page);
+  check(
+    "Aruba: doesn't say the internet is working",
+    !/your internet is working/i.test(t),
+    t.slice(0, 500),
+  );
+  check("Aruba: doesn't say all healthy", !/it's all healthy/i.test(t));
+  check(
+    "Aruba: says Wyfy can't check the internet",
+    /can't check the internet from here/.test(t),
+    t.slice(0, 500),
+  );
+  await done(r);
+}
+
 console.log("\nB. MikroTik and Omada render unchanged");
 for (const venue of ["mikrotik", "omada"]) {
   for (const which of ["users", "fix"]) {

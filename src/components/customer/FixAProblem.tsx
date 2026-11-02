@@ -129,7 +129,11 @@ import {
   minutesSince,
   stateIsControllerManaged,
 } from "@/lib/location-liveness";
-import { controllerRouterDeviceWriteReason, routerVendorLabel } from "@/lib/router-vendors";
+import {
+  controllerRouterDeviceWriteReason,
+  isNasOnlyVendor,
+  routerVendorLabel,
+} from "@/lib/router-vendors";
 import { useClientControls } from "@/hooks/useClientControls";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
 import { liveSessionActionGate } from "@/lib/live-session-actions";
@@ -807,6 +811,7 @@ function ZoneBGuestLookup({
               }
             : null,
           venue: venueStatus,
+          nasOnly: isNasOnlyVendor(clientControls.vendor),
         }),
       });
     } catch (err) {

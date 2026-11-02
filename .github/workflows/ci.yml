@@ -2722,7 +2722,7 @@ jobs:
       - name: campaign edit
         run: |
           ./scripts/ci-gated-test.sh \
-            "campaign-edit" 17 \
+            "campaign-edit" 21 \
             "campaign edit: all checks passed" \
             bun run test:campaign-edit
       # A specific guest on a paid WiFi network at an Aruba Instant On venue:

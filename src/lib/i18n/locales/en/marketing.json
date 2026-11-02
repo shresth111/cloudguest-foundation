@@ -72,6 +72,9 @@
     "save": "Save",
     "previewEmpty": "No banner configured yet — use Edit to add one, then preview again.",
     "saved": "Banner saved",
-    "saveFailed": "Could not save the banner — check the connection and try again."
+    "saveFailed": "Could not save the banner — check the connection and try again.",
+    "surveySaved": "Survey saved",
+    "surveySaveFailed": "Could not save the survey — check the connection and try again.",
+    "saveDetails": "Save details"
   }
 }

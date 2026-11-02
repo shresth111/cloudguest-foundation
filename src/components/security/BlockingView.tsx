@@ -20,7 +20,11 @@ import { useCustomerStore } from "@/stores/customerStore";
 import { routerService } from "@/services/router.service";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { requestErrorOf } from "@/services/api";
-import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
+import {
+  locationControllerVendor,
+  locationIsControllerManaged,
+  locationIsNasOnly,
+} from "@/lib/location-liveness";
 import {
   featureAppliesToControllerVenue,
   partitionRoutersByDeviceWrite,
@@ -109,6 +113,7 @@ export function BlockingView({
   scope?: PageScope;
 }) {
   const { t } = useTranslation("nav", { i18n });
+  const nasOnlyVenue = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { tab?: unknown };
   const activeLocation = useCustomerStore((s) => s.activeLocation);
@@ -152,10 +157,15 @@ export function BlockingView({
         venue={scope?.venue}
         description={
           <>
-            {t(
-              "blockWebsites.intro",
-              "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
-            )}{" "}
+            {nasOnlyVenue
+              ? t(
+                  "blockingPage.introNasOnly",
+                  "Stop a guest or device from using your guest WiFi. Website blocking isn't available on Aruba Instant On access points.",
+                )
+              : t(
+                  "blockWebsites.intro",
+                  "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
+                )}{" "}
             {t("blockingPage.onlyAllowedPrefix", "To let in only people you have listed, use")}{" "}
             <Link
               to="/whitelist"

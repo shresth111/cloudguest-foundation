@@ -201,6 +201,7 @@
     "print": "Print",
     "showing": "Showing {{from}}–{{to}} of {{total}}",
     "rows_one": "{{count}} row",
-    "rows_other": "{{count}} rows"
+    "rows_other": "{{count}} rows",
+    "arubaUsageNote": "At Aruba Instant On venues, — means no data was reported. Totals include only sessions that reported data."
   }
 }

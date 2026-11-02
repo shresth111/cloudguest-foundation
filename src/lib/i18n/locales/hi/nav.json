@@ -150,7 +150,8 @@
   },
   "blockingPage": {
     "intro": "किसी वेबसाइट, इंटरनेट पते या मेहमान को अपने मेहमान WiFi का इस्तेमाल करने से रोकें।",
-    "onlyAllowedPrefix": "केवल अपनी सूची के लोगों को आने देने के लिए देखें:"
+    "onlyAllowedPrefix": "केवल अपनी सूची के लोगों को आने देने के लिए देखें:",
+    "introNasOnly": "किसी guest या device को guest WiFi इस्तेमाल करने से रोकें। Aruba Instant On access points पर website रोकना उपलब्ध नहीं है।"
   },
   "firewallPage": {
     "addRule": "नियम जोड़ें",
