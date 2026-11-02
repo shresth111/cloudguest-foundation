@@ -2640,6 +2640,14 @@ jobs:
             "portal-aruba-trusted" 14 \
             "portal aruba trusted: all checks passed" \
             bun run test:portal-aruba-trusted
+      # A Wyfy session the AP never confirmed must not stop the guest reaching
+      # the AP's login: the real /portal/ routing effect, per vendor.
+      - name: aruba stale session goes through the AP login
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-aruba-stale-session" 28 \
+            "portal aruba stale session: all checks passed" \
+            bun run test:portal-aruba-stale-session
       - name: aruba instant on setup panel
         run: |
           ./scripts/ci-gated-test.sh \

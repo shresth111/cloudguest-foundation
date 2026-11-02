@@ -140,6 +140,7 @@
     "test:omada-guided-setup": "node scripts/test-omada-guided-setup.mjs",
     "test:aruba-instant-on": "node scripts/test-aruba-instant-on.mjs",
     "test:portal-aruba-trusted": "node scripts/test-portal-aruba-trusted.mjs",
+    "test:portal-aruba-stale-session": "node scripts/test-portal-aruba-stale-session.mjs",
     "test:aruba-setup-panel": "node scripts/test-aruba-setup-panel.mjs",
     "test:aruba-shared-listener": "node scripts/test-aruba-shared-listener.mjs",
     "test:aruba-add-site": "node scripts/test-aruba-add-site.mjs",

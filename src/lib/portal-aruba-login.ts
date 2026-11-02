@@ -193,6 +193,24 @@ export function captureArubaRedirect(
   return out;
 }
 
+/**
+ * Did THIS page load arrive on the AP's own redirect, naming a host the AP
+ * takes logins on? The AP only redirects a client it has not authorized, so
+ * this is Instant On's way of saying "this device is not on the network" --
+ * the same statement RouterOS makes with a fresh `link-login-only`, and the
+ * only evidence of the AP's state that a browser can get.
+ *
+ * Reads the raw query string, NEVER `arubaRedirect` from the portal runtime:
+ * that one is filled from a sessionStorage mirror, so it still names the host
+ * on a later QR code or bookmark load of a device that may be online.
+ */
+export function arubaRedirectAsksForLogin(search: string): boolean {
+  const params = new URLSearchParams(search);
+  const { recovered } = splitSwallowedQuery(params.get("netProvider") ?? undefined);
+  const { switchip } = captureArubaRedirect(Object.fromEntries(params), recovered);
+  return "url" in arubaLoginTarget(switchip);
+}
+
 export type ArubaLoginRefusal =
   /** The redirect carried no `switchip`: nowhere to submit. A bookmark or a
    * QR code into the portal, or a firmware that stopped sending it. */

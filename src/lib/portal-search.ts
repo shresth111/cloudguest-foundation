@@ -438,6 +438,12 @@ const portalSearchShape = {
   // `essid`; speed tiers by WiFi network read it.
   network: omadaRedirectParam(),
   url: omadaRedirectParam(),
+  // Instant On's refusal marker on its redirect back here after a login POST
+  // (measured: `errmsg=Login error. Please retry.`). Declared because an
+  // undeclared param is stripped from the URL, and `/portal/` must see it:
+  // it is what stops an automatic AP login from repeating for ever. Only
+  // `/portal/` reads it, so carrying it to later screens changes nothing.
+  errmsg: omadaRedirectParam(),
   // The guest's own chosen portal language, put here by `buildSessionUrl`
   // so it survives portal.success.tsx's full-document POST to the NAS --
   // the one boundary on this flow where React state and (on iOS's Captive
