@@ -556,7 +556,7 @@ const OPEN = {
     await page.waitForTimeout(800);
   },
   fix: async (page) => {
-    await page.fill('input[placeholder="98765 43210"]', "9876543210");
+    await page.fill('input[placeholder="98765 43210 or name@example.com"]', "9876543210");
     await page.getByRole("button", { name: /Look up/ }).click();
     await page.waitForTimeout(1200);
   },

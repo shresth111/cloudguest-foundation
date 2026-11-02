@@ -91,7 +91,7 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
-import { maskPhone } from "@/lib/masking";
+import { findGuestByIdentifier, maskGuestIdentifier } from "@/lib/guest-lookup-match";
 import { isDemo, resolveOrgId } from "@/services/customer.service";
 import { demoIspLinks, demoOnlineNow, demoRouterDevices } from "@/lib/demo-world";
 import { pickSubjectRouter } from "@/lib/fix-problem-subject";
@@ -594,7 +594,7 @@ function PageHeading({ demo, scope }: { demo: boolean; scope?: PageScope }) {
         venue={scope?.venue}
         description={t(
           "intro",
-          "Someone says the WiFi isn't working. Start with their phone number — most of the time the answer is already here.",
+          "Someone says the WiFi isn't working. Start with their phone number or email — most of the time the answer is already here.",
         )}
       />
       {demo && (
@@ -730,7 +730,7 @@ function ZoneBGuestLookup({
   const lookup = async (rawIdentifier: string, knownSession?: GuestSession) => {
     const identifier = rawIdentifier.trim();
     if (!identifier) {
-      toast.error(t("enterPhone", "Enter the phone number the guest used to log in."));
+      toast.error(t("enterPhone", "Enter the phone number or email the guest used to log in."));
       return;
     }
     if (demo) {
@@ -775,13 +775,10 @@ function ZoneBGuestLookup({
           page: 1,
           pageSize: 5,
         });
-        // Prefer an exact identifier match; the endpoint's search is a
-        // substring match, and "9876" must not silently answer for someone
-        // whose number merely contains it.
-        const digits = (s: string) => s.replace(/\D/g, "");
-        guest =
-          found.rows.find((g) => digits(g.identifier) === digits(identifier)) ??
-          (found.rows.length === 1 ? found.rows[0] : null);
+        // Prefer an exact match; the endpoint's search is a substring match,
+        // and "9876" must not silently answer for someone whose number merely
+        // contains it.
+        guest = findGuestByIdentifier(found.rows, identifier);
       }
 
       const matched = guest;
@@ -919,16 +916,19 @@ function ZoneBGuestLookup({
         <CardDescription>
           {t(
             "whoBody",
-            "Type the number they used to log in. If you don't have it, pick them from the list.",
+            "Type the phone number or email they used to log in. If you don't have it, pick them from the list.",
           )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex gap-2">
           <Input
-            placeholder="98765 43210"
+            placeholder={t("whoPlaceholder", "98765 43210 or name@example.com")}
+            aria-label={t("whoPlaceholder", "98765 43210 or name@example.com")}
             value={phone}
-            inputMode="tel"
+            inputMode="text"
+            autoCapitalize="none"
+            autoCorrect="off"
             onChange={(e) => setPhone(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && lookup(phone)}
             className="h-9"
@@ -960,7 +960,7 @@ function ZoneBGuestLookup({
                   <span className="truncate font-medium">
                     {s.guestIdentifier
                       ? masked
-                        ? maskPhone(s.guestIdentifier)
+                        ? maskGuestIdentifier(s.guestIdentifier)
                         : s.guestIdentifier
                       : t("guestRef", "Guest {{ref}}", { ref: s.guestId.slice(0, 8) })}
                   </span>
@@ -1006,7 +1006,7 @@ function ZoneBGuestLookup({
               <div className="space-y-2 pt-1">
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="text-xs">
-                    {masked ? maskPhone(result.identifier) : result.identifier}
+                    {masked ? maskGuestIdentifier(result.identifier) : result.identifier}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
                     {t("confidence", "Confidence: {{level}}", {
