@@ -16,6 +16,26 @@
     "notSaved": "{{location}} की सीमाएँ सेव हो गईं, लेकिन लोकेशन की कुल स्पीड सेव नहीं हुई — अभी यह {{actual}} दिख रही है।",
     "rejected": "सेव नहीं हो सका — {{message}}"
   },
+  "guestSpeed": {
+    "applyUnreachable": "Speed बदलने के लिए Instant On से संपर्क नहीं हो सका, इसलिए कुछ नहीं बदला।",
+    "title": "Guest speed limit (हर device के लिए)",
+    "asking": "Instant On से पूछ रहे हैं…",
+    "readFailed": "अभी Instant On से guest WiFi की speed पढ़ी नहीं जा सकी। दोबारा कोशिश करने के लिए reload करें।",
+    "noNetwork": "Instant On में इस venue पर अभी कोई guest WiFi network नहीं दिख रहा।",
+    "network": "Guest network",
+    "theGuestNetwork": "guest network",
+    "download": "डाउनलोड",
+    "upload": "अपलोड",
+    "downloadPerDevice": "हर device की download speed",
+    "uploadPerDevice": "हर device की upload speed",
+    "noLimit": "कोई limit नहीं",
+    "applying": "लागू हो रहा है…",
+    "apply": "Guest speed लागू करें",
+    "confirmTitle": "हर guest device की speed बदलें?",
+    "confirmBody": "{{network}} पर हर device {{down}} download और {{up}} upload तक सीमित रहेगा। पूरा होने की बात कहने से पहले हम Instant On से पुष्टि करेंगे।",
+    "cancel": "रद्द करें",
+    "confirmApply": "लागू करें"
+  },
   "limitsTable": {
     "subtitle": "हर location पर guests को क्या मिलता है। Default लिखी location के लिए अभी कुछ save नहीं हुआ है।",
     "defaultBadge": "Default",

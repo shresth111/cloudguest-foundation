@@ -46,6 +46,8 @@ import {
   speedLabel,
   toSelectValue,
 } from "@/lib/aruba-guest-speed";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { arubaGuestSpeedService } from "@/services/aruba-guest-speed.service";
 
 export function ArubaGuestSpeedControl({
@@ -55,6 +57,7 @@ export function ArubaGuestSpeedControl({
   locationId: string | null | undefined;
   demo?: boolean;
 }) {
+  const { t } = useTranslation("accessRules", { i18n });
   const queryClient = useQueryClient();
   const queryKey = ["aruba-guest-speed", locationId];
   const { data, isLoading, isError, refetch } = useQuery({
@@ -96,7 +99,12 @@ export function ArubaGuestSpeedControl({
       else void refetch();
     },
     onError: () =>
-      toast.error("We couldn't reach Instant On to change the speed, so nothing has changed."),
+      toast.error(
+        t(
+          "guestSpeed.applyUnreachable",
+          "We couldn't reach Instant On to change the speed, so nothing has changed.",
+        ),
+      ),
   });
 
   const unchanged =
@@ -125,16 +133,21 @@ export function ArubaGuestSpeedControl({
     >
       <p className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
         <Gauge className="h-4 w-4 text-[var(--wy-accent)]" aria-hidden="true" />
-        Guest speed limit (per device)
+        {t("guestSpeed.title", "Guest speed limit (per device)")}
       </p>
       {notice("info", SAME_FOR_EVERY_DEVICE, "aruba-guest-speed-same-for-all")}
 
       {demo ? null : isLoading ? (
-        <p className="mt-2 text-xs text-slate-400">Asking Instant On…</p>
+        <p className="mt-2 text-xs text-slate-400">
+          {t("guestSpeed.asking", "Asking Instant On…")}
+        </p>
       ) : isError || !data ? (
         notice(
           "lock",
-          "We couldn't read the guest WiFi speed from Instant On just now. Reload to try again.",
+          t(
+            "guestSpeed.readFailed",
+            "We couldn't read the guest WiFi speed from Instant On just now. Reload to try again.",
+          ),
           "aruba-guest-speed-error",
         )
       ) : data.status === "unavailable" ? (
@@ -144,7 +157,10 @@ export function ArubaGuestSpeedControl({
           "lock",
           data.status === "failed"
             ? applyOutcomeMessage(data).text
-            : "Instant On shows no guest WiFi network at this venue yet.",
+            : t(
+                "guestSpeed.noNetwork",
+                "Instant On shows no guest WiFi network at this venue yet.",
+              ),
           "aruba-guest-speed-unreadable",
         )
       ) : (
@@ -152,9 +168,12 @@ export function ArubaGuestSpeedControl({
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
             {networks.length > 1 && (
               <label className="text-xs text-slate-500">
-                Guest network
+                {t("guestSpeed.network", "Guest network")}
                 <Select value={network?.networkId ?? ""} onValueChange={setNetworkId}>
-                  <SelectTrigger className="mt-1 h-9 text-sm" aria-label="Guest network">
+                  <SelectTrigger
+                    className="mt-1 h-9 text-sm"
+                    aria-label={t("guestSpeed.network", "Guest network")}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -169,21 +188,21 @@ export function ArubaGuestSpeedControl({
             )}
             {(
               [
-                ["Download", down, setDown],
-                ["Upload", up, setUp],
+                ["download", t("guestSpeed.download", "Download"), down, setDown],
+                ["upload", t("guestSpeed.upload", "Upload"), up, setUp],
               ] as const
-            ).map(([label, value, set]) => (
-              <label key={label} className="text-xs text-slate-500">
+            ).map(([id, label, value, set]) => (
+              <label key={id} className="text-xs text-slate-500">
                 {label}
                 <Select value={value} onValueChange={set}>
                   <SelectTrigger
                     className="mt-1 h-9 text-sm"
-                    aria-label={`${label} speed per device`}
+                    aria-label={t(`guestSpeed.${id}PerDevice`, `${label} speed per device`)}
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NO_LIMIT}>No limit</SelectItem>
+                    <SelectItem value={NO_LIMIT}>{t("guestSpeed.noLimit", "No limit")}</SelectItem>
                     {presets.map((p) => (
                       <SelectItem key={p} value={String(p)}>
                         {speedLabel(p)}
@@ -208,7 +227,9 @@ export function ArubaGuestSpeedControl({
               disabled={!network || unchanged || apply.isPending}
               onClick={() => setConfirming(true)}
             >
-              {apply.isPending ? "Applying…" : "Apply guest speed"}
+              {apply.isPending
+                ? t("guestSpeed.applying", "Applying…")
+                : t("guestSpeed.apply", "Apply guest speed")}
             </Button>
           </div>
         </>
@@ -217,22 +238,31 @@ export function ArubaGuestSpeedControl({
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Change the speed for every guest device?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("guestSpeed.confirmTitle", "Change the speed for every guest device?")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {`Every device on ${network?.networkName ?? "the guest network"} will be held to ` +
-                `${speedLabel(fromSelectValue(down))} down and ${speedLabel(fromSelectValue(up))} up. ` +
-                "We'll confirm with Instant On before saying it's done."}
+              {t(
+                "guestSpeed.confirmBody",
+                "Every device on {{network}} will be held to {{down}} down and {{up}} up. We'll confirm with Instant On before saying it's done.",
+                {
+                  network:
+                    network?.networkName ?? t("guestSpeed.theGuestNetwork", "the guest network"),
+                  down: speedLabel(fromSelectValue(down)),
+                  up: speedLabel(fromSelectValue(up)),
+                },
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("guestSpeed.cancel", "Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setConfirming(false);
                 apply.mutate();
               }}
             >
-              Apply
+              {t("guestSpeed.confirmApply", "Apply")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
