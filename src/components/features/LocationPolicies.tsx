@@ -50,6 +50,7 @@ import {
   optionsWithCurrent,
   prefillDecision,
   prefillKey,
+  withDefaultRows,
   type GuestWifiLimitsForm,
   type GuestWifiLimitsRow,
 } from "@/lib/guest-wifi-limits";
@@ -409,18 +410,31 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [confirming, setConfirming] = useState<string | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [orgId, setOrgId] = useState<string | null>(null);
+  // NAS-only venues only (every other vendor's table is unchanged). "failed"
+  // means we do not know what is saved: no default rows, and no save, which
+  // would create a second set of policies beside the unread ones.
+  const [loadState, setLoadState] = useState<"loading" | "ok" | "failed">("loading");
 
   useEffect(() => {
     if (demo) return;
+    setLoadState("loading");
     (async () => {
       try {
         const org = await resolveOrgId();
         setOrgId(org);
+        // A failed list reads as empty, as it always has at other vendors, but
+        // is remembered so a NAS-only venue can say so (see `loadState`).
+        let listFailed = false;
+        const orEmpty = <T,>(read: Promise<T[]>) =>
+          read.catch(() => {
+            listFailed = true;
+            return [] as T[];
+          });
         const [realAll, deviceDetailsAll, sessionDetailsAll, fupDetailsAll] = await Promise.all([
           bandwidthPolicyService.list(org),
-          listPolicyDetails("device", org).catch(() => []),
-          listPolicyDetails("session", org).catch(() => []),
-          listPolicyDetails("fup", org).catch(() => []),
+          orEmpty(listPolicyDetails("device", org)),
+          orEmpty(listPolicyDetails("session", org)),
+          orEmpty(listPolicyDetails("fup", org)),
         ]);
         // Deactivated (deleted) policies are excluded from both id maps --
         // bandwidthPolicyService.list()/listPolicyDetails() return every
@@ -553,8 +567,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
         setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
         setFupRealIds(Object.fromEntries(fupDetails.map((d) => [d.name, d.id])));
+        setLoadState(listFailed ? "failed" : "ok");
       } catch {
-        // Leave policies empty -- the "no policies yet" state is accurate.
+        setLoadState("failed");
       }
     })();
   }, [demo, locationId, locationNames]);
@@ -585,7 +600,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   // panel's own three pieces of state, which live outside `f`.
   const showRow = useCallback(
     (p: Policy) => {
-      setEditingId(p.id);
+      setEditingId(p.isDefault ? null : p.id);
       setF(limitsFormFromRow(p));
       setErrs({});
       if (p.dataLimit && dataLimitUsable) {
@@ -600,6 +615,17 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       shownFor.current = prefillKey(p);
     },
     [dataLimitUsable],
+  );
+
+  const rows = useMemo(
+    () =>
+      !demo && nasOnlyVenue && loadState === "ok"
+        ? withDefaultRows(
+            policies,
+            (locations ?? []).map((l) => l.name),
+          )
+        : policies,
+    [demo, nasOnlyVenue, loadState, policies, locations],
   );
 
   // THE FORM OPENS ON THE CHOSEN VENUE'S CURRENT VALUES.
@@ -617,7 +643,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   useEffect(() => {
     const decision = prefillDecision({
       location: f.businessUnit,
-      rows: policies,
+      rows,
       shownFor: shownFor.current,
     });
     if (decision.kind === "fill") {
@@ -630,12 +656,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       setDataLimitOpen(false);
       setDlQuota("");
     }
-  }, [f.businessUnit, policies, showRow]);
+  }, [f.businessUnit, rows, showRow]);
 
   // ── derived ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return policies.filter(
+    return rows.filter(
       (p) =>
         !q ||
         Object.values(p).some((v) =>
@@ -644,7 +670,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             : v && typeof v === "object" && "resets" in v,
         ),
     );
-  }, [policies, search]);
+  }, [rows, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
@@ -739,6 +765,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
 
   // ── save ──────────────────────────────────────────────────────
   const handleSave = async () => {
+    if (!demo && nasOnlyVenue && loadState !== "ok") {
+      setToast(
+        t(
+          "limitsTable.saveBlocked",
+          "Could not read the saved limits, so nothing was saved. Reload and try again.",
+        ),
+      );
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
     if (!validate()) return;
     setSaving(true);
     // `validate()` has already refused a non-positive quota, so this cannot
@@ -1605,7 +1641,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           <div>
             <CardTitle className="text-sm">Current Guest WiFi Limits</CardTitle>
             <p className="text-xs text-muted-foreground">
-              The policies currently active for the selected space.
+              {nasOnlyVenue
+                ? t(
+                    "limitsTable.subtitle",
+                    "What guests get at each location. A location marked Default has nothing saved yet.",
+                  )
+                : "The policies currently active for the selected space."}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1639,7 +1680,16 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {paged.length === 0 ? (
+          {!demo && nasOnlyVenue && loadState === "failed" ? (
+            <EmptyState
+              icon={Shield}
+              title={t("limitsTable.loadFailedTitle", "Couldn't load the saved limits")}
+              description={t(
+                "limitsTable.loadFailedBody",
+                "Reload the page to try again. Saving is paused until they load, so nothing is duplicated.",
+              )}
+            />
+          ) : paged.length === 0 ? (
             <EmptyState
               icon={Shield}
               title="No policies yet"
@@ -1674,6 +1724,17 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                             <MapPin className="h-3.5 w-3.5" />
                           </span>
                           {p.businessUnit}
+                          {p.isDefault && (
+                            <span
+                              className="rounded-full bg-[var(--wy-surface-2)] px-2 py-0.5 text-[11px] font-normal text-[var(--wy-text-muted)]"
+                              title={t(
+                                "limitsTable.defaultHint",
+                                "Nothing has been saved for this location yet, so its guests get these defaults.",
+                              )}
+                            >
+                              {t("limitsTable.defaultBadge", "Default")}
+                            </span>
+                          )}
                         </span>
                       </TableCell>
                       {/* THE SAME LIE, IN A SECOND PLACE. A row saved before
@@ -1766,19 +1827,21 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                         >
                           <Pencil className="h-4 w-4" />
                         </button>
-                        <button
-                          aria-label={
-                            confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`
-                          }
-                          onClick={() => handleDelete(p.id)}
-                          className={`inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] ${confirming === p.id ? "bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]" : "text-[var(--wy-text-faint)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-crit)]"}`}
-                        >
-                          {confirming === p.id ? (
-                            <span className="text-[11px] font-medium px-1">Confirm</span>
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </button>
+                        {!p.isDefault && (
+                          <button
+                            aria-label={
+                              confirming === p.id ? "Confirm delete" : `Delete ${p.businessUnit}`
+                            }
+                            onClick={() => handleDelete(p.id)}
+                            className={`inline-flex items-center justify-center rounded-[var(--wy-radius)] p-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] ${confirming === p.id ? "bg-[var(--wy-accent)] text-[var(--wy-accent-fg)]" : "text-[var(--wy-text-faint)] hover:bg-[var(--wy-surface-2)] hover:text-[var(--wy-crit)]"}`}
+                          >
+                            {confirming === p.id ? (
+                              <span className="text-[11px] font-medium px-1">Confirm</span>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

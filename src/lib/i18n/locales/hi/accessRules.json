@@ -15,5 +15,13 @@
     "errorRange": "यह 1 Mbps से 10,000 Mbps के बीच होनी चाहिए।",
     "notSaved": "{{location}} की सीमाएँ सेव हो गईं, लेकिन लोकेशन की कुल स्पीड सेव नहीं हुई — अभी यह {{actual}} दिख रही है।",
     "rejected": "सेव नहीं हो सका — {{message}}"
+  },
+  "limitsTable": {
+    "subtitle": "हर location पर guests को क्या मिलता है। Default लिखी location के लिए अभी कुछ save नहीं हुआ है।",
+    "defaultBadge": "Default",
+    "defaultHint": "इस location के लिए अभी कुछ save नहीं हुआ है, इसलिए इसके guests को ये default limits मिलती हैं।",
+    "loadFailedTitle": "Save की गई limits load नहीं हो सकीं",
+    "loadFailedBody": "दोबारा कोशिश करने के लिए page reload करें। Load होने तक saving रुकी है, ताकि कुछ duplicate न हो।",
+    "saveBlocked": "Save की गई limits पढ़ी नहीं जा सकीं, इसलिए कुछ save नहीं हुआ। Reload करके दोबारा कोशिश करें।"
   }
 }

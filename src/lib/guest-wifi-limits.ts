@@ -144,8 +144,11 @@ export interface GuestWifiLimitsRow {
   idleTimeout: string;
   devicesPerUser: string;
   dataLimit: DataLimit | null;
+  /** Nothing is saved for this location: the row shows the platform defaults
+   * its guests really get, and there is nothing to delete. */
+  isDefault?: boolean;
 }
-export type GuestWifiLimitsForm = Omit<GuestWifiLimitsRow, "id">;
+export type GuestWifiLimitsForm = Omit<GuestWifiLimitsRow, "id" | "isDefault">;
 
 /** The form before anybody has chosen anything. `location` is carried through
  * because clearing the settings must not also un-pick the venue. */
@@ -160,6 +163,39 @@ export function blankLimitsForm(location = ""): GuestWifiLimitsForm {
     devicesPerUser: "",
     dataLimit: null,
   };
+}
+
+/** What a location with no saved limits runs (guest/constants.py). */
+export const DEFAULT_SESSION_TIMEOUT_LABEL = "4 hr";
+export const DEFAULT_DEVICES_LABEL = "3";
+
+export function defaultLimitsRow(location: string): GuestWifiLimitsRow {
+  return {
+    id: `default:${location}`,
+    businessUnit: location,
+    bandwidth: "Unlimited",
+    venueSpeed: VENUE_SPEED_NO_LIMIT,
+    sessionTimeout: DEFAULT_SESSION_TIMEOUT_LABEL,
+    dailyLimit: "No Limit",
+    idleTimeout: DEFAULT_IDLE_TIMEOUT_LABEL,
+    devicesPerUser: DEFAULT_DEVICES_LABEL,
+    dataLimit: null,
+    isDefault: true,
+  };
+}
+
+/**
+ * EVERY LOCATION HAS LIMITS, WHETHER OR NOT ANYONE SAVED ANY. Saved rows, then
+ * a default row for each location with none. Call this only once the saved
+ * list has really loaded: a row saying "default" over a failed read would state
+ * something nobody knows.
+ */
+export function withDefaultRows(
+  saved: readonly GuestWifiLimitsRow[],
+  locations: readonly string[],
+): GuestWifiLimitsRow[] {
+  const names = new Set(saved.map((row) => row.businessUnit));
+  return [...saved, ...locations.filter((name) => !names.has(name)).map(defaultLimitsRow)];
 }
 
 export function devicesLabel(maxDevices: number | null | undefined): string {
