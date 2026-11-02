@@ -875,7 +875,7 @@ check(
 );
 check(
   "the form is filled by the chosen venue, not only by the pencil",
-  /prefillDecision\(\{\s*location: f\.businessUnit,\s*rows: policies,\s*shownFor: shownFor\.current,?\s*\}\)/.test(
+  /prefillDecision\(\{\s*location: f\.businessUnit,\s*rows,\s*shownFor: shownFor\.current,?\s*\}\)/.test(
     screen,
   ) && /\}, \[f\.businessUnit, policies, showRow\]\);/.test(screen),
 );
