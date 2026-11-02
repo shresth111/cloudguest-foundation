@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Spinner } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { complianceService } from "@/services/isp-partner/compliance";
 
 const KINDS = [
@@ -30,7 +30,7 @@ export function ReuploadDocs({ subscriberId }: { subscriberId: string }) {
       qc.invalidateQueries({ queryKey: ["isp", "compliance"] });
       toast.success(`${kind === "photo" ? "Photo" : "Signature"} uploaded.`);
     } catch (e) {
-      toast.error(ispErrorMessage(e, "Upload failed."));
+      ispToastError(e, "Upload failed.");
     } finally {
       setBusy(null);
     }

@@ -7,7 +7,7 @@ import { MButton, MTable, MTag, MTd, MTh, MTr } from "@/components/master/Master
 import { Spinner } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { usePppoeMutation } from "@/hooks/isp-partner/usePppoe";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatBytes, formatDateTime, formatDuration } from "@/lib/isp-partner/format";
 import { formatMac, kickSummary, sessionSeconds } from "@/lib/isp-partner/pppoe";
 import { pppoeService } from "@/services/isp-partner/pppoe";
@@ -80,7 +80,7 @@ export function PppoeSessionTable({
                       const r = await kick.mutateAsync(s.id);
                       toast.success(kickSummary([r]));
                     } catch (e) {
-                      toast.error(ispErrorMessage(e));
+                      ispToastError(e);
                     }
                   }}
                 >

@@ -9,7 +9,7 @@ import { RefreshCw } from "lucide-react";
 import { MButton } from "@/components/master/MasterKit";
 import { Spinner } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { syncToast } from "@/lib/isp-partner/sync-now";
 import { plansService } from "@/services/isp-partner/plans";
 
@@ -24,7 +24,7 @@ export function SyncNowButton() {
       qc.invalidateQueries({ queryKey: ["isp", "sub360"] });
       qc.invalidateQueries({ queryKey: ["isp", "plans", "subscribers"] });
     },
-    onError: (e) => toast.error(ispErrorMessage(e, "The sync failed.")),
+    onError: (e) => ispToastError(e, "The sync failed."),
   });
   if (!can("isp_subscribers.update")) return null;
   return (

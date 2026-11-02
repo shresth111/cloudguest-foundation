@@ -30,6 +30,7 @@ import {
 } from "@/hooks/isp-partner/useBilling";
 import { newIdempotencyKey } from "@/services/isp-partner/billing";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import { SERVICE_STATE_LABEL, serviceTone } from "@/lib/isp-partner/service-state";
 import type { ServiceStep, SuspendReason } from "@/services/isp-partner/billing-types";
@@ -161,7 +162,7 @@ export function ServiceCard({
                   try {
                     await retry.mutateAsync();
                   } catch (err) {
-                    toast.error(ispErrorMessage(err));
+                    ispToastError(err);
                   }
                 }}
               >

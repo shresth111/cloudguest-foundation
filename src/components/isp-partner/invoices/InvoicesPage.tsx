@@ -41,7 +41,7 @@ import { useInvoiceList, useInvoiceMutation, useZones } from "@/hooks/isp-partne
 import { usePackages } from "@/hooks/isp-partner/usePlans";
 import { invoicesService } from "@/services/isp-partner/invoices";
 import { billingService } from "@/services/isp-partner/billing";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import {
@@ -112,7 +112,7 @@ function RowMenu({
                   const { blob, filename } = await invoicesService.pdf(inv);
                   saveBlob(blob, filename);
                 } catch (err) {
-                  toast.error(ispErrorMessage(err, "The download failed."));
+                  ispToastError(err, "The download failed.");
                 }
               }}
             >
@@ -155,7 +155,7 @@ function RowMenu({
                     await remind.mutateAsync(inv.id);
                     toast.success("Email reminder queued.");
                   } catch (err) {
-                    toast.error(ispErrorMessage(err, "Could not send the email."));
+                    ispToastError(err, "Could not send the email.");
                   }
                 }}
               >
@@ -236,7 +236,7 @@ export function InvoicesPage({
     try {
       await fn();
     } catch (err) {
-      toast.error(ispErrorMessage(err));
+      ispToastError(err);
     } finally {
       setBusy(null);
     }
@@ -273,7 +273,7 @@ export function InvoicesPage({
                           : `${res.created.length} invoice(s) created.`,
                       );
                     } catch (err) {
-                      toast.error(ispErrorMessage(err));
+                      ispToastError(err);
                     }
                   }}
                 >
@@ -451,7 +451,7 @@ export function InvoicesPage({
                     `${r.queued} email reminder(s) queued. Skipped: ${r.skipped_no_consent} without email consent, ${r.skipped_no_contact} without an email address.`,
                   );
                 } catch (err) {
-                  toast.error(ispErrorMessage(err));
+                  ispToastError(err);
                 }
               }}
             >

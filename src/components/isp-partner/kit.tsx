@@ -5,11 +5,22 @@
  * as a permission problem), empty, or data. None of them invent data.
  */
 import { useState, type ReactNode } from "react";
-import { Check, ChevronLeft, ChevronRight, Copy, Eye, EyeOff, Loader2, Lock } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { MButton, MEmptyState, M_INPUT } from "@/components/master/MasterKit";
 import { copyToClipboard, cn } from "@/lib/utils";
-import { isForbidden, ispErrorMessage } from "@/lib/isp-partner/errors";
+import { describeIspError, ispErrorDetails, missingPermission } from "@/lib/isp-partner/errors";
+import { translate } from "@/lib/isp-partner/error-copy";
 import { customerLabels, type CustomerLabelInput } from "@/lib/isp-partner/customer-label";
 
 export function Spinner({ className }: { className?: string }) {
@@ -27,8 +38,41 @@ export function LoadingBlock({ label = "Loading…" }: { label?: string }) {
   );
 }
 
-/** A request failed. 403 says so plainly; everything else shows the
- * backend's message and a retry. */
+/** The small "Reference: abc · Copy details" line for support (5xx and
+ * anything unexplained). Copies plain text, never JSON. */
+export function ErrorReference({ error, className }: { error: unknown; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const info = describeIspError(error);
+  if (!info.showReference) return null;
+  return (
+    <p
+      className={cn(
+        "mt-2 flex flex-wrap items-center justify-center gap-2 text-[11px] text-muted-foreground",
+        className,
+      )}
+    >
+      {info.requestId && (
+        <span className="font-mono">{translate("ui.reference", { id: info.requestId })}</span>
+      )}
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+        onClick={async () => {
+          await copyToClipboard(ispErrorDetails(error));
+          setCopied(true);
+          toast.success(translate("ui.copied"));
+        }}
+      >
+        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+        {translate("ui.copy_details")}
+      </button>
+    </p>
+  );
+}
+
+/** A request failed. 403 names the missing permission; network errors,
+ * timeouts and 5xx offer a retry; 409 offers a refresh; 5xx shows the
+ * request id with "Copy details". */
 export function ErrorBlock({
   error,
   onRetry,
@@ -38,26 +82,31 @@ export function ErrorBlock({
   onRetry?: () => void;
   what?: string;
 }) {
-  if (isForbidden(error)) {
+  const info = describeIspError(error);
+  if (info.kind === "forbidden") {
     return (
       <MEmptyState
         icon={Lock}
-        title="You do not have access"
-        description={`Your role does not include ${what}. Ask your ISP Owner or Admin if you need it.`}
+        title={translate("ui.no_access_title")}
+        description={
+          info.code || missingPermission(error) ? info.message : translate("ui.no_access", { what })
+        }
       />
     );
   }
   return (
     <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
-      <p className="text-sm font-semibold text-foreground">Couldn&apos;t load {what}</p>
-      <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-        {ispErrorMessage(error)}
+      <p className="text-sm font-semibold text-foreground">
+        {translate("ui.couldnt_load", { what })}
       </p>
+      <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">{info.message}</p>
       {onRetry && (
         <MButton variant="outline" className="mt-3" onClick={onRetry}>
-          Try again
+          {info.refresh ? <RefreshCw className="mr-1 h-3.5 w-3.5" /> : null}
+          {translate(info.refresh ? "ui.refresh" : "ui.retry")}
         </MButton>
       )}
+      <ErrorReference error={error} />
     </div>
   );
 }
@@ -196,15 +245,20 @@ export function TextField({
   );
 }
 
-export function FormError({ message }: { message: string | null }) {
-  if (!message) return null;
+/** A form-level error. Pass `message` (already worded), or `error` (the
+ * request failure: worded here, with the support reference when it is a
+ * server error). */
+export function FormError({ message, error }: { message?: string | null; error?: unknown }) {
+  const text = message ?? (error ? describeIspError(error).message : null);
+  if (!text) return null;
   return (
-    <p
+    <div
       role="alert"
       className="rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-destructive"
     >
-      {message}
-    </p>
+      <p>{text}</p>
+      {error ? <ErrorReference error={error} className="justify-start" /> : null}
+    </div>
   );
 }
 

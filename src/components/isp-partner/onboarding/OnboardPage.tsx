@@ -29,7 +29,13 @@ import { OnboardStaticIps } from "@/components/isp-partner/onboarding/OnboardSta
 import { useZones } from "@/hooks/isp-partner/useInvoices";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { usePackages } from "@/hooks/isp-partner/usePlans";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import {
+  fieldNameFromLoc,
+  humanizeField,
+  ispErrorMessage,
+  pydanticMessage,
+} from "@/lib/isp-partner/errors";
+import { ispFormErrors } from "@/lib/isp-partner/form-errors";
 import { rupeesToPaise } from "@/lib/isp-partner/subscribers360";
 import { requestErrorOf } from "@/services/api";
 import { formatDateTime } from "@/lib/isp-partner/format";
@@ -79,6 +85,27 @@ const STEP_SECTION: Record<string, FormSection> = {
   payment: "invoice",
   lead: "plan",
 };
+
+/** 422 field errors as "Field: message", keyed by the form section their
+ * body group belongs to (first one per section). */
+function onboardFieldMessages(e: unknown): Partial<Record<FormSection, string>> {
+  const out: Partial<Record<FormSection, string>> = {};
+  const errors = (requestErrorOf(e)?.data as { errors?: unknown } | undefined)?.errors;
+  if (!Array.isArray(errors)) return out;
+  for (const raw of errors) {
+    const one = raw as {
+      loc?: unknown[];
+      type?: string;
+      msg?: string;
+      ctx?: Record<string, unknown>;
+    };
+    const name = fieldNameFromLoc(one.loc);
+    if (!name) continue;
+    const section = STEP_SECTION[name.split(".")[0]] ?? "plan";
+    out[section] ??= `${humanizeField(name)}: ${pydanticMessage(one)}`;
+  }
+  return out;
+}
 
 function Section({
   id,
@@ -276,7 +303,21 @@ function OnboardFormView({
     } catch (e) {
       // One transaction: nothing was created. The backend names the step.
       const step = requestErrorOf(e)?.data?.step;
-      const section = typeof step === "string" ? STEP_SECTION[step] : undefined;
+      if (typeof step !== "string") {
+        // A 422 on the request itself: put each field error in its section
+        // (the body is grouped by section: `kyc.pin_code` -> KYC).
+        const fe = ispFormErrors(e, { fields: STEP_SECTION, segment: "first" });
+        const named = onboardFieldMessages(e);
+        if (fe.first) {
+          setErrors(named);
+          setTopError(`Nothing was saved. ${Object.values(named)[0] ?? fe.form}`);
+          jump(fe.first as FormSection);
+          return;
+        }
+        setTopError(`Nothing was saved. ${fe.form ?? ispErrorMessage(e)}`);
+        return;
+      }
+      const section = STEP_SECTION[step];
       const msg = ispErrorMessage(e);
       setTopError(`Nothing was saved. ${stepLabel(step)} failed: ${msg}`);
       if (section) {

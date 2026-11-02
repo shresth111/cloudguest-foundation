@@ -34,6 +34,7 @@ import {
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { retryUnless4xx } from "@/hooks/isp-partner/useIsp";
 import { ispErrorMessage, ispErrorStatus } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import {
   EVENT_LABEL,
@@ -97,7 +98,7 @@ function LogsView() {
               const f = await commsService.exportCsv(q);
               saveBlob(f.blob, f.filename);
             } catch (e) {
-              toast.error(ispErrorMessage(e));
+              ispToastError(e);
             } finally {
               setBusy(false);
             }

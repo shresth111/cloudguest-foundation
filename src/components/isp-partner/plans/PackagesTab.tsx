@@ -56,6 +56,16 @@ import {
   type PackageKind,
 } from "@/services/isp-partner/package-meta";
 import { M_FILTER } from "@/components/isp-partner/ui/classes";
+import { ispFormErrors } from "@/lib/isp-partner/form-errors";
+
+/** Package fields that show their own error (the rest are named in the form message). */
+const PACKAGE_FIELDS = [
+  "speed_group_id",
+  "validity_days",
+  "price_paise",
+  "data_cap_mb",
+  "max_devices",
+];
 
 type NewGroupTarget = "speed" | "fup_fallback_speed_group_id" | "boost_speed_group_id";
 type FollowUp = { pkg: IspPackage; failed: { step: "rules" | "labels"; message: string }[] };
@@ -233,8 +243,12 @@ function PackageDrawer({
         saved = await save.mutateAsync(body);
       }
     } catch (err) {
-      setFieldErrors(ispFieldErrors(err));
-      setError(ispErrorMessage(err, "Could not save the package."));
+      const fe = ispFormErrors(err, {
+        known: PACKAGE_FIELDS,
+        labels: { name: "Name", description: "Description", gst_rate: "GST rate" },
+      });
+      setFieldErrors(fe.fields);
+      setError(fe.form ?? ispErrorMessage(err, "Could not save the package."));
       return;
     }
     const steps: ("rules" | "labels")[] = [];

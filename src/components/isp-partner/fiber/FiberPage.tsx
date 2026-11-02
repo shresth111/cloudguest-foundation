@@ -22,7 +22,8 @@ import { FiberNodeDialog } from "@/components/isp-partner/fiber/FiberNodeDialog"
 import { FiberPortsCard } from "@/components/isp-partner/fiber/FiberPortsCard";
 import { useFiberMutation, useFiberNode, useFiberNodes } from "@/hooks/isp-partner/useFiber";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { isNotFound, ispErrorMessage } from "@/lib/isp-partner/errors";
+import { isNotFound } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { KIND_LABEL, STATUS_LABEL, kindLabel, statusTone } from "@/lib/isp-partner/fiber";
 import { fiberService } from "@/services/isp-partner/fiber";
 import {
@@ -315,7 +316,7 @@ function NodeDetail({
                   setDeleting(false);
                   onOpen(null);
                 } catch (e) {
-                  toast.error(ispErrorMessage(e));
+                  ispToastError(e);
                 }
               }}
             >

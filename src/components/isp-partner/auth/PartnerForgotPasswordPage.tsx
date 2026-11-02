@@ -14,6 +14,7 @@ import { Spinner } from "@/components/isp-partner/kit";
 import { PartnerAuthFrame } from "@/components/isp-partner/auth/PartnerAuthFrame";
 import { AskYourAdmin, FIELD_CLASS, Notice } from "@/components/isp-partner/auth/PartnerAuthKit";
 import { requestPartnerPasswordReset } from "@/lib/isp-partner/password-reset";
+import { ispPlainMessage } from "@/lib/isp-partner/errors";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -51,7 +52,7 @@ export function PartnerForgotPasswordPage() {
       setError(
         e2?.status === 429
           ? "Too many requests from this network. Wait a few minutes and try again."
-          : e2?.message || "Could not send the reset link. Please try again.",
+          : ispPlainMessage(e2, "Could not send the reset link. Please try again."),
       );
     } finally {
       setBusy(false);

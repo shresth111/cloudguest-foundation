@@ -6,7 +6,7 @@ import { Card, ErrorBlock, FormError, Spinner, TextField } from "@/components/is
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useInvoiceMutation, useInvoiceSettings } from "@/hooks/isp-partner/useInvoices";
 import { invoicesService } from "@/services/isp-partner/invoices";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispFormMessage } from "@/lib/isp-partner/form-errors";
 import { indianFy } from "@/lib/isp-partner/invoices";
 
 /** §3: a GST invoice number is at most 16 characters, so the prefix is 1-4 of [A-Z0-9]. */
@@ -131,7 +131,15 @@ export function InvoiceSettingsCard() {
                 });
                 toast.success("Invoice settings saved.");
               } catch (err) {
-                setError(ispErrorMessage(err));
+                setError(
+                  ispFormMessage(err, {
+                    invoice_prefix: "Invoice prefix",
+                    credit_note_prefix: "Credit note prefix",
+                    receipt_prefix: "Receipt prefix",
+                    reminder_days_before_expiry: "Reminder days",
+                    invoice_footer: "Invoice footer",
+                  }),
+                );
               }
             }}
           >

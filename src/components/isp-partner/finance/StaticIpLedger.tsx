@@ -37,6 +37,7 @@ import { staticIpKeys } from "@/hooks/isp-partner/useStaticIp";
 import { useZones } from "@/hooks/isp-partner/useInvoices";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDate } from "@/lib/isp-partner/format";
 import { formatRupees } from "@/lib/isp-partner/money";
 import {
@@ -223,7 +224,7 @@ export function StaticIpLedger() {
                 const { blob, filename } = await staticIpService.exportCsv(query);
                 saveBlob(blob, filename);
               } catch (e) {
-                toast.error(ispErrorMessage(e));
+                ispToastError(e);
               }
             }}
           >

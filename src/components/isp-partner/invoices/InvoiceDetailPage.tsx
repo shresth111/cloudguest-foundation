@@ -22,7 +22,7 @@ import {
 } from "@/components/isp-partner/invoices/InvoiceDialogs";
 import { useInvoice, useInvoiceMutation } from "@/hooks/isp-partner/useInvoices";
 import { invoicesService } from "@/services/isp-partner/invoices";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { formatDate, formatDateTime } from "@/lib/isp-partner/format";
 import {
@@ -77,7 +77,7 @@ export function InvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
                   const { blob, filename } = await invoicesService.pdf(inv);
                   saveBlob(blob, filename);
                 } catch (err) {
-                  toast.error(ispErrorMessage(err, "The download failed."));
+                  ispToastError(err, "The download failed.");
                 } finally {
                   setDownloading(false);
                 }
@@ -115,7 +115,7 @@ export function InvoiceDetailPage({ invoiceId }: { invoiceId: string }) {
                     await remind.mutateAsync(inv.id);
                     toast.success("Email reminder queued.");
                   } catch (err) {
-                    toast.error(ispErrorMessage(err, "Could not send the email."));
+                    ispToastError(err, "Could not send the email.");
                   }
                 }}
               >

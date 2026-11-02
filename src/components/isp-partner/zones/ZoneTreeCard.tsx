@@ -16,7 +16,8 @@ import { Card, ErrorBlock, FormError, Spinner, TextField } from "@/components/is
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useZoneTree, useZoneTreeMutation } from "@/hooks/isp-partner/useZoneTree";
 import { zoneTreeService } from "@/services/isp-partner/zones";
-import { ispErrorMessage, ispErrorStatus } from "@/lib/isp-partner/errors";
+import { ispErrorStatus } from "@/lib/isp-partner/errors";
+import { ispFormMessage } from "@/lib/isp-partner/form-errors";
 import {
   allowedParents,
   buildZoneTree,
@@ -163,7 +164,7 @@ function ActionDialog({
       );
       onClose();
     } catch (err) {
-      setError(ispErrorMessage(err));
+      setError(ispFormMessage(err, { name: "Name", parent_id: "Parent zone" }));
     }
   };
 

@@ -24,6 +24,7 @@ import {
   useAppsMutation,
 } from "@/components/isp-partner/apps/appsKit";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import { STOCK_KIND_LABEL, humanize } from "@/lib/isp-partner/apps";
 import { EditLocationDialog } from "@/components/isp-partner/apps/InventoryEdit";
@@ -275,7 +276,7 @@ export function CheckoutsCard({ canDecide }: { canDecide: boolean }) {
       await fn();
       toast.success(ok);
     } catch (e) {
-      toast.error(ispErrorMessage(e));
+      ispToastError(e);
     }
   };
   return (

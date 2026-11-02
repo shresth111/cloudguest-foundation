@@ -37,6 +37,7 @@ import {
 } from "@/components/isp-partner/apps/appsKit";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import {
   TASK_STATUS_LABEL,
@@ -156,7 +157,7 @@ export function TasksTab() {
                           await claim.mutateAsync(t.id);
                           toast.success("Claimed. It is in Mine.");
                         } catch (e) {
-                          toast.error(ispErrorMessage(e));
+                          ispToastError(e);
                         }
                       }}
                     >

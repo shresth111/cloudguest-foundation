@@ -2862,6 +2862,9 @@ jobs:
       - name: ISP partner P3 sweep (inventory edit, queued renewals list, 360 cards)
         if: hashFiles('scripts/test-isp-partner-p3-sweep.mjs') != ''
         run: bun run test:isp-partner-p3-sweep
+      - name: ISP partner error copy (every backend error code has partner copy)
+        if: hashFiles('scripts/test-isp-partner-error-copy.mjs') != ''
+        run: bun run test:isp-partner-error-copy
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list

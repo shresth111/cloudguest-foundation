@@ -14,7 +14,8 @@ import { useInvoiceMutation } from "@/hooks/isp-partner/useInvoices";
 import { usePackages } from "@/hooks/isp-partner/usePlans";
 import { newIdempotencyKey } from "@/services/isp-partner/billing";
 import { invoicesService } from "@/services/isp-partner/invoices";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispFormMessage } from "@/lib/isp-partner/form-errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { formatDate } from "@/lib/isp-partner/format";
 import { whatsappShareUrl } from "@/lib/isp-partner/invoices";
@@ -32,6 +33,18 @@ import {
 import type { PaymentMode } from "@/services/isp-partner/billing-types";
 import type { RechargeResult } from "@/services/isp-partner/invoices-types";
 import type { Subscriber } from "@/services/isp-partner/plans-types";
+
+/** Backend field -> label, for errors named in the form message. */
+const RENEW_LABELS: Record<string, string> = {
+  package_id: "Package",
+  amount_paise: "Amount received",
+  reference: "UTR / reference",
+  mode: "Payment mode",
+  po_number: "PO number",
+  cycles: "Cycles",
+  discount_code: "Discount code",
+  received_at: "Received on",
+};
 
 const MODES: PaymentMode[] = ["cash", "upi", "bank_transfer"];
 
@@ -117,7 +130,7 @@ export function RechargeDialog({
         `Recharged. Invoice ${res.invoice.number}. Valid until ${formatDate(res.subscriber.valid_until)}.`,
       );
     } catch (err) {
-      setError(ispErrorMessage(err, "The recharge failed."));
+      setError(ispFormMessage(err, RENEW_LABELS, "The recharge failed."));
     }
   };
 
@@ -141,7 +154,7 @@ export function RechargeDialog({
                   const { blob, filename } = await invoicesService.pdf(done.invoice);
                   saveBlob(blob, filename);
                 } catch (err) {
-                  toast.error(ispErrorMessage(err, "The download failed."));
+                  ispToastError(err, "The download failed.");
                 }
               }}
             >

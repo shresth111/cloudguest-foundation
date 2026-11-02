@@ -23,6 +23,7 @@ import {
 } from "@/lib/password-policy";
 import { RESET_DONE, resetPartnerPassword } from "@/lib/isp-partner/password-reset";
 import { cn } from "@/lib/utils";
+import { ispPlainMessage } from "@/lib/isp-partner/errors";
 
 const backToSignIn = (
   <Link
@@ -66,7 +67,7 @@ export function PartnerResetPasswordPage({ token }: { token: string }) {
         setError("Too many attempts. Wait a few minutes and try again.");
       } else {
         // A rejected password (reused / too weak) leaves the link usable.
-        setError(e2?.message || "Could not reset the password.");
+        setError(ispPlainMessage(e2, "Could not reset the password."));
       }
       setBusy(false);
     }

@@ -22,6 +22,7 @@ import {
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { retryUnless4xx } from "@/hooks/isp-partner/useIsp";
 import { ispErrorMessage, ispErrorStatus } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { isoDay } from "@/lib/isp-partner/format";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
@@ -249,7 +250,7 @@ function SettlementInvoiceCell({
             const f = await billingService.invoicePdf({ id: inv.id, number: inv.number });
             saveBlob(f.blob, f.filename);
           } catch (e) {
-            toast.error(ispErrorMessage(e));
+            ispToastError(e);
           }
         }}
       >
@@ -443,7 +444,7 @@ function ChargesSettlementsDialog({ z, onClose }: { z: ZoneWallet; onClose: () =
                           const f = await franchiseService.settlementPdf(s.id, s.number);
                           saveBlob(f.blob, f.filename);
                         } catch (e) {
-                          toast.error(ispErrorMessage(e));
+                          ispToastError(e);
                         }
                       }}
                     >
@@ -493,7 +494,7 @@ export function FranchisePanel() {
                 await qc.invalidateQueries({ queryKey: fk() });
                 toast.success(`${r.charges} charge(s) applied, ${r.alerts} alert(s) sent.`);
               } catch (e) {
-                toast.error(ispErrorMessage(e));
+                ispToastError(e);
               } finally {
                 setBusy(false);
               }
