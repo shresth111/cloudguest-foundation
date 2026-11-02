@@ -1,3 +1,5 @@
+import { useClientControls } from "@/hooks/useClientControls";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
@@ -247,6 +249,7 @@ const demoAssetSeed = (campaignId: string): CampaignAsset[] => [
 export function CampaignsPage({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
   const { t } = useTranslation("marketing", { i18n });
   const demo = useIsDemo();
+  const clientControls = useClientControls();
   const [items, setItems] = useState<Campaign[]>(demo ? DEMO_SEED : []);
   const [loading, setLoading] = useState(!demo);
   // Set when the campaign list itself could not be loaded. Previously this
@@ -1447,6 +1450,17 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
                   onChange={(e) => setAssetForm({ ...assetForm, imageUrl: e.target.value })}
                   placeholder="Image URL (optional, e.g. https://…/banner.png)"
                 />
+                {isNasOnlyVendor(clientControls.vendor) && (
+                  <p
+                    className="text-[11px] text-muted-foreground"
+                    data-testid="banner-image-nas-only"
+                  >
+                    {t(
+                      "offersEdit.imageNasOnly",
+                      "Guests aren't online yet when they see this. An image hosted on another site won't load unless that site's domain is allowed on the guest network in the Instant On app.",
+                    )}
+                  </p>
+                )}
                 <Input
                   value={assetForm.clickUrl}
                   onChange={(e) => setAssetForm({ ...assetForm, clickUrl: e.target.value })}

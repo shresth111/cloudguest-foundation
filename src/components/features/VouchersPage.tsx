@@ -1,3 +1,6 @@
+import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
+import { useClientControls } from "@/hooks/useClientControls";
+import { nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import i18n from "@/lib/i18n";
 import { Trans, useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
@@ -130,6 +133,12 @@ function voucherStatus(status: string): ConsoleStatus {
 }
 
 export function VouchersPage({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
+  // Aruba Instant On only: what a voucher's data limit really does there. Renders
+  // nothing, and makes no request, at any other vendor.
+  const clientControls = useClientControls();
+  const dataLimitVerdict = nasOnlyLimitVerdict("data-limit", clientControls.vendor, {
+    cloudControl: clientControls.instantOnCloudControl === true,
+  });
   const { t } = useTranslation("vouchers", { i18n });
   const demo = useIsDemo();
   const [items, setItems] = useState<Voucher[]>(demo ? DEMO_SEED : []);
@@ -507,6 +516,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                         })
                       }
                     />
+                    <ControllerControlNotice verdict={dataLimitVerdict} />
                   </FormField>
                   <FormField label={t("v.maxUses")} htmlFor="voucher-max-uses">
                     <Input

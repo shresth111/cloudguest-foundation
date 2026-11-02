@@ -2733,6 +2733,14 @@ jobs:
             "aruba-ssid-tier-guests" 17 \
             "aruba ssid tier guests: all checks passed" \
             bun run test:aruba-ssid-tier-guests
+      # Aruba Instant On notes on the voucher, banner and portal builder screens;
+      # MikroTik and Omada pinned as unchanged.
+      - name: aruba screen gaps
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-screen-gaps" 13 \
+            "aruba screen gaps: all checks passed" \
+            bun run test:aruba-screen-gaps
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \
