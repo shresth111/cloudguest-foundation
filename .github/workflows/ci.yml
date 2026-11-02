@@ -2733,6 +2733,14 @@ jobs:
             "aruba-ssid-tier-guests" 17 \
             "aruba ssid tier guests: all checks passed" \
             bun run test:aruba-ssid-tier-guests
+      # Guest Messaging: choosing recipients by hand. An empty pick is never
+      # "everyone". Consent enforcement is pinned in the backend suite.
+      - name: marketing picker
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "marketing-picker" 15 \
+            "marketing picker: all checks passed" \
+            bun run test:marketing-picker
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \
