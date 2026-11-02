@@ -148,6 +148,7 @@
     "test:aruba-ssid-tiers": "node scripts/test-aruba-ssid-tiers.mjs",
     "test:access-tiers-aruba": "node scripts/test-access-tiers-aruba.mjs",
     "test:aruba-customer-dashboard": "node scripts/test-aruba-customer-dashboard.mjs",
+    "test:aruba-venue-snapshot": "node scripts/test-aruba-venue-snapshot.mjs",
     "test:aruba-devices-page": "node scripts/test-aruba-devices-page.mjs",
     "test:aruba-p2-copy": "node scripts/test-aruba-p2-copy.mjs",
     "test:aruba-access-points": "node scripts/test-aruba-access-points.mjs",

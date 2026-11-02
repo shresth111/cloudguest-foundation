@@ -41,6 +41,7 @@ import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
 import { useFeatureEntitled, useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { GUEST_MARKETING_FEATURE_KEY } from "@/types/marketing";
 import { TRAFFIC_LENS_FEATURE_KEY } from "@/types/traffic-lens";
+import { useVenueSnapshotRefresh } from "@/hooks/useVenueSnapshotRefresh";
 import type { useDataMasking } from "@/hooks/useCustomerDashboard";
 
 /**
@@ -220,6 +221,10 @@ export function CustomerSidebar({ activeFeatureId, dataMasking }: CustomerSideba
   // beside the controller, where the five screens act on the MikroTik and
   // genuinely work) all render exactly the nav they render today.
   const activeLocation = useCustomerStore((s) => s.activeLocation);
+  // DASHBOARD_PLAN P1-J: re-read an Aruba Instant On venue snapshot once per
+  // app load. The dashboard refreshes it from its own read instead. A
+  // MikroTik, Omada or failed-read snapshot makes no request here.
+  useVenueSnapshotRefresh(activeFeatureId !== "dashboard");
   const controllerManaged = locationIsControllerManaged(activeLocation?.liveness);
   const controllerVendor = locationControllerVendor(activeLocation?.liveness);
   const controllerReason = controllerVenueFeatureReason(controllerVendor);
