@@ -2,6 +2,8 @@ import i18n from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { arubaGuestSessionLogRows } from "@/lib/aruba-reports";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -2197,6 +2199,9 @@ export function ReportPanel({
           data = loc ? await realVoucherBatchRate(orgId, loc.id, from, to) : [];
         } else if (reportType === "guest-session-log") {
           data = loc ? await realGuestSessionLog(orgId, loc.id, from, to) : [];
+          // P2-N: Aruba Instant On only -- "Not reported by Instant On" for
+          // the public IP and "—" (not 0 MB) for unaccounted sessions.
+          if (locationIsNasOnly(loc?.liveness)) data = arubaGuestSessionLogRows(data);
         } else if (reportType === "login-access-log") {
           data = loc ? await realLoginAccessLog(orgId, loc.id, from, to) : [];
         } else if (reportType === "campaign-performance") {
