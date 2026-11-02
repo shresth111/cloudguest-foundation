@@ -43,5 +43,21 @@
     "loadFailedTitle": "Save की गई limits load नहीं हो सकीं",
     "loadFailedBody": "दोबारा कोशिश करने के लिए page reload करें। Load होने तक saving रुकी है, ताकि कुछ duplicate न हो।",
     "saveBlocked": "Save की गई limits पढ़ी नहीं जा सकीं, इसलिए कुछ save नहीं हुआ। Reload करके दोबारा कोशिश करें।"
+  },
+  "ssidGuests": {
+    "title": "{{ssid}} इस्तेमाल करने वाले guests",
+    "hint": "यहाँ जोड़ा गया guest अगली बार connect होने से बिना voucher इस network से जुड़ सकता है। हटाने पर अगला connection रुकता है, पहले से online connection नहीं।",
+    "unknownGuest": "Guest",
+    "searchFailed": "Guests नहीं खोजे जा सके।",
+    "addFailed": "यह guest नहीं जोड़ा जा सका।",
+    "removeFailed": "यह guest नहीं हटाया जा सका।",
+    "loadFailed": "इस network की guest list load नहीं हो सकी।",
+    "empty": "अभी कोई guest नहीं जोड़ा गया।",
+    "remove": "हटाएँ",
+    "searchLabel": "Phone या email से guest खोजें",
+    "find": "खोजें",
+    "noResults": "इस location पर कोई guest नहीं मिला। एक बार sign in करने के बाद guest यहाँ दिखता है।",
+    "alreadyAdded": "पहले से जोड़ा गया",
+    "add": "जोड़ें"
   }
 }

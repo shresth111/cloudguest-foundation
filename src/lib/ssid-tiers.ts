@@ -20,14 +20,23 @@ export const ONE_SPEED_PER_NETWORK =
 export const SSID_TIERS_TITLE = "Speed tiers by WiFi network";
 
 export const SSID_TIERS_INTRO =
-  "Run a free and a paid guest network side by side. Guests with a voucher (or mapped " +
-  "into the network's Access Tier) can join the paid network; everyone else stays on " +
-  "the free one.";
+  "Run a free and a paid guest network side by side. Guests with a voucher, or on the " +
+  "network's guest list, can join the paid network; everyone else stays on the free one.";
 
 /** Shown under a row whose network is paid-only. */
 export const PAID_ROW_HINT =
-  "Guests without a voucher or this Access Tier are turned away from this network and " +
-  "shown how to get a voucher.";
+  "Guests without a voucher who aren't on this network's guest list are turned away from " +
+  "this network and shown how to get a voucher.";
+
+/**
+ * The Access Tier behind a network's guest list. Access Tiers have no tab at an
+ * Aruba venue, so this one is made on demand and found again by this name. Its
+ * rules set no timeouts or data limits, so joining it changes only which network
+ * the guest may use. The speed itself stays the network's cap in Instant On.
+ */
+export function ssidGuestListTierName(ssid: string): string {
+  return `WiFi network: ${ssid.trim()}`;
+}
 
 export const MAX_SSID_LENGTH = 32;
 export const MIN_TIER_MBPS = 1;
