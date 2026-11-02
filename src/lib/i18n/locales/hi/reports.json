@@ -145,7 +145,10 @@
     "ipAddress": "IP पता",
     "status": "स्थिति",
     "failureReason": "न होने की वजह",
-    "attemptedAt": "कब कोशिश की"
+    "attemptedAt": "कब कोशिश की",
+    "outcome": "OTP की स्थिति",
+    "attempts": "कोशिशें",
+    "timeToVerify": "Verify होने में समय"
   },
   "category": {
     "guestActivityReport": "मेहमानों की गतिविधि",

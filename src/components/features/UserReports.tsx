@@ -430,6 +430,13 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "channel", label: "Channel", sortType: "string" },
     { key: "requestedAt", label: "Requested At", sortType: "date" },
     { key: "verified", label: "Verified", sortType: "string" },
+    // What this platform recorded about the code, not whether the carrier
+    // delivered it: Verified, Failed (attempts used up), Expired or Pending.
+    { key: "outcome", label: "OTP Status", sortType: "string" },
+    { key: "attempts", label: "Attempts", sortType: "number" },
+    // Request to successful verify. Includes the guest typing the code, so it
+    // is not carrier delivery latency, which nothing here measures.
+    { key: "timeToVerify", label: "Time To Verify", sortType: "string" },
   ],
   "sms-daywise": [
     { key: "date", label: "Date", sortType: "date" },
@@ -739,6 +746,9 @@ function mockRow(
       r.channel = ["sms", "email", "whatsapp"][i % 3];
       r.requestedAt = new Date(Date.now() - Math.random() * 86400000 * 3).toISOString();
       r.verified = Math.random() > 0.2 ? "Yes" : "No";
+      r.outcome = r.verified === "Yes" ? "Verified" : "Expired";
+      r.attempts = r.verified === "Yes" ? 1 : 0;
+      r.timeToVerify = r.verified === "Yes" ? `${20 + (i % 40)}s` : "—";
       break;
     case "sms-daywise": {
       r.date = new Date(Date.now() - (count - i) * 86400000).toISOString().slice(0, 10);
@@ -1795,6 +1805,26 @@ interface RealOtpRequest {
   created_at: string;
   is_consumed?: boolean;
   verified_at?: string | null;
+  expires_at?: string | null;
+  attempt_count?: number;
+  max_attempts?: number;
+}
+
+/** What the platform recorded about one code. Never a carrier delivery claim. */
+function otpOutcome(it: RealOtpRequest, now: number): string {
+  if (it.is_consumed || it.verified_at) return "Verified";
+  if (it.max_attempts != null && (it.attempt_count ?? 0) >= it.max_attempts) return "Failed";
+  if (it.expires_at && new Date(it.expires_at).getTime() < now) return "Expired";
+  return "Pending";
+}
+
+function otpTimeToVerify(it: RealOtpRequest): string {
+  if (!it.verified_at) return "—";
+  const seconds = Math.max(
+    0,
+    Math.round((new Date(it.verified_at).getTime() - new Date(it.created_at).getTime()) / 1000),
+  );
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
 /** "OTP Requests & Verification By Date Range" -- one row per real
@@ -1807,10 +1837,10 @@ interface RealOtpRequest {
  * than fetching the whole table. Org scope is applied by the request
  * interceptor; `location_id` narrows to the picked venue.
  *
- * "Verified" is the real `is_consumed` outcome. There is deliberately no
- * delivery-status or latency column: this platform's OTP SMS goes through a
- * logging-only provider that persists no gateway delivery row, so those
- * would be fabricated (see UNAVAILABLE_REASON's old otp-delivery note and
+ * "Verified" is the real `is_consumed` outcome, and "OTP Status", "Attempts"
+ * and "Time To Verify" come from the same row. There is deliberately no carrier
+ * delivery-status or delivery-latency column: this platform's OTP SMS persists
+ * no gateway delivery row, so those would be fabricated (see UNAVAILABLE_REASON's old otp-delivery note and
  * this feature's PR). */
 async function realOtpRequests(locationId: string, from: string, to: string): Promise<Row[]> {
   const fromMs = new Date(from).getTime();
@@ -1838,6 +1868,9 @@ async function realOtpRequests(locationId: string, from: string, to: string): Pr
         channel: it.channel,
         requestedAt: it.created_at,
         verified: it.is_consumed || it.verified_at ? "Yes" : "No",
+        outcome: otpOutcome(it, Date.now()),
+        attempts: it.attempt_count ?? 0,
+        timeToVerify: otpTimeToVerify(it),
       });
     }
     if (pagedPastWindow || !data?.has_next) break;

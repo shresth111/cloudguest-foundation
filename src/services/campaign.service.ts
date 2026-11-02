@@ -446,6 +446,23 @@ export const campaignService = {
     return toAsset(data);
   },
 
+  async updateAsset(assetId: string, payload: CreateCampaignAssetPayload): Promise<CampaignAsset> {
+    const orgId = await resolveOrganizationId();
+    const { data } = await api.put<BackendCampaignAsset>(
+      `/campaigns/assets/${assetId}`,
+      {
+        image_url: payload.imageUrl ?? null,
+        click_url: payload.clickUrl ?? null,
+        headline: payload.headline ?? null,
+        subtext: payload.subtext ?? null,
+        coupon_code: payload.couponCode ?? null,
+        coupon_expires_at: payload.couponExpiresAt ?? null,
+      },
+      { headers: { "X-Organization-Id": orgId } },
+    );
+    return toAsset(data);
+  },
+
   /**
    * Resolves the campaign the operator Portal Preview should render for a
    * location, as the guest-facing `NextCampaign` shape `CampaignOverlay`

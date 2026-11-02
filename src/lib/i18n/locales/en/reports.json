@@ -145,7 +145,10 @@
     "ipAddress": "IP Address",
     "status": "Status",
     "failureReason": "Failure Reason",
-    "attemptedAt": "Attempted At"
+    "attemptedAt": "Attempted At",
+    "outcome": "OTP Status",
+    "attempts": "Attempts",
+    "timeToVerify": "Time To Verify"
   },
   "category": {
     "guestActivityReport": "Guest Activity Report",

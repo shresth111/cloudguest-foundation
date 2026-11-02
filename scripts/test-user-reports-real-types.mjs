@@ -120,6 +120,14 @@ check(
   "no gateway delivery status is persisted",
 );
 check(
+  "otp-delivery shows the recorded OTP status, attempts and time to verify",
+  /"outcome"/.test(otpCols) && /"attempts"/.test(otpCols) && /"timeToVerify"/.test(otpCols),
+);
+check(
+  "time to verify comes from the row's verified_at and created_at",
+  /new Date\(it\.verified_at\)\.getTime\(\) - new Date\(it\.created_at\)\.getTime\(\)/.test(src),
+);
+check(
   "otp-delivery shows real channel + verified outcome",
   /"channel"/.test(otpCols) && /"verified"/.test(otpCols) && /"requestedAt"/.test(otpCols),
 );
