@@ -67,5 +67,47 @@
   "showingRecent_one": "Showing the {{count}} most recent of {{total}}.",
   "showingRecent_other": "Showing the {{count}} most recent of {{total}}.",
   "rulesUnreadable": "We couldn't read this venue's blocked-website list.",
-  "rulesUnreadableBody": "The check below only covers whether the site is reachable, not whether one of your own rules blocks it."
+  "rulesUnreadableBody": "The check below only covers whether the site is reachable, not whether one of your own rules blocks it.",
+  "aruba": {
+    "guestsNow": "Guests online now",
+    "accessPoints": "Access points",
+    "lastActivity": "Last guest activity",
+    "statusNote": "This comes from guests signing in, not from the access point itself. Idle can just mean nobody is connected. To see whether an access point is powered on, open the Instant On app.",
+    "helpTitle": "What's the guest seeing?",
+    "openApp": "Open Instant On",
+    "help": {
+      "noNetwork": {
+        "title": "The guest can't see the WiFi",
+        "step1": "Check that the access point has power and its light is on.",
+        "step2": "In the Instant On app, check that the access point is online and the guest network is enabled."
+      },
+      "noLoginPage": {
+        "title": "WiFi connects, but the login page doesn't open",
+        "step1": "Ask the guest to turn off mobile data and any VPN or Private DNS.",
+        "step2": "Ask them to forget the WiFi network, join again, and open any website.",
+        "step3": "If nobody gets the page, check in the Instant On app that Guest Portal is on for this network."
+      },
+      "noCode": {
+        "title": "The login code doesn't arrive",
+        "step1": "Check the number or email they typed, then look it up above.",
+        "step2": "Wait a minute and ask them to request one code. Repeated requests can be refused for a while."
+      },
+      "noInternet": {
+        "title": "Signed in, but no internet",
+        "step1": "Look up the guest above: it shows whether they are blocked or their time has run out.",
+        "step2": "Ask them to turn WiFi off and on, then sign in again.",
+        "step3": "If every guest is affected, check the access point and the venue's internet line in the Instant On app."
+      },
+      "slow": {
+        "title": "The internet is slow",
+        "step1": "Check the guest speed limit under Guest WiFi Limits or in the Instant On app. It applies to every device on that network.",
+        "step2": "If there is no limit, check the venue's internet line with your provider."
+      },
+      "oneSite": {
+        "title": "One website won't open",
+        "step1": "Ask the guest to try another website. If that works, the problem is probably with that site.",
+        "step2": "Wyfy can't test a website from this venue. Check any rules in the Instant On app."
+      }
+    }
+  }
 }
