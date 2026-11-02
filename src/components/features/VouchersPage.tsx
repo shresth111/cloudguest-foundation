@@ -468,7 +468,18 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                       }
                     />
                   </FormField>
-                  <FormField label={t("v.validityMin")} htmlFor="voucher-validity">
+                  <FormField
+                    label={t("v.validityMin")}
+                    htmlFor="voucher-validity"
+                    hint={
+                      nasOnlyVenue
+                        ? t(
+                            "v.validityAruba",
+                            "The guest's session ends after this time unless you set a shorter session timeout. 1440 minutes is 24 hours.",
+                          )
+                        : undefined
+                    }
+                  >
                     <Input
                       id="voucher-validity"
                       type="number"

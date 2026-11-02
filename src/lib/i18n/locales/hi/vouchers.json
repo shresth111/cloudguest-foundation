@@ -82,6 +82,7 @@
     "vouchersGeneratedFor_other": "{{businessUnit}} के लिए {{count}} वाउचर बने",
     "sessionTimeoutMin": "सत्र का समय (मिनट, वैकल्पिक)",
     "sessionTimeoutHint": "हर लॉगिन कितनी देर चलेगा। खाली छोड़ने पर पूरी वैधता लागू होगी। हर लॉगिन में अधिकतम उपयोगों में से एक खर्च होता है, इसलिए ज़्यादा लॉगिन के लिए उसे बढ़ाएँ।",
-    "sessionTimeoutInvalid": "यह 1 मिनट से वैधता के बीच होना चाहिए।"
+    "sessionTimeoutInvalid": "यह 1 मिनट से वैधता के बीच होना चाहिए।",
+    "validityAruba": "Session timeout कम न रखा हो, तो guest का session इतने समय बाद खत्म होता है। 1440 मिनट यानी 24 घंटे।"
   }
 }

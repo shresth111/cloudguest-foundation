@@ -82,6 +82,7 @@
     "vouchersGeneratedFor_other": "{{count}} vouchers generated for {{businessUnit}}",
     "sessionTimeoutMin": "Session timeout (minutes, optional)",
     "sessionTimeoutHint": "How long each login lasts. Blank means the full validity. Every login uses one of Max Uses, so raise Max Uses to allow more logins.",
-    "sessionTimeoutInvalid": "Must be between 1 minute and the validity."
+    "sessionTimeoutInvalid": "Must be between 1 minute and the validity.",
+    "validityAruba": "The guest's session ends after this time unless you set a shorter session timeout. 1440 minutes is 24 hours."
   }
 }
