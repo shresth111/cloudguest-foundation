@@ -22,9 +22,12 @@ import { ErrorBlock, LoadingBlock, Pager } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { IncidentDrawer } from "@/components/isp-partner/incidents/IncidentDrawer";
 import { NewIncidentDialog } from "@/components/isp-partner/incidents/NewIncidentDialog";
+import { AutoIncidentsCard } from "@/components/isp-partner/incidents/AutoIncidentsCard";
+import { useAutoIncidentMarks } from "@/hooks/isp-partner/useIncidentAuto";
 import { useIncidents, useNetworkHealth } from "@/hooks/isp-partner/useIncidents";
 import { isNotFound } from "@/lib/isp-partner/errors";
 import { formatDateTime } from "@/lib/isp-partner/format";
+import { autoMarkTitle } from "@/lib/isp-partner/incident-auto";
 import {
   SCOPE_LABEL,
   SEVERITY_LABEL,
@@ -49,6 +52,7 @@ export function IncidentsPage({
   const [view, setView] = useState<View>("open");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
+  const marks = useAutoIncidentMarks();
   const q = useIncidents({
     open_only: view === "open" || undefined,
     status: view === "resolved" ? "resolved" : undefined,
@@ -66,6 +70,7 @@ export function IncidentsPage({
   }
   const h = health.data;
   const items = q.data?.items ?? [];
+  const autoMarks = marks.data;
   return (
     <div className="space-y-4">
       <MSectionHeader
@@ -126,6 +131,7 @@ export function IncidentsPage({
         </div>
       )}
       {h && <p className="text-xs text-muted-foreground">{h.basis}</p>}
+      <AutoIncidentsCard />
       <MSeg<View>
         value={view}
         onChange={(v) => {
@@ -171,6 +177,11 @@ export function IncidentsPage({
                 <div className="font-mono text-xs">{i.code}</div>
                 <div className="font-medium">{i.title}</div>
                 <MTag label={SEVERITY_LABEL[i.severity]} tone={severityTone(i.severity)} />
+                {autoMarks?.get(i.id) && (
+                  <span title={autoMarkTitle(autoMarks.get(i.id)!)}>
+                    <MTag label="Auto" tone="info" />
+                  </span>
+                )}
               </MTd>
               <MTd>
                 <div className="text-xs text-muted-foreground">{SCOPE_LABEL[i.scope_kind]}</div>

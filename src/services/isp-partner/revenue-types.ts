@@ -42,6 +42,14 @@ export interface RevTrendRow {
   net_billed_paise: number;
   collected_paise: number;
   collection_rate: number | null;
+  /** SMALL-4: MRR history. snapshot = last daily snapshot of that month;
+   * live = today's MRR (month in progress); billed_proxy = that month's
+   * billed value as a stand-in (ARPU/active then null). */
+  mrr_paise?: number;
+  arpu_paise?: number | null;
+  active?: number | null;
+  mrr_source?: "snapshot" | "live" | "billed_proxy";
+  snapshot_date?: string | null;
 }
 
 export interface RevZoneRow {
@@ -96,7 +104,12 @@ export interface RevenueSummary {
     collection_rate: number | null;
     uncollected_paise: number;
     dues_paise: number;
+    /** SMALL-4: net billed in the last 90 days (GST incl.) and DSO. */
+    sales_90d_paise?: number;
+    dso_days?: number | null;
   };
+  /** SMALL-4 */
+  mrr_history?: { snapshots_used: boolean; dso_window_days: number };
   ageing: Record<AgeingBucket, { invoices: number; amount_paise: number }>;
   trend: RevTrendRow[];
   zones: RevZoneRow[];

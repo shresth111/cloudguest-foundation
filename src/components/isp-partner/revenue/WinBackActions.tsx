@@ -17,6 +17,7 @@ import { MButton, MDialog, M_INPUT } from "@/components/master/MasterKit";
 import { FormError, Spinner } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { RaiseTicketDialog } from "@/components/isp-partner/subscribers/workbench/Workbench";
+import { useRecordWinback } from "@/hooks/isp-partner/useWinback";
 import { useAppsEnabled } from "@/hooks/isp-partner/useApps";
 import { useSub360Mutation, useSubscriber360 } from "@/hooks/isp-partner/useSubscriber360";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
@@ -30,8 +31,12 @@ import { subscribers360Service as svc } from "@/services/isp-partner/subscribers
 import type { Subscriber360, SubscriberProfile } from "@/services/isp-partner/subscribers360-types";
 import type { RiskItem } from "@/services/isp-partner/revenue-types";
 
+/** SMALL-3: risk reason codes sent with each recorded win-back action. */
+const reasonCodes = (item: RiskItem) => item.reasons.map((r) => r.code);
+
 function OfferRenewDialog({ item, onClose }: { item: RiskItem; onClose: () => void }) {
   const sub = useSubscriber360(item.id);
+  const recordWinback = useRecordWinback();
   const current = sub.data?.profile.override_price_paise ?? null;
   const [price, setPrice] = useState<string | null>(null);
   const [keep, setKeep] = useState(false);
@@ -80,6 +85,14 @@ function OfferRenewDialog({ item, onClose }: { item: RiskItem; onClose: () => vo
             disabled={run.isPending || bad || sub.isLoading}
             onClick={async () => {
               setError(null);
+              // SMALL-3: logged before the renewal, so the renewal it issues
+              // counts as this offer's save (same key: a retry logs once).
+              recordWinback({
+                subscriber_id: item.id,
+                action: "offer_renew",
+                reasons: reasonCodes(item),
+                idempotency_key: `offer-${key}`,
+              });
               try {
                 await run.mutateAsync(undefined);
                 toast.success("Renewed. Invoice issued.");
@@ -128,6 +141,7 @@ export function WinBackActions({ item }: { item: RiskItem }) {
   const apps = useAppsEnabled();
   const [dialog, setDialog] = useState<"renew" | "ticket" | null>(null);
   const [busy, setBusy] = useState(false);
+  const recordWinback = useRecordWinback();
   const canRenew = can("isp_invoices.create") && can("isp_subscribers.update");
   const canTicket = apps.enabled && can("isp_apps.create");
 
@@ -165,6 +179,12 @@ export function WinBackActions({ item }: { item: RiskItem }) {
         url = n ? `https://wa.me/${n}?text=${text}` : `https://wa.me/?text=${text}`;
       }
       window.open(url, "_blank", "noopener,noreferrer");
+      recordWinback({
+        subscriber_id: item.id,
+        action: "whatsapp_share",
+        reasons: reasonCodes(item),
+        idempotency_key: idempotencyKey(),
+      });
     } catch (e) {
       ispToastError(e);
     } finally {
@@ -206,6 +226,15 @@ export function WinBackActions({ item }: { item: RiskItem }) {
         <RaiseTicketDialog
           s={{ id: item.id, isp_customer_id: item.isp_customer_id } as Subscriber360}
           onClose={() => setDialog(null)}
+          onCreated={(ticketId) =>
+            recordWinback({
+              subscriber_id: item.id,
+              action: "ticket",
+              reasons: reasonCodes(item),
+              ref_id: ticketId,
+              idempotency_key: `ticket-${ticketId}`,
+            })
+          }
         />
       )}
     </div>
