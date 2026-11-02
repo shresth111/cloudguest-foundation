@@ -44,6 +44,7 @@ import {
   currentSpeedSentence,
   fromSelectValue,
   speedLabel,
+  speedOptions,
   toSelectValue,
 } from "@/lib/aruba-guest-speed";
 import { useTranslation } from "react-i18next";
@@ -203,7 +204,12 @@ export function ArubaGuestSpeedControl({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_LIMIT}>{t("guestSpeed.noLimit", "No limit")}</SelectItem>
-                    {presets.map((p) => (
+                    {speedOptions(
+                      presets,
+                      id === "download"
+                        ? (network?.downloadMbps ?? null)
+                        : (network?.uploadMbps ?? null),
+                    ).map((p) => (
                       <SelectItem key={p} value={String(p)}>
                         {speedLabel(p)}
                       </SelectItem>
@@ -224,7 +230,7 @@ export function ArubaGuestSpeedControl({
             <Button
               type="button"
               size="sm"
-              disabled={!network || unchanged || apply.isPending}
+              disabled={!network || network.otherModeLimit || unchanged || apply.isPending}
               onClick={() => setConfirming(true)}
             >
               {apply.isPending

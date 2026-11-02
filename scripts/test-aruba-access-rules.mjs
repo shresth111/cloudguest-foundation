@@ -290,7 +290,39 @@ eq(
 );
 eq("select value round trip: no limit", GS.fromSelectValue(GS.toSelectValue(null)), null);
 eq("select value round trip: 30", GS.fromSelectValue(GS.toSelectValue(30)), 30);
-eq("an off-preset select value is not sent", GS.fromSelectValue("35"), null);
+eq("a held off-preset speed is kept, not read as no limit", GS.fromSelectValue("2"), 2);
+eq("an out-of-range select value is not sent", GS.fromSelectValue("5000"), null);
+eq("garbage is not sent", GS.fromSelectValue("abc"), null);
+deq("options add a held off-preset speed", GS.speedOptions([10, 20], 2), [2, 10, 20]);
+deq("options stay the presets for a preset speed", GS.speedOptions([10, 20], 20), [10, 20]);
+deq("options stay the presets with no limit", GS.speedOptions([10, 20], null), [10, 20]);
+{
+  const wide = GS.toVenueGuestSpeed({
+    status: "ok",
+    networks: [
+      {
+        network_id: "n",
+        enabled: false,
+        other_mode_limit: true,
+        network_download_mbps: 50,
+        network_upload_mbps: 20,
+      },
+    ],
+  }).networks[0];
+  const sentence = GS.currentSpeedSentence(wide);
+  check(
+    "a network-wide limit is stated, not read as no limit",
+    sentence.includes("50 Mbps down") &&
+      sentence.includes("20 Mbps up") &&
+      !sentence.includes("No speed limit"),
+    sentence,
+  );
+  eq(
+    "the refusal says why",
+    GS.applyOutcomeMessage({ status: "failed", reason: "network_wide_limit_set" }).text,
+    GS.NETWORK_WIDE_LIMIT_SET,
+  );
+}
 eq(
   "applied only on Instant On's confirmation",
   GS.applyOutcomeMessage(GS.toVenueGuestSpeed({ status: "applied" })).tone,
@@ -847,6 +879,11 @@ console.log("\n2a-hybrid. Aruba venue WITH a Wyfy MikroTik gateway: speed is liv
   check("devices per user stays live", !(await page.locator("#dp").isDisabled()));
   check("the footer is the NAS-only sentence", (await root()).includes(R.NAS_ONLY_LIMITS_FOOTER));
   check(
+    "total venue speed names Aruba, not the venue's hardware",
+    (await root()).includes(R.NAS_ONLY_VENUE_SPEED) &&
+      !(await root()).includes("Not available on this venue's hardware"),
+  );
+  check(
     "the footer does not promise a data limit can sign someone out",
     !(await root()).includes("can sign someone out within minutes"),
   );
@@ -897,6 +934,10 @@ console.log("\n2a-cloud. Aruba venue WITH Instant On cloud control: guest networ
 // ---------------------------------------------------------------------------
 {
   const page = await open(ARUBA, { cloud: true });
+  check(
+    "with cloud control the footer says a data limit can act on guests online",
+    (await page.locator("#root").innerText()).includes(R.NAS_ONLY_LIMITS_FOOTER_CLOUD),
+  );
   await page.getByRole("button", { name: "Apply guest speed" }).waitFor({ timeout: 10_000 });
   eq(
     "the data limit says the device is taken off through Instant On",
@@ -1066,7 +1107,8 @@ console.log("\n2b. The same screen at a MikroTik venue: unchanged");
   check(
     "the pre-existing footer",
     (await root()).includes("can sign someone out within minutes") &&
-      !(await root()).includes(R.NAS_ONLY_LIMITS_FOOTER),
+      !(await root()).includes(R.NAS_ONLY_LIMITS_FOOTER) &&
+      !(await root()).includes(R.NAS_ONLY_VENUE_SPEED),
   );
   check("the table shows the cap", (await root()).includes("2 GB / Daily"));
   const calls = await editAndSave(page);

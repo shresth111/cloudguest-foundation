@@ -35,6 +35,11 @@ export interface GuestNetworkSpeed {
   /** null = no limit in that direction. */
   downloadMbps: number | null;
   uploadMbps: number | null;
+  /** A network-wide limit set in the Instant On app, not a per-device cap.
+   * Read-only: Wyfy won't write over it. Per network, not per venue. */
+  otherModeLimit: boolean;
+  networkDownloadMbps: number | null;
+  networkUploadMbps: number | null;
 }
 
 export type GuestSpeedStatus = "ok" | "applied" | "unavailable" | "failed";
@@ -66,6 +71,9 @@ function toNetwork(raw: unknown): GuestNetworkSpeed | null {
     enabled: r.enabled === true && (downloadMbps !== null || uploadMbps !== null),
     downloadMbps,
     uploadMbps,
+    otherModeLimit: r.other_mode_limit === true,
+    networkDownloadMbps: mbps(r.network_download_mbps),
+    networkUploadMbps: mbps(r.network_upload_mbps),
   };
 }
 
@@ -104,12 +112,35 @@ export function toSelectValue(value: number | null): string {
 }
 export function fromSelectValue(value: string): number | null {
   if (value === NO_LIMIT) return null;
+  // Not limited to the presets: a speed set in the Instant On app can be off
+  // them (2 Mbps, say), and reading it as "no limit" here would remove that cap
+  // the moment only the other direction changed. The backend accepts a preset
+  // or the value the network already holds, and nothing else.
   const n = Number(value);
-  return GUEST_SPEED_PRESETS_MBPS.includes(n) ? n : null;
+  return Number.isInteger(n) && n >= 1 && n <= 1000 ? n : null;
 }
+
+/** The dropdown's speeds: the presets, plus what the network holds now if that
+ * is off them. A select given a value it does not list renders blank. */
+export function speedOptions(presets: readonly number[], held: number | null): number[] {
+  return held === null || presets.includes(held)
+    ? [...presets]
+    : [...presets, held].sort((a, b) => a - b);
+}
+
+/** The network's limit is "Network" mode in the Instant On app. */
+export const NETWORK_WIDE_LIMIT_SET =
+  "It's set in the Instant On app, so Wyfy can't change it here. To set a speed per device " +
+  "from Wyfy, switch it back to per-client in the app.";
 
 /** What the network holds right now, in one line. */
 export function currentSpeedSentence(network: GuestNetworkSpeed): string {
+  if (network.otherModeLimit) {
+    return (
+      `This network has a network-wide limit of ${speedLabel(network.networkDownloadMbps)} down ` +
+      `and ${speedLabel(network.networkUploadMbps)} up. ${NETWORK_WIDE_LIMIT_SET}`
+    );
+  }
   if (!network.enabled) return "No speed limit on this network right now.";
   return (
     `Every device on this network is held to ${speedLabel(network.downloadMbps)} down and ` +
@@ -169,6 +200,8 @@ export function applyOutcomeMessage(result: VenueGuestSpeed): {
           "Instant On refused the change: the account Wyfy uses for this venue can't edit " +
           "networks. Ask your Wyfy Guest contact to give it a management role.",
       };
+    case "network_wide_limit_set":
+      return { tone: "warning", text: NETWORK_WIDE_LIMIT_SET };
     case "network_not_found":
       return {
         tone: "error",
