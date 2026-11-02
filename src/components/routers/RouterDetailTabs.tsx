@@ -63,8 +63,10 @@ import {
 import { PEER_STATUS_LABEL } from "@/types/router";
 import { deriveLanAddressing } from "@/lib/lan-addressing";
 import { RouterStatusBadge, HealthStatusBadge, ControllerManagedBadge } from "./RouterStatusBadge";
+import { nasOnlyLastSeenLabel } from "@/lib/fleet-row-verdicts";
 import {
   isControllerManaged,
+  isNasOnlyVendor,
   resolveRouterDetailTab,
   routerDetailTabsFor,
   routerDetailTabsNotApplicableFor,
@@ -318,11 +320,13 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
               <Field
                 label="Last seen"
                 value={
-                  controller
-                    ? "Not measured here"
-                    : router.lastSeenAt
-                      ? new Date(router.lastSeenAt).toLocaleString()
-                      : "Never"
+                  isNasOnlyVendor(router.vendor)
+                    ? nasOnlyLastSeenLabel(router.lastRadiusAt, new Date())
+                    : controller
+                      ? "Not measured here"
+                      : router.lastSeenAt
+                        ? new Date(router.lastSeenAt).toLocaleString()
+                        : "Never"
                 }
               />
               <Field

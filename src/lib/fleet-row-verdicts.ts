@@ -1,8 +1,9 @@
 /**
- * Router Fleet (Master): the three things the fleet list says about a row
- * that is NOT measured by this platform -- its warning tag, its status badge
- * and which summary tile it counts under -- as pure functions, so the
- * NAS-only (Aruba Instant On) rules are testable without rendering the page.
+ * Router Fleet (Master): what the fleet list says about a row that is NOT
+ * measured by this platform -- its warning tag, its status badge, its Last
+ * seen and address text, and which summary tile it counts under -- as pure
+ * functions, so the NAS-only (Aruba Instant On) rules are testable without
+ * rendering the page.
  *
  * Why this exists (live prod test, 2026-10-02): the Aruba row "Aruba AP21
  * VNV5M1K1M6" rendered "Via controller" + a red "No integration". Both were
@@ -18,6 +19,7 @@
  */
 import type { NetworkIntegration } from "@/types/network-integration";
 import { deriveIntegrationSetup } from "@/lib/network-integration-readiness";
+import { formatAgo } from "@/lib/location-liveness";
 import { CONTROLLER_STATE_COPY, isNasOnlyVendor } from "@/lib/router-vendors";
 
 export type FleetControllerWarning = "No integration" | "Authorising nobody";
@@ -60,6 +62,55 @@ export function notMeasuredBadge(vendor: string | null | undefined): {
   return isNasOnlyVendor(vendor)
     ? { label: NAS_ONLY_FLEET_LABEL, tone: "normal" }
     : { label: "Via controller", tone: "normal" };
+}
+
+/**
+ * The fleet status badge for a NAS-only row, from `last_radius_at`: the one
+ * thing an Instant On site really sends this platform. It says whether RADIUS
+ * has reached us, never whether the access point is up. It does not decay with
+ * age, because a venue with no guests sends nothing and is not down
+ * (PM_SPEC §2.3). `NAS_ONLY_FLEET_LABEL` stays the summary tile's word.
+ */
+export function nasOnlyRadiusBadge(lastRadiusAt: string | null | undefined): {
+  label: string;
+  tone: string;
+} {
+  return lastRadiusAt
+    ? { label: "RADIUS received", tone: "normal" }
+    : { label: "No RADIUS recorded", tone: "normal" };
+}
+
+/** The Last seen cell for a NAS-only row. "Last RADIUS", not "last guest
+ * activity": the stamp also moves on a refused sign-in and on the access
+ * point's own Accounting-On after a reboot, so it proves a packet arrived and
+ * not that a guest got online. */
+export function nasOnlyLastSeenLabel(lastRadiusAt: string | null | undefined, now: Date): string {
+  if (!lastRadiusAt) return "No RADIUS yet";
+  const ago = formatAgo(lastRadiusAt, now);
+  return ago === null ? "Last RADIUS time unknown" : `Last RADIUS ${ago}`;
+}
+
+/** What an empty or old Last seen means on a NAS-only row. Said in the drawer,
+ * where there is room, because the cell alone cannot carry it. Master-only:
+ * it names RADIUS and the listener ports. */
+export const NAS_ONLY_LAST_SEEN_NOTE =
+  "Wyfy has no API to Instant On, so access point up or down is not measured here. " +
+  "Last seen is the last RADIUS packet the shared listener (UDP 1912/1913) matched to this " +
+  "site. A venue with no guests sends nothing, so an old or empty time means no recent " +
+  "RADIUS, not offline. A site on its own 1812 registration is not recorded here.";
+
+/** The address on a fleet row. An Instant On site has no tunnel, so "not yet
+ * assigned" would promise an IP that is never coming. */
+export function fleetRowAddressLabel(router: {
+  vendor: string | null | undefined;
+  managementIpAddress: string | null;
+  publicIpAddress: string | null;
+}): string {
+  return (
+    router.managementIpAddress ??
+    router.publicIpAddress ??
+    (isNasOnlyVendor(router.vendor) ? "No tunnel IP" : "IP not yet assigned")
+  );
 }
 
 /**

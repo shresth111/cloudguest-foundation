@@ -614,6 +614,7 @@ export function toRouterDevice(venue: DemoVenue, r: DemoWorldRouter, now: number
     controllerState: null,
     controllerStateReason: null,
     controllerLastContactedAt: null,
+    lastRadiusAt: null,
     vendorClaimIsContradicted: false,
     settings: {},
     createdAt: iso(now - 90 * DAY),

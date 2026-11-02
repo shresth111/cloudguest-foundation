@@ -65,6 +65,8 @@ const SHARED_GAP_COPY: Record<string, string> = {
     "The RADIUS hub has not confirmed the current shared Aruba secret. Rotate it to push it again.",
   nas_not_registered:
     "This device has no NAS-Identifier yet. Use “Use the shared listener for this venue”.",
+  nas_identifier_not_accepted:
+    "This device's NAS-Identifier is not one the shared listener accepts, so every sign-in would be rejected. It needs the cg-aruba-<8hex> form, here and in Instant On. An engineer has to change it on the NAS row.",
   no_ap_mac:
     "This device has no AP MAC address on record. The shared listener matches the access point's MAC, so record it on the device first.",
   radius_server_address_not_configured:

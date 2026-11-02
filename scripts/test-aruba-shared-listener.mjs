@@ -119,6 +119,7 @@ for (const code of [
   "shared_secret_not_set",
   "hub_not_confirmed",
   "nas_not_registered",
+  "nas_identifier_not_accepted",
   "no_ap_mac",
   "radius_server_address_not_configured",
 ]) {

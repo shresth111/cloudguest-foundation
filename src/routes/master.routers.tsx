@@ -77,8 +77,12 @@ import {
 } from "@/lib/router-vendors";
 import {
   fleetControllerWarning,
+  fleetRowAddressLabel,
   fleetSummaryBucket,
   NAS_ONLY_FLEET_LABEL,
+  NAS_ONLY_LAST_SEEN_NOTE,
+  nasOnlyLastSeenLabel,
+  nasOnlyRadiusBadge,
   notMeasuredBadge,
   notMeasuredFilterLabel,
 } from "@/lib/fleet-row-verdicts";
@@ -227,25 +231,27 @@ function displayStatus(
  * carried a 3-hour-old timestamp having never once sent a heartbeat.
  */
 function contactLabel(r: RouterDevice, now: Date): string {
-  return lastContactLabel(
-    deriveRouterLiveness(
-      {
-        id: r.id,
-        name: r.name,
-        status: r.status,
-        last_seen_at: r.lastSeenAt,
-        vendor: r.vendor,
-        health_status: r.healthStatus,
-        routeros_version: r.routerOsVersion,
-        has_api_credentials: r.hasApiCredentials,
-        controller_state: r.controllerState,
-        controller_state_reason: r.controllerStateReason,
-        controller_last_contacted_at: r.controllerLastContactedAt,
-      },
-      now,
-    ),
+  const live = deriveRouterLiveness(
+    {
+      id: r.id,
+      name: r.name,
+      status: r.status,
+      last_seen_at: r.lastSeenAt,
+      vendor: r.vendor,
+      health_status: r.healthStatus,
+      routeros_version: r.routerOsVersion,
+      has_api_credentials: r.hasApiCredentials,
+      controller_state: r.controllerState,
+      controller_state_reason: r.controllerStateReason,
+      controller_last_contacted_at: r.controllerLastContactedAt,
+    },
     now,
   );
+  // A NAS-only row does have one real signal: the RADIUS its access points send.
+  if (live.state === "not-applicable" && isNasOnlyVendor(r.vendor)) {
+    return nasOnlyLastSeenLabel(r.lastRadiusAt, now);
+  }
+  return lastContactLabel(live, now);
 }
 
 function ControlButton({
@@ -618,6 +624,9 @@ function RouterFleetScreen() {
     const live = livenessOf(r);
     // A NAS-only row is "not measured here" too, but it is not reached
     // through a controller: it says "Set up in Instant On" instead.
+    if (live.state === "not-applicable" && isNasOnlyVendor(r.vendor)) {
+      return nasOnlyRadiusBadge(r.lastRadiusAt);
+    }
     if (live.state === "not-applicable") return notMeasuredBadge(r.vendor);
     // No `??` fallback any more. It was there to catch a missing key, but a
     // fallback that prints `r.status` turns a rendering gap into a leaked
@@ -767,7 +776,7 @@ function RouterFleetScreen() {
                 &ldquo;{NAS_ONLY_FLEET_LABEL}&rdquo; counts Aruba Instant On sites. They are managed
                 in Aruba&rsquo;s Instant On app and reach Wyfy only over RADIUS, so they have no
                 controller, no agent and no network integration, and are never counted as Online or
-                Offline here.
+                Offline here. Their Last seen is the last RADIUS packet, not a device check-in.
               </p>
             )}
 
@@ -844,8 +853,7 @@ function RouterFleetScreen() {
                     <MTd>
                       <p className="font-semibold">{r.name}</p>
                       <p className="font-mono text-xs text-muted-foreground">
-                        {r.managementIpAddress ?? r.publicIpAddress ?? "IP not yet assigned"} ·{" "}
-                        {r.locationName}
+                        {fleetRowAddressLabel(r)} · {r.locationName}
                       </p>
                     </MTd>
                     <MTd className="hidden text-sm md:table-cell">{r.model}</MTd>
@@ -938,7 +946,7 @@ function RouterFleetScreen() {
               title={sel?.name ?? ""}
               subtitle={
                 sel
-                  ? `${sel.model} · ${sel.managementIpAddress ?? sel.publicIpAddress ?? "IP not yet assigned"} · ${sel.organizationName} / ${sel.locationName}`
+                  ? `${sel.model} · ${fleetRowAddressLabel(sel)} · ${sel.organizationName} / ${sel.locationName}`
                   : ""
               }
               footer={
@@ -984,6 +992,10 @@ function RouterFleetScreen() {
                       </p>
                     </div>
                   </div>
+
+                  {isNasOnlyVendor(sel.vendor) && livenessOf(sel).state === "not-applicable" && (
+                    <p className="text-xs text-muted-foreground">{NAS_ONLY_LAST_SEEN_NOTE}</p>
+                  )}
 
                   {operatorNextStep(sel) && (
                     <p className="rounded-lg border border-border p-2.5 text-xs">
