@@ -10,7 +10,7 @@ import { PageSkeleton } from "@/components/common/LoadingSkeleton";
 import { useFeatureEntitled, useIsDemo } from "@/hooks/useCustomerDashboard";
 import { useMarketingStatus } from "@/hooks/useMarketing";
 import { marketingErrorCode } from "@/services/marketing.service";
-import { GUEST_MARKETING_FEATURE_KEY } from "@/types/marketing";
+import { GUEST_MARKETING_FEATURE_KEY, MARKETING_LOCKED_FOR_ALL } from "@/types/marketing";
 import { MarketingLockedUpsell, MarketingLicenceLapsed } from "./MarketingLockedUpsell";
 import { ChannelStatusStrip } from "./ChannelStatusStrip";
 import { marketingErrorMessage } from "./marketing-helpers";
@@ -144,7 +144,12 @@ export function MarketingView({
   // "off" is the same fact from the same snapshot, so it is allowed to show
   // the upsell without waiting for the status call -- but it is never
   // allowed to UNLOCK anything; only a 2xx from /marketing/status does that.
-  if (!demo && (code === "feature_not_entitled" || (entitled === false && !status.data))) {
+  if (
+    !demo &&
+    (MARKETING_LOCKED_FOR_ALL ||
+      code === "feature_not_entitled" ||
+      (entitled === false && !status.data))
+  ) {
     return withHeader(<MarketingLockedUpsell locationId={locationId} />);
   }
   if (code === "license_not_active") {

@@ -447,6 +447,14 @@ export interface DeliveryListQuery {
 
 export const GUEST_MARKETING_FEATURE_KEY = "guest_marketing";
 
+/**
+ * Owner decision 2026-11-02: Guest Messaging is locked for every customer, even
+ * one whose add-on is on, until sending works. Screen-level only: the backend
+ * still answers an entitled org, so already-scheduled campaigns are not stopped
+ * by this. Set to false to go back to the per-customer Master toggle.
+ */
+export const MARKETING_LOCKED_FOR_ALL = true;
+
 // ── Master add-on control (§5.9) ───────────────────────────────────────
 
 export interface OrganizationAddon {

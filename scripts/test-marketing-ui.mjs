@@ -1011,8 +1011,15 @@ check(
 );
 check(
   "the demo workspace is never locked and says it is sample data",
-  /if \(!demo && \(code === "feature_not_entitled"/.test(view) &&
+  /!demo &&\s*\(MARKETING_LOCKED_FOR_ALL \|\|\s*code === "feature_not_entitled"/.test(view) &&
     /marketing-demo-banner/.test(view),
+);
+check(
+  "Guest Messaging is locked for every customer, even one whose add-on is on",
+  /export const MARKETING_LOCKED_FOR_ALL = true;/.test(read("src/types/marketing.ts")) &&
+    /MARKETING_LOCKED_FOR_ALL && !demo && featureKey === GUEST_MARKETING_FEATURE_KEY\) return false/.test(
+      read("src/hooks/useCustomerDashboard.ts"),
+    ),
 );
 check("no tab mounts before /marketing/status answered", /if \(!status\.data\) return/.test(view));
 const upsell = strip(read("src/components/marketing/MarketingLockedUpsell.tsx"));

@@ -1,3 +1,4 @@
+import { GUEST_MARKETING_FEATURE_KEY, MARKETING_LOCKED_FOR_ALL } from "@/types/marketing";
 import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService, isDemo, resolveOrgId } from "@/services/customer.service";
@@ -152,7 +153,10 @@ export function useMyEntitlements() {
  * while that answer is unknown (loading, failed, demo, or a backend that
  * does not list the key yet). Never guesses. */
 export function useFeatureEntitled(featureKey: string): boolean | null {
+  const demo = useIsDemo();
   const { data } = useMyEntitlements();
+  // Every lock badge reads this, so the one exception lives here.
+  if (MARKETING_LOCKED_FOR_ALL && !demo && featureKey === GUEST_MARKETING_FEATURE_KEY) return false;
   const hit = data?.features?.find((f) => f.feature_key === featureKey);
   return hit ? hit.enabled : null;
 }
