@@ -32,7 +32,8 @@ import { WithRouter } from "@/components/isp-partner/customer-shell/parts";
 import { RouterSelect } from "@/components/isp-partner/workspace/RouterSelect";
 import { Devices as RoutersAndCpes } from "@/components/isp-partner/customer-shell/builtins";
 import type { PartnerSlotProps } from "@/components/isp-partner/customer-shell/slots";
-import { isForbidden, ispErrorMessage } from "@/lib/isp-partner/errors";
+import { friendlyB4Message } from "@/lib/isp-partner/b4-messages";
+import { isForbidden } from "@/lib/isp-partner/errors";
 import { formatDate } from "@/lib/isp-partner/format";
 import {
   venueSecurityService as svc,
@@ -40,21 +41,6 @@ import {
   type FirewallRuleCreate,
 } from "@/services/isp-partner/venue-security";
 import { M_FILTER } from "@/components/isp-partner/ui/classes";
-
-// QA-013: router-level refusals are correct but were shown raw -- a router
-// UUID and internal credential wording. Say it in ISP terms instead.
-const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-
-function friendlyB4Message(error: unknown): string {
-  const raw = ispErrorMessage(error);
-  if (/connection credentials|management or public IP|API username|API secret/i.test(raw)) {
-    return "This router is not ready for remote changes yet: it has not finished its setup (run its setup script and wait for it to check in), then try again.";
-  }
-  if (/category filtering is not configured|Cloudflare/i.test(raw)) {
-    return "Website categories are not available on this platform yet. Blocking single websites and addresses above still works.";
-  }
-  return raw.replace(UUID_RE, "this router");
-}
 
 function B4Error({ error, onRetry, what }: { error: unknown; onRetry?: () => void; what: string }) {
   if (isForbidden(error)) return <ErrorBlock error={error} onRetry={onRetry} what={what} />;

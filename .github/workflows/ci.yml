@@ -2865,6 +2865,9 @@ jobs:
       - name: ISP partner error copy (every backend error code has partner copy)
         if: hashFiles('scripts/test-isp-partner-error-copy.mjs') != ''
         run: bun run test:isp-partner-error-copy
+      - name: ISP partner security page messages (B4)
+        if: hashFiles('scripts/test-isp-partner-b4-messages.mjs') != ''
+        run: bun run test:isp-partner-b4-messages
       - name: ISP master list
         if: hashFiles('scripts/test-isp-master-list.mjs') != ''
         run: bun run test:isp-master-list

@@ -54,6 +54,7 @@
     "test:isp-partner-small": "node scripts/test-isp-partner-small.mjs",
     "test:isp-partner-p3-sweep": "node scripts/test-isp-partner-p3-sweep.mjs",
     "test:isp-partner-error-copy": "node scripts/test-isp-partner-error-copy.mjs",
+    "test:isp-partner-b4-messages": "node scripts/test-isp-partner-b4-messages.mjs",
     "test:impersonation-master-host": "node scripts/test-impersonation-master-host.mjs",
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",
     "test:ap-inventory-honesty": "node scripts/test-ap-inventory-honesty.mjs",

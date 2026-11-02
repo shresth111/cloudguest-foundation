@@ -142,6 +142,12 @@ const DETAIL_FROM = [
 ];
 
 const OFF_CODE = /_(DISABLED|NOT_ENABLED)$/;
+// Honest answers about this environment, not page faults: the test stack has
+// no Cloudflare Gateway account, and a demo router that was never provisioned
+// has no device credentials. The customer pages show their own state for these.
+const ENVIRONMENT_PATH = /\/dns-filtering\/categories$/;
+const ENVIRONMENT_ANSWER =
+  /not configured on this platform yet|missing device connection credentials/i;
 
 function slug(path) {
   return (
@@ -154,6 +160,7 @@ function slug(path) {
 
 async function visit(page, path, results) {
   const problems = [];
+  const noted = [];
   const onConsole = (m) => {
     if (m.type() !== "error") return;
     const t = m.text();
@@ -168,13 +175,23 @@ async function visit(page, path, results) {
     pending.push(
       (async () => {
         let code = "";
+        let message = "";
         try {
-          code = (await r.json())?.data?.code ?? "";
+          const body = await r.json();
+          code = body?.data?.code ?? "";
+          message = body?.message ?? "";
         } catch {
           /* not json */
         }
         if (r.status() < 500 && OFF_CODE.test(code)) return;
-        problems.push(`http ${r.status()} ${r.request().method()} ${u.pathname} ${code}`.trim());
+        // The body can be gone if the page moved on; this path has one known answer.
+        if (ENVIRONMENT_ANSWER.test(message) || (!message && ENVIRONMENT_PATH.test(u.pathname))) {
+          noted.push(`${r.status()} ${u.pathname}: ${message.slice(0, 80)}`);
+          return;
+        }
+        problems.push(
+          `http ${r.status()} ${r.request().method()} ${u.pathname} ${code} ${message.slice(0, 140)}`.trim(),
+        );
       })(),
     );
   };
@@ -196,14 +213,21 @@ async function visit(page, path, results) {
     .evaluate(() => {
       const main = document.querySelector("main") || document.body;
       const text = (main.innerText || "").trim();
+      const hit = text.search(
+        /this page didn.t load|something went wrong on our end|unexpected application error/i,
+      );
+      const generic = text.search(/something went wrong/i);
       return {
         textLength: text.length,
         heading: !!main.querySelector("h1,h2,h3"),
-        boundary: /something went wrong|unexpected application error/i.test(text),
+        boundary: hit >= 0,
+        boundaryText: hit >= 0 ? text.slice(Math.max(0, hit - 60), hit + 120) : "",
+        genericError: generic >= 0 ? text.slice(Math.max(0, generic - 80), generic + 80) : "",
       };
     })
     .catch(() => ({ textLength: 0, heading: false, boundary: false }));
-  if (shape.boundary) problems.push("error boundary shown");
+  if (shape.boundary) problems.push(`error boundary shown: ${shape.boundaryText}`);
+  if (shape.genericError) noted.push(`text: ${shape.genericError.replace(/\s+/g, " ")}`);
   if (!shape.heading && shape.textLength < 40) problems.push("blank screen");
   const shot = join(OUT, `${slug(path)}.png`);
   if (process.env.SMOKE_SHOTS !== "0") {
@@ -212,11 +236,12 @@ async function visit(page, path, results) {
   page.off("console", onConsole);
   page.off("pageerror", onPageError);
   page.off("response", onResponse);
-  const row = { path, ok: problems.length === 0, ms: Date.now() - started, problems, shot };
+  const row = { path, ok: problems.length === 0, ms: Date.now() - started, problems, noted, shot };
   results.push(row);
   console.log(
     `${row.ok ? "PASS" : "FAIL"} ${path}${row.ok ? "" : `\n    - ${problems.join("\n    - ")}`}`,
   );
+  for (const n of noted) console.log(`    note: ${n}`);
   return row;
 }
 
@@ -256,9 +281,19 @@ for (const [list, re, widen] of DETAIL_FROM) {
       .catch(() => {});
     await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
   }
-  const href = await page
+  let href = await page
     .$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href")))
     .then((hs) => hs.find((h) => h && re.test(h.split("?")[0])));
+  if (!href) {
+    // Some lists open the detail page from a row click, with no link.
+    const row = page.locator("tbody tr").first();
+    if (await row.count()) {
+      await row.click().catch(() => {});
+      await page.waitForURL((u) => re.test(u.pathname), { timeout: 8_000 }).catch(() => {});
+      const u = new URL(page.url());
+      if (re.test(u.pathname)) href = u.pathname;
+    }
+  }
   if (href) await visit(page, href.split("#")[0], results);
   else if (MUST_REACH.test(list)) {
     results.push({ path: `${list} -> detail`, ok: false, problems: ["no row to open"] });
@@ -277,6 +312,11 @@ if (customerPath) {
   for (const feature of WORKSPACE_FEATURES) {
     const q = loc ? `?location=${loc}` : "";
     await visit(page, `${customerPath}/${feature}${q}`, results);
+  }
+  // SMOKE_REPEAT=blocking:5 re-opens one workspace page, to catch a flaky fault.
+  const [again, times] = (process.env.SMOKE_REPEAT || ":0").split(":");
+  for (let i = 0; i < Number(times); i++) {
+    await visit(page, `${customerPath}/${again}${loc ? `?location=${loc}` : ""}`, results);
   }
 }
 
