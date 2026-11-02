@@ -61,6 +61,7 @@ import {
 } from "../marketing-helpers";
 import { marketingErrorCode } from "@/services/marketing.service";
 import { AudiencePreviewCard } from "../audience/AudiencePreviewCard";
+import { RecipientPicker } from "../audience/RecipientPicker";
 import { EmailPreviewFrame } from "../templates/EmailPreviewFrame";
 import { ScheduleDialog, TestSendDialog } from "./CampaignActions";
 import { SmsSize } from "../templates/SmsCounter";
@@ -599,6 +600,10 @@ export function CampaignComposerSheet({
                 onChange={(f) => setFilter({ ...f, channel })}
                 status={status}
                 lockChannel
+              />
+              <RecipientPicker
+                filter={{ ...filter, channel }}
+                onChange={(guestIds) => setFilter((f) => ({ ...f, guest_ids: guestIds }))}
               />
               <AudiencePreviewCard
                 filter={{ ...filter, channel }}

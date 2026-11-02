@@ -3,6 +3,7 @@ import { ticketService } from "@/services/ticket.service";
 import type { SupportTicket } from "@/types/support-ticket";
 import type {
   AddonWriteResult,
+  AudienceCandidates,
   AudienceFilter,
   AudiencePreview,
   CampaignCreatePayload,
@@ -173,6 +174,18 @@ export const marketingService = {
     signal?: AbortSignal,
   ): Promise<AudiencePreview> {
     const { data } = await api.post<AudiencePreview>("/marketing/audience/preview", filter, {
+      headers: scoped(locationId),
+      signal,
+    });
+    return data;
+  },
+
+  async audienceCandidates(
+    body: { audience: AudienceFilter; search?: string; page: number; page_size: number },
+    locationId?: string | null,
+    signal?: AbortSignal,
+  ): Promise<AudienceCandidates> {
+    const { data } = await api.post<AudienceCandidates>("/marketing/audience/candidates", body, {
       headers: scoped(locationId),
       signal,
     });

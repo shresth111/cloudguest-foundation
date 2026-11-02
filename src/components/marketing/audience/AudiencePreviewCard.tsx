@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { Loader2, ShieldCheck, Users } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAudiencePreview } from "@/hooks/useMarketing";
@@ -31,6 +33,7 @@ export function AudiencePreviewCard({
   status: MarketingStatus;
   onResult?: (p: AudiencePreview | undefined) => void;
 }) {
+  const { t } = useTranslation("marketing", { i18n });
   const label = useChannelLabel();
   const invalid = audienceFilterInvalid(filter);
   const preview = useAudiencePreview(invalid ? null : cleanAudienceFilter(filter));
@@ -54,7 +57,11 @@ export function AudiencePreviewCard({
         </div>
 
         {invalid ? (
-          <p className="text-sm text-muted-foreground">Fix the filter to see the count.</p>
+          <p className="text-sm text-muted-foreground">
+            {filter.guest_ids?.length === 0
+              ? t("picker.pickSomeone", "Pick at least one person to see the count.")
+              : "Fix the filter to see the count."}
+          </p>
         ) : preview.isError ? (
           <p className="text-sm text-[var(--wy-crit)]">
             {marketingErrorMessage(preview.error, "Couldn't count this audience.")}
@@ -84,9 +91,25 @@ export function AudiencePreviewCard({
               </p>
             )}
             {data.reachable === 0 && (
-              <p className="rounded-md bg-muted/60 p-2 text-xs">
-                Nobody here can be messaged yet. Only guests who ticked the opt-in on your WiFi page
-                are reachable.
+              <p className="rounded-md bg-muted/60 p-2 text-xs" data-testid="audience-zero-reason">
+                {status.portal_consent.enabled
+                  ? "Nobody here can be messaged yet. Only guests who ticked the opt-in on your WiFi page are reachable."
+                  : t(
+                      "picker.optInOff",
+                      "Nobody can be messaged because the opt-in on your WiFi page is off, so no guest can agree to hear from you. Turn it on under Guest Messaging, Audience.",
+                    )}
+              </p>
+            )}
+            {(data.selected_outside_filters ?? 0) > 0 && (
+              <p
+                className="rounded-md bg-[var(--wy-warn-soft)] p-2 text-xs"
+                data-testid="picked-outside"
+              >
+                {t(
+                  "picker.outsideFilters",
+                  "{{count}} people you picked don't match these filters, so they won't get this.",
+                  { count: data.selected_outside_filters },
+                )}
               </p>
             )}
             <div>

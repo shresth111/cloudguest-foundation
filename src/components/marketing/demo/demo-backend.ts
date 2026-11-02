@@ -32,6 +32,7 @@ import {
   emailBodyIssues,
 } from "@/lib/marketing-template";
 import type {
+  AudienceCandidates,
   AudienceFilter,
   AudiencePreview,
   CampaignCreatePayload,
@@ -294,6 +295,26 @@ function daysBetween(from?: string | null, to?: string | null): number | null {
 }
 
 function audience(filter: AudienceFilter): AudiencePreview {
+  if (filter.guest_ids && filter.guest_ids.length > 0) {
+    // The demo's own candidates are all opted in, so every pick is reachable.
+    const { guest_ids, ...rest } = filter;
+    const whole = audience(rest);
+    return {
+      ...whole,
+      matched_guests: guest_ids.length,
+      reachable: guest_ids.length,
+      excluded: {
+        no_consent: 0,
+        opted_out: 0,
+        suppressed: 0,
+        no_address: 0,
+        invalid_address: 0,
+        blocked: 0,
+      },
+      capped: false,
+      sample: whole.sample.filter((g) => guest_ids.includes(g.guest_id)),
+    };
+  }
   const ids = filter.location_ids && filter.location_ids.length ? filter.location_ids : null;
   let fraction = 1;
   const span = daysBetween(filter.visited_from, filter.visited_to);
@@ -1069,6 +1090,41 @@ export const demoMarketingBackend = {
       fail(422, "validation_error", "“From” is after “to”.");
     }
     return audience(filter);
+  },
+
+  async audienceCandidates(body: {
+    audience: AudienceFilter;
+    search?: string;
+    page: number;
+    page_size: number;
+  }): Promise<AudienceCandidates> {
+    await sleep(150);
+    const f = body.audience;
+    const ids = f.location_ids && f.location_ids.length ? f.location_ids : null;
+    const term = body.search?.toLowerCase();
+    const rows: AudienceCandidates["items"] = [];
+    for (let i = 0; i < 400; i++) {
+      const g = guestAt(i);
+      if (ids && !ids.includes(g.venue)) continue;
+      if (guestConsent(i, f.channel) !== "opted_in") continue;
+      if (f.require_name && !g.name) continue;
+      if (f.channel === "email" && !g.email) continue;
+      if (term && !(g.name ?? "").toLowerCase().includes(term)) continue;
+      rows.push({
+        guest_id: g.id,
+        display_name: g.name,
+        masked_address: f.channel === "email" ? g.email : g.phone,
+        last_seen_at: iso(g.lastSeen),
+        total_visit_count: g.visits,
+      });
+    }
+    const start = (body.page - 1) * body.page_size;
+    return {
+      items: rows.slice(start, start + body.page_size),
+      total: rows.length,
+      page: body.page,
+      page_size: body.page_size,
+    };
   },
 
   async listTemplates(q: TemplateListQuery): Promise<Page<MarketingTemplate>> {

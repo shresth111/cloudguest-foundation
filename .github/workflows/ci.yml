@@ -2757,6 +2757,14 @@ jobs:
             "aruba-screen-gaps" 13 \
             "aruba screen gaps: all checks passed" \
             bun run test:aruba-screen-gaps
+      # Guest Messaging: choosing recipients by hand. An empty pick is never
+      # "everyone". Consent enforcement is pinned in the backend suite.
+      - name: marketing picker
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "marketing-picker" 15 \
+            "marketing picker: all checks passed" \
+            bun run test:marketing-picker
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \

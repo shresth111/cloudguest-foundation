@@ -1,5 +1,5 @@
 /**
- * DEMO ONLY. The ten Wyfy system templates, copied verbatim from the backend
+ * DEMO ONLY. The nine Wyfy system templates, copied verbatim from the backend
  * seed (cloud-guest-repo origin/main,
  * backend/alembic/versions/0134_create_guest_marketing_tables.py,
  * `SYSTEM_TEMPLATES`) so the demo shows exactly the wording a real account
@@ -37,27 +37,6 @@ export const SYSTEM_TEMPLATE_SEED: SeedTemplate[] = [
     email_body_html:
       "<p>Hi {{guest_name}},</p><p>Thanks for coming back to {{venue_name}}. Regulars like you are the reason we do this.</p><p>Show the code <strong>{{offer_code}}</strong> on your next visit and we'll add a little something on the house.</p><p>See you soon,<br>Team {{venue_name}}</p><p><small>Don't want these emails? <a href=\"{{unsubscribe_link}}\">Unsubscribe</a>.</small></p>",
     description: "Thank returning guests and invite them back with a small treat.",
-  },
-  {
-    system_key: "celebrate_with_us",
-    name: "Birthdays & anniversaries",
-    category: "birthday",
-    sms_body:
-      "Celebrating something, {{guest_name}}? Host your birthday or anniversary at {{venue_name}}. Code {{offer_code}} for a special deal. Opt out: {{unsubscribe_link}}",
-    whatsapp_body:
-      "🎉 Got a birthday or anniversary coming up, {{guest_name}}? Celebrate it at {{venue_name}}! Use code *{{offer_code}}* when you book for a special celebration deal. Book here: {{booking_link}}. Unsubscribe: {{unsubscribe_link}}",
-    whatsapp_variable_order: [
-      "guest_name",
-      "venue_name",
-      "offer_code",
-      "booking_link",
-      "unsubscribe_link",
-    ],
-    email_subject: "Celebrate your special day at {{venue_name}}",
-    email_preheader: "A special deal for birthdays and anniversaries",
-    email_body_html:
-      '<p>Hi {{guest_name}},</p><p>Birthday, anniversary or promotion coming up? Let {{venue_name}} host it.</p><p>Use <strong>{{offer_code}}</strong> when you book for a special celebration deal.</p><p><a href="{{booking_link}}">Book your table</a></p><p>Team {{venue_name}}</p><p><small><a href="{{unsubscribe_link}}">Unsubscribe</a></small></p>',
-    description: "Invite guests to host a birthday or anniversary at your venue.",
   },
   {
     system_key: "weekend_offer",
