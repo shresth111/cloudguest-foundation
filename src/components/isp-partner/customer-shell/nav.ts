@@ -84,9 +84,11 @@ export interface PartnerNavGroup {
 }
 
 export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
+  // Mirrors main's customer nav after the console revamp (FE #508): same
+  // groups, order, ids and labels. Gates, icons and scopes are the partner's.
   {
     id: "overview",
-    label: "Overview",
+    label: "Home",
     items: [
       {
         id: "dashboard",
@@ -95,6 +97,20 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
         scope: "customer",
         anyOf: ["isp_partner.read"],
       },
+      { id: "alerts", label: "Alerts", icon: Bell, scope: "location", anyOf: ["isp_monitor.read"] },
+      {
+        id: "debugging",
+        label: "Fix a Problem",
+        icon: Wifi,
+        scope: "location",
+        anyOf: ["isp_ops.execute"],
+      },
+    ],
+  },
+  {
+    id: "guests",
+    label: "Guests",
+    items: [
       {
         id: "users",
         label: "Guests",
@@ -103,32 +119,11 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
         anyOf: ["isp_partner.read", "isp_access.read"],
       },
       {
-        id: "reports",
-        label: "Reports",
-        icon: FileText,
-        scope: "customer",
-        anyOf: ["isp_partner.read"],
-      },
-      { id: "alerts", label: "Alerts", icon: Bell, scope: "location", anyOf: ["isp_monitor.read"] },
-    ],
-  },
-  {
-    id: "engagement",
-    label: "Engagement",
-    items: [
-      {
-        id: "portal",
-        label: "Portal",
-        icon: Palette,
+        id: "teams",
+        label: "Guest Groups",
+        icon: UsersRound,
         scope: "location",
-        anyOf: ["isp_partner.read"],
-      },
-      {
-        id: "campaigns",
-        label: "Login Page Offers",
-        icon: Megaphone,
-        scope: "location",
-        anyOf: ["isp_access.read", "isp_engage.read"],
+        anyOf: ["isp_access.read"],
       },
       {
         id: "vouchers",
@@ -137,13 +132,26 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
         scope: "location",
         anyOf: ["isp_coupons.read", "isp_engage.read"],
       },
+      {
+        id: "reports",
+        label: "Reports",
+        icon: FileText,
+        scope: "customer",
+        anyOf: ["isp_partner.read"],
+      },
     ],
   },
   {
-    // Its own group on the customer dashboard too (Marketing add-on).
     id: "marketing",
     label: "Marketing",
     items: [
+      {
+        id: "campaigns",
+        label: "Login Page Offers",
+        icon: Megaphone,
+        scope: "location",
+        anyOf: ["isp_access.read", "isp_engage.read"],
+      },
       {
         id: "marketing",
         label: "Guest Messaging",
@@ -155,29 +163,15 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
     ],
   },
   {
-    id: "access-policy",
-    label: "Access & Policy",
+    id: "login-page",
+    label: "Login Page",
     items: [
       {
-        id: "policies",
-        label: "Access Rules",
-        icon: ShieldCheck,
+        id: "portal",
+        label: "Portal",
+        icon: Palette,
         scope: "location",
-        anyOf: ["isp_access.read"],
-      },
-      {
-        id: "whitelist",
-        label: "Guest Allow-list",
-        icon: Shield,
-        scope: "location",
-        anyOf: ["isp_access.read"],
-      },
-      {
-        id: "mac-auth",
-        label: "Trusted Devices",
-        icon: Fingerprint,
-        scope: "location",
-        anyOf: ["isp_access.read"],
+        anyOf: ["isp_partner.read"],
       },
       {
         id: "business-hours",
@@ -189,8 +183,8 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
     ],
   },
   {
-    id: "devices-team",
-    label: "Devices & Team",
+    id: "network",
+    label: "Network",
     items: [
       {
         id: "devices",
@@ -200,27 +194,27 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
         anyOf: ["isp_partner.read", "isp_monitor.read", "tr069.read"],
       },
       {
-        id: "teams",
-        label: "Guest Groups",
-        icon: UsersRound,
+        id: "isp-details",
+        label: "Internet Connection",
+        icon: Globe,
+        scope: "location",
+        anyOf: ["isp_network.read"],
+      },
+      {
+        id: "traffic-lens",
+        label: "Traffic Lens",
+        icon: Waypoints,
+        scope: "location",
+        anyOf: ["isp_network.read"],
+        addon: "traffic_flow",
+      },
+      {
+        id: "policies",
+        label: "Usage Limits",
+        icon: ShieldCheck,
         scope: "location",
         anyOf: ["isp_access.read"],
       },
-      // Customers have no users (founder rule): Staff Access is the ISP's own
-      // staff, with per-customer confinement (ADDENDUM_04 "Changed").
-      {
-        id: "agents",
-        label: "Staff Access",
-        icon: Bot,
-        scope: "isp",
-        anyOf: ["isp_partner.assign"],
-      },
-    ],
-  },
-  {
-    id: "network",
-    label: "Network",
-    items: [
       {
         id: "dhcp",
         label: "IP Addresses",
@@ -249,21 +243,6 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
         scope: "location",
         anyOf: ["isp_network.read"],
       },
-      {
-        id: "isp-details",
-        label: "Internet Connection",
-        icon: Globe,
-        scope: "location",
-        anyOf: ["isp_network.read"],
-      },
-      {
-        id: "traffic-lens",
-        label: "Traffic Lens",
-        icon: Waypoints,
-        scope: "location",
-        anyOf: ["isp_network.read"],
-        addon: "traffic_flow",
-      },
     ],
   },
   {
@@ -279,7 +258,7 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
       },
       {
         id: "blocking",
-        label: "Block Websites",
+        label: "Blocking",
         icon: Ban,
         scope: "location",
         anyOf: ["isp_security.read"],
@@ -291,33 +270,26 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
         scope: "location",
         anyOf: ["isp_security.read"],
       },
-    ],
-  },
-  {
-    id: "operations",
-    label: "Operations",
-    items: [
       {
-        id: "debugging",
-        label: "Fix a Problem",
-        icon: Wifi,
+        id: "whitelist",
+        label: "Guest Allow-list",
+        icon: Shield,
         scope: "location",
-        anyOf: ["isp_ops.execute"],
+        anyOf: ["isp_access.read"],
+      },
+      {
+        id: "mac-auth",
+        label: "Trusted Devices",
+        icon: Fingerprint,
+        scope: "location",
+        anyOf: ["isp_access.read"],
       },
     ],
   },
   {
-    id: "support-logs",
-    label: "Support & Logs",
+    id: "logs",
+    label: "Logs",
     items: [
-      // ISP -> Wyfy tickets (ADDENDUM_04 "Changed"): the ISP is the requester.
-      {
-        id: "tickets",
-        label: "Support Tickets",
-        icon: LifeBuoy,
-        scope: "isp",
-        anyOf: ["isp_support.read"],
-      },
       // What ISP staff did, across customers; owner/admin (isp_partner.assign).
       {
         id: "admin-logs",
@@ -334,8 +306,37 @@ export const PARTNER_CUSTOMER_NAV_GROUPS: readonly PartnerNavGroup[] = [
         anyOf: ["isp_logs.read"],
       },
       { id: "netlogs", label: "NetLogs", icon: Logs, scope: "customer", anyOf: ["isp_logs.read"] },
+    ],
+  },
+  {
+    id: "help",
+    label: "Help",
+    items: [
+      // ISP -> Wyfy tickets (ADDENDUM_04 "Changed"): the ISP is the requester.
+      {
+        id: "tickets",
+        label: "Support Tickets",
+        icon: LifeBuoy,
+        scope: "isp",
+        anyOf: ["isp_support.read"],
+      },
       // ISP docs, not the venue help page. No grant needed.
       { id: "how-it-works", label: "How It Works", icon: HelpCircle, scope: "isp", anyOf: [] },
+    ],
+  },
+  {
+    id: "account",
+    label: "Account",
+    items: [
+      // Customers have no users (founder rule): Staff Access is the ISP's own
+      // staff, with per-customer confinement (ADDENDUM_04 "Changed").
+      {
+        id: "agents",
+        label: "Staff Access",
+        icon: Bot,
+        scope: "isp",
+        anyOf: ["isp_partner.assign"],
+      },
     ],
   },
 ];

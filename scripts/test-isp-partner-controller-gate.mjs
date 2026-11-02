@@ -47,8 +47,15 @@ await build({
 const { controllerGateFor } = await import(outfile);
 let failures = 0;
 const cases = [
-  ["whitelist", ["aruba_instant_on"], true],
-  ["mac-auth", ["aruba_instant_on", "aruba_instant_on"], true],
+  // main (src/lib/router-vendors.ts, owner decision): Guest Allow-list and
+  // Trusted Devices WORK at an Aruba Instant On venue (portal sign-in + RADIUS
+  // on the AP-reported MAC), so they are NOT gated there any more; Internet
+  // Connection is. The partner gate delegates to the same helper, so it
+  // follows main rather than keeping the older integ expectation.
+  ["whitelist", ["aruba_instant_on"], false],
+  ["mac-auth", ["aruba_instant_on", "aruba_instant_on"], false],
+  ["isp-details", ["aruba_instant_on"], true],
+  ["isp-details", ["tplink_omada"], false],
   ["whitelist", ["tplink_omada"], false],
   ["mac-auth", ["tplink_omada"], false],
   ["whitelist", ["aruba_instant_on", "mikrotik"], false],

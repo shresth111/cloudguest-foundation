@@ -64,6 +64,7 @@ const PAGES = {
       ["data-consumption", "realDataConsumption"],
       ["data-by-location", "realDataByLocation"],
       ["otp-delivery", "realOtpRequests"],
+      ["sms-daywise", "realDailySmsOtpConsumption"],
     ].map(([id, fn]) => [
       `reports:${id}`,
       [{ file: "src/components/features/UserReports.tsx", exportName: fn }],
@@ -99,6 +100,10 @@ const NOT_FROM_THESE_PAGES = new Map([
     "getFeatureData 'admin-logs' case; MacAuthView passes 'mac-auth'",
   ],
   ["get /audit/entries", "getFeatureData 'admin-logs' case; MacAuthView passes 'mac-auth'"],
+  [
+    `post /locations/${UUID}/ssid-tiers/instant-on-sync`,
+    "Instant On push: GLOBAL network_integrations.update (a Master action); refused for customers too, so not twinned (fails closed)",
+  ],
 ]);
 
 /** Calls built from a variable base, expanded to every concrete path. */

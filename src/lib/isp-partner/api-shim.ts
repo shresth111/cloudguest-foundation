@@ -179,6 +179,16 @@ const VENUE_PREFIXES: readonly RegExp[] = [
   /^\/marketing(\/|$)/,
   // The pinned customer's own entitlements (unlocks add-on screens).
   /^\/me\/entitlements$/,
+  // MAIN-SYNC: what main's customer pages call since integ forked (backend
+  // twins_mainsync.py), plus two B4 twin families IspDetailsView now reaches.
+  // The Instant On push (`.../ssid-tiers/instant-on-sync`) is a Master action
+  // and stays untwinned (fails closed).
+  /^\/network-integrations\/locations\/[0-9a-fA-F-]{36}\/speed-control$/,
+  /^\/locations\/[0-9a-fA-F-]{36}\/ssid-tiers$/,
+  /^\/hotspot-profiles(\/|$)/,
+  /^\/routers\/[0-9a-fA-F-]{36}\/device-interfaces$/,
+  /^\/network-diagnostics(\/|$)/,
+  /^\/content-filter-rules(\/|$)/,
 ];
 
 /**
