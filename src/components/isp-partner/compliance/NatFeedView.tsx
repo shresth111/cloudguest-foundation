@@ -31,7 +31,7 @@ const FEED_HELP: Record<NatFeedState, string> = {
   not_configured: "Flow export has not been applied on this router yet.",
   router_offline: "The router is offline; its NAT feed resumes when it reconnects.",
   not_applicable:
-    "This venue is run through its vendor controller (Omada or Aruba Instant On). NAT logs for it are kept on that equipment, not sent here.",
+    "This venue is run through its vendor controller (Omada or Aruba Instant On). That equipment does not send NAT logs here, so this console holds none for it.",
 };
 
 export function NatFeedView() {
