@@ -129,7 +129,12 @@ import {
   minutesSince,
   stateIsControllerManaged,
 } from "@/lib/location-liveness";
-import { controllerRouterDeviceWriteReason, routerVendorLabel } from "@/lib/router-vendors";
+import {
+  controllerRouterDeviceWriteReason,
+  isNasOnlyVendor,
+  routerVendorLabel,
+} from "@/lib/router-vendors";
+import { ArubaVenueStatusCard, ArubaWifiHelp } from "@/components/customer/ArubaFixAProblem";
 import { useClientControls } from "@/hooks/useClientControls";
 import { disconnectOutcome } from "@/lib/omada-client-controls";
 import { liveSessionActionGate } from "@/lib/live-session-actions";
@@ -534,6 +539,26 @@ export function FixAProblem({
       <div className="wy-console space-y-5">
         <PageHeading demo={demo} scope={scope} />
         <LoadingSkeleton rows={6} />
+      </div>
+    );
+  }
+
+  // Aruba Instant On: no router or controller reading exists to give a verdict
+  // on, so lead with guest activity, then the lookup, then what to try.
+  if (router && isNasOnlyVendor(router.vendor)) {
+    return (
+      <div className="wy-console space-y-5">
+        <PageHeading demo={demo} scope={scope} />
+        <ArubaVenueStatusCard locationId={locationId} guestsOnline={guestsOnline} />
+        <ZoneBGuestLookup
+          demo={demo}
+          masked={masked}
+          locationId={locationId}
+          sessions={sessions}
+          venueStatus={venue.status}
+          onSessionReset={reload}
+        />
+        <ArubaWifiHelp />
       </div>
     );
   }
