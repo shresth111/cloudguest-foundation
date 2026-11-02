@@ -17,7 +17,8 @@
  *     schema forbids unknown keys and mints a missing serial/MAC), MAC
  *     normalised, and never sent together with `router`;
  *   - the same field rules as that dialog, plus the static-IP question, whose
- *     "No" warns and offers the MikroTik path but does not block;
+ *     "No" points at the shared Aruba listener (no static IP needed since
+ *     1912/1913) and neither blocks nor offers a MikroTik detour;
  *   - no Omada onboard call, and no second request of any kind;
  *   - the result names the Aruba row and links to its Instant On setup panel
  *     (`/master/routers?advanced=<routerId>`), as Router Fleet does;
@@ -404,58 +405,51 @@ console.log("\n2. Validation: the Add Instant On site rules, plus the static-IP 
 }
 
 // ---------------------------------------------------------------------------
-console.log("\n3. No static IP: a clear warning, a way back to MikroTik, but not a block");
+console.log("\n3. No static IP: points at the shared listener, no MikroTik detour, no block");
 {
   const page = await openAndFillCustomer();
   await fillAruba(page);
   await staticNo(page).click();
-  const warning = dialog(page).getByTestId("instant-on-no-static-ip");
-  check("the warning appears", (await warning.count()) === 1);
-  const w = (await warning.count()) ? await warning.innerText() : "";
+  const note = dialog(page).getByTestId("instant-on-no-static-ip");
+  check("the note appears", (await note.count()) === 1);
+  const w = (await note.count()) ? await note.innerText() : "";
   check(
-    "it says Aruba will not work without one, and why",
-    w.includes("will not work at this venue without a static public IP") && w.includes("RADIUS"),
+    "it says no static IP is fine and names the shared listener",
+    w.includes("No static IP is fine") && w.includes("Use the shared listener for this venue"),
     w,
   );
-  check("it names the MikroTik gateway path", w.includes("MikroTik gateway"));
+  check("it asks for the AP MAC", w.includes("AP MAC"), w);
+  check(
+    "it no longer says Aruba will not work",
+    !w.includes("will not work") && !w.includes("MikroTik"),
+    w,
+  );
+  check(
+    "no MikroTik switch button",
+    (await dialog(page).getByRole("button", { name: "Use a MikroTik gateway instead" }).count()) ===
+      0,
+  );
   await staticYes(page).click();
-  check("answering Yes removes it", (await warning.count()) === 0);
+  check("answering Yes removes it", (await note.count()) === 0);
   await staticNo(page).click();
 
-  // "No" does not block: Continue goes on, and Review repeats the warning.
+  // "No" does not block: Continue goes on, and Review repeats the advice.
   await finishToReview(page);
+  const review = await text(page);
   check(
-    "Review repeats the no-static-IP warning",
-    (await dialog(page).getByTestId("review-no-static-ip").count()) === 1,
+    "Review repeats the shared-listener advice",
+    (await dialog(page).getByTestId("review-no-static-ip").count()) === 1 &&
+      review.includes("shared Aruba listener") &&
+      !review.includes("cannot authenticate"),
+    review.slice(0, 900),
   );
   check("...and still lets the operator provision", await provisionButton(page).isEnabled());
-
-  // Back to Device: the switch button takes the MikroTik path.
-  for (let i = 0; i < 3; i += 1) {
-    await dialog(page).getByRole("button", { name: /Back/ }).click();
-  }
-  await dialog(page).getByText("First device").waitFor();
-  await dialog(page).getByRole("button", { name: "Use a MikroTik gateway instead" }).click();
-  check(
-    "the switch selects MikroTik and shows its fields",
-    (await dialog(page)
-      .getByRole("button", { name: /MikroTik router/ })
-      .getAttribute("aria-pressed")) === "true" &&
-      (await dialog(page).getByPlaceholder("Lobby Router").count()) === 1,
-  );
-  await dialog(page).getByPlaceholder("Lobby Router").fill("Gateway 1");
-  await dialog(page).getByRole("combobox").filter({ hasText: "Select or type a model" }).click();
-  await page.getByPlaceholder("Search models, or type a model not listed...").fill("RB5009");
-  await page.getByRole("option", { name: 'Use "RB5009"' }).click();
-  await field(page, "Serial number").fill("SN0009");
-  await field(page, "MAC address").fill("AA:BB:CC:DD:EE:09");
-  await finishToReview(page);
   await provisionButton(page).click();
   await dialog(page).getByText("Location provisioned").waitFor();
   const [prov] = provisions();
   check(
-    "after switching, the provision carries the router and NO instant_on_site",
-    prov?.body.router?.name === "Gateway 1" && !("instant_on_site" in (prov?.body ?? {})),
+    "the provision carries the Instant On site and NO router",
+    "instant_on_site" in (prov?.body ?? {}) && !("router" in (prov?.body ?? {})),
     JSON.stringify(Object.keys(prov?.body ?? {})),
   );
   await page.close();

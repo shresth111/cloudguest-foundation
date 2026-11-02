@@ -208,10 +208,13 @@ export function buildProvisionInstantOnSite(fields: InstantOnSiteFields): Record
   return body;
 }
 
-/** Why the static-IP question is asked, and what "No" means. Aruba Instant On
- * sends RADIUS from the venue's public address, and the hub authenticates a
- * NAS by that address -- a dynamic one breaks guest sign-in the next time it
- * changes. The fix for such a venue is a MikroTik gateway in front of the
- * APs, which is then the NAS. */
-export const ARUBA_NO_STATIC_IP_WARNING =
-  "Aruba Instant On needs a static public IP: the access points send RADIUS from the venue's public address, and the RADIUS hub only accepts a registered one. With a dynamic IP, guest sign-in stops working the next time the address changes. For this venue, put a MikroTik gateway in front of the access points and onboard the MikroTik instead — the APs then need no row of their own.";
+/** What "No / not sure" to the static-IP question means now. Since the shared
+ * Aruba listener (UDP 1912/1913, cloud-guest `aruba_shared`) the hub knows an
+ * Instant On venue by NAS-Identifier + AP MAC from inside each packet, not by
+ * its source address, so a dynamic IP, dual WAN or failover does not break
+ * guest sign-in. The old copy said Aruba "will not work" without a static IP
+ * and pushed operators to a MikroTik gateway; that was true only of the
+ * address-keyed (1812) path. The answer is still recorded on screen; it does
+ * not change what is sent. */
+export const ARUBA_NO_STATIC_IP_NOTE =
+  "In the Instant On setup panel, choose “Use the shared listener for this venue”: the RADIUS hub then recognises the venue by its NAS-Identifier and the access point’s MAC, not by its IP, so sign-in keeps working when the address changes. Enter the AP MAC above — a blank one is replaced by a made-up MAC and every sign-in is refused.";

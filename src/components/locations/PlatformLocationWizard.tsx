@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Info,
   Loader2,
   MapPin,
   RotateCcw,
@@ -57,7 +58,7 @@ import { locationService } from "@/services/location.service";
 import { useProvisionLocation } from "@/hooks/useLocations";
 import { routerKeys, useOnboardController } from "@/hooks/useRouters";
 import {
-  ARUBA_NO_STATIC_IP_WARNING,
+  ARUBA_NO_STATIC_IP_NOTE,
   EMPTY_INSTANT_ON_SITE_FIELDS,
   buildProvisionInstantOnSite,
   validateInstantOnSiteFields,
@@ -789,7 +790,7 @@ function instantOnErrors(d: InstantOnDraft): Record<string, string> {
     if (v) e[`instantOn.${k}`] = v;
   }
   if (!d.staticIp)
-    e["instantOn.staticIp"] = "Answer this — it decides whether Aruba can work here.";
+    e["instantOn.staticIp"] = "Answer this — it is shown on Review and decides the setup advice.";
   return e;
 }
 
@@ -1247,12 +1248,7 @@ function RouterStep({
       {device === "tplink_omada" ? (
         <ControllerFields state={controller} setState={setController} errors={errors} />
       ) : device === "aruba_instant_on" ? (
-        <InstantOnFields
-          state={instantOn}
-          setState={setInstantOn}
-          errors={errors}
-          onSwitchToMikrotik={() => setDevice("mikrotik")}
-        />
+        <InstantOnFields state={instantOn} setState={setInstantOn} errors={errors} />
       ) : (
         <MikrotikFields state={state} setState={setState} errors={errors} />
       )}
@@ -1263,20 +1259,18 @@ function RouterStep({
 /**
  * Aruba Instant On: the same fields as Router Fleet's "Add Instant On site"
  * (name, optional AP serial / MAC, optional Instant On site name / id), and
- * the Wave 2 static-IP question. "No" does not block -- the operator may be
- * about to get one -- but says plainly that Aruba will not work without it
- * and offers the MikroTik path, which is what such a venue needs.
+ * the Wave 2 static-IP question. "No" does not block and needs no MikroTik:
+ * the shared Aruba listener works without a static IP, so "No" points the
+ * operator at it (ARUBA_NO_STATIC_IP_NOTE).
  */
 function InstantOnFields({
   state,
   setState,
   errors,
-  onSwitchToMikrotik,
 }: {
   state: InstantOnDraft;
   setState: (v: InstantOnDraft) => void;
   errors: Record<string, string>;
-  onSwitchToMikrotik: () => void;
 }) {
   const upd = <K extends keyof InstantOnDraft>(k: K, v: InstantOnDraft[K]) =>
     setState({ ...state, [k]: v });
@@ -1285,7 +1279,7 @@ function InstantOnFields({
       <p className="text-xs text-muted-foreground md:col-span-2">
         One Instant On site becomes one fleet row at this new location. Nothing is sent to the
         access points or the RADIUS hub now: after the customer is created, the Instant On setup
-        panel is where you register the venue&apos;s public IP.
+        panel is where you connect the venue to the hub (the shared Aruba listener).
       </p>
       <ControllerInput
         id="instant-on-name"
@@ -1358,19 +1352,14 @@ function InstantOnFields({
       )}
       {state.staticIp === "no" && (
         <div
-          role="alert"
+          role="note"
           data-testid="instant-on-no-static-ip"
-          className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 md:col-span-2"
+          className="flex gap-3 rounded-lg border border-border bg-muted/40 p-3 md:col-span-2"
         >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <div className="space-y-2 text-xs">
-            <p className="font-medium text-amber-800 dark:text-amber-300">
-              Aruba Instant On will not work at this venue without a static public IP.
-            </p>
-            <p className="text-muted-foreground">{ARUBA_NO_STATIC_IP_WARNING}</p>
-            <Button size="sm" variant="outline" onClick={onSwitchToMikrotik}>
-              Use a MikroTik gateway instead
-            </Button>
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="space-y-1 text-xs">
+            <p className="font-medium text-foreground">No static IP is fine for Aruba.</p>
+            <p className="text-muted-foreground">{ARUBA_NO_STATIC_IP_NOTE}</p>
           </div>
         </div>
       )}
@@ -1956,7 +1945,7 @@ function InstantOnOutcomePanel({
         <p className="font-medium text-emerald-700 dark:text-emerald-300">Instant On site added</p>
         <p className="text-xs text-muted-foreground">
           {result.routerName} is this venue&apos;s fleet row. Nothing has been sent to the access
-          points or the RADIUS hub yet: register the venue&apos;s public IP next.
+          points or the RADIUS hub yet: open its setup and choose the shared Aruba listener next.
         </p>
         <Link
           to="/master/routers"
@@ -2283,7 +2272,9 @@ function ReviewStep({
             />
             <SummaryRow
               label="Static public IP"
-              value={state.instantOn.staticIp === "yes" ? "Yes" : "No — Aruba needs one for RADIUS"}
+              value={
+                state.instantOn.staticIp === "yes" ? "Yes" : "No — use the shared Aruba listener"
+              }
             />
           </>
         ) : (
@@ -2313,13 +2304,9 @@ function ReviewStep({
         state.instantOn.staticIp === "no" &&
         !provisioning &&
         !failure && (
-          <p
-            className="mt-4 text-xs text-amber-700 dark:text-amber-400"
-            data-testid="review-no-static-ip"
-          >
-            This venue has no static public IP, so its Aruba access points cannot authenticate
-            guests yet. Go back to Device to switch to a MikroTik gateway, or provision now and
-            register the IP once the venue has one.
+          <p className="mt-4 text-xs text-muted-foreground" data-testid="review-no-static-ip">
+            No static public IP: after provisioning, open the Instant On setup panel and choose the
+            shared Aruba listener. Sign-in then does not depend on the venue&apos;s IP.
           </p>
         )}
       {state.device === "aruba_instant_on" && !provisioning && !failure && (

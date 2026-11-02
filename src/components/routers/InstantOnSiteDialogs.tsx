@@ -183,7 +183,7 @@ export function AddInstantOnSiteDialog({
         <p className="text-xs text-muted-foreground">
           One Instant On site is one fleet row at one location. This only records the site: nothing
           is sent to the access points or the RADIUS hub. The Instant On setup panel opens next,
-          where you register the venue&apos;s public IP.
+          where you connect the venue to the hub (the shared Aruba listener).
         </p>
 
         {loadError && (
