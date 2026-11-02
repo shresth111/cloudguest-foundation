@@ -87,7 +87,50 @@ export const STATIC_PAGES = [
   "/partner/users",
   "/partner/settings",
   "/partner/settings/integrations",
+  "/partner/collections",
+  "/partner/incidents",
+  "/partner/queued-renewals",
+  "/partner/referrals",
+  "/partner/revenue",
+  "/partner/audit-log",
 ];
+// Every page of the customer workspace, under the first customer's detail
+// page (ids from src/components/isp-partner/customer-shell/nav.ts).
+const WORKSPACE_FEATURES = [
+  "dashboard",
+  "alerts",
+  "debugging",
+  "users",
+  "teams",
+  "vouchers",
+  "reports",
+  "campaigns",
+  "marketing",
+  "portal",
+  "business-hours",
+  "devices",
+  "isp-details",
+  "traffic-lens",
+  "policies",
+  "dhcp",
+  "vlans",
+  "port-forwarding",
+  "voip",
+  "security",
+  "blocking",
+  "firewall",
+  "whitelist",
+  "mac-auth",
+  "admin-logs",
+  "network-activity",
+  "netlogs",
+  "tickets",
+  "how-it-works",
+  "agents",
+];
+// These detail pages must be reached: an account with no rows for them is a
+// coverage gap, so it fails rather than passing quietly.
+const MUST_REACH = /invoices|tr069|coupons/;
 // first row of each list -> its detail page
 const DETAIL_FROM = [
   ["/partner/customers", /^\/partner\/customers\/[0-9a-f-]{36}$/],
@@ -163,7 +206,9 @@ async function visit(page, path, results) {
   if (shape.boundary) problems.push("error boundary shown");
   if (!shape.heading && shape.textLength < 40) problems.push("blank screen");
   const shot = join(OUT, `${slug(path)}.png`);
-  await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
+  if (process.env.SMOKE_SHOTS !== "0") {
+    await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
+  }
   page.off("console", onConsole);
   page.off("pageerror", onPageError);
   page.off("response", onResponse);
@@ -198,6 +243,7 @@ if (new URL(page.url()).pathname.startsWith("/partner/login")) {
   process.exit(1);
 }
 
+let customerPath = null;
 for (const path of STATIC_PAGES) await visit(page, path, results);
 for (const [list, re, widen] of DETAIL_FROM) {
   await page.goto(`${BASE}${list}`, { waitUntil: "domcontentloaded" });
@@ -214,7 +260,24 @@ for (const [list, re, widen] of DETAIL_FROM) {
     .$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href")))
     .then((hs) => hs.find((h) => h && re.test(h.split("?")[0])));
   if (href) await visit(page, href.split("#")[0], results);
-  else results.push({ path: `${list} -> detail`, ok: true, skipped: "no rows", problems: [] });
+  else if (MUST_REACH.test(list)) {
+    results.push({ path: `${list} -> detail`, ok: false, problems: ["no row to open"] });
+    console.log(`FAIL ${list} -> detail\n    - no row to open`);
+  } else results.push({ path: `${list} -> detail`, ok: true, skipped: "no rows", problems: [] });
+  if (href && list === "/partner/customers") customerPath = href.split(/[?#]/)[0];
+}
+if (customerPath) {
+  await page.goto(`${BASE}${customerPath}`, { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
+  const location = await page
+    .$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href")))
+    .then((hs) => hs.find((h) => h && /^\/partner\/locations\/[0-9a-f-]{36}/.test(h)));
+  if (location) await visit(page, location.split(/[?#]/)[0], results);
+  const loc = location?.match(/locations\/([0-9a-f-]{36})/)?.[1];
+  for (const feature of WORKSPACE_FEATURES) {
+    const q = loc ? `?location=${loc}` : "";
+    await visit(page, `${customerPath}/${feature}${q}`, results);
+  }
 }
 
 const failed = results.filter((r) => !r.ok);
