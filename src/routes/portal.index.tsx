@@ -12,10 +12,15 @@ import { buildSessionUrl } from "@/lib/portal-session-url";
 import { isPortalConfigMissing } from "@/lib/portal-guest-errors";
 import {
   arubaLoginTarget,
+  arubaRedirectAsksForLogin,
   buildArubaLoginFields,
   isArubaInstantOnProvider,
 } from "@/lib/portal-aruba-login";
-import { recordArubaTrustedAttempt, shouldTryArubaTrustedLogin } from "@/lib/portal-aruba-trusted";
+import {
+  arubaRedirectCarriesError,
+  recordArubaTrustedAttempt,
+  shouldTryArubaTrustedLogin,
+} from "@/lib/portal-aruba-trusted";
 import { HOTSPOT_FALLBACK_PASSWORD, submitTopLevelForm } from "@/lib/portal-top-level-form";
 
 export const Route = createFileRoute("/portal/")({
@@ -47,6 +52,28 @@ function PortalLoading() {
   } = usePortalRuntime();
   const navigate = useNavigate({ from: "/portal/" });
   const queryClient = useQueryClient();
+
+  // ARUBA INSTANT ON'S `hotspotLoginUrl`. The AP redirected this load, so it
+  // is telling us this client is NOT authorized, whatever our own session row
+  // says: a platform session is created at OTP, before the AP has asked RADIUS
+  // anything, and that ask can fail. Without this, such a guest was sent to
+  // `/portal/session` ("connected") on every return, never posted to the AP,
+  // and stayed offline until a sweep ended the row (prod, 2026-11-02). The
+  // document load below cannot self-correct here as it does on RouterOS: the
+  // portal host is on the AP's allowed list, so the AP does not intercept it.
+  //
+  // Unlike MikroTik, the AP also comes back here after refusing a login. That
+  // load must not post again by itself, or a refused guest loops for ever.
+  const [arubaAskedForLogin] = useState(
+    () =>
+      isArubaInstantOnProvider(netProvider) &&
+      typeof window !== "undefined" &&
+      arubaRedirectAsksForLogin(window.location.search),
+  );
+  const [arubaRefusedLogin] = useState(
+    () => arubaAskedForLogin && arubaRedirectCarriesError(window.location.search),
+  );
+  const freshNasRedirect = !!hotspotLoginUrl || arubaAskedForLogin;
 
   // A device that already has a locally-persisted session (rehydrated
   // from sessionStorage -- see PortalRuntimeContext) normally never needs
@@ -80,7 +107,7 @@ function PortalLoading() {
   } = useQuery({
     queryKey: ["portal-active-session", routerId, deviceMac],
     queryFn: () => portalRuntimeService.checkActiveSession({ routerId, deviceMac: deviceMac! }),
-    enabled: !!deviceMac && (!session || !!hotspotLoginUrl),
+    enabled: !!deviceMac && (!session || freshNasRedirect),
     staleTime: 0,
     // Explicit, not inherited: #341 set the app-wide `retry` default to 1,
     // and this runs on the flakiest network in the product -- a guest device
@@ -215,8 +242,8 @@ function PortalLoading() {
     // Wait for the live verdict whenever this load is one the check above
     // actually runs for: a session-less device, or a fresh-NAS-redirect
     // load with a persisted session that may be stale against the NAS.
-    if (deviceMac && (hotspotLoginUrl || !session) && !liveSessionChecked) return;
-    const liveSaysDead = !!hotspotLoginUrl && liveSessionChecked && !liveSession;
+    if (deviceMac && (freshNasRedirect || !session) && !liveSessionChecked) return;
+    const liveSaysDead = freshNasRedirect && liveSessionChecked && !liveSession;
     if (liveSaysDead && session) {
       // The NAS redirected this client AND the backend reports no ACTIVE
       // session for its MAC: the persisted session is the stale half of a
@@ -270,7 +297,7 @@ function PortalLoading() {
     // guest on the "Just a moment" spinner until the 15s escape hatch
     // appeared -- a worse outcome than today for the genuinely-connected
     // case, and it still would not have opened any gate.
-    if (hasSession && !hotspotLoginUrl) {
+    if (hasSession && !freshNasRedirect) {
       window.location.assign(
         buildSessionUrl(organizationId, locationId, routerId, language, deviceMac),
       );
@@ -327,7 +354,9 @@ function PortalLoading() {
       }
     }
     const target = hasSession
-      ? "/portal/success"
+      ? arubaRefusedLogin
+        ? "/portal/failure"
+        : "/portal/success"
       : config.isOpenNow === false
         ? "/portal/closed"
         : endedSessionResult
@@ -344,7 +373,8 @@ function PortalLoading() {
     liveSessionChecked,
     endedSessionResult,
     endedSessionChecked,
-    hotspotLoginUrl,
+    freshNasRedirect,
+    arubaRefusedLogin,
     setSession,
     navigate,
     trustedCheckEnabled,
