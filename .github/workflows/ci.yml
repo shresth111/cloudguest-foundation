@@ -2725,6 +2725,14 @@ jobs:
             "campaign-edit" 17 \
             "campaign edit: all checks passed" \
             bun run test:campaign-edit
+      # Voucher session timeout on the customer form: Aruba venues only, and a
+      # MikroTik venue's form and request pinned as unchanged.
+      - name: voucher session timeout
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "voucher-session-timeout" 12 \
+            "voucher session timeout: all checks passed" \
+            bun run test:voucher-session-timeout
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \

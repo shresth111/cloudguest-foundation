@@ -30,6 +30,7 @@ export interface VoucherBatch {
   codeLength: number;
   codePrefix: string | null;
   validityMinutes: number;
+  sessionTimeoutMinutes: number | null;
   batchExpiresAt: string | null;
   maxUsesPerVoucher: number;
   dataLimitMb: number | null;
@@ -56,6 +57,8 @@ export interface CreateVoucherBatchPayload {
   codeLength: number;
   codePrefix?: string | null;
   validityMinutes: number;
+  /** Per login, Aruba Instant On venues only. */
+  sessionTimeoutMinutes?: number | null;
   batchExpiresAt?: string | null;
   maxUsesPerVoucher: number;
   dataLimitMb?: number | null;

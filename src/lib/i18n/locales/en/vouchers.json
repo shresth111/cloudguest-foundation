@@ -79,6 +79,9 @@
     "email": "Email",
     "provenance": "Device MAC and IP are recorded by the network for the most recent session that used each code. A code used more than once shows a <b>+N</b> badge and may have run on other devices. Anything a guest typed at the portal is self-reported and is not shown here.",
     "vouchersGeneratedFor_one": "{{count}} voucher generated for {{businessUnit}}",
-    "vouchersGeneratedFor_other": "{{count}} vouchers generated for {{businessUnit}}"
+    "vouchersGeneratedFor_other": "{{count}} vouchers generated for {{businessUnit}}",
+    "sessionTimeoutMin": "Session timeout (minutes, optional)",
+    "sessionTimeoutHint": "How long each login lasts. Blank means the full validity. Every login uses one of Max Uses, so raise Max Uses to allow more logins.",
+    "sessionTimeoutInvalid": "Must be between 1 minute and the validity."
   }
 }
