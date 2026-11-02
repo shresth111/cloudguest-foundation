@@ -679,6 +679,7 @@ const server = createServer((req, res) => {
          )};
          window.__policies = ${JSON.stringify(url.searchParams.get("empty") ? {} : POLICIES)};
          window.__bandwidth = ${JSON.stringify(url.searchParams.get("empty") ? [] : BANDWIDTH)};
+         window.__listFail = ${url.searchParams.get("listfail") ? "true" : "false"};
          window.__calls = [];
        </script>
        <div id=root></div><script type=module src="./bundle.js"></script>`,
@@ -951,13 +952,77 @@ console.log("\n2a-cloud. Aruba venue WITH Instant On cloud control: guest networ
   await page.close();
 }
 
-// 2a-nolist / 2a-listfail (staging #412: the scoped venue missing from the
-// account list, and a failed policy-list read) are NOT carried to main: they
-// exercised staging's own location-list fallback, which main's prefill
-// rewrite (#432) replaced. Tracked as a follow-up on the Aruba-to-main PR.
-// 2a' (staging #390: a location with nothing saved gets a "Default" row) is a
-// change to every venue's table, not an Aruba one, and is not on main yet --
-// follow-up on the Aruba-to-main PR.
+// 2a-nolist (staging #412: the scoped venue missing from the account list) is
+// NOT carried to main: main's prefill rewrite (#432) replaced that fallback.
+// ---------------------------------------------------------------------------
+console.log("\n2a-listfail. A failed policy-list read never turns the next save into a duplicate");
+// ---------------------------------------------------------------------------
+{
+  const page = await open(ARUBA, { listfail: true, wait: false });
+  await page.getByText("Couldn't load the saved limits").waitFor({ timeout: 10_000 });
+  const root = await page.locator("#root").innerText();
+  check("not 'No policies yet'", !root.includes("No policies yet"));
+  check("no Default row over an unread list", !/Office\s*Default/.test(root));
+  await page.evaluate(() => (window.__calls = []));
+  await page
+    .getByRole("button", { name: /Update policies|Save changes/ })
+    .first()
+    .evaluate((b) => b.click());
+  await page.getByText(/nothing was saved/).waitFor({ timeout: 5_000 });
+  const writes = (await page.evaluate(() => window.__calls)).filter(
+    (c) => !c.method.startsWith("GET"),
+  );
+  deq("save refused: no policy was created or written", writes, []);
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n2a'. A location with nothing saved: defaults, not 'No policies yet'");
+// ---------------------------------------------------------------------------
+{
+  const page = await open(ARUBA, { empty: true, wait: false });
+  await page.getByRole("button", { name: "Edit Office" }).waitFor({ timeout: 10_000 });
+  const root = () => page.locator("#root").innerText();
+  check("the table is not empty", !(await root()).includes("No policies yet"));
+  const row = page.getByRole("row", { name: /Office\s*Default/ });
+  check("the location's row is marked Default", (await row.count()) === 1);
+  check(
+    "the row shows what guests really get (4 hr / 30 min / No Limit / 3)",
+    /4 hr\s+30 min\s+No Limit\s+3/.test(await row.innerText()),
+    await row.innerText(),
+  );
+  check(
+    "a default row has nothing to delete",
+    (await page.getByRole("button", { name: "Delete Office" }).count()) === 0,
+  );
+  eq("session timeout opens on 4 hr", await page.locator("#st").inputValue(), "4 hr");
+  eq("devices per user opens on 3", await page.locator("#dp").inputValue(), "3");
+  eq("idle timeout opens on 30 min", await page.locator("#it").inputValue(), "30 min");
+  check(
+    "the form is not in Edit mode for a row with nothing saved",
+    (await page.getByText("Edit Guest WiFi Limits — Office").count()) === 0,
+  );
+  await page.evaluate(() => (window.__calls = []));
+  await page.getByRole("button", { name: "Update policies" }).evaluate((b) => b.click());
+  await page.getByText(/Limits saved for Office/).waitFor({ timeout: 10_000 });
+  const calls = await page.evaluate(() => window.__calls);
+  check(
+    "save creates the DEVICE and SESSION policies",
+    ["device", "session"].every((type) =>
+      calls.some(
+        (c) => c.method === "POST" && c.path === "/policies" && c.body?.policy_type === type,
+      ),
+    ),
+  );
+  await page.getByRole("button", { name: "Delete Office" }).waitFor({ timeout: 5_000 });
+  check(
+    "after the save the row is the saved one, no longer Default",
+    (await page.getByRole("row", { name: /Office\s*Default/ }).count()) === 0,
+  );
+  check("no page error", page.__errors.length === 0, page.__errors.join(" | "));
+  await page.close();
+}
+
 // ---------------------------------------------------------------------------
 console.log("\n2b. The same screen at a MikroTik venue: unchanged");
 // ---------------------------------------------------------------------------

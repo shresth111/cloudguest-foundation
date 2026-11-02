@@ -35,5 +35,13 @@
     "confirmBody": "{{network}} पर हर device {{down}} download और {{up}} upload तक सीमित रहेगा। पूरा होने की बात कहने से पहले हम Instant On से पुष्टि करेंगे।",
     "cancel": "रद्द करें",
     "confirmApply": "लागू करें"
+  },
+  "limitsTable": {
+    "subtitle": "हर location पर guests को क्या मिलता है। Default लिखी location के लिए अभी कुछ save नहीं हुआ है।",
+    "defaultBadge": "Default",
+    "defaultHint": "इस location के लिए अभी कुछ save नहीं हुआ है, इसलिए इसके guests को ये default limits मिलती हैं।",
+    "loadFailedTitle": "Save की गई limits load नहीं हो सकीं",
+    "loadFailedBody": "दोबारा कोशिश करने के लिए page reload करें। Load होने तक saving रुकी है, ताकि कुछ duplicate न हो।",
+    "saveBlocked": "Save की गई limits पढ़ी नहीं जा सकीं, इसलिए कुछ save नहीं हुआ। Reload करके दोबारा कोशिश करें।"
   }
 }

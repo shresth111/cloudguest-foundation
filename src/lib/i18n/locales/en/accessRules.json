@@ -35,5 +35,13 @@
     "confirmBody": "Every device on {{network}} will be held to {{down}} down and {{up}} up. We'll confirm with Instant On before saying it's done.",
     "cancel": "Cancel",
     "confirmApply": "Apply"
+  },
+  "limitsTable": {
+    "subtitle": "What guests get at each location. A location marked Default has nothing saved yet.",
+    "defaultBadge": "Default",
+    "defaultHint": "Nothing has been saved for this location yet, so its guests get these defaults.",
+    "loadFailedTitle": "Couldn't load the saved limits",
+    "loadFailedBody": "Reload the page to try again. Saving is paused until they load, so nothing is duplicated.",
+    "saveBlocked": "Could not read the saved limits, so nothing was saved. Reload and try again."
   }
 }
