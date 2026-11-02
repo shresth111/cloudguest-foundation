@@ -40,7 +40,7 @@ export function ArubaVenueStatusCard({
       <Panel
         title={status.title}
         actions={
-          <StatusBadge status={status.tone === "live" ? "live" : "offline"}>
+          <StatusBadge status={status.tone === "live" ? "ok" : "offline"}>
             {status.badge}
           </StatusBadge>
         }
