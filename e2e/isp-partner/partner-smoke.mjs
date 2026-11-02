@@ -87,7 +87,50 @@ export const STATIC_PAGES = [
   "/partner/users",
   "/partner/settings",
   "/partner/settings/integrations",
+  "/partner/collections",
+  "/partner/incidents",
+  "/partner/queued-renewals",
+  "/partner/referrals",
+  "/partner/revenue",
+  "/partner/audit-log",
 ];
+// Every page of the customer workspace, under the first customer's detail
+// page (ids from src/components/isp-partner/customer-shell/nav.ts).
+const WORKSPACE_FEATURES = [
+  "dashboard",
+  "alerts",
+  "debugging",
+  "users",
+  "teams",
+  "vouchers",
+  "reports",
+  "campaigns",
+  "marketing",
+  "portal",
+  "business-hours",
+  "devices",
+  "isp-details",
+  "traffic-lens",
+  "policies",
+  "dhcp",
+  "vlans",
+  "port-forwarding",
+  "voip",
+  "security",
+  "blocking",
+  "firewall",
+  "whitelist",
+  "mac-auth",
+  "admin-logs",
+  "network-activity",
+  "netlogs",
+  "tickets",
+  "how-it-works",
+  "agents",
+];
+// These detail pages must be reached: an account with no rows for them is a
+// coverage gap, so it fails rather than passing quietly.
+const MUST_REACH = /invoices|tr069|coupons/;
 // first row of each list -> its detail page
 const DETAIL_FROM = [
   ["/partner/customers", /^\/partner\/customers\/[0-9a-f-]{36}$/],
@@ -99,6 +142,12 @@ const DETAIL_FROM = [
 ];
 
 const OFF_CODE = /_(DISABLED|NOT_ENABLED)$/;
+// Honest answers about this environment, not page faults: the test stack has
+// no Cloudflare Gateway account, and a demo router that was never provisioned
+// has no device credentials. The customer pages show their own state for these.
+const ENVIRONMENT_PATH = /\/dns-filtering\/categories$/;
+const ENVIRONMENT_ANSWER =
+  /not configured on this platform yet|missing device connection credentials/i;
 
 function slug(path) {
   return (
@@ -111,6 +160,7 @@ function slug(path) {
 
 async function visit(page, path, results) {
   const problems = [];
+  const noted = [];
   const onConsole = (m) => {
     if (m.type() !== "error") return;
     const t = m.text();
@@ -125,13 +175,23 @@ async function visit(page, path, results) {
     pending.push(
       (async () => {
         let code = "";
+        let message = "";
         try {
-          code = (await r.json())?.data?.code ?? "";
+          const body = await r.json();
+          code = body?.data?.code ?? "";
+          message = body?.message ?? "";
         } catch {
           /* not json */
         }
         if (r.status() < 500 && OFF_CODE.test(code)) return;
-        problems.push(`http ${r.status()} ${r.request().method()} ${u.pathname} ${code}`.trim());
+        // The body can be gone if the page moved on; this path has one known answer.
+        if (ENVIRONMENT_ANSWER.test(message) || (!message && ENVIRONMENT_PATH.test(u.pathname))) {
+          noted.push(`${r.status()} ${u.pathname}: ${message.slice(0, 80)}`);
+          return;
+        }
+        problems.push(
+          `http ${r.status()} ${r.request().method()} ${u.pathname} ${code} ${message.slice(0, 140)}`.trim(),
+        );
       })(),
     );
   };
@@ -153,25 +213,35 @@ async function visit(page, path, results) {
     .evaluate(() => {
       const main = document.querySelector("main") || document.body;
       const text = (main.innerText || "").trim();
+      const hit = text.search(
+        /this page didn.t load|something went wrong on our end|unexpected application error/i,
+      );
+      const generic = text.search(/something went wrong/i);
       return {
         textLength: text.length,
         heading: !!main.querySelector("h1,h2,h3"),
-        boundary: /something went wrong|unexpected application error/i.test(text),
+        boundary: hit >= 0,
+        boundaryText: hit >= 0 ? text.slice(Math.max(0, hit - 60), hit + 120) : "",
+        genericError: generic >= 0 ? text.slice(Math.max(0, generic - 80), generic + 80) : "",
       };
     })
     .catch(() => ({ textLength: 0, heading: false, boundary: false }));
-  if (shape.boundary) problems.push("error boundary shown");
+  if (shape.boundary) problems.push(`error boundary shown: ${shape.boundaryText}`);
+  if (shape.genericError) noted.push(`text: ${shape.genericError.replace(/\s+/g, " ")}`);
   if (!shape.heading && shape.textLength < 40) problems.push("blank screen");
   const shot = join(OUT, `${slug(path)}.png`);
-  await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
+  if (process.env.SMOKE_SHOTS !== "0") {
+    await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
+  }
   page.off("console", onConsole);
   page.off("pageerror", onPageError);
   page.off("response", onResponse);
-  const row = { path, ok: problems.length === 0, ms: Date.now() - started, problems, shot };
+  const row = { path, ok: problems.length === 0, ms: Date.now() - started, problems, noted, shot };
   results.push(row);
   console.log(
     `${row.ok ? "PASS" : "FAIL"} ${path}${row.ok ? "" : `\n    - ${problems.join("\n    - ")}`}`,
   );
+  for (const n of noted) console.log(`    note: ${n}`);
   return row;
 }
 
@@ -198,6 +268,7 @@ if (new URL(page.url()).pathname.startsWith("/partner/login")) {
   process.exit(1);
 }
 
+let customerPath = null;
 for (const path of STATIC_PAGES) await visit(page, path, results);
 for (const [list, re, widen] of DETAIL_FROM) {
   await page.goto(`${BASE}${list}`, { waitUntil: "domcontentloaded" });
@@ -210,11 +281,43 @@ for (const [list, re, widen] of DETAIL_FROM) {
       .catch(() => {});
     await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
   }
-  const href = await page
+  let href = await page
     .$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href")))
     .then((hs) => hs.find((h) => h && re.test(h.split("?")[0])));
+  if (!href) {
+    // Some lists open the detail page from a row click, with no link.
+    const row = page.locator("tbody tr").first();
+    if (await row.count()) {
+      await row.click().catch(() => {});
+      await page.waitForURL((u) => re.test(u.pathname), { timeout: 8_000 }).catch(() => {});
+      const u = new URL(page.url());
+      if (re.test(u.pathname)) href = u.pathname;
+    }
+  }
   if (href) await visit(page, href.split("#")[0], results);
-  else results.push({ path: `${list} -> detail`, ok: true, skipped: "no rows", problems: [] });
+  else if (MUST_REACH.test(list)) {
+    results.push({ path: `${list} -> detail`, ok: false, problems: ["no row to open"] });
+    console.log(`FAIL ${list} -> detail\n    - no row to open`);
+  } else results.push({ path: `${list} -> detail`, ok: true, skipped: "no rows", problems: [] });
+  if (href && list === "/partner/customers") customerPath = href.split(/[?#]/)[0];
+}
+if (customerPath) {
+  await page.goto(`${BASE}${customerPath}`, { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
+  const location = await page
+    .$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href")))
+    .then((hs) => hs.find((h) => h && /^\/partner\/locations\/[0-9a-f-]{36}/.test(h)));
+  if (location) await visit(page, location.split(/[?#]/)[0], results);
+  const loc = location?.match(/locations\/([0-9a-f-]{36})/)?.[1];
+  for (const feature of WORKSPACE_FEATURES) {
+    const q = loc ? `?location=${loc}` : "";
+    await visit(page, `${customerPath}/${feature}${q}`, results);
+  }
+  // SMOKE_REPEAT=blocking:5 re-opens one workspace page, to catch a flaky fault.
+  const [again, times] = (process.env.SMOKE_REPEAT || ":0").split(":");
+  for (let i = 0; i < Number(times); i++) {
+    await visit(page, `${customerPath}/${again}${loc ? `?location=${loc}` : ""}`, results);
+  }
 }
 
 const failed = results.filter((r) => !r.ok);
