@@ -257,6 +257,17 @@
       "snmp": "SNMP"
     },
     "title": "Device health & port traffic",
-    "via": "via {{source}}"
+    "via": "via {{source}}",
+    "apHealthTitle": "Access point health",
+    "apHealthDescription": "Aruba Instant On access points report their health and traffic in the Instant On app. Wyfy sees the guests signing in through them."
+  },
+  "arubaAp": {
+    "title": "Online guests by access point",
+    "description": "From guest sign-ins at this venue. Devices that are not signed in to the guest WiFi are listed in the Instant On app.",
+    "colAp": "Access point",
+    "colStatus": "Status",
+    "colGuests": "Guests online",
+    "colSignIns": "Sign-ins today",
+    "colData": "Data today"
   }
 }

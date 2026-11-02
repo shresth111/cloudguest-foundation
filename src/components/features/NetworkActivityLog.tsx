@@ -1,4 +1,7 @@
 import { ShieldAlert } from "lucide-react";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { useCustomerStore } from "@/stores/customerStore";
+import { ARUBA_CONNECTION_RECORDS_NOTE } from "@/lib/aruba-reports";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { Callout, PageHeader, type PageScope } from "@/components/customer/console";
@@ -54,6 +57,8 @@ export default function NetworkActivityLog({
   // data, and a UI guard alone is bypassable by a direct URL hit.
   const role = getCustomerLoginRole();
   const owner = role === "owner";
+  // The Aruba Instant On wording, for the active venue only.
+  const nasOnly = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
 
   // One console header (the icon tile and the second, h2 title are gone).
   // Copy is the spec's own recommended wording (§5): describes what this
@@ -100,13 +105,23 @@ export default function NetworkActivityLog({
               {t("networkActivity.noteMore", "More")}
             </span>
           </summary>
-          <p className="mt-1.5 text-[var(--wy-text-muted)]">
-            This shows session-level connection and login records, not destination-level traffic
-            (what site a guest visited). Private IP is the guest&apos;s address on your WiFi; venue
-            public IP is your router&apos;s routable WAN address (shared NAT egress), shown only
-            when the router reports a real public address — not a LAN/CGNAT interface. The platform
-            does not currently guarantee a specific data-retention period for these records.
-          </p>
+          {nasOnly ? (
+            <p
+              className="mt-1.5 text-[var(--wy-text-muted)]"
+              data-testid="aruba-connection-records-note"
+            >
+              {ARUBA_CONNECTION_RECORDS_NOTE}
+            </p>
+          ) : (
+            <p className="mt-1.5 text-[var(--wy-text-muted)]">
+              This shows session-level connection and login records, not destination-level traffic
+              (what site a guest visited). Private IP is the guest&apos;s address on your WiFi;
+              venue public IP is your router&apos;s routable WAN address (shared NAT egress), shown
+              only when the router reports a real public address — not a LAN/CGNAT interface. The
+              platform does not currently guarantee a specific data-retention period for these
+              records.
+            </p>
+          )}
         </details>
       </Callout>
       <ReportPanel

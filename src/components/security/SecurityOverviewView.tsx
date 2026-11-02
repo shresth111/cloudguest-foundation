@@ -1,4 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { useCustomerStore } from "@/stores/customerStore";
+import { ARUBA_SECURITY_EMPTY } from "@/lib/aruba-reports";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import type { ReactNode } from "react";
@@ -367,6 +370,7 @@ export function SecurityOverviewView({ scope }: { scope?: PageScope } = {}) {
   const { t } = useTranslation("nav", { i18n });
   const overviewQuery = useSecurityOverview();
   const capabilitiesQuery = useSecurityCapabilities();
+  const nasOnlyVenue = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
 
   const header = (
     <PageHeader
@@ -390,7 +394,14 @@ export function SecurityOverviewView({ scope }: { scope?: PageScope } = {}) {
       />
     );
   } else if (overviewQuery.data.fleet.noManagedGateway) {
-    body = (
+    // At an Aruba Instant On venue there is no gateway to connect, so "once one
+    // is connected" would send the owner looking for one.
+    body = nasOnlyVenue ? (
+      <EmptyState
+        title={ARUBA_SECURITY_EMPTY.title}
+        description={ARUBA_SECURITY_EMPTY.description}
+      />
+    ) : (
       <EmptyState
         title="No gateway is connected yet"
         description="Security features apply to gateways this platform manages. Once one is connected and reporting, this page fills in on its own."

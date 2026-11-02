@@ -10,6 +10,8 @@
  * in for a failed read (see `lib/aruba-access-points.ts`). Customer copy names
  * the Instant On app only -- never RADIUS, NAS or a tunnel.
  */
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { ArrowDownUp, ChevronDown, Info, Radio, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -137,6 +139,7 @@ function StatTile({ icon, value, label }: { icon: ReactNode; value: string; labe
  * liveness explainer, which said the same sentence twice above it.
  */
 function InstantOnManagedNote() {
+  const { t } = useTranslation("dashboard", { i18n });
   return (
     <details
       className="group rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5 text-xs"
@@ -148,7 +151,7 @@ function InstantOnManagedNote() {
           <span>{ARUBA_AP_MANAGE_NOTE}</span>
         </span>
         <span className="inline-flex shrink-0 items-center gap-1 font-medium text-[var(--wy-accent)]">
-          What's managed where
+          {t("aruba.managedWhere", "What's managed where")}
           <ChevronDown
             aria-hidden
             className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
@@ -157,7 +160,9 @@ function InstantOnManagedNote() {
       </summary>
       <div className="mt-3 grid grid-cols-1 gap-3 border-t border-border/60 pt-3 sm:grid-cols-2">
         <div>
-          <p className="mb-1 font-medium text-foreground">Here, in Wyfy</p>
+          <p className="mb-1 font-medium text-foreground">
+            {t("aruba.hereInWyfy", "Here, in Wyfy")}
+          </p>
           <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
             {ARUBA_VENUE_IN_WYFY.map((x) => (
               <li key={x}>{x}</li>
@@ -165,7 +170,9 @@ function InstantOnManagedNote() {
           </ul>
         </div>
         <div>
-          <p className="mb-1 font-medium text-foreground">In the Instant On app</p>
+          <p className="mb-1 font-medium text-foreground">
+            {t("aruba.inInstantOnApp", "In the Instant On app")}
+          </p>
           <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
             {ARUBA_VENUE_IN_INSTANT_ON.map((x) => (
               <li key={x}>{x}</li>
@@ -178,6 +185,7 @@ function InstantOnManagedNote() {
 }
 
 export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
+  const { t } = useTranslation("dashboard", { i18n });
   const state = useArubaAccessPoints(locationId);
   return (
     // Same shell and header as the Recent Users / Recent Alerts cards beside
@@ -191,10 +199,10 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
           <Radio aria-hidden className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold">Access points</h3>
+          <h3 className="text-sm font-semibold">{t("aruba.accessPoints", "Access points")}</h3>
           {state.status === "ok" && state.items.length > 0 && (
             <p className="text-xs text-muted-foreground" data-testid="aruba-ap-count">
-              {state.items.length} {state.items.length === 1 ? "access point" : "access points"}
+              {t("aruba.apCount", { count: state.items.length })}
             </p>
           )}
         </div>
@@ -276,7 +284,7 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
                     <StatTile
                       icon={<ArrowDownUp className="h-3.5 w-3.5" />}
                       value={apDataToday(ap)}
-                      label="data today"
+                      label={t("aruba.dataToday", "data today")}
                     />
                   </div>
                 </li>
