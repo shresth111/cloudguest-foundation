@@ -2701,6 +2701,14 @@ jobs:
             "aruba-devices-page" 48 \
             "aruba devices page: all checks passed" \
             bun run test:aruba-devices-page
+      # Security Score and Guest Connection Records wording at an Aruba Instant
+      # On venue, with MikroTik and Omada pinned as unchanged.
+      - name: aruba security and records copy
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-p2-copy" 22 \
+            "aruba p2 copy: all checks passed" \
+            bun run test:aruba-p2-copy
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \
