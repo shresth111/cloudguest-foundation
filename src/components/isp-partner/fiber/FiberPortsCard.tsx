@@ -9,6 +9,7 @@ import { useFiberMutation, useFiberPorts } from "@/hooks/isp-partner/useFiber";
 import { useSubscribers } from "@/hooks/isp-partner/usePlans";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { kindLabel, portSummary } from "@/lib/isp-partner/fiber";
 import { fiberService } from "@/services/isp-partner/fiber";
 import type { FiberNodeDetail } from "@/services/isp-partner/fiber-types";
@@ -83,7 +84,7 @@ export function FiberPortsCard({
                         await release.mutateAsync(p.port_no);
                         toast.success(`Port ${p.port_no} freed.`);
                       } catch (e) {
-                        toast.error(ispErrorMessage(e));
+                        ispToastError(e);
                       }
                     }}
                   >

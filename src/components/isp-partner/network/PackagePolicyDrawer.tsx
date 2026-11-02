@@ -15,7 +15,8 @@ import { GroupDrawer } from "@/components/isp-partner/plans/SpeedGroupsTab";
 import { PolicyFields } from "@/components/isp-partner/network/PolicyFields";
 import { useSpeedGroups } from "@/hooks/isp-partner/usePlans";
 import { usePackagePolicy, useSavePackagePolicy } from "@/hooks/isp-partner/useNetwork";
-import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
+import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispFormErrors } from "@/lib/isp-partner/form-errors";
 import { formToPolicyBody, policyToForm, type PolicyForm } from "@/lib/isp-partner/network";
 import type { IspPackage } from "@/services/isp-partner/plans-types";
 
@@ -64,8 +65,9 @@ export function PackagePolicyDrawer({
       toast.success("Network rules saved.");
       onClose();
     } catch (err) {
-      setErrors(ispFieldErrors(err) as Partial<Record<keyof PolicyForm, string>>);
-      setError(ispErrorMessage(err, "Could not save the network rules."));
+      const fe = ispFormErrors(err, { known: Object.keys(form) });
+      setErrors(fe.fields as Partial<Record<keyof PolicyForm, string>>);
+      setError(fe.form ?? ispErrorMessage(err, "Could not save the network rules."));
     }
   };
 

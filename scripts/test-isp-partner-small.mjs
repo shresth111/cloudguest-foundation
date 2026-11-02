@@ -119,5 +119,42 @@ console.log("SMALL-3 win-back save rate");
   has("ticket dialog reports the new id", tk, "onCreated?.(t.id);");
 }
 
+// ---------------------------------------------------------------- SMALL-4
+console.log("SMALL-4 MRR history + DSO");
+{
+  const types = src("src/services/isp-partner/revenue-types.ts");
+  has("trend row carries mrr_source", types, 'mrr_source?: "snapshot" | "live" | "billed_proxy";');
+  has("kpis carry dso_days", types, "dso_days?: number | null;");
+  const ov = src("src/components/isp-partner/revenue/RevenueOverview.tsx");
+  has("trend table has an MRR column", ov, "<MrrCell row={t} />");
+  has(
+    "billed stand-in is labelled",
+    src("src/lib/isp-partner/mrr-history.ts"),
+    'billed_proxy: "billed (no snapshot)"',
+  );
+  has("DSO line shows the BE number", ov, "formatDso(d.kpis.dso_days)");
+  has("DSO line hidden on an older BE", ov, "d.kpis.dso_days !== undefined &&");
+  has("DSO definition from the BE", ov, 'title={d.definitions.dso ?? ""}');
+  has("empty DSO is a dash", src("src/lib/isp-partner/mrr-history.ts"), '? "–"');
+}
+
+// ---------------------------------------------------------------- SMALL-5
+console.log("SMALL-5 auto incidents");
+{
+  const svc = src("src/services/isp-partner/incident-auto.ts");
+  has("own prefix (never /incidents/{id})", svc, 'const BASE = "/isp/incident-auto";');
+  const card = src("src/components/isp-partner/incidents/AutoIncidentsCard.tsx");
+  has("card hides while the flag 404s", card, "if (q.isError || !q.data) return null;");
+  has("only incidents.manage edits", card, 'can("isp_incidents.manage")');
+  has("says auto-resolved get no automatic grace", card, "never get automatic grace");
+  has("says controller venues are skipped", card, "vendor controller are skipped");
+  const lib = src("src/lib/isp-partner/incident-auto.ts");
+  has("minutes validated 1..240 like the BE", lib, "n < 1 || n > 240");
+  const page = src("src/components/isp-partner/incidents/IncidentsPage.tsx");
+  has("card on the incidents page", page, "<AutoIncidentsCard />");
+  has("Auto tag on auto-opened rows", page, '<MTag label="Auto" tone="info" />');
+  lacks("no tunnel wording", card, "WireGuard");
+}
+
 console.log(`\n${checks - failures}/${checks} checks passed`);
 if (failures) process.exit(1);

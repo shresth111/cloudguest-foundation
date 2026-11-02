@@ -2,14 +2,13 @@
  * assignee picker, query keys. */
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { FileDown } from "lucide-react";
 import { MButton, MTag, M_INPUT } from "@/components/master/MasterKit";
 import { Spinner } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { ispService } from "@/services/isp-partner/isp";
 import { saveBlob } from "@/lib/isp-partner/download";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { label, tone } from "@/lib/isp-partner/apps";
 import type { FileDownload } from "@/services/isp-partner/isp";
 
@@ -43,7 +42,7 @@ export function CsvButton({
           const f = await run();
           saveBlob(f.blob, f.filename);
         } catch (e) {
-          toast.error(ispErrorMessage(e, "The export failed."));
+          ispToastError(e, "The export failed.");
         } finally {
           setBusy(false);
         }

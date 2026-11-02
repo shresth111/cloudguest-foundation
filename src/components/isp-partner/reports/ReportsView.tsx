@@ -4,7 +4,6 @@
  * Null availability renders "Not measured yet", never 0 %.
  */
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 import { Download, FileBarChart } from "lucide-react";
 import { MButton, MEmptyState, MStat, MTable, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import {
@@ -19,7 +18,7 @@ import { saveBlob } from "@/lib/isp-partner/download";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspCustomerOptions, useIspReport } from "@/hooks/isp-partner/useIsp";
 import { ispService } from "@/services/isp-partner/isp";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatBytes, formatNumber, isoDay } from "@/lib/isp-partner/format";
 import type {
   IspReportQuery,
@@ -118,7 +117,7 @@ export function ReportsView({ fixedCustomerId }: { fixedCustomerId?: string }) {
       const { blob, filename } = await ispService.exportReport(format, section, query);
       saveBlob(blob, filename);
     } catch (err) {
-      toast.error(ispErrorMessage(err, "The export failed."));
+      ispToastError(err, "The export failed.");
     } finally {
       setBusy(null);
     }

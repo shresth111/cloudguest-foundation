@@ -5,7 +5,6 @@
  */
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { Download, ScrollText } from "lucide-react";
 import {
   MButton,
@@ -24,7 +23,8 @@ import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { detailText, ipText, rangeError } from "@/lib/isp-partner/audit-log";
 import { saveBlob } from "@/lib/isp-partner/download";
-import { ispErrorMessage, isNotFound } from "@/lib/isp-partner/errors";
+import { isNotFound } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDateTime, roleLabel } from "@/lib/isp-partner/format";
 import {
   auditLogService,
@@ -84,7 +84,7 @@ export function AuditLogPage() {
       const f = await auditLogService.exportCsv(query);
       saveBlob(f.blob, f.filename);
     } catch (e) {
-      toast.error(ispErrorMessage(e, "Could not export."));
+      ispToastError(e, "Could not export.");
     }
   };
   return (

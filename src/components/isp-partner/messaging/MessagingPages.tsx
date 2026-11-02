@@ -22,6 +22,7 @@ import type { PartnerSlotProps } from "@/components/isp-partner/customer-shell/s
 import { setShimLocallyDenied } from "@/lib/isp-partner/api-shim";
 import { isNetworkHost } from "@/lib/isp-partner/network-host";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import {
   buildProviderPut,
   initialProviderValues,
@@ -230,7 +231,7 @@ function IspSenders() {
       toast.success("Sender copied to every customer that uses yours.");
       qc.invalidateQueries({ queryKey: [...K, "providers"] });
     },
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => ispToastError(e),
   });
   const manage = can("isp_engage.manage");
   return (
@@ -287,7 +288,7 @@ function OverrideSwitch() {
   const set = useMutation({
     mutationFn: (v: boolean) => svc.setOverride(v),
     onSuccess: () => qc.invalidateQueries({ queryKey: K }),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => ispToastError(e),
   });
   if (!q.data) return null;
   return (
@@ -339,7 +340,7 @@ function CustomerSenderCard({ customerId }: { customerId: string }) {
   const set = useMutation({
     mutationFn: (own: boolean) => svc.setCustomerSender(customerId, own),
     onSuccess: () => qc.invalidateQueries({ queryKey: [...K, "customer", customerId] }),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => ispToastError(e),
   });
   if (!q.data) return null;
   const own = q.data.own_sender;

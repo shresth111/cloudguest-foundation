@@ -24,6 +24,7 @@ import {
 } from "@/lib/isp-partner/collections";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDate, formatDateTime, isoDay } from "@/lib/isp-partner/format";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
 import { collectionsService } from "@/services/isp-partner/collections";
@@ -317,7 +318,7 @@ function CashForm({ party, overduePaise }: { party: PartyRef; overduePaise: numb
       const f = await collectionsService.slip(done.payment.id, done.payment.receipt_number, width);
       saveBlob(f.blob, f.filename);
     } catch (err) {
-      toast.error(ispErrorMessage(err, "Could not make the slip."));
+      ispToastError(err, "Could not make the slip.");
     }
   };
   if (done) {

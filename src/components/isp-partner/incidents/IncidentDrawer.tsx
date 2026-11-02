@@ -21,6 +21,7 @@ import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIncident, useIncidentsMutation } from "@/hooks/isp-partner/useIncidents";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { formatDateTime } from "@/lib/isp-partner/format";
 import {
   EVENT_LABEL,
@@ -217,7 +218,7 @@ function BroadcastCard({ d }: { d: IncidentDetail }) {
       const f = await incidentsService.affectedCsv(d.id, d.code);
       saveBlob(f.blob, f.filename);
     } catch (err) {
-      toast.error(ispErrorMessage(err, "Could not download the list."));
+      ispToastError(err, "Could not download the list.");
     }
   };
   return (

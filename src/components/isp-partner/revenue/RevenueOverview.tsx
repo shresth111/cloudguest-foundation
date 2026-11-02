@@ -21,7 +21,28 @@ import {
   kpiTiles,
   monthLabel,
 } from "@/lib/isp-partner/revenue";
-import type { RevFilters, RevMetric, RevenueSummary } from "@/services/isp-partner/revenue-types";
+import { formatDso, MRR_SOURCE_NOTE } from "@/lib/isp-partner/mrr-history";
+import type {
+  RevFilters,
+  RevMetric,
+  RevTrendRow,
+  RevenueSummary,
+} from "@/services/isp-partner/revenue-types";
+
+/** SMALL-4: the month's MRR and where it came from (snapshot / today / billed stand-in). */
+function MrrCell({ row }: { row: RevTrendRow }) {
+  if (row.mrr_paise === undefined || !row.mrr_source) return <>–</>;
+  return (
+    <span title={row.snapshot_date ? `Snapshot of ${formatDate(row.snapshot_date)}` : undefined}>
+      {formatRupees(row.mrr_paise)}
+      <span
+        className={`block ${row.mrr_source === "billed_proxy" ? "italic" : ""} text-muted-foreground`}
+      >
+        {MRR_SOURCE_NOTE[row.mrr_source]}
+      </span>
+    </span>
+  );
+}
 
 function Bar({ value, max, label }: { value: number; max: number; label: string }) {
   const pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
@@ -247,6 +268,15 @@ export function RevenueOverview({
         exact definition. {listHint}
       </p>
 
+      {d.kpis.dso_days !== undefined && (
+        <p className="text-xs text-muted-foreground" title={d.definitions.dso ?? ""}>
+          Days sales outstanding (last {d.mrr_history?.dso_window_days ?? 90} days):{" "}
+          <span className="font-semibold tabular-nums text-foreground" data-testid="dso">
+            {formatDso(d.kpis.dso_days)}
+          </span>
+        </p>
+      )}
+
       <Card title="Dues ageing (days past the due date)">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {AGEING_ORDER.map((a) => {
@@ -284,6 +314,7 @@ export function RevenueOverview({
               <MTh className="text-right">Lost</MTh>
               <MTh className="text-right">Net</MTh>
               <MTh className="text-right">Churn rate</MTh>
+              <MTh className="text-right">MRR</MTh>
               <MTh className="text-right">Net billed</MTh>
               <MTh className="text-right">Collected</MTh>
               <MTh className="text-right">Collection</MTh>
@@ -310,6 +341,9 @@ export function RevenueOverview({
                 </span>
               </MTd>
               <MTd className="text-right text-xs tabular-nums">
+                <MrrCell row={t} />
+              </MTd>
+              <MTd className="text-right text-xs tabular-nums">
                 {formatRupees(t.net_billed_paise)}
               </MTd>
               <MTd className="text-right text-xs tabular-nums">
@@ -327,7 +361,7 @@ export function RevenueOverview({
           ))}
         </MTable>
         <p className="mt-2 text-xs text-muted-foreground">
-          {d.definitions.churn_rate} {d.definitions.collected}
+          {d.definitions.churn_rate} {d.definitions.collected} {d.definitions.mrr_history ?? ""}
         </p>
       </Card>
 

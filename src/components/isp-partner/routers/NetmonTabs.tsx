@@ -14,7 +14,8 @@ import { MButton, MSeg, MTable, MTag, MTd, MTh, MTr, M_INPUT } from "@/component
 import { Card, ErrorBlock, LoadingBlock, Pager, Spinner } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { retryUnless4xx } from "@/hooks/isp-partner/useIsp";
-import { ispErrorMessage, ispErrorStatus } from "@/lib/isp-partner/errors";
+import { ispErrorStatus } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { saveBlob } from "@/lib/isp-partner/download";
 import { formatBytes, formatDateTime, formatDuration } from "@/lib/isp-partner/format";
 import { REASON_LABEL, completedError, sparkPaths } from "@/lib/isp-partner/netmon";
@@ -266,7 +267,7 @@ function HistoryView() {
                 saveBlob(file.blob, file.filename);
                 toast.success("Exported. The export is recorded in the audit log.");
               } catch (e) {
-                toast.error(ispErrorMessage(e));
+                ispToastError(e);
               } finally {
                 setBusy(false);
               }

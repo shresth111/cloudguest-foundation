@@ -49,6 +49,10 @@ export interface AppError {
    * rate-limit) -- passed through untouched so a caller can surface real
    * backend state (a real cooldown) instead of inventing one client-side. */
   data?: Record<string, unknown>;
+  /** The envelope's `request_id`, for "quote this to support". */
+  requestId?: string;
+  /** axios's own code for a failure with no answer (`ECONNABORTED` = timeout). */
+  transportCode?: string;
 }
 
 export interface BackendEnvelope<T> {
@@ -91,6 +95,10 @@ export function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppErro
   const envelope = error.response?.data;
   const message = envelope?.message || error.message || "Something went wrong";
   const data = errorData(envelope?.data);
+  const requestId =
+    (typeof envelope?.request_id === "string" && envelope.request_id) ||
+    (error.response?.headers?.["x-request-id"] as string | undefined) ||
+    undefined;
 
   if (status === 422) {
     return {
@@ -99,18 +107,24 @@ export function toAppError(error: AxiosError<BackendEnvelope<unknown>>): AppErro
       message,
       fieldErrors: fieldErrorsFromValidation(envelope?.data),
       data,
+      requestId,
     };
   }
   if (status === 401) {
-    return { status, code: "unauthorized", message, data };
+    return { status, code: "unauthorized", message, data, requestId };
   }
   if (status === 403) {
-    return { status, code: "forbidden", message, data };
+    return { status, code: "forbidden", message, data, requestId };
   }
   if (status === null) {
-    return { status, code: "network_error", message: "Unable to reach the server" };
+    return {
+      status,
+      code: "network_error",
+      message: "Unable to reach the server",
+      transportCode: error.code,
+    };
   }
-  return { status, code: slugifyMessage(message), message, data };
+  return { status, code: slugifyMessage(message), message, data, requestId };
 }
 
 /** True for the value `api` and `guestPortalApi` actually reject with.

@@ -11,7 +11,7 @@ import { MButton } from "@/components/master/MasterKit";
 import { Spinner } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { saveBlob } from "@/lib/isp-partner/download";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { whatsappShareUrl } from "@/lib/isp-partner/invoices";
 import { financeService } from "@/services/isp-partner/finance";
 import { invoicesService } from "@/services/isp-partner/invoices";
@@ -32,7 +32,7 @@ export function InvoiceRowActions({
     try {
       await fn();
     } catch (e) {
-      toast.error(ispErrorMessage(e));
+      ispToastError(e);
     } finally {
       setBusy(null);
     }

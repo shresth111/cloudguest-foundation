@@ -15,11 +15,23 @@ import { ReuploadDocs } from "@/components/isp-partner/subscribers/ReuploadDocs"
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { usePackages } from "@/hooks/isp-partner/usePlans";
 import { useSub360Mutation } from "@/hooks/isp-partner/useSubscriber360";
-import { ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispFormMessage } from "@/lib/isp-partner/form-errors";
 import { formatRupees, PAYMENT_MODE_LABEL } from "@/lib/isp-partner/money";
 import { draftToProfile, idempotencyKey } from "@/lib/isp-partner/subscribers360";
 import { subscribers360Service as svc } from "@/services/isp-partner/subscribers360";
 import type { Subscriber360 } from "@/services/isp-partner/subscribers360-types";
+
+/** Backend field -> label, for errors named in the form message. */
+const RENEW_LABELS: Record<string, string> = {
+  package_id: "Package",
+  amount_paise: "Amount received",
+  reference: "UTR / reference",
+  mode: "Payment mode",
+  po_number: "PO number",
+  cycles: "Cycles",
+  discount_code: "Discount code",
+  received_at: "Received on",
+};
 
 export type ActionKind =
   | "renew"
@@ -71,7 +83,7 @@ function useRun(onClose: () => void) {
       toast.success(ok);
       onClose();
     } catch (err) {
-      setError(ispErrorMessage(err));
+      setError(ispFormMessage(err, RENEW_LABELS));
     }
   };
   return { error, setError, run };

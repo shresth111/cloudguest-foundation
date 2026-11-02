@@ -39,6 +39,7 @@ import {
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { isNotFound, ispErrorMessage } from "@/lib/isp-partner/errors";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { isoDay } from "@/lib/isp-partner/format";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
 import {
@@ -673,7 +674,7 @@ function LeasesTab() {
       );
       done();
     },
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => ispToastError(e),
   });
   const end = useMutation({
     mutationFn: (id: string) => financeService.endLease(id),
@@ -1463,7 +1464,7 @@ function AutomationTab() {
       r.ok
         ? toast.success("Test message sent to Telegram.")
         : toast.error(r.error ?? "Telegram refused the message."),
-    onError: (e) => toast.error(ispErrorMessage(e)),
+    onError: (e) => ispToastError(e),
   });
   const blocked = QueryState({ q, what: "Automation" });
   if (blocked) return blocked;
