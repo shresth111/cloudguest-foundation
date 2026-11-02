@@ -1,3 +1,4 @@
+import { useLocationIsNasOnly } from "@/hooks/useLocationIsNasOnly";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -85,6 +86,7 @@ interface Props {
 }
 
 export function PortalBuilder({ portal, onChange }: Props) {
+  const locationIsNasOnly = useLocationIsNasOnly(portal.locationId, portal.organizationId);
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(portal.components[0]?.id ?? null);
@@ -128,7 +130,9 @@ export function PortalBuilder({ portal, onChange }: Props) {
           <div className="text-[11px] text-muted-foreground">Drag or click to add</div>
         </div>
         <div className="grid max-h-[540px] grid-cols-2 gap-1 overflow-auto p-2 lg:grid-cols-1">
-          {PALETTE.map((p) => (
+          {/* No social sign-in exists yet, and an Aruba venue's allowed domains
+              hold no sign-in provider, so don't offer the block there. */}
+          {PALETTE.filter((p) => !(locationIsNasOnly && p.type === "social_login")).map((p) => (
             <button
               key={p.type}
               draggable

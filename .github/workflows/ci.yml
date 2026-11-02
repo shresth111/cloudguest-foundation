@@ -2749,6 +2749,14 @@ jobs:
             "aruba-silence-alert" 20 \
             "aruba silence alert: all checks passed" \
             bun run test:aruba-silence-alert
+      # Aruba Instant On notes on the voucher, banner and portal builder screens;
+      # MikroTik and Omada pinned as unchanged.
+      - name: aruba screen gaps
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-screen-gaps" 13 \
+            "aruba screen gaps: all checks passed" \
+            bun run test:aruba-screen-gaps
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \

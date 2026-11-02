@@ -147,6 +147,7 @@
     "test:aruba-access-rules": "node scripts/test-aruba-access-rules.mjs",
     "test:voucher-session-timeout": "node scripts/test-voucher-session-timeout.mjs",
     "test:aruba-silence-alert": "node scripts/test-aruba-silence-alert.mjs",
+    "test:aruba-screen-gaps": "node scripts/test-aruba-screen-gaps.mjs",
     "test:campaign-edit": "node scripts/test-campaign-edit.mjs",
     "test:aruba-ssid-tiers": "node scripts/test-aruba-ssid-tiers.mjs",
     "test:aruba-ssid-tier-guests": "node scripts/test-aruba-ssid-tier-guests.mjs",
