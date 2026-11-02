@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Activity, AlertTriangle, Clock, Laptop, Network, Users, Wifi, Wrench } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Clock,
+  Database,
+  Laptop,
+  Network,
+  Users,
+  Wifi,
+  Wrench,
+} from "lucide-react";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import {
   CustomerCommandPalette,
@@ -35,6 +45,8 @@ import {
 } from "@/lib/location-liveness";
 import { ArubaInstantOnVenueCard } from "@/components/customer/ArubaInstantOnVenueCard";
 import { ArubaAccessPointsCard } from "@/components/customer/ArubaAccessPointsCard";
+import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
+import { arubaDataToday } from "@/lib/aruba-dashboard";
 import type { LocationLiveness } from "@/lib/location-liveness";
 import { useMyBillingDashboard } from "@/hooks/useBilling";
 import { customerFeatureHref } from "@/lib/customerNav";
@@ -191,6 +203,9 @@ export function CustomerDashboardPage() {
   // venue renders exactly as before.
   const nasOnlyVenue = locationIsNasOnly(liveness);
 
+  // Same query and cache entry as the access points card, so no second request.
+  const arubaAps = useArubaAccessPoints(nasOnlyVenue ? locationId : undefined);
+
   const handleNav = (id: string) => navigate({ to: customerFeatureHref(id) });
   const handleLogout = async () => {
     await logout();
@@ -321,16 +336,33 @@ export function CustomerDashboardPage() {
         </span>
       ) : null,
     },
-    {
-      label: t("kpi.uptime", "Uptime"),
-      icon: <Activity className="h-3.5 w-3.5" />,
-      value: d?.kpis.slaUptime != null ? formatUptimePercent(d.kpis.slaUptime) : null,
-      loading: isLoading,
-      // What the number measures, not a verdict: the health verdict is the
-      // top bar's pill alone (it used to be repeated here as "All systems
-      // healthy", beside an open critical alert).
-      footer: d ? <span>{t("kpi.uptimeFooter", "Main internet line, last 24 hours")}</span> : null,
-    },
+    // A NAS-only venue has no router here measuring a main internet line, so an
+    // uptime figure would describe nothing. Show what we do measure there.
+    nasOnlyVenue
+      ? {
+          label: t("kpi.guestDataToday", "Guest data today"),
+          icon: <Database className="h-3.5 w-3.5" />,
+          value: arubaDataToday(arubaAps),
+          loading: arubaAps.status === "loading",
+          footer:
+            arubaAps.status === "unavailable" ? (
+              <span>{t("couldNotLoad", "Couldn't load")}</span>
+            ) : (
+              <span>{t("kpi.guestDataTodayFooter", "Download + upload since midnight")}</span>
+            ),
+        }
+      : {
+          label: t("kpi.uptime", "Uptime"),
+          icon: <Activity className="h-3.5 w-3.5" />,
+          value: d?.kpis.slaUptime != null ? formatUptimePercent(d.kpis.slaUptime) : null,
+          loading: isLoading,
+          // What the number measures, not a verdict: the health verdict is the
+          // top bar's pill alone (it used to be repeated here as "All systems
+          // healthy", beside an open critical alert).
+          footer: d ? (
+            <span>{t("kpi.uptimeFooter", "Main internet line, last 24 hours")}</span>
+          ) : null,
+        },
   ];
 
   const sectionFallback = (

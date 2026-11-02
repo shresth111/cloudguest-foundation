@@ -50,7 +50,9 @@
     "acrossSessions_one": "Across {{formatted}} session",
     "acrossSessions_other": "Across {{formatted}} sessions",
     "uptime": "Uptime",
-    "uptimeFooter": "Main internet line, last 24 hours"
+    "uptimeFooter": "Main internet line, last 24 hours",
+    "guestDataToday": "Guest data today",
+    "guestDataTodayFooter": "Download + upload since midnight"
   },
   "guestsOnline": {
     "title": "Guests Online",
