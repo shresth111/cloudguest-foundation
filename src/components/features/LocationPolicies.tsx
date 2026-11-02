@@ -410,8 +410,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
   const [confirming, setConfirming] = useState<string | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [orgId, setOrgId] = useState<string | null>(null);
-  // "failed" means we do not know what is saved: no default rows, and no save,
-  // which would create a second set of policies beside the unread ones.
+  // NAS-only venues only (every other vendor's table is unchanged). "failed"
+  // means we do not know what is saved: no default rows, and no save, which
+  // would create a second set of policies beside the unread ones.
   const [loadState, setLoadState] = useState<"loading" | "ok" | "failed">("loading");
 
   useEffect(() => {
@@ -421,11 +422,19 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
       try {
         const org = await resolveOrgId();
         setOrgId(org);
+        // A failed list reads as empty, as it always has at other vendors, but
+        // is remembered so a NAS-only venue can say so (see `loadState`).
+        let listFailed = false;
+        const orEmpty = <T,>(read: Promise<T[]>) =>
+          read.catch(() => {
+            listFailed = true;
+            return [] as T[];
+          });
         const [realAll, deviceDetailsAll, sessionDetailsAll, fupDetailsAll] = await Promise.all([
           bandwidthPolicyService.list(org),
-          listPolicyDetails("device", org),
-          listPolicyDetails("session", org),
-          listPolicyDetails("fup", org),
+          orEmpty(listPolicyDetails("device", org)),
+          orEmpty(listPolicyDetails("session", org)),
+          orEmpty(listPolicyDetails("fup", org)),
         ]);
         // Deactivated (deleted) policies are excluded from both id maps --
         // bandwidthPolicyService.list()/listPolicyDetails() return every
@@ -558,7 +567,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
         setDeviceRealIds(Object.fromEntries(deviceDetails.map((d) => [d.name, d.id])));
         setSessionRealIds(Object.fromEntries(sessionDetails.map((d) => [d.name, d.id])));
         setFupRealIds(Object.fromEntries(fupDetails.map((d) => [d.name, d.id])));
-        setLoadState("ok");
+        setLoadState(listFailed ? "failed" : "ok");
       } catch {
         setLoadState("failed");
       }
@@ -610,13 +619,13 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
 
   const rows = useMemo(
     () =>
-      !demo && loadState === "ok"
+      !demo && nasOnlyVenue && loadState === "ok"
         ? withDefaultRows(
             policies,
             (locations ?? []).map((l) => l.name),
           )
         : policies,
-    [demo, loadState, policies, locations],
+    [demo, nasOnlyVenue, loadState, policies, locations],
   );
 
   // THE FORM OPENS ON THE CHOSEN VENUE'S CURRENT VALUES.
@@ -756,7 +765,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
 
   // ── save ──────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!demo && loadState !== "ok") {
+    if (!demo && nasOnlyVenue && loadState !== "ok") {
       setToast(
         t(
           "limitsTable.saveBlocked",
@@ -1632,10 +1641,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           <div>
             <CardTitle className="text-sm">Current Guest WiFi Limits</CardTitle>
             <p className="text-xs text-muted-foreground">
-              {t(
-                "limitsTable.subtitle",
-                "What guests get at each location. A location marked Default has nothing saved yet.",
-              )}
+              {nasOnlyVenue
+                ? t(
+                    "limitsTable.subtitle",
+                    "What guests get at each location. A location marked Default has nothing saved yet.",
+                  )
+                : "The policies currently active for the selected space."}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -1669,7 +1680,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {!demo && loadState === "failed" ? (
+          {!demo && nasOnlyVenue && loadState === "failed" ? (
             <EmptyState
               icon={Shield}
               title={t("limitsTable.loadFailedTitle", "Couldn't load the saved limits")}

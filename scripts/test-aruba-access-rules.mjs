@@ -1024,6 +1024,29 @@ console.log("\n2a'. A location with nothing saved: defaults, not 'No policies ye
 }
 
 // ---------------------------------------------------------------------------
+console.log("\n2b-empty. MikroTik with nothing saved, or a failed read: no Aruba behaviour");
+// ---------------------------------------------------------------------------
+{
+  const page = await open(null, { empty: true, wait: false });
+  await page.getByText("No policies yet").waitFor({ timeout: 10_000 });
+  const t = await page.locator("#root").innerText();
+  check("no Default row", !/Office\s*Default/.test(t));
+  check("keeps the original subtitle", t.includes("The policies currently active"));
+  await page.close();
+}
+{
+  const page = await open(null, { listfail: true, wait: false });
+  await page
+    .getByText("No policies yet", { exact: false })
+    .or(page.getByRole("button", { name: "Edit Office" }))
+    .first()
+    .waitFor({ timeout: 10_000 });
+  const t = await page.locator("#root").innerText();
+  check("no failed-read screen", !t.includes("Couldn't load the saved limits"));
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
 console.log("\n2b. The same screen at a MikroTik venue: unchanged");
 // ---------------------------------------------------------------------------
 {
