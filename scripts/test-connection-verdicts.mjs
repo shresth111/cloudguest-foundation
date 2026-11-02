@@ -420,6 +420,50 @@ check(
 
 console.log("\nthe page renders the ladders, and asks the right question");
 
+// Aruba Instant On: no internet claim, because nothing measures the line.
+{
+  const healthy = gv();
+  const aruba = gv({ nasOnly: true, venue: "controller-not-measured" });
+  const words = [aruba.headline, aruba.meaning, ...aruba.checked].join(" ");
+  check("Aruba: never says the internet is working", !/your internet is working/i.test(words));
+  check("Aruba: doesn't claim all healthy", !/healthy/i.test(words));
+  check(
+    "Aruba: internet isn't listed as checked",
+    !aruba.checked.includes("Your internet connection"),
+  );
+  check(
+    "Aruba: internet is listed as not checked",
+    aruba.notChecked.some((x) => /internet connection/i.test(x)),
+  );
+  check(
+    "Aruba: says what's known and what can't be checked",
+    /signed in/.test(aruba.meaning) &&
+      /doesn't show that the internet is working/.test(aruba.meaning),
+  );
+  check("Aruba: confidence is lowered", aruba.confidence === "medium");
+  // Other vendors: the existing verdict, byte for byte, with the flag absent or false.
+  const omada = gv({ venue: "controller-not-measured" });
+  check(
+    "other vendors keep the existing wording",
+    healthy.headline === "We checked everything we can see, and it's all healthy." &&
+      /your internet is working/.test(healthy.meaning) &&
+      healthy.confidence === "high" &&
+      healthy.checked[0] === "Your internet connection",
+  );
+  check(
+    "nasOnly false is byte-identical to absent",
+    JSON.stringify(gv({ nasOnly: false })) === JSON.stringify(healthy),
+  );
+  check(
+    "Omada (not measured, not NAS-only) is byte-identical",
+    JSON.stringify(omada) === JSON.stringify(healthy),
+  );
+  check(
+    "an active block still outranks at Aruba",
+    gv({ nasOnly: true, guest: guest({ isBlocked: true }) }).finding === "blocked",
+  );
+}
+
 const page = readFileSync(join(ROOT, "src/components/customer/FixAProblem.tsx"), "utf8");
 const nav = readFileSync(join(ROOT, "src/lib/customerNav.ts"), "utf8");
 const catalog = readFileSync(join(ROOT, "src/config/customerFeatureCatalog.ts"), "utf8");

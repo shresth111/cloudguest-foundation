@@ -243,8 +243,18 @@ console.log("\n5. Survey Edit opens its questions");
 {
   const page = await open();
   await page.getByRole("button", { name: "Edit Feedback" }).first().click();
-  await page.getByRole("dialog", { name: /Manage Questions/ }).waitFor();
+  const dialog = page.getByRole("dialog", { name: /Manage Questions/ });
+  await dialog.waitFor();
   check("opens Manage Questions", true);
+  const name = dialog.getByLabel("Campaign Name");
+  check("opens on the survey's name", (await name.inputValue()) === "Feedback");
+  await name.fill("Guest feedback");
+  await dialog.getByLabel("End date (optional)").fill("");
+  await dialog.getByRole("button", { name: "Save details" }).click();
+  await page.getByText("Survey saved").first().waitFor();
+  const put = (await writes(page)).find((c) => c.path === "/campaigns/survey-1");
+  check("the new name is saved", put?.body.name === "Guest feedback", JSON.stringify(put));
+  check("a blank end date saves as no end date", put?.body.ends_at === null);
   await page.close();
 }
 

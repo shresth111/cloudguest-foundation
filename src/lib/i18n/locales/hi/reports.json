@@ -201,6 +201,7 @@
     "print": "प्रिंट",
     "showing": "{{total}} में से {{from}}–{{to}}",
     "rows_one": "{{count}} लाइन",
-    "rows_other": "{{count}} लाइनें"
+    "rows_other": "{{count}} लाइनें",
+    "arubaUsageNote": "Aruba Instant On venues पर — का मतलब है कि data report नहीं हुआ। Total में सिर्फ़ वे sessions हैं जिन्होंने data report किया।"
   }
 }

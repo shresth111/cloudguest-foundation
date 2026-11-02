@@ -100,5 +100,8 @@
     "noWorker": "This campaign didn't start because the sending service didn't pick it up. Nothing was sent. Contact support.",
     "dispatchFailed": "This campaign couldn't start because of an error on our side. Nothing was sent. Contact support.",
     "notConfigured": "This channel isn't live, so nothing was sent. {{reason}}"
+    "surveySaved": "Survey saved",
+    "surveySaveFailed": "Could not save the survey — check the connection and try again.",
+    "saveDetails": "Save details"
   }
 }

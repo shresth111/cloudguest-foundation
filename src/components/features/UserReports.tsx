@@ -3,7 +3,11 @@ import { useTranslation } from "react-i18next";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
 import { locationIsNasOnly } from "@/lib/location-liveness";
-import { arubaGuestSessionLogRows } from "@/lib/aruba-reports";
+import {
+  ARUBA_USAGE_REPORTS,
+  arubaGuestSessionLogRows,
+  arubaUsageReportRows,
+} from "@/lib/aruba-reports";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -1125,7 +1129,7 @@ async function realDataConsumption(
 
 async function realDataByLocation(
   orgId: string,
-  locations: { id: string; name: string }[],
+  locations: { id: string; name: string; liveness?: Parameters<typeof locationIsNasOnly>[0] }[],
   from: string,
   to: string,
   ratePerGb?: number,
@@ -1143,14 +1147,21 @@ async function realDataByLocation(
       0,
     );
     const totalData = totalBytes / 1e6; // MB, matches fmtBytes()
-    const avgPerUser = sessions.length ? totalData / sessions.length : 0;
-    return {
+    // Aruba Instant On: a session with no reported bytes must not pull the
+    // average down, and a venue with none reads "—" rather than 0.
+    const nasOnly = locationIsNasOnly(l.liveness);
+    const countedSessions = nasOnly
+      ? sessions.filter((s) => (s.bytes_uploaded ?? 0) + (s.bytes_downloaded ?? 0) > 0).length
+      : sessions.length;
+    const avgPerUser = countedSessions ? totalData / countedSessions : 0;
+    const row = {
       businessUnit: l.name,
       totalData,
       avgPerUser,
       peakHour: "—",
       cost: ratePerGb ? (totalData / 1000) * ratePerGb : null,
     };
+    return nasOnly ? arubaUsageReportRows("data-by-location", [row])[0] : row;
   });
 }
 
@@ -1959,6 +1970,7 @@ export function ReportPanel({
   const [running, setRunning] = useState(false);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [unavailable, setUnavailable] = useState<string | null>(null);
+  const [arubaUsageNote, setArubaUsageNote] = useState(false);
   const [searchTxt, setSearchTxt] = useState("");
   const [sortKey, setSortKey] = useState<string>("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -2201,6 +2213,7 @@ export function ReportPanel({
     const mark = runCount.current;
     setRunning(true);
     setUnavailable(null);
+    let usageNote = false;
     const rate = ratePerGb ? parseFloat(ratePerGb) : undefined;
     let data: Row[] = [];
     let reason: string | null = null;
@@ -2210,6 +2223,9 @@ export function ReportPanel({
       } else if (REAL_REPORT_TYPES.has(reportType)) {
         const orgId = await resolveOrgId();
         const loc = locationsByName.get(bu);
+        // Aruba Instant On: sessions with no reported data read "—", not 0.
+        const nasOnlyUsage =
+          ARUBA_USAGE_REPORTS.has(reportType) && locationIsNasOnly(loc?.liveness);
         if (reportType === "data-consumption") {
           data = loc ? await realDataConsumption(orgId, loc.id, from, to, rate) : [];
         } else if (reportType === "voucher-usage") {
@@ -2247,6 +2263,11 @@ export function ReportPanel({
           data = await realDailySmsOtpConsumption(from, to);
         } else {
           data = await realDataByLocation(orgId, customerLocations ?? [], from, to, rate);
+          usageNote = (customerLocations ?? []).some((l) => locationIsNasOnly(l.liveness));
+        }
+        if (nasOnlyUsage) {
+          data = arubaUsageReportRows(reportType, data);
+          usageNote = true;
         }
       } else {
         reason =
@@ -2258,6 +2279,7 @@ export function ReportPanel({
     if (mark !== runCount.current) return;
     setRows(data);
     setUnavailable(reason);
+    setArubaUsageNote(usageNote);
     setRunning(false);
     setPage(0);
     setSearchTxt("");
@@ -2717,6 +2739,14 @@ export function ReportPanel({
             title={t("r.noDataForThisReport")}
             description={t("r.tryAWiderDateRange")}
           />
+        )}
+        {!running && rows && rows.length > 0 && arubaUsageNote && (
+          <p className="px-4 pb-2 text-xs text-muted-foreground" data-testid="aruba-usage-note">
+            {t(
+              "r.arubaUsageNote",
+              "At Aruba Instant On venues, — means no data was reported. Totals include only sessions that reported data.",
+            )}
+          </p>
         )}
         {!running && rows && rows.length > 0 && (
           <section className={PANEL_SURFACE}>

@@ -832,6 +832,7 @@ function ZoneBGuestLookup({
               }
             : null,
           venue: venueStatus,
+          nasOnly: isNasOnlyVendor(clientControls.vendor),
         }),
       });
     } catch (err) {

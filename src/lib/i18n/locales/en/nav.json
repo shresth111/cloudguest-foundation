@@ -150,7 +150,8 @@
   },
   "blockingPage": {
     "intro": "Stop a website, an internet address or a guest from using your guest WiFi.",
-    "onlyAllowedPrefix": "To let in only people you have listed, use"
+    "onlyAllowedPrefix": "To let in only people you have listed, use",
+    "introNasOnly": "Stop a guest or device from using your guest WiFi. Website blocking isn't available on Aruba Instant On access points."
   },
   "firewallPage": {
     "addRule": "Add a rule",
