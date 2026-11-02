@@ -2725,6 +2725,14 @@ jobs:
             "campaign-edit" 17 \
             "campaign edit: all checks passed" \
             bun run test:campaign-edit
+      # A specific guest on a paid WiFi network at an Aruba Instant On venue:
+      # add and remove, the on-demand tier sets no limits, NAS-only venues only.
+      - name: aruba ssid tier guests
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-ssid-tier-guests" 17 \
+            "aruba ssid tier guests: all checks passed" \
+            bun run test:aruba-ssid-tier-guests
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \

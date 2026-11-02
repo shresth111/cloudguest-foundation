@@ -14,8 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Gauge, Loader2, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { bandwidthPolicyService } from "@/services/bandwidth-policy.service";
-import { resolveOrgId } from "@/services/customer.service";
+import { SsidTierGuests } from "./SsidTierGuests";
 import { crossOrganizationHeaders } from "@/services/api";
 import { ssidTiersService, type InstantOnSyncResult } from "@/services/ssid-tiers.service";
 import {
@@ -45,14 +44,6 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
     queryKey,
     queryFn: () => ssidTiersService.list(locationId),
     enabled: !!locationId,
-  });
-  const { data: accessTiers = [] } = useQuery({
-    queryKey: ["ssid-tiers-access-tiers"],
-    queryFn: async () => {
-      const org = await resolveOrgId();
-      const all = await bandwidthPolicyService.list(org);
-      return all.filter((p) => p.status !== "archived").map((p) => ({ id: p.id, name: p.name }));
-    },
   });
 
   const [draft, setDraft] = useState<SsidTier[]>([]);
@@ -180,24 +171,6 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
                     />
                     Paid / voucher guests only
                   </label>
-                  {row.paidOnly && (
-                    <label className="flex items-center gap-2 text-sm">
-                      <span>Also open to Access Tier</span>
-                      <select
-                        className="h-9 rounded-md border bg-background px-2 text-sm"
-                        value={row.policyId ?? ""}
-                        aria-label="Access Tier"
-                        onChange={(e) => update(i, { policyId: e.target.value || null })}
-                      >
-                        <option value="">None (vouchers only)</option>
-                        {accessTiers.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
                   <button
                     type="button"
                     className="inline-flex items-center gap-1 text-sm text-destructive"
@@ -217,6 +190,10 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
                   )}
                   , the same for every guest on “{row.ssid || "this network"}”.
                 </p>
+                {/* Only once saved and unedited: the list hangs off the saved row. */}
+                {row.paidOnly && !dirty && data?.items.some((x) => x.ssid === row.ssid) && (
+                  <SsidTierGuests locationId={locationId} row={row} rows={data.items} />
+                )}
               </div>
             ))}
 
