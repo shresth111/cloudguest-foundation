@@ -43,5 +43,21 @@
     "loadFailedTitle": "Couldn't load the saved limits",
     "loadFailedBody": "Reload the page to try again. Saving is paused until they load, so nothing is duplicated.",
     "saveBlocked": "Could not read the saved limits, so nothing was saved. Reload and try again."
+  },
+  "ssidGuests": {
+    "title": "Guests who can use {{ssid}}",
+    "hint": "Add a guest here and they can join this network without a voucher, from their next connection. Removing them stops the next connection, not one already online.",
+    "unknownGuest": "Guest",
+    "searchFailed": "Couldn't search guests.",
+    "addFailed": "Couldn't add this guest.",
+    "removeFailed": "Couldn't remove this guest.",
+    "loadFailed": "Couldn't load this network's guest list.",
+    "empty": "No guests added yet.",
+    "remove": "Remove",
+    "searchLabel": "Find a guest by phone or email",
+    "find": "Find",
+    "noResults": "No guest found at this location. A guest appears here after signing in once.",
+    "alreadyAdded": "Already added",
+    "add": "Add"
   }
 }

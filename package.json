@@ -148,6 +148,7 @@
     "test:voucher-session-timeout": "node scripts/test-voucher-session-timeout.mjs",
     "test:campaign-edit": "node scripts/test-campaign-edit.mjs",
     "test:aruba-ssid-tiers": "node scripts/test-aruba-ssid-tiers.mjs",
+    "test:aruba-ssid-tier-guests": "node scripts/test-aruba-ssid-tier-guests.mjs",
     "test:access-tiers-aruba": "node scripts/test-access-tiers-aruba.mjs",
     "test:aruba-customer-dashboard": "node scripts/test-aruba-customer-dashboard.mjs",
     "test:aruba-venue-snapshot": "node scripts/test-aruba-venue-snapshot.mjs",
