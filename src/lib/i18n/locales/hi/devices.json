@@ -257,6 +257,17 @@
       "snmp": "SNMP"
     },
     "title": "डिवाइस की हालत और पोर्ट ट्रैफ़िक",
-    "via": "{{source}} से"
+    "via": "{{source}} से",
+    "apHealthTitle": "Access point की health",
+    "apHealthDescription": "Aruba Instant On access points अपनी health और traffic Instant On app में दिखाते हैं। Wyfy उन पर sign in करने वाले guests को देखता है।"
+  },
+  "arubaAp": {
+    "title": "हर access point पर online guests",
+    "description": "इस venue के guest sign-ins से। जो devices guest WiFi में sign in नहीं हैं, वे Instant On app में दिखते हैं।",
+    "colAp": "Access point",
+    "colStatus": "स्थिति",
+    "colGuests": "Online guests",
+    "colSignIns": "आज के sign-ins",
+    "colData": "आज का data"
   }
 }

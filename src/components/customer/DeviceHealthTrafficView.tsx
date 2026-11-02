@@ -442,6 +442,10 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
    * produce) is a measurement claim -- it says we looked.
    */
   const activeIsController = isControllerManaged(activeDevice?.vendor);
+  // DASHBOARD_PLAN P1-H: a venue whose every device is Aruba Instant On has
+  // no ports or interface traffic for this card to show, so its title and
+  // description say what it is there. Any other venue: unchanged.
+  const nasOnlyVenue = deviceList.length > 0 && deviceList.every((d) => isNasOnlyVendor(d.vendor));
   const history = useDeviceHealthHistory(activeIsController ? undefined : activeId);
   const readings: DeviceHealthReading[] = useMemo(
     () => (Array.isArray(history.data?.readings) ? history.data.readings : []),
@@ -542,17 +546,32 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
   return (
     <div ref={rootRef} className="scroll-mt-20" data-wy="traffic-panel">
       <Panel
-        title={title}
+        title={
+          nasOnlyVenue ? (
+            <span data-testid="aruba-device-health-title">
+              {t("traffic.apHealthTitle", "Access point health")}
+            </span>
+          ) : (
+            title
+          )
+        }
         description={
-          <>
-            {t(
-              "traffic.description",
-              "How much traffic each network port has carried, and how your hardware has been holding up.",
-            )}
-            {span
-              ? ` ${t("traffic.showingSpan", "Showing the last {{span}} of readings.", { span })}`
-              : ""}
-          </>
+          nasOnlyVenue ? (
+            t(
+              "traffic.apHealthDescription",
+              "Aruba Instant On access points report their health and traffic in the Instant On app. Wyfy sees the guests signing in through them.",
+            )
+          ) : (
+            <>
+              {t(
+                "traffic.description",
+                "How much traffic each network port has carried, and how your hardware has been holding up.",
+              )}
+              {span
+                ? ` ${t("traffic.showingSpan", "Showing the last {{span}} of readings.", { span })}`
+                : ""}
+            </>
+          )
         }
         bodyClassName="space-y-5"
       >

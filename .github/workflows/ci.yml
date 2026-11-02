@@ -2693,6 +2693,14 @@ jobs:
       # rather than "no limit"; idle / daily / session caveats; MikroTik and
       # Omada render none of the NAS-only sentences. Plus Access Tiers' held
       # speed, Guest Allow-list's caveat and the Blocking toast.
+      # Devices page at an Aruba Instant On venue: guests per access point in
+      # place of Connected Devices; MikroTik and Omada pinned as unchanged.
+      - name: aruba devices page
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-devices-page" 48 \
+            "aruba devices page: all checks passed" \
+            bun run test:aruba-devices-page
       # Security Score and Guest Connection Records wording at an Aruba Instant
       # On venue, with MikroTik and Omada pinned as unchanged.
       - name: aruba security and records copy
