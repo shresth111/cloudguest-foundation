@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
 import {
-  Plus,
-  Trash2,
-  Copy,
-  Search,
-  ClipboardList,
-  MessageSquareText,
-  TicketPercent,
-  X,
-  ListChecks,
   BarChart3,
-  Eye,
-  Wifi,
+  ClipboardList,
+  Copy,
   ExternalLink,
+  Eye,
+  ListChecks,
+  MessageSquareText,
+  Pencil,
+  Plus,
+  Search,
   Star,
+  TicketPercent,
+  Trash2,
+  Wifi,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +39,8 @@ import {
 import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
 import {
   DEMO_CAMPAIGN_COUPON_CODE,
@@ -242,6 +245,7 @@ const demoAssetSeed = (campaignId: string): CampaignAsset[] => [
 ];
 
 export function CampaignsPage({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
+  const { t } = useTranslation("marketing", { i18n });
   const demo = useIsDemo();
   const [items, setItems] = useState<Campaign[]>(demo ? DEMO_SEED : []);
   const [loading, setLoading] = useState(!demo);
@@ -307,6 +311,14 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
   const [previewAssets, setPreviewAssets] = useState<CampaignAsset[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [assetForm, setAssetForm] = useState(emptyAssetForm);
+  // Edit -- a banner or redirect's name, scheduled window and content. Kept
+  // apart from Guest Preview, which only shows what a guest would see.
+  const [editFor, setEditFor] = useState<Campaign | null>(null);
+  const [editAsset, setEditAsset] = useState<CampaignAsset | null>(null);
+  const [editDetails, setEditDetails] = useState({ name: "", startDate: "", endDate: "" });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editLoadFailed, setEditLoadFailed] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     if (demo) return;
@@ -480,6 +492,19 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
       setForm(emptyForm);
       setShowCreate(false);
       toast.success("Campaign created");
+      if (created.campaignType.toUpperCase() !== "SURVEY") {
+        void openEdit({
+          id: created.id,
+          name: created.name,
+          type: created.campaignType.toUpperCase(),
+          status: created.status,
+          businessUnit: "",
+          startDate: created.startsAt?.slice(0, 10) ?? "",
+          endDate: created.endsAt?.slice(0, 10) ?? "",
+          impressions: 0,
+          conversions: 0,
+        });
+      }
     } catch {
       toast.error("Could not create the campaign — check the connection and try again.");
     }
@@ -599,8 +624,64 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
     setAssetForm(emptyAssetForm);
   };
 
-  const addPreviewAsset = async () => {
-    if (!previewFor) return;
+  const openEdit = async (c: Campaign) => {
+    // A survey's content is its questions, which already have their own editor.
+    if (c.type === "SURVEY") {
+      void openManage(c);
+      return;
+    }
+    setEditFor(c);
+    setEditDetails({ name: c.name, startDate: c.startDate, endDate: c.endDate });
+    setEditAsset(null);
+    setAssetForm(emptyAssetForm);
+    setEditLoadFailed(false);
+    const fill = (asset: CampaignAsset | null) => {
+      setEditAsset(asset);
+      setAssetForm({
+        imageUrl: asset?.imageUrl ?? "",
+        clickUrl: asset?.clickUrl ?? "",
+        headline: asset?.headline ?? "",
+        subtext: asset?.subtext ?? "",
+        couponCode: asset?.couponCode ?? "",
+        couponExpiresAt: asset?.couponExpiresAt?.slice(0, 10) ?? "",
+      });
+    };
+    if (demo) {
+      fill(demoAssetSeed(c.id)[0] ?? null);
+      return;
+    }
+    setEditLoading(true);
+    try {
+      fill((await campaignService.listAssets(c.id))[0] ?? null);
+    } catch {
+      // Saving now could add a second banner beside the unread one.
+      setEditLoadFailed(true);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const closeEdit = () => {
+    setEditFor(null);
+    setEditAsset(null);
+    setAssetForm(emptyAssetForm);
+  };
+
+  const saveEdit = async () => {
+    if (!editFor || editLoadFailed) return;
+    const name = editDetails.name.trim();
+    if (!name) {
+      toast.error(t("offersEdit.nameRequired", "Campaign name is required."));
+      return;
+    }
+    if (
+      editDetails.startDate &&
+      editDetails.endDate &&
+      editDetails.endDate < editDetails.startDate
+    ) {
+      toast.error(t("offersEdit.endBeforeStart", "End date must be after start date."));
+      return;
+    }
     // A banner is renderable as an image, a bare click-through, or a
     // text/coupon promo (headline and/or coupon code) -- the same "at least
     // one renderable source" rule the backend enforces.
@@ -613,42 +694,65 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
       toast.error("Add an image, a link, a headline, or a coupon code.");
       return;
     }
-    const couponExpiresAtIso = assetForm.couponExpiresAt
-      ? new Date(assetForm.couponExpiresAt).toISOString()
-      : null;
+    const assetPayload = {
+      imageUrl: assetForm.imageUrl || null,
+      clickUrl: assetForm.clickUrl || null,
+      headline: assetForm.headline || null,
+      subtext: assetForm.subtext || null,
+      couponCode: assetForm.couponCode || null,
+      couponExpiresAt: assetForm.couponExpiresAt
+        ? new Date(assetForm.couponExpiresAt).toISOString()
+        : null,
+    };
+    const applyLocal = (asset: CampaignAsset) => {
+      setItems((rows) =>
+        rows.map((r) =>
+          r.id === editFor.id
+            ? {
+                ...r,
+                name,
+                startDate: editDetails.startDate,
+                endDate: editDetails.endDate,
+              }
+            : r,
+        ),
+      );
+      setCouponsByCampaign((prev) => ({ ...prev, [editFor.id]: asset }));
+      toast.success(t("offersEdit.saved", "Banner saved"));
+      closeEdit();
+    };
     if (demo) {
-      setPreviewAssets([
-        {
-          id: `${previewFor.id}-demo-asset`,
-          campaignId: previewFor.id,
-          imageUrl: assetForm.imageUrl || null,
-          clickUrl: assetForm.clickUrl || null,
-          altText: null,
-          locale: null,
-          headline: assetForm.headline || null,
-          subtext: assetForm.subtext || null,
-          couponCode: assetForm.couponCode || null,
-          couponExpiresAt: couponExpiresAtIso,
-        },
-      ]);
-      setAssetForm(emptyAssetForm);
-      toast.success("Banner saved");
+      applyLocal({
+        id: editAsset?.id ?? `${editFor.id}-demo-asset`,
+        campaignId: editFor.id,
+        altText: null,
+        locale: null,
+        ...assetPayload,
+      });
       return;
     }
+    setEditSaving(true);
     try {
-      const created = await campaignService.addAsset(previewFor.id, {
-        imageUrl: assetForm.imageUrl || null,
-        clickUrl: assetForm.clickUrl || null,
-        headline: assetForm.headline || null,
-        subtext: assetForm.subtext || null,
-        couponCode: assetForm.couponCode || null,
-        couponExpiresAt: couponExpiresAtIso,
+      await campaignService.update(editFor.id, {
+        name,
+        ...(editDetails.startDate
+          ? { startsAt: new Date(editDetails.startDate).toISOString() }
+          : {}),
+        endsAt: editDetails.endDate ? new Date(editDetails.endDate).toISOString() : null,
       });
-      setPreviewAssets([...previewAssets, created]);
-      setAssetForm(emptyAssetForm);
-      toast.success("Banner saved");
+      const asset = editAsset
+        ? await campaignService.updateAsset(editAsset.id, assetPayload)
+        : await campaignService.addAsset(editFor.id, assetPayload);
+      applyLocal(asset);
     } catch {
-      toast.error("Could not save the banner — check the connection and try again.");
+      toast.error(
+        t(
+          "offersEdit.saveFailed",
+          "Could not save the banner — check the connection and try again.",
+        ),
+      );
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -812,8 +916,12 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
                     <p className="text-xs capitalize text-muted-foreground">{c.status}</p>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => openManage(c)}>
-                    <ListChecks className="mr-2 h-4 w-4" />
-                    Questions
+                    <Pencil className="mr-2 h-4 w-4" aria-hidden />
+                    {t("offersEdit.edit", "Edit")}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => openPreview(c)}>
+                    <Eye className="mr-2 h-4 w-4" aria-hidden />
+                    {t("offersEdit.preview", "Preview")}
                   </Button>
                 </li>
               ))}
@@ -863,6 +971,14 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
                   ) : (
                     <span className="shrink-0 text-xs text-muted-foreground">No coupon</span>
                   )}
+                  <Button size="sm" variant="outline" onClick={() => openEdit(campaign)}>
+                    <Pencil className="mr-2 h-4 w-4" aria-hidden />
+                    {t("offersEdit.edit", "Edit")}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => openPreview(campaign)}>
+                    <Eye className="mr-2 h-4 w-4" aria-hidden />
+                    {t("offersEdit.preview", "Preview")}
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -1228,6 +1344,130 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
         </div>
       )}
 
+      {editFor && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={closeEdit}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("offersEdit.title", "Edit — {{name}}", { name: editFor.name })}
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--wy-radius-lg)] border border-[var(--wy-border)] bg-[var(--wy-surface)] p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold">
+              {t("offersEdit.title", "Edit — {{name}}", { name: editFor.name })}
+            </h3>
+            {editLoading ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t("offersEdit.loading", "Loading…")}
+              </p>
+            ) : editLoadFailed ? (
+              <p className="mt-3 text-sm text-destructive" role="alert">
+                {t(
+                  "offersEdit.loadFailed",
+                  "Could not load this banner, so it can't be edited right now. Close this and try again.",
+                )}
+              </p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <Label htmlFor="edit-campaign-name">
+                    {t("offersEdit.name", "Campaign Name")}
+                  </Label>
+                  <Input
+                    id="edit-campaign-name"
+                    value={editDetails.name}
+                    onChange={(e) => setEditDetails({ ...editDetails, name: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="edit-campaign-start">
+                      {t("offersEdit.start", "Start date")}
+                    </Label>
+                    <Input
+                      id="edit-campaign-start"
+                      type="date"
+                      value={editDetails.startDate}
+                      onChange={(e) =>
+                        setEditDetails({ ...editDetails, startDate: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-campaign-end">
+                      {t("offersEdit.end", "End date (optional)")}
+                    </Label>
+                    <Input
+                      id="edit-campaign-end"
+                      type="date"
+                      value={editDetails.endDate}
+                      onChange={(e) => setEditDetails({ ...editDetails, endDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <Input
+                  value={assetForm.headline}
+                  onChange={(e) => setAssetForm({ ...assetForm, headline: e.target.value })}
+                  placeholder="Headline (e.g. Flat 20% off this weekend)"
+                />
+                <Input
+                  value={assetForm.subtext}
+                  onChange={(e) => setAssetForm({ ...assetForm, subtext: e.target.value })}
+                  placeholder="Subtext (e.g. Show this coupon at checkout)"
+                />
+                <Input
+                  value={assetForm.couponCode}
+                  onChange={(e) => setAssetForm({ ...assetForm, couponCode: e.target.value })}
+                  placeholder="Coupon code (e.g. SAVE20)"
+                />
+                <div>
+                  <Label htmlFor="edit-coupon-expiry">
+                    {t("offersEdit.couponUntil", "Coupon valid until (optional)")}
+                  </Label>
+                  <Input
+                    id="edit-coupon-expiry"
+                    type="date"
+                    value={assetForm.couponExpiresAt}
+                    onChange={(e) =>
+                      setAssetForm({ ...assetForm, couponExpiresAt: e.target.value })
+                    }
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {t(
+                      "offersEdit.couponHint",
+                      "Leave this blank if the dates above are enough. Guests just won't see a separate coupon date.",
+                    )}
+                  </p>
+                </div>
+                <Input
+                  value={assetForm.imageUrl}
+                  onChange={(e) => setAssetForm({ ...assetForm, imageUrl: e.target.value })}
+                  placeholder="Image URL (optional, e.g. https://…/banner.png)"
+                />
+                <Input
+                  value={assetForm.clickUrl}
+                  onChange={(e) => setAssetForm({ ...assetForm, clickUrl: e.target.value })}
+                  placeholder="Click-through URL (optional)"
+                />
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={closeEdit}>
+                {t("offersEdit.cancel", "Cancel")}
+              </Button>
+              {!editLoading && !editLoadFailed && (
+                <Button size="sm" onClick={saveEdit} disabled={editSaving}>
+                  {editSaving ? t("offersEdit.saving", "Saving…") : t("offersEdit.save", "Save")}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {previewFor && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -1429,64 +1669,16 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
                       </div>
                     ) : (
                       <p className="py-6 text-center text-[11px] text-slate-500">
-                        No banner configured yet — add an image or link below, then preview again.
+                        {t(
+                          "offersEdit.previewEmpty",
+                          "No banner configured yet — use Edit to add one, then preview again.",
+                        )}
                       </p>
                     )}
                   </div>
                 </div>
               </div>
             </div>
-
-            {previewFor.type !== "SURVEY" && !previewLoading && !previewAssets[0] && (
-              <div className="mt-4 space-y-2 border-t pt-4">
-                <Label className="text-xs">Add this campaign's banner</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Provide a promo headline and coupon code, an image, a link — or any combination.
-                  Guests see this the moment they connect.
-                </p>
-                <Input
-                  value={assetForm.headline}
-                  onChange={(e) => setAssetForm({ ...assetForm, headline: e.target.value })}
-                  placeholder="Headline (e.g. Flat 20% off this weekend)"
-                />
-                <Input
-                  value={assetForm.subtext}
-                  onChange={(e) => setAssetForm({ ...assetForm, subtext: e.target.value })}
-                  placeholder="Subtext (e.g. Show this coupon at checkout)"
-                />
-                <div className="flex gap-2">
-                  <Input
-                    value={assetForm.couponCode}
-                    onChange={(e) => setAssetForm({ ...assetForm, couponCode: e.target.value })}
-                    placeholder="Coupon code (e.g. SAVE20)"
-                  />
-                  <Input
-                    type="date"
-                    value={assetForm.couponExpiresAt}
-                    onChange={(e) =>
-                      setAssetForm({ ...assetForm, couponExpiresAt: e.target.value })
-                    }
-                    aria-label="Coupon valid until"
-                  />
-                </div>
-                <Input
-                  value={assetForm.imageUrl}
-                  onChange={(e) => setAssetForm({ ...assetForm, imageUrl: e.target.value })}
-                  placeholder="Image URL (optional, e.g. https://…/banner.png)"
-                />
-                <Input
-                  value={assetForm.clickUrl}
-                  onChange={(e) => setAssetForm({ ...assetForm, clickUrl: e.target.value })}
-                  placeholder="Click-through URL (optional)"
-                />
-                <div className="flex justify-end">
-                  <Button size="sm" onClick={addPreviewAsset}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Save banner
-                  </Button>
-                </div>
-              </div>
-            )}
 
             <div className="mt-4 flex justify-end">
               <Button variant="outline" size="sm" onClick={closePreview}>
@@ -1669,27 +1861,25 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
             ]}
             rowActions={(c) => (
               <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title={t("offersEdit.edit", "Edit")}
+                  aria-label={t("offersEdit.editNamed", "Edit {{name}}", { name: c.name })}
+                  onClick={() => openEdit(c)}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden />
+                </Button>
                 {c.type === "SURVEY" && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Manage questions"
-                      aria-label={`Manage questions for ${c.name}`}
-                      onClick={() => openManage(c)}
-                    >
-                      <ListChecks className="h-4 w-4" aria-hidden />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="See answers"
-                      aria-label={`See answers for ${c.name}`}
-                      onClick={() => openResults(c)}
-                    >
-                      <BarChart3 className="h-4 w-4" aria-hidden />
-                    </Button>
-                  </>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="See answers"
+                    aria-label={`See answers for ${c.name}`}
+                    onClick={() => openResults(c)}
+                  >
+                    <BarChart3 className="h-4 w-4" aria-hidden />
+                  </Button>
                 )}
                 <Button
                   variant="ghost"

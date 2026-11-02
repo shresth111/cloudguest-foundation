@@ -52,5 +52,26 @@
   "campaignList": {
     "loading": "Loading campaigns…",
     "open": "Open {{name}}"
+  },
+  "offersEdit": {
+    "nameRequired": "Campaign name is required.",
+    "endBeforeStart": "End date must be after start date.",
+    "edit": "Edit",
+    "preview": "Preview",
+    "title": "Edit — {{name}}",
+    "editNamed": "Edit {{name}}",
+    "loading": "Loading…",
+    "loadFailed": "Could not load this banner, so it can't be edited right now. Close this and try again.",
+    "name": "Campaign Name",
+    "start": "Start date",
+    "end": "End date (optional)",
+    "couponUntil": "Coupon valid until (optional)",
+    "couponHint": "Leave this blank if the dates above are enough. Guests just won't see a separate coupon date.",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "save": "Save",
+    "previewEmpty": "No banner configured yet — use Edit to add one, then preview again.",
+    "saved": "Banner saved",
+    "saveFailed": "Could not save the banner — check the connection and try again."
   }
 }

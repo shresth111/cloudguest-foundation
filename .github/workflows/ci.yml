@@ -2717,6 +2717,14 @@ jobs:
             "aruba-p2-copy" 22 \
             "aruba p2 copy: all checks passed" \
             bun run test:aruba-p2-copy
+      # Login Page Offers: separate Edit and Preview, banner editing, optional
+      # coupon date, and no second banner after a failed read.
+      - name: campaign edit
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "campaign-edit" 17 \
+            "campaign edit: all checks passed" \
+            bun run test:campaign-edit
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \

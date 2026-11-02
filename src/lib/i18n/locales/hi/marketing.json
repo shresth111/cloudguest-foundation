@@ -52,5 +52,26 @@
   "campaignList": {
     "loading": "कैंपेन लोड हो रहे हैं…",
     "open": "{{name}} खोलें"
+  },
+  "offersEdit": {
+    "nameRequired": "Campaign का नाम ज़रूरी है।",
+    "endBeforeStart": "End date, start date के बाद होनी चाहिए।",
+    "edit": "Edit करें",
+    "preview": "पूर्वावलोकन",
+    "title": "Edit करें — {{name}}",
+    "editNamed": "{{name}} edit करें",
+    "loading": "Load हो रहा है…",
+    "loadFailed": "यह banner load नहीं हो सका, इसलिए अभी edit नहीं हो सकता। इसे बंद करके दोबारा कोशिश करें।",
+    "name": "Campaign का नाम",
+    "start": "शुरू होने की तारीख",
+    "end": "End date (वैकल्पिक)",
+    "couponUntil": "Coupon कब तक valid है (वैकल्पिक)",
+    "couponHint": "ऊपर की dates काफ़ी हों तो इसे खाली छोड़ दें। Guests को coupon की अलग date नहीं दिखेगी।",
+    "cancel": "रद्द करें",
+    "saving": "Save हो रहा है…",
+    "save": "Save करें",
+    "previewEmpty": "अभी कोई banner नहीं है — Edit से जोड़ें, फिर दोबारा preview करें।",
+    "saved": "Banner save हो गया",
+    "saveFailed": "Banner save नहीं हो सका — connection जाँचकर दोबारा कोशिश करें।"
   }
 }
