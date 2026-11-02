@@ -2693,6 +2693,14 @@ jobs:
       # rather than "no limit"; idle / daily / session caveats; MikroTik and
       # Omada render none of the NAS-only sentences. Plus Access Tiers' held
       # speed, Guest Allow-list's caveat and the Blocking toast.
+      # Aruba venue status from its access points' guest traffic, and the saved
+      # venue snapshot refresh; other vendors make no extra request.
+      - name: aruba venue snapshot
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-venue-snapshot" 20 \
+            "aruba venue snapshot: all checks passed" \
+            bun run test:aruba-venue-snapshot
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \
