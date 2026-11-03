@@ -441,6 +441,10 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     // Request to successful verify. Includes the guest typing the code, so it
     // is not carrier delivery latency, which nothing here measures.
     { key: "timeToVerify", label: "Time To Verify", sortType: "string" },
+    // What the provider call did (backend `provider_outcome`,
+    // `provider_response_ms`). Not delivery: no carrier receipt is received.
+    { key: "providerOutcome", label: "Sent to provider", sortType: "string" },
+    { key: "providerMs", label: "Provider response time", sortType: "string" },
   ],
   "sms-daywise": [
     { key: "date", label: "Date", sortType: "date" },
@@ -753,6 +757,8 @@ function mockRow(
       r.outcome = r.verified === "Yes" ? "Verified" : "Expired";
       r.attempts = r.verified === "Yes" ? 1 : 0;
       r.timeToVerify = r.verified === "Yes" ? `${20 + (i % 40)}s` : "—";
+      r.providerOutcome = "Yes";
+      r.providerMs = `${200 + (i % 300)} ms`;
       break;
     case "sms-daywise": {
       r.date = new Date(Date.now() - (count - i) * 86400000).toISOString().slice(0, 10);
@@ -1819,7 +1825,15 @@ interface RealOtpRequest {
   expires_at?: string | null;
   attempt_count?: number;
   max_attempts?: number;
+  provider_outcome?: string | null;
+  provider_response_ms?: number | null;
 }
+
+const OTP_PROVIDER_OUTCOME: Record<string, string> = {
+  accepted: "Yes",
+  rejected: "No",
+  not_attempted: "Not sent",
+};
 
 /** What the platform recorded about one code. Never a carrier delivery claim. */
 function otpOutcome(it: RealOtpRequest, now: number): string {
@@ -1849,9 +1863,9 @@ function otpTimeToVerify(it: RealOtpRequest): string {
  * interceptor; `location_id` narrows to the picked venue.
  *
  * "Verified" is the real `is_consumed` outcome, and "OTP Status", "Attempts"
- * and "Time To Verify" come from the same row. There is deliberately no carrier
- * delivery-status or delivery-latency column: this platform's OTP SMS persists
- * no gateway delivery row, so those would be fabricated (see UNAVAILABLE_REASON's old otp-delivery note and
+ * and "Time To Verify" come from the same row. "Sent to provider" and "Provider response time" are what the provider call did.
+ * There is deliberately no carrier delivery-status or delivery-latency column:
+ * no carrier receipt is received, so those would be fabricated (see UNAVAILABLE_REASON's old otp-delivery note and
  * this feature's PR). */
 async function realOtpRequests(locationId: string, from: string, to: string): Promise<Row[]> {
   const fromMs = new Date(from).getTime();
@@ -1882,6 +1896,9 @@ async function realOtpRequests(locationId: string, from: string, to: string): Pr
         outcome: otpOutcome(it, Date.now()),
         attempts: it.attempt_count ?? 0,
         timeToVerify: otpTimeToVerify(it),
+        // Rows older than these columns show "—", never a guess.
+        providerOutcome: OTP_PROVIDER_OUTCOME[it.provider_outcome ?? ""] ?? "—",
+        providerMs: it.provider_response_ms == null ? "—" : `${it.provider_response_ms} ms`,
       });
     }
     if (pagedPastWindow || !data?.has_next) break;
