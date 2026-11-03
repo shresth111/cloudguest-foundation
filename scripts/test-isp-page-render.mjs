@@ -515,8 +515,16 @@ console.log("\nOverview Internet Connection card");
 {
   const r = await mount("card-lb-up");
   check("load balance renders", r.errors.length === 0, r.errors.join(" | "));
-  check("load balance: every line is labelled shared", (r.text.match(/Load balanced/g) ?? []).length === 2, r.text);
-  check("load balance: no line claims to be standing by", !/Standby|In use|Backup/.test(r.text), r.text);
+  check(
+    "load balance: every line is labelled shared",
+    (r.text.match(/Load balanced/g) ?? []).length === 2,
+    r.text,
+  );
+  check(
+    "load balance: no line claims to be standing by",
+    !/Standby|In use|Backup/.test(r.text),
+    r.text,
+  );
 }
 
 {
@@ -525,7 +533,11 @@ console.log("\nOverview Internet Connection card");
   const r = await mount("card-lb-one-down");
   check("load balance + one down renders", r.errors.length === 0, r.errors.join(" | "));
   check("load balance + one down: counts the lines", /1 of 2 lines healthy/.test(r.text), r.text);
-  check("load balance + one down: not all down, not on backup", !/All ISPs down|No internet|Online on backup/.test(r.text), r.text);
+  check(
+    "load balance + one down: not all down, not on backup",
+    !/All ISPs down|No internet|Online on backup/.test(r.text),
+    r.text,
+  );
   check("load balance + one down: names the failed line", /Offline/.test(r.text), r.text);
 }
 
@@ -534,14 +546,26 @@ console.log("\nOverview Internet Connection card");
   check("three ISPs, two down renders", r.errors.length === 0, r.errors.join(" | "));
   check("three ISPs, two down: counts all three", /1 of 3 lines healthy/.test(r.text), r.text);
   check("three ISPs, two down: the third line is shown", /Third Line/.test(r.text), r.text);
-  check("three ISPs, two down: both dead lines say so", (r.text.match(/Offline/g) ?? []).length === 2, r.text);
+  check(
+    "three ISPs, two down: both dead lines say so",
+    (r.text.match(/Offline/g) ?? []).length === 2,
+    r.text,
+  );
 }
 
 {
   const r = await mount("card-failover-only-up");
   check("failover only renders", r.errors.length === 0, r.errors.join(" | "));
-  check("failover only: says which line is in use", /Primary/.test(r.text) && /In use/.test(r.text), r.text);
-  check("failover only: the other line stands by", /Backup/.test(r.text) && /Standby/.test(r.text), r.text);
+  check(
+    "failover only: says which line is in use",
+    /Primary/.test(r.text) && /In use/.test(r.text),
+    r.text,
+  );
+  check(
+    "failover only: the other line stands by",
+    /Backup/.test(r.text) && /Standby/.test(r.text),
+    r.text,
+  );
   check("failover only: no load-balance wording", !/Load balanced/.test(r.text), r.text);
 }
 
@@ -549,14 +573,22 @@ console.log("\nOverview Internet Connection card");
   const r = await mount("card-no-reading");
   check("no reading renders", r.errors.length === 0, r.errors.join(" | "));
   check("no reading: blames the router", /Router not responding/.test(r.text), r.text);
-  check("no reading: does not claim the ISPs are down", !/All ISPs down|No internet|Offline/.test(r.text), r.text);
+  check(
+    "no reading: does not claim the ISPs are down",
+    !/All ISPs down|No internet|Offline/.test(r.text),
+    r.text,
+  );
   check("no reading: says so per line", (r.text.match(/No reading/g) ?? []).length === 2, r.text);
 }
 
 {
   const r = await mount("card-switch-failed");
   check("failed switch renders", r.errors.length === 0, r.errors.join(" | "));
-  check("failed switch: says traffic did not move", /Could not move traffic to/.test(r.text), r.text);
+  check(
+    "failed switch: says traffic did not move",
+    /Could not move traffic to/.test(r.text),
+    r.text,
+  );
 }
 
 {
