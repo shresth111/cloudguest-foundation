@@ -63,5 +63,6 @@
     "noResults": "इस location पर कोई guest नहीं मिला। एक बार sign in करने के बाद guest यहाँ दिखता है।",
     "alreadyAdded": "पहले से जोड़ा गया",
     "add": "जोड़ें"
-  }
+  },
+  "subtitleAruba": "इस location के लिए usage limits तय करें।"
 }

@@ -106,7 +106,11 @@ export default function PoliciesHub({
       <PageHeader
         title={scope?.title ?? t("nav:customerItem.policies", "Usage Limits")}
         venue={scope?.venue}
-        description={t("subtitle", "Set usage limits and access tiers for this location.")}
+        description={
+          nasOnlyVenue
+            ? t("subtitleAruba", "Set usage limits for this location.")
+            : t("subtitle", "Set usage limits and access tiers for this location.")
+        }
       />
 
       {/* One flat tab row (no second level underneath it). SubTabs scrolls

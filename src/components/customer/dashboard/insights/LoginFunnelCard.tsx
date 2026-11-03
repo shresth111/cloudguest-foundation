@@ -1,6 +1,8 @@
 import { AlertTriangle, Info, KeyRound } from "lucide-react";
 import { formatCount, methodLabel, rangeLabel } from "./insights.format";
 import { useTranslation } from "react-i18next";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { useCustomerStore } from "@/stores/customerStore";
 import i18n from "@/lib/i18n";
 import {
   CardHead,
@@ -79,6 +81,7 @@ export function LoginFunnelCard({
 
 function Funnel({ data }: { data: LoginFunnelData }) {
   const { t } = useTranslation("insights", { i18n });
+  const nasOnlyVenue = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
   const base = data.otp_requested_guests;
   const portal = data.portal_opened;
   const online = data.internet_confirmed;
@@ -181,7 +184,11 @@ function Funnel({ data }: { data: LoginFunnelData }) {
             })}
             <li data-testid="funnel-online">
               <div className="flex items-baseline justify-between gap-2 text-xs">
-                <span>{t("funnel.internetConfirmed", "Internet confirmed by the router")}</span>
+                <span>
+                  {nasOnlyVenue
+                    ? t("funnel.internetConfirmedAruba", "Internet confirmed by the access point")
+                    : t("funnel.internetConfirmed", "Internet confirmed by the router")}
+                </span>
                 {online.available ? (
                   <span className="tabular-nums">
                     <span className="font-semibold">{formatCount(online.otp_guests)}</span>{" "}
@@ -296,11 +303,17 @@ function Funnel({ data }: { data: LoginFunnelData }) {
         <div className="border-t border-border/60 pt-3" data-testid="funnel-online-total">
           <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
             <Info className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
-            {t(
-              "funnel.onlineAllMethods",
-              "Across every login method, {{count}} guests were confirmed online by the router.",
-              { count: online.count },
-            )}
+            {nasOnlyVenue
+              ? t(
+                  "funnel.onlineAllMethodsAruba",
+                  "Across every login method, {{count}} guests were confirmed online by the access point.",
+                  { count: online.count },
+                )
+              : t(
+                  "funnel.onlineAllMethods",
+                  "Across every login method, {{count}} guests were confirmed online by the router.",
+                  { count: online.count },
+                )}
           </p>
         </div>
       )}

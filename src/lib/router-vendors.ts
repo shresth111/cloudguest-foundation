@@ -571,7 +571,7 @@ export const CONTROLLER_STATE_COPY: Record<ControllerState, ControllerStateCopy>
  */
 export const CONTROLLER_STATE_NEXT_STEP: Record<ControllerState, string> = {
   no_controller_api:
-    "Nothing to do here. To change the WiFi name, password or speed, use the Instant On app.",
+    "Nothing to do here. To change the WiFi name or password, use the Instant On app.",
   not_registered: "Add this controller's connection details to the venue's network integration.",
   disabled: "Switch the integration back on when the venue should be signing guests in again.",
   credentials_rejected:

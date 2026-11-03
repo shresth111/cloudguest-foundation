@@ -1440,9 +1440,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 seen. That keeps this empty state byte-identical at every
                 venue in production today bar one. */
               note={
-                clientControls.controllerManaged
-                  ? "Devices kept off from a guest's device panel are not listed here — this venue's controller does not offer a list we can read."
-                  : undefined
+                isNasOnlyVendor(clientControls.vendor)
+                  ? t(
+                      "blockedDevicesInApp",
+                      "Devices kept off from a guest's device panel are listed in the Instant On app, under Clients, Blocked.",
+                    )
+                  : clientControls.controllerManaged
+                    ? "Devices kept off from a guest's device panel are not listed here — this venue's controller does not offer a list we can read."
+                    : undefined
               }
               action={{
                 label: mode === "email" ? "Block an email" : "Block a number",

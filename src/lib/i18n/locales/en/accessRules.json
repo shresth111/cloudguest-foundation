@@ -63,5 +63,6 @@
     "noResults": "No guest found at this location. A guest appears here after signing in once.",
     "alreadyAdded": "Already added",
     "add": "Add"
-  }
+  },
+  "subtitleAruba": "Set usage limits for this location."
 }

@@ -471,7 +471,7 @@ eq(
 eq(
   "next step",
   RV.CONTROLLER_STATE_NEXT_STEP.no_controller_api,
-  "Nothing to do here. To change the WiFi name, password or speed, use the Instant On app.",
+  "Nothing to do here. To change the WiFi name or password, use the Instant On app.",
 );
 eq("not a fault", RV.controllerStateIsFault("no_controller_api"), false);
 eq("a recognised controller state", RV.isControllerState("no_controller_api"), true);
