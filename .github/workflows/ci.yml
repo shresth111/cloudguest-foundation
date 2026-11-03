@@ -2765,6 +2765,14 @@ jobs:
             "marketing-picker" 15 \
             "marketing picker: all checks passed" \
             bun run test:marketing-picker
+      # Instant On's own data on customer screens at an Aruba venue: nothing until
+      # switched on, then real rows or "unavailable", never a zero.
+      - name: instant on customer data
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "instant-on-customer-data" 25 \
+            "instant on customer data: all checks passed" \
+            bun run test:instant-on-customer-data
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \

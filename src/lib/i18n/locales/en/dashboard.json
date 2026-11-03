@@ -246,6 +246,12 @@
     "accessPoints": "Access points",
     "apCount_one": "{{count}} access point",
     "apCount_other": "{{count}} access points",
-    "dataToday": "data today"
+    "dataToday": "data today",
+    "instantOnUnavailable": "Data unavailable · source Instant On",
+    "fromInstantOn": "From the Instant On app",
+    "apsOnline": "{{online}} of {{total}} online",
+    "devicesConnected": "Devices connected",
+    "wifiNetworks": "WiFi networks",
+    "noneListed": "None listed"
   }
 }
