@@ -42,7 +42,15 @@ export interface GuestNetworkSpeed {
   networkUploadMbps: number | null;
 }
 
-export type GuestSpeedStatus = "ok" | "applied" | "unavailable" | "failed";
+export type GuestSpeedStatus = "ok" | "applied" | "preview" | "unavailable" | "failed";
+
+/** What setting a network total would do. Nothing was written. */
+export interface NetworkTotalPreview {
+  networkId: string;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  replacesPerDevice: boolean;
+}
 
 export interface VenueGuestSpeed {
   status: GuestSpeedStatus;
@@ -52,6 +60,9 @@ export interface VenueGuestSpeed {
   presetsMbps: number[];
   networks: GuestNetworkSpeed[];
   applied: GuestNetworkSpeed | null;
+  /** The backend allows a network total here. Off unless its own flag is on. */
+  networkTotalWriteEnabled: boolean;
+  preview: NetworkTotalPreview | null;
 }
 
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
@@ -77,7 +88,20 @@ function toNetwork(raw: unknown): GuestNetworkSpeed | null {
   };
 }
 
-const STATUSES: GuestSpeedStatus[] = ["ok", "applied", "unavailable", "failed"];
+const STATUSES: GuestSpeedStatus[] = ["ok", "applied", "preview", "unavailable", "failed"];
+
+function toPreview(raw: unknown): NetworkTotalPreview | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const networkId = str(r.network_id);
+  if (!networkId) return null;
+  return {
+    networkId,
+    downloadMbps: mbps(r.download_mbps),
+    uploadMbps: mbps(r.upload_mbps),
+    replacesPerDevice: r.replaces_per_device === true,
+  };
+}
 
 /** The backend answer, snake_case in. Anything unparseable reads as
  * `failed` -- never as "no limit". */
@@ -93,6 +117,8 @@ export function toVenueGuestSpeed(raw: unknown): VenueGuestSpeed {
     status,
     reason: str(r.reason),
     presetsMbps: presets.length > 0 ? presets : [...GUEST_SPEED_PRESETS_MBPS],
+    networkTotalWriteEnabled: r.network_total_write_enabled === true,
+    preview: toPreview(r.preview),
     networks: Array.isArray(r.networks)
       ? r.networks.map(toNetwork).filter((n): n is GuestNetworkSpeed => n !== null)
       : [],

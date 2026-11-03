@@ -60,5 +60,20 @@
     "noResults": "इस location पर कोई guest नहीं मिला। एक बार sign in करने के बाद guest यहाँ दिखता है।",
     "alreadyAdded": "पहले से जोड़ा गया",
     "add": "जोड़ें"
+  },
+  "networkTotal": {
+    "explain": "इस WiFi network के सभी devices के लिए एक साझा कुल speed। यह network के लिए है, पूरे venue के लिए नहीं। एक network पर या तो हर device की limit रहती है या कुल limit, इसलिए यह per-device limit की जगह ले लेगा।",
+    "download": "कुल download (Mbps, 1 से 1000)",
+    "upload": "कुल upload (Mbps, 1 से 1000)",
+    "previewClear": "इससे इस network की कुल limit हट जाएगी।",
+    "preview": "इस network के सभी devices {{down}} download और {{up}} upload साझा करेंगे।",
+    "previewReplaces": "यह per-device limit की जगह लेगा।",
+    "apply": "Network की कुल limit लागू करें",
+    "previewButton": "पूर्वावलोकन",
+    "applied": "Instant On ने नई कुल limit की पुष्टि कर दी।",
+    "notChanged": "Instant On ने speed नहीं बदली। कारण: {{reason}}",
+    "modeLabel": "Speed limit किस पर लगे",
+    "modeDevice": "हर device",
+    "modeNetwork": "पूरा WiFi network"
   }
 }

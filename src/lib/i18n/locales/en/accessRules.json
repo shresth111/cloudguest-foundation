@@ -60,5 +60,20 @@
     "noResults": "No guest found at this location. A guest appears here after signing in once.",
     "alreadyAdded": "Already added",
     "add": "Add"
+  },
+  "networkTotal": {
+    "explain": "One total shared by all devices on this WiFi network. It's per network, not for the whole venue. A network has either a per-device limit or a total, so this replaces any per-device limit.",
+    "download": "Total download (Mbps, 1 to 1000)",
+    "upload": "Total upload (Mbps, 1 to 1000)",
+    "previewClear": "This removes the total from this network.",
+    "preview": "All devices on this network will share {{down}} down and {{up}} up.",
+    "previewReplaces": "This replaces the per-device limit.",
+    "apply": "Apply network total",
+    "previewButton": "Preview",
+    "applied": "Instant On confirmed the new network total.",
+    "notChanged": "Instant On didn't change the speed. Reason: {{reason}}",
+    "modeLabel": "Speed limit applies to",
+    "modeDevice": "Each device",
+    "modeNetwork": "Whole WiFi network"
   }
 }
