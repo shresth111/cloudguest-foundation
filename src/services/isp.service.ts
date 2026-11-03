@@ -71,6 +71,8 @@ interface BackendIspLink {
   current_upload_mbps: number | null;
   last_checked_at: string | null;
   consecutive_unhealthy_count: number;
+  failover_push_status?: string;
+  wan_routing_mode?: "load_balance" | "failover_only" | null;
   created_at: string;
 }
 
@@ -143,6 +145,8 @@ function toIspLink(l: BackendIspLink): IspLink {
     currentUploadMbps: l.current_upload_mbps,
     lastCheckedAt: l.last_checked_at,
     consecutiveUnhealthyCount: l.consecutive_unhealthy_count,
+    failoverPushStatus: l.failover_push_status,
+    wanRoutingMode: l.wan_routing_mode,
     createdAt: l.created_at,
   };
 }

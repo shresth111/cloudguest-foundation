@@ -48,6 +48,8 @@ export type FailoverKind =
   | "on-backup"
   /** Every enabled link is down. */
   | "all-down"
+  /** Two or more links sharing traffic: no line is standing by. */
+  | "load-balanced"
   /** Links exist but none is marked active (not checked yet, or the router
    * has not reported which line carries traffic). */
   | "unknown";
@@ -63,12 +65,46 @@ export interface FailoverState {
   since: string | null;
 }
 
+/** The last health check measured nothing: the router could not be reached
+ * or could not answer. That says nothing about the ISP, so it is neither up
+ * nor down -- and unlike "unknown" on a new line, a check did run. */
+export function isNoReading(
+  link: Pick<IspLink, "healthStatus" | "healthStatusSource" | "lastCheckedAt">,
+): boolean {
+  return (
+    link.healthStatus === "unknown" &&
+    link.healthStatusSource === "automated" &&
+    link.lastCheckedAt != null
+  );
+}
+
+/** The line a failover or failback tried and failed to move traffic onto,
+ * while that move is still needed. A failed attempt stays on the row after
+ * the outage ends, so the current health decides whether it still matters. */
+export function failedSwitchTarget(links: IspLink[]): IspLink | null {
+  const enabled = links.filter((l) => l.isEnabled);
+  if (enabled.length < 2 || enabled.some((l) => l.wanRoutingMode === "load_balance")) return null;
+  const active = enabled.find((l) => l.isActiveUplink) ?? null;
+  return (
+    enabled.find((l) => {
+      if (l.failoverPushStatus !== "failed" || l.isActiveUplink) return false;
+      return l.role === "primary"
+        ? l.healthStatus === "healthy"
+        : active?.healthStatus === "unhealthy";
+    }) ?? null
+  );
+}
+
 export function failoverState(links: IspLink[]): FailoverState {
   const enabled = links.filter((l) => l.isEnabled);
   if (enabled.length === 0) return { kind: "none", active: null, primary: null, since: null };
   const active = enabled.find((l) => l.isActiveUplink) ?? null;
   const known = enabled.filter((l) => l.healthStatus && l.healthStatus !== "unknown");
-  if (known.length > 0 && known.every((l) => l.healthStatus === "unhealthy")) {
+  if (
+    known.length > 0 &&
+    known.every((l) => l.healthStatus === "unhealthy") &&
+    !enabled.some(isNoReading)
+  ) {
     const earliest = known
       .map((l) => l.unhealthySince)
       .filter((v): v is string => !!v)
@@ -76,6 +112,9 @@ export function failoverState(links: IspLink[]): FailoverState {
     return { kind: "all-down", active, primary: null, since: earliest ?? null };
   }
   if (enabled.length === 1) return { kind: "single", active, primary: null, since: null };
+  if (enabled.some((l) => l.wanRoutingMode === "load_balance")) {
+    return { kind: "load-balanced", active: null, primary: null, since: null };
+  }
   if (!active) return { kind: "unknown", active: null, primary: null, since: null };
   if (active.role === "backup") {
     const primary =

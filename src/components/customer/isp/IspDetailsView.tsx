@@ -65,13 +65,14 @@ import type { RouterDevice } from "@/types/router";
 import type { IspLink, IspManualHealthStatus, IspRoutingRule } from "@/types/isp";
 import {
   failoverState,
+  isNoReading,
   isLinkList,
   linkStatus,
   sortLinks,
   stateChanges,
   uptimePercent,
 } from "./isp-model";
-import { FailoverBanner, LinkStatus } from "./isp-ui";
+import { FailedSwitchBanner, FailoverBanner, LinkStatus } from "./isp-ui";
 import { STATUS_TEXT, fmtClock, ispColor, useIspT, useStatusWord } from "./isp-shared";
 import { IspLinkCard } from "./IspLinkCard";
 import { IspHistoryPanel } from "./IspHistoryPanel";
@@ -509,8 +510,18 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
     } else if (failover.kind === "on-backup") {
       headline = t("head.onBackup", "Online on backup");
       headStatus = "warn";
+    } else if (sorted.every(isNoReading)) {
+      headline = t("head.routerNotResponding", "Router not responding");
+      headStatus = "warn";
     } else if (known.length === 0) {
       headline = t("head.notChecked", "Not checked yet");
+    } else if (failover.kind === "load-balanced" && healthyCount < sorted.length) {
+      // Both lines carry traffic, so one down is capacity guests feel.
+      headline = t("head.someIssues", "{{up}} of {{n}} lines healthy", {
+        up: healthyCount,
+        n: sorted.length,
+      });
+      headStatus = "warn";
     } else if (activeLink?.healthStatus === "healthy" || (!multi && healthyCount === 1)) {
       // The line carrying traffic is what guests feel; a standby line's
       // trouble is said underneath, not as the headline.
@@ -734,6 +745,7 @@ export function IspDetailsView({ locationId }: { locationId?: string }) {
                 />
               </div>
               <FailoverBanner state={failover} />
+              <FailedSwitchBanner links={sorted} />
             </section>
           </SectionBoundary>
 

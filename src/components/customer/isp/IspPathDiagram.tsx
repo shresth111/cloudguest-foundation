@@ -166,11 +166,13 @@ export function IspPathDiagram({
           {multi && (
             <span className="text-[var(--wy-text-faint)]">
               {" · "}
-              {l.isActiveUplink
-                ? t("role.active", "In use")
-                : l.healthStatus === "unhealthy"
-                  ? t("role.idle", "Not in use")
-                  : t("role.standby", "Standby")}
+              {l.wanRoutingMode === "load_balance"
+                ? t("role.loadBalanced", "Load balanced")
+                : l.isActiveUplink
+                  ? t("role.active", "In use")
+                  : l.healthStatus === "unhealthy"
+                    ? t("role.idle", "Not in use")
+                    : t("role.standby", "Standby")}
             </span>
           )}
         </span>

@@ -14,7 +14,13 @@ import { cn } from "@/lib/utils";
 import { StatusDot, type ConsoleStatus } from "@/components/customer/console";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { IspHealthCheck, IspLink } from "@/types/isp";
-import { linkStatus, planShare, type FailoverState } from "./isp-model";
+import {
+  failedSwitchTarget,
+  isNoReading,
+  linkStatus,
+  planShare,
+  type FailoverState,
+} from "./isp-model";
 import {
   useIspT,
   useStatusWord,
@@ -35,20 +41,28 @@ export function LinkStatus({
   size = "md",
   className,
 }: {
-  link: Pick<IspLink, "healthStatus" | "healthStatusSource">;
+  link: Pick<IspLink, "healthStatus" | "healthStatusSource"> &
+    Partial<Pick<IspLink, "lastCheckedAt">>;
   size?: "md" | "lg";
   className?: string;
 }) {
   const { t } = useIspT();
   const word = useStatusWord();
   const st = linkStatus(link.healthStatus);
+  const noReading = isNoReading({ ...link, lastCheckedAt: link.lastCheckedAt ?? null });
+  const label = noReading ? t("status.noReading", "No reading") : word(link.healthStatus);
   return (
     <span className={cn("inline-flex items-center gap-1.5", className)}>
-      <StatusDot status={st} label={word(link.healthStatus)} pulse={st === "ok"} />
+      <StatusDot status={st} label={label} pulse={st === "ok"} />
       <span
         className={cn("font-semibold", size === "lg" ? "text-[15px]" : "text-xs", STATUS_TEXT[st])}
+        title={
+          noReading
+            ? t("status.noReadingHint", "The router did not answer the last health check")
+            : undefined
+        }
       >
-        {word(link.healthStatus)}
+        {label}
       </span>
       {link.healthStatusSource === "manual" && (
         <span
@@ -65,6 +79,13 @@ export function LinkStatus({
 /** Role and whether this line carries traffic right now. */
 export function RoleChips({ link, multi }: { link: IspLink; multi: boolean }) {
   const { t } = useIspT();
+  if (multi && link.isEnabled && link.wanRoutingMode === "load_balance") {
+    return (
+      <span className="whitespace-nowrap rounded bg-[var(--wy-surface-2)] px-1.5 text-[11px] font-medium leading-5 text-[var(--wy-text-muted)]">
+        {t("role.loadBalanced", "Load balanced")}
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1">
       <span className="whitespace-nowrap rounded bg-[var(--wy-surface-2)] px-1.5 text-[11px] font-medium leading-5 text-[var(--wy-text-muted)]">
@@ -278,6 +299,34 @@ export function CheckTicks({
 
 /** The failover reading, said once and prominently when it matters. Renders
  * nothing for the calm states ("normal", "single", "none"). */
+/** A failover or failback that did not go through: without this the card looks
+ * as if nothing was attempted. Says what it means for guests, not the
+ * router's raw error. */
+export function FailedSwitchBanner({ links, compact }: { links: IspLink[]; compact?: boolean }) {
+  const { t } = useIspT();
+  const target = failedSwitchTarget(links);
+  if (!target) return null;
+  return (
+    <div
+      role="status"
+      data-wy="failed-switch-banner"
+      className={cn(
+        "flex items-start gap-3 rounded-[var(--wy-radius)] border border-[color-mix(in_srgb,var(--wy-warn)_35%,transparent)] bg-[var(--wy-warn-soft)]",
+        compact ? "px-3 py-2" : "px-4 py-3",
+      )}
+    >
+      <ShieldAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[var(--wy-warn)]" />
+      <p className="text-xs text-[var(--wy-text)]">
+        {t(
+          "failover.switchFailed",
+          "Could not move traffic to {{name}}, so guests are still on the current line. We will keep trying.",
+          { name: target.providerName },
+        )}
+      </p>
+    </div>
+  );
+}
+
 export function FailoverBanner({
   state,
   compact,

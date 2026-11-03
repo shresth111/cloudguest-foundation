@@ -43,7 +43,8 @@
     "title": "Internet Connection",
     "type": "Type",
     "uptimeHint": "Share of health checks that passed in the selected range",
-    "uptimeRange": "Uptime {{range}}"
+    "uptimeRange": "Uptime {{range}}",
+    "loadBalanceNote": "Traffic is shared across these lines. If one fails, the router moves its traffic to the others."
   },
   "cards": "the line cards",
   "controller": "controller",
@@ -118,7 +119,8 @@
     "onBackupSince": "On backup since {{time}}",
     "theBackup": "the backup line",
     "thePrimary": "The primary line",
-    "title": "Failover"
+    "title": "Failover",
+    "switchFailed": "Could not move traffic to {{name}}, so guests are still on the current line. We will keep trying."
   },
   "head": {
     "allDown": "No internet",
@@ -130,7 +132,8 @@
     "onBackup": "Online on backup",
     "online": "Online",
     "otherIssue": "{{names}}: {{status}}",
-    "someIssues": "{{up}} of {{n}} lines healthy"
+    "someIssues": "{{up}} of {{n}} lines healthy",
+    "routerNotResponding": "Router not responding"
   },
   "header": "the summary",
   "history": {
@@ -213,7 +216,8 @@
     "backup": "Backup",
     "idle": "Not in use",
     "primary": "Primary",
-    "standby": "Standby"
+    "standby": "Standby",
+    "loadBalanced": "Load balanced"
   },
   "router": "Router",
   "routersError": {
@@ -277,7 +281,9 @@
     "degraded": "Degraded",
     "healthy": "Online",
     "unhealthy": "Offline",
-    "unknown": "Not checked"
+    "unknown": "Not checked",
+    "noReading": "No reading",
+    "noReadingHint": "The router did not answer the last health check"
   },
   "summary": "Connection summary",
   "ticks": {
