@@ -149,10 +149,17 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
       <PageHeader
         title={scope?.title ?? t("title", "Alerts")}
         venue={scope?.venue}
-        description={t(
-          "description",
-          "Problems we've spotted with your routers, internet lines and WiFi login page, as they happen.",
-        )}
+        description={
+          nasOnlyVenue
+            ? t(
+                "descriptionAruba",
+                "Problems we've spotted with your access points and WiFi login page, as they happen.",
+              )
+            : t(
+                "description",
+                "Problems we've spotted with your routers, internet lines and WiFi login page, as they happen.",
+              )
+        }
       />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
@@ -192,10 +199,17 @@ export function AlertsView({ scope }: { scope?: PageScope } = {}) {
           <ConsoleEmptyState
             icon={Bell}
             title={t("empty.title", "All clear")}
-            description={t(
-              "empty.body",
-              "Nothing needs you right now. If a router, internet line or the WiFi login page has a problem, it shows up here straight away.",
-            )}
+            description={
+              nasOnlyVenue
+                ? t(
+                    "empty.bodyAruba",
+                    "Nothing needs you right now. If the WiFi login page has a problem, or you turn on the access point alert above and one goes quiet, it shows up here.",
+                  )
+                : t(
+                    "empty.body",
+                    "Nothing needs you right now. If a router, internet line or the WiFi login page has a problem, it shows up here straight away.",
+                  )
+            }
           />
         ) : (
           <ul className="divide-y divide-[var(--wy-border)]">

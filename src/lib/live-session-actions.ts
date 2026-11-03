@@ -24,7 +24,7 @@
  * for MikroTik, Omada, a mixed venue and one whose routers could not be read,
  * and the screens render the live button exactly as before.
  */
-import { NAS_ONLY_DISCONNECT } from "@/lib/omada-client-controls";
+import { NAS_ONLY_DISCONNECT, NAS_ONLY_DISCONNECT_CLOUD } from "@/lib/omada-client-controls";
 
 /**
  * Extend at an Aruba Instant On venue. MEASURED 2026-10-03 (AP21, V1): the
@@ -59,12 +59,16 @@ export interface LiveSessionActionGate {
 export function liveSessionActionGate(
   action: LiveSessionAction,
   vendor: string | null | undefined,
+  /** Instant On cloud control is on for the venue (only `true` counts). Changes
+   * only the sentence: "can't disconnect" stops being true. */
+  opts: { cloudControl?: boolean | null } = {},
 ): LiveSessionActionGate {
   if (!isNasOnlyVendor(vendor)) return { action, greyed: false, reason: null };
+  const disconnect = opts.cloudControl === true ? NAS_ONLY_DISCONNECT_CLOUD : NAS_ONLY_DISCONNECT;
   return {
     action,
     greyed: true,
-    reason: action === "extend" ? NAS_ONLY_EXTEND : NAS_ONLY_DISCONNECT,
+    reason: action === "extend" ? NAS_ONLY_EXTEND : disconnect,
   };
 }
 

@@ -49,7 +49,10 @@ import {
 } from "@/lib/block-outcome";
 import { blockScope, blockScopeConfirmation } from "@/lib/block-scope";
 import { useClientControls } from "@/hooks/useClientControls";
-import { NAS_ONLY_BLOCK_SIGNIN } from "@/lib/omada-client-controls";
+import {
+  NAS_ONLY_BLOCK_SIGNIN,
+  NAS_ONLY_BLOCK_SIGNIN_CLOUD_UNCONFIRMED,
+} from "@/lib/omada-client-controls";
 import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 
@@ -721,7 +724,11 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
         // Instant On access point. Say what is true instead of "check".
         setToast(
           isNasOnlyVendor(clientControls.vendor)
-            ? `Saved. ${NAS_ONLY_BLOCK_SIGNIN}`
+            ? `Saved. ${
+                clientControls.instantOnCloudControl === true
+                  ? NAS_ONLY_BLOCK_SIGNIN_CLOUD_UNCONFIRMED
+                  : NAS_ONLY_BLOCK_SIGNIN
+              }`
             : "Saved, but we could not confirm they were taken off the WiFi — they may still be online. Check the list below.",
         );
         setTimeout(() => setToast(null), 6500);
@@ -1433,9 +1440,14 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 seen. That keeps this empty state byte-identical at every
                 venue in production today bar one. */
               note={
-                clientControls.controllerManaged
-                  ? "Devices kept off from a guest's device panel are not listed here — this venue's controller does not offer a list we can read."
-                  : undefined
+                isNasOnlyVendor(clientControls.vendor)
+                  ? t(
+                      "blockedDevicesInApp",
+                      "Devices kept off from a guest's device panel are listed in the Instant On app, under Clients, Blocked.",
+                    )
+                  : clientControls.controllerManaged
+                    ? "Devices kept off from a guest's device panel are not listed here — this venue's controller does not offer a list we can read."
+                    : undefined
               }
               action={{
                 label: mode === "email" ? "Block an email" : "Block a number",

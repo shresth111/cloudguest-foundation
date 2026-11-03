@@ -251,7 +251,7 @@
     "inWyfy2": "Who signed in, when, and on which device",
     "inWyfy3": "Vouchers, and stopping someone signing in again",
     "inApp1": "WiFi name, password and guest network",
-    "inApp2": "Speed limits for guests",
+    "inApp2": "Speed limits for guests (also under Usage Limits, once switched on for your venue)",
     "inApp3": "Websites guests can open before signing in (Allowed domains)",
     "inApp4": "Access point status, firmware and connected devices",
     "instantOnUnavailable": "Data unavailable · source Instant On",

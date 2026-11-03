@@ -10,7 +10,8 @@
   "recent": "हाल के अलर्ट",
   "empty": {
     "title": "सब ठीक है",
-    "body": "अभी आपको कुछ नहीं करना है। राउटर, इंटरनेट लाइन या WiFi लॉगिन पेज में कोई दिक्कत आई, तो वह तुरंत यहाँ दिखेगी।"
+    "body": "अभी आपको कुछ नहीं करना है। राउटर, इंटरनेट लाइन या WiFi लॉगिन पेज में कोई दिक्कत आई, तो वह तुरंत यहाँ दिखेगी।",
+    "bodyAruba": "अभी कुछ करने की ज़रूरत नहीं। WiFi login page में दिक्कत हो, या ऊपर का access point alert चालू हो और कोई access point चुप हो जाए, तो यहाँ दिखेगा।"
   },
   "system": "सिस्टम",
   "status": {
@@ -20,7 +21,7 @@
   },
   "silence": {
     "switch": "Access points के report बंद करने पर मुझे alert करें",
-    "body": "अगर guests जुड़े रहते हुए आपके Aruba Instant On access points 30 मिनट तक चुप हो जाएँ, या कोई एक 2 घंटे चुप रहे जबकि venue का दूसरा guests को चला रहा हो, तो इस page पर alert दिखेगा। यह आपके सभी Aruba venues पर लागू है।",
+    "body": "अगर guests जुड़े रहते हुए आपके Aruba Instant On access points 30 मिनट तक चुप हो जाएँ, या कोई एक 2 घंटे चुप रहे जबकि venue का दूसरा access point guests को सेवा दे रहा हो, तो इस page पर alert दिखेगा। यह आपके सभी Aruba venues पर लागू है।",
     "limits": "Guests नहीं तो traffic नहीं, इसलिए शांत venue पर alert नहीं आता, और बिना guests वाली outage पर भी नहीं आएगा। Wyfy बिजली जाने और internet जाने में फ़र्क नहीं कर सकता; Instant On app देखें।",
     "turnedOn": "Access point alert चालू है।",
     "turnedOff": "Access point alert बंद है।",
@@ -36,5 +37,6 @@
     "eventsTitle": "Instant On app की हाल की घटनाएँ",
     "eventsCaption": "सिर्फ़ वही ताज़ा घटनाएँ जो Instant On रखता है। यह पूरा इतिहास नहीं है।",
     "noEvents": "Instant On में हाल की कोई घटना नहीं है।"
-  }
+  },
+  "descriptionAruba": "आपके access points और WiFi login page में दिखी समस्याएँ, जैसे ही होती हैं।"
 }

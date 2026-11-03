@@ -10,7 +10,8 @@
   "recent": "Recent alerts",
   "empty": {
     "title": "All clear",
-    "body": "Nothing needs you right now. If a router, internet line or the WiFi login page has a problem, it shows up here straight away."
+    "body": "Nothing needs you right now. If a router, internet line or the WiFi login page has a problem, it shows up here straight away.",
+    "bodyAruba": "Nothing needs you right now. If the WiFi login page has a problem, or you turn on the access point alert above and one goes quiet, it shows up here."
   },
   "system": "System",
   "status": {
@@ -36,5 +37,6 @@
     "eventsTitle": "Recent events from the Instant On app",
     "eventsCaption": "Only the latest events Instant On keeps. This is not a full history.",
     "noEvents": "Instant On reports no recent events."
-  }
+  },
+  "descriptionAruba": "Problems we've spotted with your access points and WiFi login page, as they happen."
 }

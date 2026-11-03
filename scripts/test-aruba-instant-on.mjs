@@ -342,6 +342,21 @@ eq("Bandwidth reason is U1", v("speed-limit").reason, U1);
 eq("Access-tier speed: unavailable, U1", v("speed-profile").reason, U1);
 eq("Disconnect: unavailable", v("disconnect").availability, "unavailable");
 eq("Disconnect reason is U2", v("disconnect").reason, U2);
+eq(
+  "cloud control on: Disconnect no longer says it can't",
+  CC.clientControlVerdict("disconnect", { ...ARUBA_VENUE, instantOnCloudControl: true }).reason,
+  CC.NAS_ONLY_DISCONNECT_CLOUD,
+);
+eq(
+  "cloud control on: block sign-in says the device is asked off too",
+  CC.clientControlVerdict("block-signin", { ...ARUBA_VENUE, instantOnCloudControl: true }).reason,
+  CC.NAS_ONLY_BLOCK_SIGNIN_CLOUD,
+);
+eq(
+  "cloud control unknown: the conservative block sentence stays",
+  CC.clientControlVerdict("block-signin", { ...ARUBA_VENUE, instantOnCloudControl: null }).reason,
+  U2_BLOCK,
+);
 // 2026-10-05: block-device at Aruba follows Instant On cloud control. Off:
 // unavailable, saying what is needed and that the sign-in block works (never
 // the "can't disconnect" sentence). On: live, with what the block does.
@@ -456,7 +471,7 @@ eq(
 eq(
   "next step",
   RV.CONTROLLER_STATE_NEXT_STEP.no_controller_api,
-  "Nothing to do here. To change the WiFi name, password or speed, use the Instant On app.",
+  "Nothing to do here. To change the WiFi name or password, use the Instant On app.",
 );
 eq("not a fault", RV.controllerStateIsFault("no_controller_api"), false);
 eq("a recognised controller state", RV.isControllerState("no_controller_api"), true);

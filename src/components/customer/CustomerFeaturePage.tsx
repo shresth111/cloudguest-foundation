@@ -35,7 +35,8 @@ import {
   locationIsControllerManaged,
   locationIsNasOnly,
 } from "@/lib/location-liveness";
-import { featureAppliesToControllerVenue } from "@/lib/router-vendors";
+import { featureAppliesToControllerVenue, isNasOnlyVendor } from "@/lib/router-vendors";
+import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 import { nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
@@ -196,6 +197,19 @@ import { Wifi, Activity } from "lucide-react";
  * here unchanged; only the URL segment differs, not the id used for
  * sidebar highlighting/permissions/labels.
  */
+/** The cloud-control read happens only here, so other vendors make no new request. */
+function NasOnlyAllowListNotice({ vendor }: { vendor: string | null | undefined }) {
+  const clientControls = useClientControls();
+  return (
+    <ControllerControlNotice
+      verdict={nasOnlyLimitVerdict("allow-list", vendor, {
+        cloudControl: clientControls.instantOnCloudControl === true,
+      })}
+      className="mb-4 mt-0"
+    />
+  );
+}
+
 export function CustomerFeaturePage({ feature }: { feature: string }) {
   const navigate = useNavigate();
   const { user, logout, roles } = useAuth();
@@ -353,10 +367,14 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
                   who is already online off the network. */}
               {feature === "whitelist" && !controllerGated && (
                 <>
-                  <ControllerControlNotice
-                    verdict={nasOnlyLimitVerdict("allow-list", controllerVendor)}
-                    className="mb-4 mt-0"
-                  />
+                  {isNasOnlyVendor(controllerVendor) ? (
+                    <NasOnlyAllowListNotice vendor={controllerVendor} />
+                  ) : (
+                    <ControllerControlNotice
+                      verdict={nasOnlyLimitVerdict("allow-list", controllerVendor)}
+                      className="mb-4 mt-0"
+                    />
+                  )}
                   <WhiteList locationId={locationId} scope={pageScope} />
                 </>
               )}

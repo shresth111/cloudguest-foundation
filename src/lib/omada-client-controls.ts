@@ -764,6 +764,11 @@ export const NAS_ONLY_GATEWAY_SPEED =
 export const NAS_ONLY_DISCONNECT =
   "Wyfy can't disconnect a device from Aruba Instant On access points. The guest stays online " +
   "until their session time runs out.";
+/** Cloud control ON: the Guests page's Disconnect really goes to Instant On.
+ * "Asks", because a real drop has not been measured on hardware yet. */
+export const NAS_ONLY_DISCONNECT_CLOUD =
+  "To take this guest offline, use Disconnect on the Guests page. Wyfy asks Instant On to drop " +
+  "the device, then lets it back after a short hold.";
 /**
  * The guest drawer's per-device speed at an Aruba Instant On venue. Instant On
  * has no per-device speed on any path we can reach, so the drawer does not
@@ -772,11 +777,11 @@ export const NAS_ONLY_DISCONNECT =
  */
 export const NAS_ONLY_DEVICE_SPEED =
   "Aruba Instant On can't give one device its own speed. Set one speed for every device on " +
-  "your guest WiFi under Access Rules → Guest WiFi Limits.";
+  "your guest WiFi under Usage Limits.";
 /** The same, at a venue whose Wyfy gateway router applies each guest's speed. */
 export const NAS_ONLY_DEVICE_SPEED_GATEWAY =
   "Each guest's speed comes from your venue's speed setting, applied by your Wyfy gateway " +
-  "router when they come online. Change it under Access Rules → Guest WiFi Limits.";
+  "router when they come online. Change it under Usage Limits.";
 /**
  * Block device at an Aruba Instant On venue with Instant On cloud control ON.
  * Says what happens (a block on the venue's Instant On site, only reported
@@ -803,6 +808,15 @@ export const NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD =
 export const NAS_ONLY_BLOCK_SIGNIN =
   "Blocking stops this person signing in again. If they're online right now, they stay online " +
   "until their session ends.";
+/** Block sign-in with cloud control ON: the backend also ends a live session,
+ * and ending one goes through Instant On. */
+export const NAS_ONLY_BLOCK_SIGNIN_CLOUD =
+  "Blocking stops this person signing in again. If they're online right now, Wyfy also asks " +
+  "Instant On to take their device off the WiFi.";
+/** The save worked but the live half came back unconfirmed, with cloud control ON. */
+export const NAS_ONLY_BLOCK_SIGNIN_CLOUD_UNCONFIRMED =
+  "Blocking stops this person signing in again. We couldn't confirm their device left the " +
+  "WiFi, so they may stay online until their session ends.";
 /**
  * Session timeout is PM_SPEC V1, MEASURED 2026-10-03 on an AP21: the access
  * point ends the session at the Session-Timeout Wyfy sends
@@ -833,9 +847,16 @@ function nasOnlyControlVerdict(
 ): ClientControlVerdict {
   switch (control) {
     case "block-signin":
-      return { control, availability: "qualified", reason: NAS_ONLY_BLOCK_SIGNIN };
+      return {
+        control,
+        availability: "qualified",
+        reason: cloudControl === true ? NAS_ONLY_BLOCK_SIGNIN_CLOUD : NAS_ONLY_BLOCK_SIGNIN,
+      };
     case "disconnect":
-      return { control, availability: "unavailable", reason: NAS_ONLY_DISCONNECT };
+      // Only `true` counts: an unanswered read is not cloud control.
+      return cloudControl === true
+        ? { control, availability: "qualified", reason: NAS_ONLY_DISCONNECT_CLOUD }
+        : { control, availability: "unavailable", reason: NAS_ONLY_DISCONNECT };
     case "block-device":
       // Only `true` counts: an unanswered read is not cloud control.
       return cloudControl === true

@@ -2746,7 +2746,7 @@ jobs:
       - name: aruba silence alert
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-silence-alert" 20 \
+            "aruba-silence-alert" 23 \
             "aruba silence alert: all checks passed" \
             bun run test:aruba-silence-alert
       # Aruba Instant On notes on the voucher, banner and portal builder screens;
@@ -2781,6 +2781,14 @@ jobs:
             "aruba-network-total" 23 \
             "aruba network total: all checks passed" \
             bun run test:aruba-network-total
+      # Rendered: Fix a Problem at Aruba, OTP report columns, usage report dashes,
+      # Blocked Guests notice; MikroTik pinned on the shared screens.
+      - name: aruba rendered gaps
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-rendered-gaps" 46 \
+            "aruba rendered gaps: all checks passed" \
+            bun run test:aruba-rendered-gaps
       - name: aruba instant on access rules
         run: |
           ./scripts/ci-gated-test.sh \

@@ -156,6 +156,10 @@ for (const vendor of ["mikrotik", "tplink_omada"]) {
   check(`${vendor}: no card`, (await page.getByTestId("aruba-silence-alert").count()) === 0);
   const calls = await page.evaluate(() => window.__calls.map((c) => c.path));
   check(`${vendor}: no /alerts/rules request`, !calls.includes("/alerts/rules"), calls.join());
+  check(
+    `${vendor}: alerts copy still names routers`,
+    (await page.locator("#root").innerText()).includes("your routers, internet lines"),
+  );
   check(`${vendor}: no page error`, page.__errors.length === 0, page.__errors.join(" | "));
   await page.close();
 }
@@ -166,6 +170,11 @@ console.log("\n2. Aruba: off until turned on, and turning on writes the rule onc
   await toggle(page).waitFor();
   check("starts off", (await toggle(page).getAttribute("aria-checked")) === "false");
   check("no write just from opening the page", (await writes(page)).length === 0);
+  check(
+    "alerts copy names access points, not routers",
+    (await page.locator("#root").innerText()).includes("your access points and WiFi login page") &&
+      !/\brouters?\b/i.test(await page.locator("#root").innerText()),
+  );
   const text = await page.getByTestId("aruba-silence-alert").innerText();
   check("never claims offline or down", !/\b(offline|down)\b/i.test(text), text);
   check("says a quiet venue raises nothing", text.includes("a quiet venue does not raise"));

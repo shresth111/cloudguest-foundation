@@ -149,6 +149,7 @@
     "test:aruba-network-total": "node scripts/test-aruba-network-total.mjs",
     "test:voucher-session-timeout": "node scripts/test-voucher-session-timeout.mjs",
     "test:aruba-silence-alert": "node scripts/test-aruba-silence-alert.mjs",
+    "test:aruba-rendered-gaps": "node scripts/test-aruba-rendered-gaps.mjs",
     "test:aruba-screen-gaps": "node scripts/test-aruba-screen-gaps.mjs",
     "test:marketing-picker": "node scripts/test-marketing-picker.mjs",
     "test:campaign-edit": "node scripts/test-campaign-edit.mjs",

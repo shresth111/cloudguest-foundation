@@ -81,5 +81,6 @@
     "restored": "Instant On didn't keep the network total. The previous setting was put back.",
     "stateUnknown": "Instant On didn't confirm the network total, and we don't know what's set now. Check this network in the Instant On app.",
     "noAnswer": "We didn't get an answer, so we don't know whether this changed. Check this network in the Instant On app."
-  }
+  },
+  "subtitleAruba": "Set usage limits for this location."
 }

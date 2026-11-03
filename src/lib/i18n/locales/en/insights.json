@@ -33,9 +33,10 @@
     "guests": "guests",
     "aria": "{{new}} new and {{returning}} returning guests",
     "repeatRate": "Came back on another day",
-    "repeatHelp": "{{count}} guests visited on two or more different days in this period.",
     "noHistory": "Our records for this venue start on {{date}}, so everyone in this period counts as new. Returning guests will show up as history builds.",
-    "noHistoryNoDate": "There are no earlier visits on record, so everyone counts as new for now."
+    "noHistoryNoDate": "There are no earlier visits on record, so everyone counts as new for now.",
+    "repeatHelp_one": "{{count}} guest visited on two or more different days in this period.",
+    "repeatHelp_other": "{{count}} guests visited on two or more different days in this period."
   },
   "funnel": {
     "title": "Guest login funnel",
@@ -55,7 +56,9 @@
     "trackingNotStarted": "Tracking has started; nothing recorded yet.",
     "internetConfirmed": "Internet confirmed by the router",
     "onlineGap": "{{count}} guests signed in but their router never reported them online. They may have had no internet after login. If this keeps happening, contact Wyfy support.",
-    "onlineAllMethods": "Across every login method, {{count}} guests were confirmed online by the router."
+    "onlineAllMethods": "Across every login method, {{count}} guests were confirmed online by the router.",
+    "internetConfirmedAruba": "Internet confirmed by the access point",
+    "onlineAllMethodsAruba": "Across every login method, {{count}} guests were confirmed online by the access point."
   },
   "method": {
     "otp_sms": "SMS OTP",
