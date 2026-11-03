@@ -33,9 +33,10 @@
     "guests": "guests",
     "aria": "{{new}} new and {{returning}} returning guests",
     "repeatRate": "Came back on another day",
-    "repeatHelp": "{{count}} guests visited on two or more different days in this period.",
     "noHistory": "Our records for this venue start on {{date}}, so everyone in this period counts as new. Returning guests will show up as history builds.",
-    "noHistoryNoDate": "There are no earlier visits on record, so everyone counts as new for now."
+    "noHistoryNoDate": "There are no earlier visits on record, so everyone counts as new for now.",
+    "repeatHelp_one": "{{count}} guest visited on two or more different days in this period.",
+    "repeatHelp_other": "{{count}} guests visited on two or more different days in this period."
   },
   "funnel": {
     "title": "Guest login funnel",
