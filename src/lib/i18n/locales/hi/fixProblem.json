@@ -71,7 +71,7 @@
   "aruba": {
     "guestsNow": "अभी online guests",
     "accessPoints": "Access points",
-    "lastActivity": "पिछली guest गतिविधि",
+    "lastActivity": "आखिरी guest गतिविधि",
     "statusNote": "यह जानकारी guests के sign in से आती है, access point से नहीं। Idle का मतलब यह भी हो सकता है कि कोई जुड़ा नहीं है। Access point चालू है या नहीं, यह देखने के लिए Instant On app खोलें।",
     "helpTitle": "Guest को क्या दिख रहा है?",
     "openApp": "Instant On खोलें",
@@ -85,7 +85,7 @@
         "title": "WiFi जुड़ता है, पर login page नहीं खुलता",
         "step1": "Guest से mobile data और कोई भी VPN या Private DNS बंद करने को कहें।",
         "step2": "उनसे WiFi network forget करके दोबारा जुड़ने और कोई भी website खोलने को कहें।",
-        "step3": "अगर किसी को page नहीं दिखता, तो Instant On app में देखें कि इस network पर Guest Portal चालू है।"
+        "step3": "अगर किसी को भी page नहीं दिखता, तो Instant On app में देखें कि इस network पर Guest Portal चालू है।"
       },
       "noCode": {
         "title": "Login code नहीं आ रहा",

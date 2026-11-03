@@ -150,7 +150,7 @@
     "attempts": "कोशिशें",
     "timeToVerify": "Verify होने में समय",
     "providerOutcome": "Provider को भेजा गया",
-    "providerMs": "Provider का जवाब का समय"
+    "providerMs": "Provider के जवाब का समय"
   },
   "category": {
     "guestActivityReport": "मेहमानों की गतिविधि",

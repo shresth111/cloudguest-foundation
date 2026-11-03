@@ -105,6 +105,14 @@ export const NAS_ONLY_ALLOW_LIST =
   "list\", doesn't take anyone offline who is online right now. They stay on until their " +
   "session ends.";
 
+/** Guest Allow-list with Instant On cloud control ON: the "only people on this
+ * list" sweep ends sessions, and ending a session takes the device off through
+ * Instant On. A single rule change still acts at the next sign-in. */
+export const NAS_ONLY_ALLOW_LIST_CLOUD =
+  'These rules apply when a guest signs in. With "only people on this list" switched on, ' +
+  "anyone online who isn't on the list can be taken off the WiFi through Instant On within " +
+  "minutes. Otherwise, removing someone doesn't take them offline until their session ends.";
+
 /** Trusted Devices: Instant On has no MAC authentication, so a trusted
  * device still lands on the portal, which signs it in by itself
  * (src/lib/portal-aruba-trusted.ts). Says what the owner will see. */
@@ -151,7 +159,7 @@ export function nasOnlyLimitVerdict(
   control: NasOnlyLimitId,
   vendor: string | null | undefined,
   /** Aruba Instant On cloud control is on for the venue (only `true` counts).
-   * Changes only the data limit's sentence. */
+   * Changes only the data limit's and the allow-list's sentences. */
   opts: { cloudControl?: boolean } = {},
 ): NasOnlyLimitVerdict {
   if (!isNasOnlyVendor(vendor)) return AVAILABLE(control);
@@ -171,7 +179,11 @@ export function nasOnlyLimitVerdict(
     case "open-hours":
       return { control, availability: "qualified", reason: NAS_ONLY_OPEN_HOURS };
     case "allow-list":
-      return { control, availability: "qualified", reason: NAS_ONLY_ALLOW_LIST };
+      return {
+        control,
+        availability: "qualified",
+        reason: opts.cloudControl === true ? NAS_ONLY_ALLOW_LIST_CLOUD : NAS_ONLY_ALLOW_LIST,
+      };
     case "trusted-devices":
       return { control, availability: "qualified", reason: NAS_ONLY_TRUSTED_DEVICES };
   }

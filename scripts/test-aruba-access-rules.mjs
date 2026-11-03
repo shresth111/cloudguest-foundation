@@ -124,6 +124,16 @@ eq("Aruba: daily limit is live with a note", at("daily-limit").availability, "qu
 eq("Aruba: open hours is live with a note", at("open-hours").availability, "qualified");
 eq("Aruba: allow-list is live with a caveat", at("allow-list").availability, "qualified");
 eq(
+  "cloud control on: allow-list says the list can take someone offline",
+  R.nasOnlyLimitVerdict("allow-list", ARUBA, { cloudControl: true }).reason,
+  R.NAS_ONLY_ALLOW_LIST_CLOUD,
+);
+eq(
+  "cloud control on: MikroTik's allow-list has no sentence",
+  R.nasOnlyLimitVerdict("allow-list", "mikrotik", { cloudControl: true }).reason,
+  null,
+);
+eq(
   "vendor match is case-insensitive",
   R.nasOnlyLimitVerdict("data-limit", "ARUBA_INSTANT_ON").availability,
   "qualified",
@@ -1163,7 +1173,7 @@ check(
 const featurePage = src("src/components/customer/CustomerFeaturePage.tsx");
 check(
   "Guest Allow-list: mounted with the NAS-only caveat above it",
-  /nasOnlyLimitVerdict\("allow-list", controllerVendor\)/.test(featurePage) &&
+  /nasOnlyLimitVerdict\("allow-list", vendor, \{/.test(featurePage) &&
     /feature === "whitelist" && !controllerGated/.test(featurePage),
 );
 const operations = src("src/components/features/OperationsFeatures.tsx");
@@ -1175,7 +1185,7 @@ check(
 const blocking = src("src/components/features/BlockUsers.tsx");
 check(
   "Blocking: at a NAS-only venue the saved-but-online toast is copy U2, not 'check'",
-  /isNasOnlyVendor\(clientControls\.vendor\)\s*\?\s*`Saved\. \$\{NAS_ONLY_BLOCK_SIGNIN\}`/.test(
+  /isNasOnlyVendor\(clientControls\.vendor\)\s*\?\s*`Saved\. \$\{\s*clientControls\.instantOnCloudControl === true\s*\?\s*NAS_ONLY_BLOCK_SIGNIN_CLOUD_UNCONFIRMED\s*:\s*NAS_ONLY_BLOCK_SIGNIN\s*\}`/.test(
     blocking,
   ),
 );
