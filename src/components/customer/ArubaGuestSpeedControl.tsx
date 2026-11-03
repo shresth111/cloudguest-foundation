@@ -49,6 +49,7 @@ import {
 } from "@/lib/aruba-guest-speed";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { ArubaNetworkTotalControl } from "@/components/customer/ArubaNetworkTotalControl";
 import { arubaGuestSpeedService } from "@/services/aruba-guest-speed.service";
 
 export function ArubaGuestSpeedControl({
@@ -76,6 +77,14 @@ export function ArubaGuestSpeedControl({
   const [down, setDown] = useState<string>(NO_LIMIT);
   const [up, setUp] = useState<string>(NO_LIMIT);
   const [confirming, setConfirming] = useState(false);
+  // Each device or the whole network: one mode per network in Instant On. Starts
+  // on what the network holds.
+  const [modeChoice, setModeChoice] = useState<"device" | "network" | null>(null);
+  const mode =
+    data?.networkTotalWriteEnabled &&
+    (modeChoice ?? (network?.otherModeLimit ? "network" : "device")) === "network"
+      ? "network"
+      : "device";
 
   // Start the pickers from what the network holds now.
   useEffect(() => {
@@ -174,80 +183,121 @@ export function ArubaGuestSpeedControl({
         )
       ) : (
         <>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            {networks.length > 1 && (
-              <label className="text-xs text-slate-500">
-                {t("guestSpeed.network", "Guest network")}
-                <Select value={network?.networkId ?? ""} onValueChange={setNetworkId}>
-                  <SelectTrigger
-                    className="mt-1 h-9 text-sm"
-                    aria-label={t("guestSpeed.network", "Guest network")}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {networks.map((n) => (
-                      <SelectItem key={n.networkId} value={n.networkId}>
-                        {n.networkName ?? n.networkId}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {data.networkTotalWriteEnabled && network && (
+            <fieldset className="mt-3 flex flex-wrap gap-4 text-xs" data-testid="aruba-speed-mode">
+              <legend className="sr-only">
+                {t("networkTotal.modeLabel", "Speed limit applies to")}
+              </legend>
+              <label className="inline-flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="aruba-speed-mode"
+                  checked={mode === "device"}
+                  onChange={() => setModeChoice("device")}
+                />
+                {t("networkTotal.modeDevice", "Each device")}
               </label>
-            )}
-            {(
-              [
-                ["download", t("guestSpeed.download", "Download"), down, setDown],
-                ["upload", t("guestSpeed.upload", "Upload"), up, setUp],
-              ] as const
-            ).map(([id, label, value, set]) => (
-              <label key={id} className="text-xs text-slate-500">
-                {label}
-                <Select value={value} onValueChange={set}>
-                  <SelectTrigger
-                    className="mt-1 h-9 text-sm"
-                    aria-label={t(`guestSpeed.${id}PerDevice`, `${label} speed per device`)}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_LIMIT}>{t("guestSpeed.noLimit", "No limit")}</SelectItem>
-                    {speedOptions(
-                      presets,
-                      id === "download"
-                        ? (network?.downloadMbps ?? null)
-                        : (network?.uploadMbps ?? null),
-                    ).map((p) => (
-                      <SelectItem key={p} value={String(p)}>
-                        {speedLabel(p)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <label className="inline-flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="aruba-speed-mode"
+                  checked={mode === "network"}
+                  onChange={() => setModeChoice("network")}
+                />
+                {t("networkTotal.modeNetwork", "Whole WiFi network")}
               </label>
-            ))}
-          </div>
-          {network && (
-            <p className="mt-2 text-xs text-slate-500" data-testid="aruba-guest-speed-current">
-              {network.networkName ? `${network.networkName}: ` : ""}
-              {currentSpeedSentence(network)}
-            </p>
+            </fieldset>
           )}
-          <p className="mt-1 text-xs text-slate-400">
-            {t("guestSpeed.sameSettingAsTiers", SAME_SETTING_AS_SSID_TIERS)}
-          </p>
-          <div className="mt-3 flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              disabled={!network || network.otherModeLimit || unchanged || apply.isPending}
-              onClick={() => setConfirming(true)}
-            >
-              {apply.isPending
-                ? t("guestSpeed.applying", "Applying…")
-                : t("guestSpeed.apply", "Apply guest speed")}
-            </Button>
-          </div>
+          {mode === "network" && network && locationId ? (
+            <ArubaNetworkTotalControl
+              key={network.networkId}
+              locationId={locationId}
+              network={network}
+              onApplied={(result) => {
+                if (result.networks.length > 0) queryClient.setQueryData(queryKey, result);
+                else void refetch();
+              }}
+            />
+          ) : (
+            <>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                {networks.length > 1 && (
+                  <label className="text-xs text-slate-500">
+                    {t("guestSpeed.network", "Guest network")}
+                    <Select value={network?.networkId ?? ""} onValueChange={setNetworkId}>
+                      <SelectTrigger
+                        className="mt-1 h-9 text-sm"
+                        aria-label={t("guestSpeed.network", "Guest network")}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {networks.map((n) => (
+                          <SelectItem key={n.networkId} value={n.networkId}>
+                            {n.networkName ?? n.networkId}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </label>
+                )}
+                {(
+                  [
+                    ["download", t("guestSpeed.download", "Download"), down, setDown],
+                    ["upload", t("guestSpeed.upload", "Upload"), up, setUp],
+                  ] as const
+                ).map(([id, label, value, set]) => (
+                  <label key={id} className="text-xs text-slate-500">
+                    {label}
+                    <Select value={value} onValueChange={set}>
+                      <SelectTrigger
+                        className="mt-1 h-9 text-sm"
+                        aria-label={t(`guestSpeed.${id}PerDevice`, `${label} speed per device`)}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_LIMIT}>
+                          {t("guestSpeed.noLimit", "No limit")}
+                        </SelectItem>
+                        {speedOptions(
+                          presets,
+                          id === "download"
+                            ? (network?.downloadMbps ?? null)
+                            : (network?.uploadMbps ?? null),
+                        ).map((p) => (
+                          <SelectItem key={p} value={String(p)}>
+                            {speedLabel(p)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </label>
+                ))}
+              </div>
+              {network && (
+                <p className="mt-2 text-xs text-slate-500" data-testid="aruba-guest-speed-current">
+                  {network.networkName ? `${network.networkName}: ` : ""}
+                  {currentSpeedSentence(network)}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-slate-400">
+                {t("guestSpeed.sameSettingAsTiers", SAME_SETTING_AS_SSID_TIERS)}
+              </p>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!network || network.otherModeLimit || unchanged || apply.isPending}
+                  onClick={() => setConfirming(true)}
+                >
+                  {apply.isPending
+                    ? t("guestSpeed.applying", "Applying…")
+                    : t("guestSpeed.apply", "Apply guest speed")}
+                </Button>
+              </div>
+            </>
+          )}
         </>
       )}
 

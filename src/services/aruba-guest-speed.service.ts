@@ -35,6 +35,29 @@ export const arubaGuestSpeedService = {
     }
   },
 
+  /** One total for one network. Previews unless `dryRun` is false. */
+  async setNetworkTotal(
+    locationId: string,
+    request: {
+      networkId: string;
+      downloadMbps: number | null;
+      uploadMbps: number | null;
+      dryRun: boolean;
+    },
+  ): Promise<VenueGuestSpeed> {
+    const { data } = await api.put<unknown>(
+      `/network-integrations/locations/${locationId}/instant-on/network-total`,
+      {
+        network_id: request.networkId,
+        download_mbps: request.downloadMbps,
+        upload_mbps: request.uploadMbps,
+        dry_run: request.dryRun,
+      },
+      { headers: await headers(locationId) },
+    );
+    return toVenueGuestSpeed(data);
+  },
+
   async apply(
     locationId: string,
     request: { networkId: string; downloadMbps: number | null; uploadMbps: number | null },
