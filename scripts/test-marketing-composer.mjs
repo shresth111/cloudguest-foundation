@@ -69,7 +69,8 @@ writeFileSync(
 );
 writeFileSync(
   join(work, "hooks-stub.js"),
-  `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  `export function useAudienceCandidates() { return { data: undefined, isLoading: false, isError: false }; }
+   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
    const S = () => window.__server;
    function mutation(fn) {
      return { mutateAsync: fn, isPending: false, mutate: () => {} };

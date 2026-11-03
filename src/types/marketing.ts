@@ -119,6 +119,9 @@ export interface AudienceFilter {
   max_visits?: number | null;
   not_seen_for_days?: number | null;
   require_name?: boolean;
+  /** Hand-picked guests, narrowing the filters. `[]` means "choosing, nobody
+   * picked yet" on screen and is never sent. Consent still applies server-side. */
+  guest_ids?: string[] | null;
 }
 
 export interface AudienceSampleGuest {
@@ -131,9 +134,18 @@ export interface AudienceSampleGuest {
   total_visit_count: number;
 }
 
+export interface AudienceCandidates {
+  items: AudienceSampleGuest[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export interface AudiencePreview {
   channel: MarketingChannel;
   matched_guests: number;
+  /** Picked by hand but outside the current filters. */
+  selected_outside_filters?: number;
   reachable: number;
   excluded: {
     no_consent: number;
@@ -190,7 +202,6 @@ export const TEMPLATE_CATEGORIES = [
   "event",
   "winback",
   "announcement",
-  "birthday",
   "custom",
 ] as const;
 export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];

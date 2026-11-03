@@ -70,7 +70,11 @@ import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 import { ArubaGuestSpeedControl } from "@/components/customer/ArubaGuestSpeedControl";
 import { isNasOnlyVendor } from "@/lib/router-vendors";
-import { NAS_ONLY_LIMITS_FOOTER, nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
+import {
+  NAS_ONLY_LIMITS_FOOTER,
+  NAS_ONLY_LIMITS_FOOTER_CLOUD,
+  nasOnlyLimitVerdict,
+} from "@/lib/nas-only-access-rules";
 import { resolveOrgId } from "@/services/customer.service";
 import {
   createPolicyWithRules,
@@ -1353,7 +1357,12 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   />
                   {!speedAsking && !venueSpeedUsable && (
                     <p className="mt-1 text-xs text-[var(--wy-text-muted)]">
-                      {t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
+                      {nasOnlyVenue
+                        ? t(
+                            "venueSpeed.unavailableAruba",
+                            "Wyfy can't set this at Aruba Instant On venues yet. The Instant On app has a network-wide limit in a guest network's Bandwidth Control. It applies to that one network, not the whole venue, and a network uses either that or the per-device speed, not both.",
+                          )
+                        : t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
                     </p>
                   )}
                 </div>
@@ -1613,7 +1622,9 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   were. "usually within a minute" and not "immediately": the
                   write goes to the venue's hardware and is not instant. */}
               {nasOnlyVenue
-                ? NAS_ONLY_LIMITS_FOOTER
+                ? clientControls.instantOnCloudControl === true
+                  ? NAS_ONLY_LIMITS_FOOTER_CLOUD
+                  : NAS_ONLY_LIMITS_FOOTER
                 : t(
                     "limitsApplyNote",
                     "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",

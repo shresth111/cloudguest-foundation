@@ -1,3 +1,4 @@
+import { useLocationIsNasOnly } from "@/hooks/useLocationIsNasOnly";
 import { useState } from "react";
 import { BadgeCheck, Clock, Download, FileDown, Plus, ShieldOff, Ticket } from "lucide-react";
 import { z } from "zod";
@@ -364,6 +365,7 @@ function BatchDialog({
   });
 
   const selectedOrgId = form.watch("organizationId");
+  const locationIsNasOnly = useLocationIsNasOnly(form.watch("locationId"), selectedOrgId);
   const { data: locations = { rows: [] } } = useQuery({
     queryKey: ["voucher", "location-options", selectedOrgId],
     queryFn: () => locationService.list({ organizationId: selectedOrgId, page: 1, pageSize: 100 }),
@@ -487,6 +489,12 @@ function BatchDialog({
                 </Select>
               )}
             />
+            {locationIsNasOnly && (
+              <p className="text-[11px] text-muted-foreground" data-testid="voucher-speed-nas-only">
+                A plan's speed isn't applied at this location: Aruba Instant On can't give one guest
+                a different speed from another on the same WiFi network.
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Quantity</Label>

@@ -258,6 +258,8 @@ export function newIdempotencyKey(): string {
 export function audienceFilterInvalid(f: AudienceFilter): boolean {
   if (f.visited_from && f.visited_to && f.visited_from > f.visited_to) return true;
   if (f.min_visits != null && f.max_visits != null && f.min_visits > f.max_visits) return true;
+  // Choosing by hand with nobody picked: never "everyone".
+  if (f.guest_ids && f.guest_ids.length === 0) return true;
   return false;
 }
 
@@ -274,7 +276,32 @@ export function cleanAudienceFilter(f: AudienceFilter): AudienceFilter {
   if (f.max_visits != null) out.max_visits = f.max_visits;
   if (f.not_seen_for_days != null) out.not_seen_for_days = f.not_seen_for_days;
   if (f.require_name) out.require_name = true;
+  if (f.guest_ids && f.guest_ids.length > 0) out.guest_ids = [...f.guest_ids];
   return out;
+}
+
+/** `last_error` is partly machine codes. Own-provider failures have their own
+ * block in the detail sheet; anything unknown is shown as the server wrote it. */
+export function campaignFailureMessage(
+  t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
+  lastError: string,
+): string {
+  if (lastError === "no_worker")
+    return t(
+      "failure.noWorker",
+      "This campaign didn't start because the sending service didn't pick it up. Nothing was sent. Contact support.",
+    );
+  if (lastError === "dispatch_failed")
+    return t(
+      "failure.dispatchFailed",
+      "This campaign couldn't start because of an error on our side. Nothing was sent. Contact support.",
+    );
+  const notConfigured = /^channel_not_configured: (.*)$/.exec(lastError);
+  if (notConfigured)
+    return t("failure.notConfigured", "This channel isn't live, so nothing was sent. {{reason}}", {
+      reason: notConfigured[1],
+    });
+  return lastError;
 }
 
 // ── Templates ──────────────────────────────────────────────────────────

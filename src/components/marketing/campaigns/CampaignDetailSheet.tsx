@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { AlertTriangle, Ban, CalendarClock, Pencil, Send, Trash2, Undo2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ import {
   formatDateTime,
   marketingErrorMessage,
   useMarketingCan,
+  campaignFailureMessage,
 } from "../marketing-helpers";
 import { RecipientsTable } from "./RecipientsTable";
 import { formatCredits } from "@/lib/marketing-credits";
@@ -78,6 +81,7 @@ export function CampaignDetailSheet({
   onClose: () => void;
   onGoToChannels?: () => void;
 }) {
+  const { t } = useTranslation("marketing", { i18n });
   const can = useMarketingCan();
   const orgScoped = useMarketingScope().kind === "organization";
   const venueLabel = useVenueLabel();
@@ -176,7 +180,8 @@ export function CampaignDetailSheet({
             ) : (
               c.last_error && (
                 <p className="flex items-start gap-1.5 rounded-md bg-[var(--wy-crit-soft)] p-2 text-sm text-[var(--wy-crit)]">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {c.last_error}
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{" "}
+                  {campaignFailureMessage(t, c.last_error)}
                 </p>
               )
             )}

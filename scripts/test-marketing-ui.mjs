@@ -902,9 +902,9 @@ check(
     (demoSrc.match(/note\(DEMO_(SENT|SAVED)_NOTE\)/g) ?? []).length >= 11,
 );
 check(
-  "demo templates are the backend seed, all ten",
+  "demo templates are the backend seed, all nine (birthday retired, migration 0179)",
   (readFileSync(join(DEMO_DIR, "system-templates.ts"), "utf8").match(/system_key: "/g) ?? [])
-    .length === 10,
+    .length === 9,
 );
 
 // Built output (when a build is present): the fixtures ship in their own
@@ -1013,6 +1013,24 @@ check(
   "the demo workspace is never locked and says it is sample data",
   /if \(!demo && \(code === "feature_not_entitled"/.test(view) &&
     /marketing-demo-banner/.test(view),
+);
+check(
+  "the composer offers manual picking and an empty pick blocks the step",
+  /<RecipientPicker/.test(read("src/components/marketing/campaigns/CampaignComposerSheet.tsx")) &&
+    /f\.guest_ids && f\.guest_ids\.length === 0\) return true/.test(
+      read("src/components/marketing/marketing-helpers.ts"),
+    ),
+);
+check(
+  "machine failure codes are not shown raw",
+  /campaignFailureMessage\(t, c\.last_error\)/.test(
+    read("src/components/marketing/campaigns/CampaignDetailSheet.tsx"),
+  ),
+);
+check(
+  "no birthday template or category offered",
+  !/birthday/i.test(read("src/components/marketing/demo/system-templates.ts")) &&
+    !/"birthday"/.test(read("src/types/marketing.ts")),
 );
 check("no tab mounts before /marketing/status answered", /if \(!status\.data\) return/.test(view));
 const upsell = strip(read("src/components/marketing/MarketingLockedUpsell.tsx"));

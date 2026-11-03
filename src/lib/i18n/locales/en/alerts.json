@@ -17,5 +17,14 @@
     "open": "Open",
     "acknowledged": "Seen",
     "resolved": "Resolved"
+  },
+  "silence": {
+    "switch": "Alert me when access points stop reporting",
+    "body": "An alert appears on this page if your Aruba Instant On access points go quiet for 30 minutes while guests were still connected, or if one goes quiet for 2 hours while another at the venue is serving guests. Applies to all your Aruba venues.",
+    "limits": "No guests means no traffic, so a quiet venue does not raise an alert, and an outage with no guests connected will not either. Wyfy can't tell a power cut from a lost internet line; check the Instant On app.",
+    "turnedOn": "Access point alert is on.",
+    "turnedOff": "Access point alert is off.",
+    "saveFailed": "Could not change this alert. Nothing has changed. Try again.",
+    "loadFailed": "Could not check whether this alert is on. Reload the page to try again."
   }
 }

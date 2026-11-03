@@ -258,6 +258,31 @@ export function useAudiencePreview(filter: AudienceFilter | null) {
   });
 }
 
+/** Who can really be messaged under this filter, for picking by hand. */
+export function useAudienceCandidates(
+  filter: AudienceFilter | null,
+  search: string,
+  page: number,
+  pageSize: number,
+) {
+  const { api, loc, scope } = useScope();
+  const debounced = useDebounced(filter, 400);
+  const term = useDebounced(search.trim(), 300);
+  return useQuery({
+    queryKey: [...marketingKeys.audience(scope, debounced), "candidates", term, page, pageSize],
+    queryFn: ({ signal }) =>
+      api.audienceCandidates(
+        { audience: debounced!, search: term || undefined, page, page_size: pageSize },
+        loc,
+        signal,
+      ),
+    enabled: !!debounced,
+    staleTime: 10_000,
+    placeholderData: keepPreviousData,
+    retry: retryUnlessEntitlement,
+  });
+}
+
 export function useMarketingTemplates(q: TemplateListQuery) {
   const { api, loc, scope } = useScope();
   return useQuery({

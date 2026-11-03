@@ -1,3 +1,5 @@
+import { useClientControls } from "@/hooks/useClientControls";
+import { isNasOnlyVendor } from "@/lib/router-vendors";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
@@ -247,6 +249,7 @@ const demoAssetSeed = (campaignId: string): CampaignAsset[] => [
 export function CampaignsPage({ locationId, scope }: { locationId?: string; scope?: PageScope }) {
   const { t } = useTranslation("marketing", { i18n });
   const demo = useIsDemo();
+  const clientControls = useClientControls();
   const [items, setItems] = useState<Campaign[]>(demo ? DEMO_SEED : []);
   const [loading, setLoading] = useState(!demo);
   // Set when the campaign list itself could not be loaded. Previously this
@@ -269,6 +272,8 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
   // this at all: the Recent Campaigns table had no per-row action for it,
   // so clicking a survey campaign did nothing.
   const [manageFor, setManageFor] = useState<Campaign | null>(null);
+  const [surveyDetails, setSurveyDetails] = useState({ name: "", startDate: "", endDate: "" });
+  const [surveyDetailsSaving, setSurveyDetailsSaving] = useState(false);
 
   // Survey results. The star rating has shipped for a while and guests
   // really do submit answers (campaign-portal.service.ts's submitResponse),
@@ -545,6 +550,7 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
 
   const openManage = async (c: Campaign) => {
     setManageFor(c);
+    setSurveyDetails({ name: c.name, startDate: c.startDate, endDate: c.endDate });
     setQForm(emptyQuestionForm);
     setQErr("");
     if (demo) {
@@ -559,6 +565,58 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
       setQuestions([]);
     } finally {
       setQuestionsLoading(false);
+    }
+  };
+
+  const saveSurveyDetails = async () => {
+    if (!manageFor) return;
+    const name = surveyDetails.name.trim();
+    if (!name) {
+      toast.error(t("offersEdit.nameRequired", "Campaign name is required."));
+      return;
+    }
+    if (
+      surveyDetails.startDate &&
+      surveyDetails.endDate &&
+      surveyDetails.endDate < surveyDetails.startDate
+    ) {
+      toast.error(t("offersEdit.endBeforeStart", "End date must be after start date."));
+      return;
+    }
+    const applyLocal = () => {
+      const updated = {
+        ...manageFor,
+        name,
+        startDate: surveyDetails.startDate,
+        endDate: surveyDetails.endDate,
+      };
+      setItems((rows) => rows.map((r) => (r.id === manageFor.id ? { ...r, ...updated } : r)));
+      setManageFor(updated);
+      toast.success(t("offersEdit.surveySaved", "Survey saved"));
+    };
+    if (demo) {
+      applyLocal();
+      return;
+    }
+    setSurveyDetailsSaving(true);
+    try {
+      await campaignService.update(manageFor.id, {
+        name,
+        ...(surveyDetails.startDate
+          ? { startsAt: new Date(surveyDetails.startDate).toISOString() }
+          : {}),
+        endsAt: surveyDetails.endDate ? new Date(surveyDetails.endDate).toISOString() : null,
+      });
+      applyLocal();
+    } catch {
+      toast.error(
+        t(
+          "offersEdit.surveySaveFailed",
+          "Could not save the survey — check the connection and try again.",
+        ),
+      );
+    } finally {
+      setSurveyDetailsSaving(false);
     }
   };
 
@@ -1248,6 +1306,49 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
                 <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
+            <div className="mb-4 space-y-3 border-b border-[var(--wy-border)] pb-4">
+              <div>
+                <Label htmlFor="edit-survey-name">{t("offersEdit.name", "Campaign Name")}</Label>
+                <Input
+                  id="edit-survey-name"
+                  value={surveyDetails.name}
+                  onChange={(e) => setSurveyDetails({ ...surveyDetails, name: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="edit-survey-start">{t("offersEdit.start", "Start date")}</Label>
+                  <Input
+                    id="edit-survey-start"
+                    type="date"
+                    value={surveyDetails.startDate}
+                    onChange={(e) =>
+                      setSurveyDetails({ ...surveyDetails, startDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-survey-end">
+                    {t("offersEdit.end", "End date (optional)")}
+                  </Label>
+                  <Input
+                    id="edit-survey-end"
+                    type="date"
+                    value={surveyDetails.endDate}
+                    onChange={(e) =>
+                      setSurveyDetails({ ...surveyDetails, endDate: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button size="sm" onClick={saveSurveyDetails} disabled={surveyDetailsSaving}>
+                  {surveyDetailsSaving
+                    ? t("offersEdit.saving", "Saving…")
+                    : t("offersEdit.saveDetails", "Save details")}
+                </Button>
+              </div>
+            </div>
             <p className="mb-4 text-xs text-muted-foreground">
               Guests answer these when this survey campaign is shown at login.
             </p>
@@ -1447,6 +1548,17 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
                   onChange={(e) => setAssetForm({ ...assetForm, imageUrl: e.target.value })}
                   placeholder="Image URL (optional, e.g. https://…/banner.png)"
                 />
+                {isNasOnlyVendor(clientControls.vendor) && (
+                  <p
+                    className="text-[11px] text-muted-foreground"
+                    data-testid="banner-image-nas-only"
+                  >
+                    {t(
+                      "offersEdit.imageNasOnly",
+                      "Guests aren't online yet when they see this. An image hosted on another site won't load unless that site's domain is allowed on the guest network in the Instant On app.",
+                    )}
+                  </p>
+                )}
                 <Input
                   value={assetForm.clickUrl}
                   onChange={(e) => setAssetForm({ ...assetForm, clickUrl: e.target.value })}

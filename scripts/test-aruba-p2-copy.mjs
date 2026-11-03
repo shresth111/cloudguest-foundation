@@ -441,6 +441,29 @@ console.log("\n2. Aruba Security Score (P2-M)");
   await done(r);
 }
 
+console.log("\n2b. Blocking page intro");
+{
+  const r = await render(ROOT, "aruba", "blocking");
+  const t = await text(r.page);
+  check(
+    "Aruba: no promise to stop websites",
+    !/Stop websites from opening/.test(t),
+    t.slice(0, 300),
+  );
+  check("Aruba: says website blocking isn't available", /Website blocking isn't available/.test(t));
+  await done(r);
+}
+for (const venue of ["mikrotik", "omada"]) {
+  const r = await render(ROOT, venue, "blocking");
+  const t = await text(r.page);
+  check(
+    `${venue}: keeps the original Blocking intro`,
+    /Stop websites from opening/.test(t),
+    t.slice(0, 300),
+  );
+  await done(r);
+}
+
 console.log("\n3. Aruba Guest Connection Records (P2-N)");
 {
   const r = await render(ROOT, "aruba", "network-activity");
@@ -483,7 +506,36 @@ console.log("\n3. Aruba Guest Connection Records (P2-N)");
   );
   check("real bytes kept", rows[1].bytesUp === 1.5 && rows[1].bytesDown === 20);
   check("one side 0 with real other side kept", rows[2].bytesUp === 0 && rows[2].bytesDown === 4);
+  const usage = (type, row) => m.arubaUsageReportRows(type, [row])[0];
+  eq("session report: no bytes -> —", usage("user-sessions", { data: 0 }).data, null);
+  eq("session report: real bytes kept", usage("user-sessions", { data: 12 }).data, 12);
+  eq("guest totals: no bytes -> —", usage("user-data", { data: 0 }).data, null);
+  check(
+    "daily bandwidth: no bytes -> — for every measured field",
+    Object.values(
+      usage("data-consumption", { uploadGB: 0, downloadGB: 0, totalGB: 0, cost: 0 }),
+    ).every((v) => v === null),
+  );
+  eq(
+    "daily bandwidth: real total kept",
+    usage("data-consumption", { uploadGB: 0, downloadGB: 2, totalGB: 2, cost: 1 }).downloadGB,
+    2,
+  );
+  eq(
+    "daily data: no bytes -> —",
+    usage("daywise-data", { totalData: 0, users: 3 }).totalData,
+    null,
+  );
+  eq("daily data: guest count kept", usage("daywise-data", { totalData: 0, users: 3 }).users, 3);
+  eq("by location: no bytes -> —", usage("data-by-location", { totalData: 0 }).totalData, null);
+  eq("other reports untouched", usage("otp-delivery", { data: 0 }).data, 0);
   const reports = readFileSync(join(ROOT, "src/components/features/UserReports.tsx"), "utf8");
+  check(
+    "usage reports change only at a NAS-only location",
+    /ARUBA_USAGE_REPORTS\.has\(reportType\) && locationIsNasOnly\(loc\?\.liveness\)/.test(
+      reports,
+    ) && /const nasOnly = locationIsNasOnly\(l\.liveness\);/.test(reports),
+  );
   check(
     "wired only for NAS-only locations",
     /if \(locationIsNasOnly\(loc\?\.liveness\)\) data = arubaGuestSessionLogRows\(data\);/.test(
