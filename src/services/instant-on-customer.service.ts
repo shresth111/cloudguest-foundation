@@ -4,7 +4,7 @@
  * or isn't allowed for this user reads as off, which isn't a fault. Separate from
  * `aruba-instant-on.service.ts`, the Master console's GLOBAL-scoped surface.
  */
-import { api, requestErrorOf } from "@/services/api";
+import { api } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
 import { instantOnReadFailure, type InstantOnKind } from "@/lib/instant-on-views";
 
@@ -18,7 +18,7 @@ export const instantOnCustomerService = {
       );
       return data;
     } catch (err) {
-      return instantOnReadFailure(requestErrorOf(err)?.status);
+      return instantOnReadFailure((err as { status?: number | null } | null)?.status);
     }
   },
 };
