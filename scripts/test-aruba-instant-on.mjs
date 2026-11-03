@@ -342,6 +342,21 @@ eq("Bandwidth reason is U1", v("speed-limit").reason, U1);
 eq("Access-tier speed: unavailable, U1", v("speed-profile").reason, U1);
 eq("Disconnect: unavailable", v("disconnect").availability, "unavailable");
 eq("Disconnect reason is U2", v("disconnect").reason, U2);
+eq(
+  "cloud control on: Disconnect no longer says it can't",
+  CC.clientControlVerdict("disconnect", { ...ARUBA_VENUE, instantOnCloudControl: true }).reason,
+  CC.NAS_ONLY_DISCONNECT_CLOUD,
+);
+eq(
+  "cloud control on: block sign-in says the device is asked off too",
+  CC.clientControlVerdict("block-signin", { ...ARUBA_VENUE, instantOnCloudControl: true }).reason,
+  CC.NAS_ONLY_BLOCK_SIGNIN_CLOUD,
+);
+eq(
+  "cloud control unknown: the conservative block sentence stays",
+  CC.clientControlVerdict("block-signin", { ...ARUBA_VENUE, instantOnCloudControl: null }).reason,
+  U2_BLOCK,
+);
 // 2026-10-05: block-device at Aruba follows Instant On cloud control. Off:
 // unavailable, saying what is needed and that the sign-in block works (never
 // the "can't disconnect" sentence). On: live, with what the block does.

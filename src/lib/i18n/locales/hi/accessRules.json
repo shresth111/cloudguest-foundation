@@ -50,7 +50,7 @@
   },
   "ssidGuests": {
     "title": "{{ssid}} इस्तेमाल करने वाले guests",
-    "hint": "यहाँ जोड़ा गया guest अगली बार connect होने से बिना voucher इस network से जुड़ सकता है। हटाने पर अगला connection रुकता है, पहले से online connection नहीं।",
+    "hint": "यहाँ जोड़ा गया guest अगली बार connect होने पर बिना voucher इस network से जुड़ सकता है। हटाने पर अगला connection रुकता है, पहले से online connection नहीं।",
     "unknownGuest": "Guest",
     "searchFailed": "Guests नहीं खोजे जा सके।",
     "addFailed": "यह guest नहीं जोड़ा जा सका।",

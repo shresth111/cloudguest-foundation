@@ -134,6 +134,28 @@ for (const vendor of ["aruba_instant_on", "Aruba_Instant_On"]) {
   }
 }
 eq("the sentence is NAS_ONLY_DISCONNECT", disconnectReason, CC.NAS_ONLY_DISCONNECT);
+eq(
+  "cloud control on: reset no longer says Wyfy can't disconnect",
+  L.liveSessionActionGate("reset-session", "aruba_instant_on", { cloudControl: true }).reason,
+  CC.NAS_ONLY_DISCONNECT_CLOUD,
+);
+eq(
+  "cloud control unknown: the conservative sentence stays",
+  L.liveSessionActionGate("reset-session", "aruba_instant_on", { cloudControl: null }).reason,
+  CC.NAS_ONLY_DISCONNECT,
+);
+eq(
+  "extend's sentence doesn't depend on cloud control",
+  L.liveSessionActionGate("extend", "aruba_instant_on", { cloudControl: true }).reason,
+  L.NAS_ONLY_EXTEND,
+);
+for (const vendor of ["mikrotik", "tplink_omada"]) {
+  eq(
+    `${vendor}: cloud option changes nothing`,
+    L.liveSessionActionGate("reset-session", vendor, { cloudControl: true }).greyed,
+    false,
+  );
+}
 
 eq("read: bare true", L.readDisconnectEnforced({ disconnect_enforced: true }), true);
 eq("read: bare false", L.readDisconnectEnforced({ disconnect_enforced: false }), false);

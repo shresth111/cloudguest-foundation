@@ -750,7 +750,9 @@ function ZoneBGuestLookup({
   // back `disconnect_enforced: false` on every call there, so the button could
   // only ever report a reset the guest's device never felt. False everywhere
   // else, where the button below renders exactly as before.
-  const resetGate = liveSessionActionGate("reset-session", clientControls.vendor);
+  const resetGate = liveSessionActionGate("reset-session", clientControls.vendor, {
+    cloudControl: clientControls.instantOnCloudControl,
+  });
 
   const lookup = async (rawIdentifier: string, knownSession?: GuestSession) => {
     const identifier = rawIdentifier.trim();
