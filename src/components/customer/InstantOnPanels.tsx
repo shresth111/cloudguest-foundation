@@ -170,7 +170,6 @@ export function InstantOnActivityPanels({ locationId }: { locationId: string }) 
                   >
                     <span className="font-medium text-[var(--wy-text)]">
                       {instantOnLabel(e.event)}
-                      {e.deviceName ? ` · ${e.deviceName}` : ""}
                       {e.networkName ? ` · ${e.networkName}` : ""}
                     </span>
                     <span className="shrink-0 text-[var(--wy-text-muted)]">

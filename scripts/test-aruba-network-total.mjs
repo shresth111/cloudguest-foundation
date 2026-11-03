@@ -40,7 +40,7 @@ writeFileSync(
      async apply() { window.__calls.push("per-device"); return toVenueGuestSpeed({ status: "ok" }); },
      async setNetworkTotal(_l, r) {
        window.__calls.push(r);
-       if (window.__refuse && !r.dryRun) return toVenueGuestSpeed({ status: "failed", reason: "write_not_confirmed" });
+       if (window.__refuse && !r.dryRun) return toVenueGuestSpeed({ status: "failed", reason: window.__reason || "write_not_confirmed" });
        if (r.dryRun) return toVenueGuestSpeed({ status: "preview", preview: { network_id: r.networkId,
          download_mbps: r.downloadMbps, upload_mbps: r.uploadMbps, replaces_per_device: true } });
        const applied = net({ enabled: false, download_mbps: null, upload_mbps: null,
@@ -89,7 +89,7 @@ const server = createServer((req, res) => {
     const flag = url.searchParams.has("flag");
     res.writeHead(200, { "content-type": "text/html" });
     return res.end(`<!doctype html><script>window.__calls=[];window.__flag=${flag};
-      window.__held=${url.searchParams.has("held")};window.__refuse=${url.searchParams.has("refuse")}</script>
+      window.__held=${url.searchParams.has("held")};window.__refuse=${url.searchParams.has("refuse")};window.__reason=${JSON.stringify(url.searchParams.get("reason"))}</script>
       <div id=root></div><script type=module src="./bundle.js"></script>`);
   }
   try {
@@ -148,6 +148,12 @@ console.log("\n2. Flag on: preview first");
     "no apply before a preview",
     (await page.getByRole("button", { name: "Apply network total" }).count()) === 0,
   );
+  await page.getByLabel(/Total download/).fill("");
+  await page.getByLabel(/Total upload/).fill("");
+  check(
+    "empty boxes can't preview over a per-device cap",
+    await page.getByRole("button", { name: "Preview" }).isDisabled(),
+  );
   await page.getByLabel(/Total download/).fill("5000");
   check(
     "out of range can't preview",
@@ -204,6 +210,25 @@ console.log("\n3. A write Instant On didn't keep says so");
   await page.close();
 }
 
+console.log("\n3b. A write that wasn't kept says what's in place");
+for (const [reason, text] of [
+  ["network_total_not_kept_restored", /previous setting was put back/],
+  ["network_total_state_unknown", /don't know what's set now/],
+]) {
+  const page = await open(`flag&refuse&reason=${reason}`);
+  await page.getByRole("radio", { name: "Whole WiFi network" }).check();
+  await page.getByLabel(/Total download/).fill("50");
+  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Apply network total" }).click();
+  await page.getByText(text).waitFor({ timeout: 10_000 });
+  check(`${reason} is said plainly`, true);
+  check(
+    `${reason} never says it didn't change`,
+    (await page.getByText(/didn't change the speed/).count()) === 0,
+  );
+  await page.close();
+}
+
 console.log("\n4. A network holding a total opens on it");
 {
   const page = await open("flag&held");
@@ -213,6 +238,14 @@ console.log("\n4. A network holding a total opens on it");
   );
   check("shows the held download", (await page.getByLabel(/Total download/).inputValue()) === "40");
   check("shows the held upload", (await page.getByLabel(/Total upload/).inputValue()) === "15");
+  await page.getByLabel(/Total download/).fill("");
+  await page.getByLabel(/Total upload/).fill("");
+  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByTestId("aruba-total-preview").waitFor();
+  check(
+    "removing a held total says guests will have no limit",
+    (await page.getByTestId("aruba-total-preview").innerText()).includes("no speed limit"),
+  );
   await page.close();
 }
 

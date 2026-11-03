@@ -68,7 +68,7 @@
     "explain": "One total shared by all devices on this WiFi network. It's per network, not for the whole venue. A network has either a per-device limit or a total, so this replaces any per-device limit.",
     "download": "Total download (Mbps, 1 to 1000)",
     "upload": "Total upload (Mbps, 1 to 1000)",
-    "previewClear": "This removes the total from this network.",
+    "previewClear": "This removes the total from this network. Guests on it will have no speed limit.",
     "preview": "All devices on this network will share {{down}} down and {{up}} up.",
     "previewReplaces": "This replaces the per-device limit.",
     "apply": "Apply network total",
@@ -77,6 +77,9 @@
     "notChanged": "Instant On didn't change the speed. Reason: {{reason}}",
     "modeLabel": "Speed limit applies to",
     "modeDevice": "Each device",
-    "modeNetwork": "Whole WiFi network"
+    "modeNetwork": "Whole WiFi network",
+    "restored": "Instant On didn't keep the network total. The previous setting was put back.",
+    "stateUnknown": "Instant On didn't confirm the network total, and we don't know what's set now. Check this network in the Instant On app.",
+    "noAnswer": "We didn't get an answer, so we don't know whether this changed. Check this network in the Instant On app."
   }
 }

@@ -50,6 +50,28 @@ for (const reason of ["poll_failed", "stale", "never_polled"]) {
       .status === "unavailable",
   );
 }
+for (const status of [404, 403, 402]) {
+  check(
+    `a ${status} reads as off, not as a fault`,
+    V.toInstantOnEvents(V.instantOnReadFailure(status)).status === "off",
+  );
+}
+for (const status of [500, 503, null, undefined]) {
+  check(
+    `a ${status} failure reads as unavailable`,
+    V.toInstantOnAps(V.instantOnReadFailure(status)).status === "unavailable",
+  );
+}
+check(
+  "an event's device name is never kept for the screen",
+  !(
+    "deviceName" in
+    (V.toInstantOnEvents({
+      status: "ok",
+      items: [{ event: "clientConnected", device_name: "Asha 12:34:56:78:9a:bc" }],
+    }).items[0] ?? {})
+  ),
+);
 check("a failed request is unavailable", V.toInstantOnAps(null).status === "unavailable");
 check(
   "an ok answer with no list is unavailable, not empty",
@@ -130,7 +152,7 @@ const SCENES = {
       Array.from({ length: 12 }, (_, i) => ({
         event_id: `e${i}`,
         event: "clientConnected",
-        device_name: "AP21",
+        device_name: "Asha 12:34:56:78:9a:bc",
       })),
     ),
   },
@@ -223,6 +245,10 @@ console.log("\n4. Real data");
     (await page.getByTestId("instant-on-ssids").innerText()).includes("WYFY_ARUBA"),
   );
   check("the alert shows with its device", t.includes("Device down · AP22"), t);
+  check(
+    "no guest device name or MAC on screen",
+    !/Asha|12:34:56/.test(await page.locator("#root").innerText()),
+  );
   check(
     "events show the latest 10 of 12",
     (await page.getByTestId("instant-on-event-row").count()) === 10,

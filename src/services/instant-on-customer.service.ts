@@ -1,11 +1,12 @@
 /**
  * Customer Instant On reads for one Aruba Instant On venue. Organization-scoped,
- * location-keyed; any failure reads as unavailable. Separate from
+ * location-keyed. A real failure reads as unavailable; a route that isn't there
+ * or isn't allowed for this user reads as off, which isn't a fault. Separate from
  * `aruba-instant-on.service.ts`, the Master console's GLOBAL-scoped surface.
  */
-import { api } from "@/services/api";
+import { api, requestErrorOf } from "@/services/api";
 import { resolveOrgId } from "@/services/customer.service";
-import type { InstantOnKind } from "@/lib/instant-on-views";
+import { instantOnReadFailure, type InstantOnKind } from "@/lib/instant-on-views";
 
 export const instantOnCustomerService = {
   async read(locationId: string, kind: InstantOnKind): Promise<unknown> {
@@ -16,8 +17,8 @@ export const instantOnCustomerService = {
         { headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId } },
       );
       return data;
-    } catch {
-      return null;
+    } catch (err) {
+      return instantOnReadFailure(requestErrorOf(err)?.status);
     }
   },
 };

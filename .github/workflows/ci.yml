@@ -2770,7 +2770,7 @@ jobs:
       - name: instant on customer data
         run: |
           ./scripts/ci-gated-test.sh \
-            "instant-on-customer-data" 25 \
+            "instant-on-customer-data" 34 \
             "instant on customer data: all checks passed" \
             bun run test:instant-on-customer-data
       # Network total speed at an Aruba venue: hidden while its flag is off, previews
@@ -2778,7 +2778,7 @@ jobs:
       - name: aruba network total
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-network-total" 17 \
+            "aruba-network-total" 23 \
             "aruba network total: all checks passed" \
             bun run test:aruba-network-total
       - name: aruba instant on access rules

@@ -41,18 +41,39 @@ export function ArubaNetworkTotalControl({
   const [down, setDown] = useState(network.networkDownloadMbps?.toString() ?? "");
   const [up, setUp] = useState(network.networkUploadMbps?.toString() ?? "");
   const [preview, setPreview] = useState<NetworkTotalPreview | null>(null);
-  const valid = inRange(down) && inRange(up);
+  const empty = !down.trim() && !up.trim();
+  // Empty only means something when a total is there to remove. The server
+  // refuses it otherwise, as it would uncap every guest.
+  const valid = inRange(down) && inRange(up) && (!empty || network.otherModeLimit);
   const refused = (result: VenueGuestSpeed) =>
     toast.error(
-      t("networkTotal.notChanged", "Instant On didn't change the speed. Reason: {{reason}}", {
-        reason: result.reason ?? result.status,
-      }),
+      result.reason === "network_total_not_kept_restored"
+        ? t(
+            "networkTotal.restored",
+            "Instant On didn't keep the network total. The previous setting was put back.",
+          )
+        : result.reason === "network_total_state_unknown"
+          ? t(
+              "networkTotal.stateUnknown",
+              "Instant On didn't confirm the network total, and we don't know what's set now. Check this network in the Instant On app.",
+            )
+          : t("networkTotal.notChanged", "Instant On didn't change the speed. Reason: {{reason}}", {
+              reason: result.reason ?? result.status,
+            }),
     );
   const failed = () =>
     toast.error(
       t(
         "guestSpeed.applyUnreachable",
         "We couldn't reach Instant On to change the speed, so nothing has changed.",
+      ),
+    );
+  // Apply may have landed even when its answer was lost.
+  const applyFailed = () =>
+    toast.error(
+      t(
+        "networkTotal.noAnswer",
+        "We didn't get an answer, so we don't know whether this changed. Check this network in the Instant On app.",
       ),
     );
   const send = (dryRun: boolean) =>
@@ -77,9 +98,12 @@ export function ArubaNetworkTotalControl({
       if (result.status === "applied") {
         toast.success(t("networkTotal.applied", "Instant On confirmed the new network total."));
         onApplied(result);
-      } else refused(result);
+      } else {
+        refused(result);
+        onApplied(result); // show what's in place now, whichever way it went
+      }
     },
-    onError: failed,
+    onError: applyFailed,
   });
   const clearing = preview && preview.downloadMbps === null && preview.uploadMbps === null;
   return (
@@ -123,7 +147,10 @@ export function ArubaNetworkTotalControl({
       {preview && (
         <p className="text-xs text-slate-700 dark:text-slate-200" data-testid="aruba-total-preview">
           {clearing
-            ? t("networkTotal.previewClear", "This removes the total from this network.")
+            ? t(
+                "networkTotal.previewClear",
+                "This removes the total from this network. Guests on it will have no speed limit.",
+              )
             : t(
                 "networkTotal.preview",
                 "All devices on this network will share {{down}} down and {{up}} up.",

@@ -31,7 +31,6 @@ export interface InstantOnEvent {
   id: string | null;
   event: string;
   occurredAt: string | null;
-  deviceName: string | null;
   networkName: string | null;
 }
 
@@ -42,6 +41,15 @@ export type InstantOnView<T> =
   | { status: "ok"; asOf: string | null; items: T[] };
 
 const OFF_REASONS = new Set(["not_configured", "polling_disabled"]);
+
+/** What a failed read means. Not there (404: backend off or not deployed) or not
+ * allowed (402, 403) isn't a fault, so it reads as off and shows nothing. Only a
+ * real failure may say unavailable. */
+export function instantOnReadFailure(status: number | null | undefined): unknown {
+  return status === 402 || status === 403 || status === 404
+    ? { status: "unavailable", unavailable_reason: "not_configured" }
+    : null;
+}
 
 const obj = (v: unknown): Record<string, unknown> | null =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
@@ -95,7 +103,6 @@ export const toInstantOnEvents = (payload: unknown): InstantOnView<InstantOnEven
           id: str(r.event_id),
           event: str(r.event)!,
           occurredAt: str(r.occurred_at),
-          deviceName: str(r.device_name),
           networkName: str(r.network_name),
         }
       : null,

@@ -68,7 +68,7 @@
     "explain": "इस WiFi network के सभी devices के लिए एक साझा कुल speed। यह network के लिए है, पूरे venue के लिए नहीं। एक network पर या तो हर device की limit रहती है या कुल limit, इसलिए यह per-device limit की जगह ले लेगा।",
     "download": "कुल download (Mbps, 1 से 1000)",
     "upload": "कुल upload (Mbps, 1 से 1000)",
-    "previewClear": "इससे इस network की कुल limit हट जाएगी।",
+    "previewClear": "इससे इस network का total हट जाएगा। इस पर guests की speed पर कोई limit नहीं रहेगी।",
     "preview": "इस network के सभी devices {{down}} download और {{up}} upload साझा करेंगे।",
     "previewReplaces": "यह per-device limit की जगह लेगा।",
     "apply": "Network की कुल limit लागू करें",
@@ -77,6 +77,9 @@
     "notChanged": "Instant On ने speed नहीं बदली। कारण: {{reason}}",
     "modeLabel": "Speed limit किस पर लगे",
     "modeDevice": "हर device",
-    "modeNetwork": "पूरा WiFi network"
+    "modeNetwork": "पूरा WiFi network",
+    "restored": "Instant On ने network total नहीं रखा। पिछली setting वापस लगा दी गई है।",
+    "stateUnknown": "Instant On ने network total की पुष्टि नहीं की, और हमें नहीं पता कि अभी क्या लगा है। Instant On app में यह network देखें।",
+    "noAnswer": "कोई जवाब नहीं मिला, इसलिए पता नहीं कि यह बदला या नहीं। Instant On app में यह network देखें।"
   }
 }
