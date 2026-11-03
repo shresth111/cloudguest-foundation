@@ -253,6 +253,12 @@
     "inApp1": "WiFi name, password and guest network",
     "inApp2": "Speed limits for guests",
     "inApp3": "Websites guests can open before signing in (Allowed domains)",
-    "inApp4": "Access point status, firmware and connected devices"
+    "inApp4": "Access point status, firmware and connected devices",
+    "instantOnUnavailable": "Data unavailable · source Instant On",
+    "fromInstantOn": "From the Instant On app",
+    "apsOnline": "{{online}} of {{total}} online",
+    "devicesConnected": "Devices connected",
+    "wifiNetworks": "WiFi networks",
+    "noneListed": "None listed"
   }
 }

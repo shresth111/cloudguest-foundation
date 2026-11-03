@@ -338,7 +338,8 @@ const done = async (r) => {
   await r.page.close();
   if (r.errors.length) throw new Error(`page errors: ${r.errors.join(" | ")}`);
 };
-const apCalls = (calls) => calls.filter((c) => c.url.endsWith("/access-points"));
+const apCalls = (calls) =>
+  calls.filter((c) => c.url.endsWith("/access-points") && !c.url.includes("/instant-on/"));
 const sessionParams = (calls) =>
   calls.filter((c) => c.url === "/guest-sessions").map((c) => JSON.stringify(c.params));
 

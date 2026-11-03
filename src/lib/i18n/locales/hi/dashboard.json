@@ -253,6 +253,12 @@
     "inApp1": "WiFi का नाम, password और guest network",
     "inApp2": "Guests के लिए speed limits",
     "inApp3": "Sign in से पहले guests कौन-सी websites खोल सकते हैं (Allowed domains)",
-    "inApp4": "Access point की स्थिति, firmware और जुड़े devices"
+    "inApp4": "Access point की स्थिति, firmware और जुड़े devices",
+    "instantOnUnavailable": "डेटा उपलब्ध नहीं · स्रोत Instant On",
+    "fromInstantOn": "Instant On app से",
+    "apsOnline": "{{total}} में से {{online}} online",
+    "devicesConnected": "जुड़े हुए devices",
+    "wifiNetworks": "WiFi networks",
+    "noneListed": "कोई नहीं"
   }
 }

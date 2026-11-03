@@ -26,6 +26,7 @@ import {
   apDisplayName,
   apUnattributedNote,
 } from "@/lib/aruba-access-points";
+import { InstantOnVenueData } from "@/components/customer/InstantOnPanels";
 import { apVerdict } from "@/lib/aruba-dashboard";
 import { ARUBA_VENUE_IN_INSTANT_ON, ARUBA_VENUE_IN_WYFY } from "@/lib/aruba-venue";
 
@@ -208,6 +209,7 @@ export function ArubaAccessPointsCard({ locationId }: { locationId: string }) {
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-3">
+        <InstantOnVenueData locationId={locationId} />
         {state.status === "loading" ? (
           <div className="space-y-2">
             {Array.from({ length: 2 }).map((_, i) => (

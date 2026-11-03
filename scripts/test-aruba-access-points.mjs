@@ -519,7 +519,8 @@ const done = async (r) => {
   await r.page.close();
   if (r.errors.length) throw new Error(`page errors: ${r.errors.join(" | ")}`);
 };
-const apCalls = (calls) => calls.filter((c) => c.url.endsWith("/access-points"));
+const apCalls = (calls) =>
+  calls.filter((c) => c.url.endsWith("/access-points") && !c.url.includes("/instant-on/"));
 // The Guests table's list request: `/guest-session-groups` since the table
 // went one-row-per-guest (2026-10-05); `/guest-sessions` for the "online now"
 // count and the dashboard.
