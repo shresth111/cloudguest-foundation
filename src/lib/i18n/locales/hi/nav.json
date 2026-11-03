@@ -638,5 +638,10 @@
   "networkActivity": {
     "noteSummary": "सिर्फ़ कनेक्शन और साइन-इन के रिकॉर्ड, मेहमानों ने कौन-सी वेबसाइटें खोलीं यह नहीं।",
     "noteMore": "और पढ़ें"
+  },
+  "arubaCopy": {
+    "recordsNote": "यहाँ session के स्तर पर connection और login के records दिखते हैं, destination का traffic नहीं (guest ने कौन-सी site खोली)। Private IP आपके WiFi पर guest का पता है। Venue का public IP, Aruba Instant On access points नहीं बताते, इसलिए वह column यही दिखाता है। Platform अभी इन records को किसी तय अवधि तक रखने की गारंटी नहीं देता।",
+    "securityEmptyTitle": "Security checks, Wyfy से managed routers पर चलते हैं",
+    "securityEmptyBody": "आपके Aruba Instant On access points, Instant On app में manage होते हैं, इसलिए यहाँ score करने के लिए कुछ नहीं है। Guest sign-in के नियम Usage Limits में अब भी लागू हैं।"
   }
 }

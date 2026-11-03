@@ -109,15 +109,27 @@ check(
 );
 check("top-campaigns no longer ranks by fabricated Reach", !/"reach"/.test(topCampaignCols));
 check("top-campaigns ranks by real impressions", /"impressions"/.test(topCampaignCols));
+// The provider call is now really recorded (backend provider_outcome and
+// provider_response_ms), so it gets real columns. Carrier delivery still isn't:
+// no receipt is received, so the old fabricated names stay forbidden.
 check(
-  "otp-delivery has no fabricated Latency column",
+  "otp-delivery shows the recorded provider outcome and response time",
+  /"providerOutcome"/.test(otpCols) && /"providerMs"/.test(otpCols),
+);
+check(
+  "otp-delivery has no fabricated delivery-latency column",
   !/latencyMs/.test(otpCols),
-  "this platform measures no OTP latency",
+  "no carrier delivery latency is received",
 );
 check(
   "otp-delivery has no fabricated Delivered/Failed status column",
-  !/"status"/.test(otpCols),
-  "no gateway delivery status is persisted",
+  !/"status"/.test(otpCols) && !/Delivered/.test(otpCols),
+  "no carrier delivery status is received",
+);
+check(
+  "an older row shows a dash, not a guess",
+  /OTP_PROVIDER_OUTCOME\[it\.provider_outcome \?\? ""\] \?\? "—"/.test(src) &&
+    /it\.provider_response_ms == null \? "—"/.test(src),
 );
 check(
   "otp-delivery shows the recorded OTP status, attempts and time to verify",

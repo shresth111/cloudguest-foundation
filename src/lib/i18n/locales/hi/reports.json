@@ -148,7 +148,9 @@
     "attemptedAt": "कब कोशिश की",
     "outcome": "OTP की स्थिति",
     "attempts": "कोशिशें",
-    "timeToVerify": "Verify होने में समय"
+    "timeToVerify": "Verify होने में समय",
+    "providerOutcome": "Provider को भेजा गया",
+    "providerMs": "Provider का जवाब का समय"
   },
   "category": {
     "guestActivityReport": "मेहमानों की गतिविधि",

@@ -148,7 +148,9 @@
     "attemptedAt": "Attempted At",
     "outcome": "OTP Status",
     "attempts": "Attempts",
-    "timeToVerify": "Time To Verify"
+    "timeToVerify": "Time To Verify",
+    "providerOutcome": "Sent to provider",
+    "providerMs": "Provider response time"
   },
   "category": {
     "guestActivityReport": "Guest Activity Report",

@@ -136,7 +136,11 @@ export function ArubaGuestSpeedControl({
         <Gauge className="h-4 w-4 text-[var(--wy-accent)]" aria-hidden="true" />
         {t("guestSpeed.title", "Guest speed limit (per device)")}
       </p>
-      {notice("info", SAME_FOR_EVERY_DEVICE, "aruba-guest-speed-same-for-all")}
+      {notice(
+        "info",
+        t("guestSpeed.sameForEveryDevice", SAME_FOR_EVERY_DEVICE),
+        "aruba-guest-speed-same-for-all",
+      )}
 
       {demo ? null : isLoading ? (
         <p className="mt-2 text-xs text-slate-400">
@@ -152,7 +156,11 @@ export function ArubaGuestSpeedControl({
           "aruba-guest-speed-error",
         )
       ) : data.status === "unavailable" ? (
-        notice("lock", GUEST_SPEED_NEEDS_CLOUD, "aruba-guest-speed-needs-cloud")
+        notice(
+          "lock",
+          t("guestSpeed.needsCloud", GUEST_SPEED_NEEDS_CLOUD),
+          "aruba-guest-speed-needs-cloud",
+        )
       ) : data.status === "failed" || networks.length === 0 ? (
         notice(
           "lock",
@@ -225,7 +233,9 @@ export function ArubaGuestSpeedControl({
               {currentSpeedSentence(network)}
             </p>
           )}
-          <p className="mt-1 text-xs text-slate-400">{SAME_SETTING_AS_SSID_TIERS}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {t("guestSpeed.sameSettingAsTiers", SAME_SETTING_AS_SSID_TIERS)}
+          </p>
           <div className="mt-3 flex justify-end">
             <Button
               type="button"
