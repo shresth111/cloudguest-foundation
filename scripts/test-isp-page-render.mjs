@@ -191,6 +191,34 @@ writeFileSync(
        const primary = { ...DEMO_WAN_LINK, isActiveUplink: false, healthStatus: "unhealthy", unhealthySince: ago(42), latencyMs: null, packetLossPercentage: 100, currentDownloadMbps: null, currentUploadMbps: null };
        const backup = { ...DEMO_WAN_BACKUP_LINK, isActiveUplink: true, currentDownloadMbps: 64, currentUploadMbps: 12 };
        wan = { status: "ready", links: [backup, primary], checks: { [backup.id]: DEMO_WAN_CHECKS, [primary.id]: DEMO_WAN_CHECKS.map((c) => ({ ...c, status: "unhealthy", latencyMs: null })) } };
+     } else if (which === "card-lb-up" || which === "card-lb-one-down") {
+       const lb = { wanRoutingMode: "load_balance" };
+       const down = which === "card-lb-one-down" ? { healthStatus: "unhealthy", unhealthySince: ago(5), latencyMs: null, packetLossPercentage: 100 } : { healthStatus: "healthy" };
+       // A primary still flagged as the active uplink, as every load-balanced router's row is.
+       const primary = { ...DEMO_WAN_LINK, ...lb, isActiveUplink: true, healthStatus: "healthy" };
+       const second = { ...DEMO_WAN_BACKUP_LINK, ...lb, isActiveUplink: false, ...down };
+       wan = { status: "ready", links: [primary, second], checks: {} };
+     } else if (which === "card-lb-three-two-down") {
+       const lb = { wanRoutingMode: "load_balance" };
+       const dead = { healthStatus: "unhealthy", unhealthySince: ago(5), latencyMs: null, packetLossPercentage: 100 };
+       const a = { ...DEMO_WAN_LINK, ...lb, isActiveUplink: true, ...dead };
+       const b = { ...DEMO_WAN_BACKUP_LINK, ...lb, isActiveUplink: false, ...dead };
+       const c = { ...DEMO_WAN_BACKUP_LINK, ...lb, id: "third", providerName: "Third Line", isActiveUplink: false, healthStatus: "healthy" };
+       wan = { status: "ready", links: [a, b, c], checks: {} };
+     } else if (which === "card-failover-only-up") {
+       const fo = { wanRoutingMode: "failover_only" };
+       const primary = { ...DEMO_WAN_LINK, ...fo, role: "primary", isActiveUplink: true, healthStatus: "healthy" };
+       const second = { ...DEMO_WAN_BACKUP_LINK, ...fo, role: "backup", isActiveUplink: false, healthStatus: "healthy" };
+       wan = { status: "ready", links: [primary, second], checks: {} };
+     } else if (which === "card-no-reading") {
+       const none = { healthStatus: "unknown", healthStatusSource: "automated", lastCheckedAt: ago(1), latencyMs: null, packetLossPercentage: null, currentDownloadMbps: null, currentUploadMbps: null };
+       const primary = { ...DEMO_WAN_LINK, ...none };
+       const second = { ...DEMO_WAN_BACKUP_LINK, ...none };
+       wan = { status: "ready", links: [primary, second], checks: {} };
+     } else if (which === "card-switch-failed") {
+       const primary = { ...DEMO_WAN_LINK, isActiveUplink: true, healthStatus: "unhealthy", unhealthySince: ago(3), wanRoutingMode: "failover_only" };
+       const second = { ...DEMO_WAN_BACKUP_LINK, isActiveUplink: false, healthStatus: "healthy", failoverPushStatus: "failed", wanRoutingMode: "failover_only" };
+       wan = { status: "ready", links: [primary, second], checks: {} };
      } else wan = { status: "ready", links: [DEMO_WAN_LINK, DEMO_WAN_BACKUP_LINK], checks: { [DEMO_WAN_LINK.id]: DEMO_WAN_CHECKS, [DEMO_WAN_BACKUP_LINK.id]: DEMO_WAN_CHECKS } };
      body = <div style={{ maxWidth: 560 }}><WanStatusCardView wan={wan} onManage={() => {}} /></div>;
    } else {
@@ -484,6 +512,53 @@ console.log("\nOverview Internet Connection card");
   check("card dual: plan meters", (await r.page.locator('[role="meter"]').count()) >= 3);
   await r.page.close();
 }
+{
+  const r = await mount("card-lb-up");
+  check("load balance renders", r.errors.length === 0, r.errors.join(" | "));
+  check("load balance: every line is labelled shared", (r.text.match(/Load balanced/g) ?? []).length === 2, r.text);
+  check("load balance: no line claims to be standing by", !/Standby|In use|Backup/.test(r.text), r.text);
+}
+
+{
+  // Load balancing and failover together: a line dies, the router's own
+  // crossover routes carry on, and the venue is online on fewer lines.
+  const r = await mount("card-lb-one-down");
+  check("load balance + one down renders", r.errors.length === 0, r.errors.join(" | "));
+  check("load balance + one down: counts the lines", /1 of 2 lines healthy/.test(r.text), r.text);
+  check("load balance + one down: not all down, not on backup", !/All ISPs down|No internet|Online on backup/.test(r.text), r.text);
+  check("load balance + one down: names the failed line", /Offline/.test(r.text), r.text);
+}
+
+{
+  const r = await mount("card-lb-three-two-down");
+  check("three ISPs, two down renders", r.errors.length === 0, r.errors.join(" | "));
+  check("three ISPs, two down: counts all three", /1 of 3 lines healthy/.test(r.text), r.text);
+  check("three ISPs, two down: the third line is shown", /Third Line/.test(r.text), r.text);
+  check("three ISPs, two down: both dead lines say so", (r.text.match(/Offline/g) ?? []).length === 2, r.text);
+}
+
+{
+  const r = await mount("card-failover-only-up");
+  check("failover only renders", r.errors.length === 0, r.errors.join(" | "));
+  check("failover only: says which line is in use", /Primary/.test(r.text) && /In use/.test(r.text), r.text);
+  check("failover only: the other line stands by", /Backup/.test(r.text) && /Standby/.test(r.text), r.text);
+  check("failover only: no load-balance wording", !/Load balanced/.test(r.text), r.text);
+}
+
+{
+  const r = await mount("card-no-reading");
+  check("no reading renders", r.errors.length === 0, r.errors.join(" | "));
+  check("no reading: blames the router", /Router not responding/.test(r.text), r.text);
+  check("no reading: does not claim the ISPs are down", !/All ISPs down|No internet|Offline/.test(r.text), r.text);
+  check("no reading: says so per line", (r.text.match(/No reading/g) ?? []).length === 2, r.text);
+}
+
+{
+  const r = await mount("card-switch-failed");
+  check("failed switch renders", r.errors.length === 0, r.errors.join(" | "));
+  check("failed switch: says traffic did not move", /Could not move traffic to/.test(r.text), r.text);
+}
+
 {
   const r = await mount("card-empty");
   check(

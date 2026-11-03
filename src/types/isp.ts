@@ -52,6 +52,14 @@ export interface IspLink {
   currentUploadMbps: number | null;
   lastCheckedAt: string | null;
   consecutiveUnhealthyCount: number;
+  /** What the router was told at the last failover or failback: "failed"
+   * means traffic did not move. The raw error stays server-side because it
+   * can carry internal addresses. Absent on demo rows. */
+  failoverPushStatus?: string;
+  /** The owning router's mode. Under "load_balance" every enabled line
+   * carries traffic, so `role` and `isActiveUplink` do not say which one
+   * does. Null or absent when the response did not read the router. */
+  wanRoutingMode?: "load_balance" | "failover_only" | null;
   createdAt: string;
 }
 

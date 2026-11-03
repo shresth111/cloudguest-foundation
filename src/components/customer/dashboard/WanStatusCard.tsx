@@ -8,9 +8,10 @@ import { useWanSummary } from "./useWanSummary";
 import type { WanSummaryState } from "./dashboard.types";
 import { Panel, StatusDot } from "@/components/customer/console";
 import { PanelLink, PanelTitle } from "./overview/console-ui";
-import { failoverState, linkStatus } from "@/components/customer/isp/isp-model";
+import { failoverState, isNoReading, linkStatus } from "@/components/customer/isp/isp-model";
 import {
   CheckTicks,
+  FailedSwitchBanner,
   FailoverBanner,
   LatencySpark,
   LinkStatus,
@@ -268,6 +269,9 @@ function WanReady({
   } else if (failover.kind === "on-backup") {
     headline = t("head.onBackup", "Online on backup");
     status = "warn";
+  } else if (links.every(isNoReading)) {
+    headline = t("head.routerNotResponding", "Router not responding");
+    status = "warn";
   } else if (known.length === 0) {
     headline = t("head.notChecked", "Not checked yet");
   } else if (healthy === links.length) {
@@ -275,7 +279,7 @@ function WanReady({
       ? t("head.allIsps", "All {{n}} ISPs online", { n: links.length })
       : t("head.online", "Online");
     status = "ok";
-  } else if (active?.healthStatus === "healthy") {
+  } else if (failover.kind !== "load-balanced" && active?.healthStatus === "healthy") {
     headline = t("head.online", "Online");
     status = "ok";
   } else {
@@ -303,6 +307,7 @@ function WanReady({
         )}
       </div>
       <FailoverBanner state={failover} compact />
+      <FailedSwitchBanner links={links} compact />
       <div className="space-y-2">
         {links.map((l, i) => (
           <UplinkHealthRow
@@ -314,6 +319,14 @@ function WanReady({
           />
         ))}
       </div>
+      {multi && failover.kind === "load-balanced" && (
+        <p className="text-[11px] text-[var(--wy-text-muted)]">
+          {t(
+            "card.loadBalanceNote",
+            "Traffic is shared across these lines. If one fails, the router moves its traffic to the others.",
+          )}
+        </p>
+      )}
       {multi && failover.kind === "normal" && (
         <p className="text-[11px] text-[var(--wy-text-muted)]">
           {t(

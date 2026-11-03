@@ -6,6 +6,9 @@ import type { WanSummaryState } from "./dashboard.types";
 import { demoIspLinks } from "@/lib/demo-world";
 import { demoIspChecks } from "@/components/customer/isp/isp.demo";
 
+/** Matches the backend's health-check sweep: polling faster shows nothing new. */
+const WAN_SUMMARY_POLL_INTERVAL_MS = 30_000;
+
 export function useWanSummary(locationId: string): WanSummaryState {
   const [state, setState] = useState<WanSummaryState>({ status: "loading" });
   useEffect(() => {
@@ -29,7 +32,9 @@ export function useWanSummary(locationId: string): WanSummaryState {
       );
       return;
     }
-    (async () => {
+    // The first read decides what an empty result means. A later one that
+    // fails keeps what is on screen rather than saying no line is configured.
+    const load = async (quiet: boolean) => {
       try {
         const { rows } = await ispService.listLinks({ page: 1, pageSize: 100, locationId });
         const links = rows
@@ -38,14 +43,13 @@ export function useWanSummary(locationId: string): WanSummaryState {
             if (a.isActiveUplink !== b.isActiveUplink) return a.isActiveUplink ? -1 : 1;
             if (a.role !== b.role) return a.role === "primary" ? -1 : 1;
             return a.priority - b.priority;
-          })
-          .slice(0, 2);
+          });
         if (!alive) return;
         if (links.length === 0) {
           setState({ status: "empty" });
           return;
         }
-        // One history read per uplink (at most two), so each ISP gets its
+        // One history read per uplink, so each ISP gets its
         // own timeline. A failed read only blanks that link's ticks.
         const histories = await Promise.all(
           links.map((l) =>
@@ -62,11 +66,16 @@ export function useWanSummary(locationId: string): WanSummaryState {
         if (!alive) return;
         setState({ status: "ready", links, checks });
       } catch {
-        if (alive) setState({ status: "empty" });
+        if (alive && !quiet) setState({ status: "empty" });
       }
-    })();
+    };
+    void load(false);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void load(true);
+    }, WAN_SUMMARY_POLL_INTERVAL_MS);
     return () => {
       alive = false;
+      clearInterval(timer);
     };
   }, [locationId]);
   return state;
