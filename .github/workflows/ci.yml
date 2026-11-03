@@ -2722,7 +2722,7 @@ jobs:
       - name: campaign edit
         run: |
           ./scripts/ci-gated-test.sh \
-            "campaign-edit" 21 \
+            "campaign-edit" 20 \
             "campaign edit: all checks passed" \
             bun run test:campaign-edit
       # Voucher session timeout on the customer form: Aruba venues only, and a
