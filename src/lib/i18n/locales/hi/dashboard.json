@@ -246,6 +246,13 @@
     "accessPoints": "Access points",
     "apCount_one": "{{count}} access point",
     "apCount_other": "{{count}} access points",
-    "dataToday": "आज का data"
+    "dataToday": "आज का data",
+    "inWyfy1": "आपका sign-in page, sign-in के तरीके और offers",
+    "inWyfy2": "किसने sign in किया, कब, और किस device पर",
+    "inWyfy3": "Vouchers, और किसी को दोबारा sign in करने से रोकना",
+    "inApp1": "WiFi का नाम, password और guest network",
+    "inApp2": "Guests के लिए speed limits",
+    "inApp3": "Sign in से पहले guests कौन-सी websites खोल सकते हैं (Allowed domains)",
+    "inApp4": "Access point की स्थिति, firmware और जुड़े devices"
   }
 }

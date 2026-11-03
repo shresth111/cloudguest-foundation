@@ -398,8 +398,8 @@ export function SecurityOverviewView({ scope }: { scope?: PageScope } = {}) {
     // is connected" would send the owner looking for one.
     body = nasOnlyVenue ? (
       <EmptyState
-        title={ARUBA_SECURITY_EMPTY.title}
-        description={ARUBA_SECURITY_EMPTY.description}
+        title={t("arubaCopy.securityEmptyTitle", ARUBA_SECURITY_EMPTY.title)}
+        description={t("arubaCopy.securityEmptyBody", ARUBA_SECURITY_EMPTY.description)}
       />
     ) : (
       <EmptyState

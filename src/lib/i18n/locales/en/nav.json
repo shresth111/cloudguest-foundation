@@ -638,5 +638,10 @@
   "networkActivity": {
     "noteSummary": "Connection and sign-in records only, not the websites guests visited.",
     "noteMore": "More"
+  },
+  "arubaCopy": {
+    "recordsNote": "This shows session-level connection and login records, not destination-level traffic (what site a guest visited). Private IP is the guest's address on your WiFi. Venue public IP is not reported by Aruba Instant On access points, so that column says so. The platform does not currently guarantee a specific data-retention period for these records.",
+    "securityEmptyTitle": "Security checks run on Wyfy-managed routers",
+    "securityEmptyBody": "Your Aruba Instant On access points are managed in the Instant On app, so there is nothing to score here. Guest sign-in rules still apply under Usage Limits."
   }
 }

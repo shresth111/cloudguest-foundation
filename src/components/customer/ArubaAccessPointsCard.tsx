@@ -164,8 +164,8 @@ function InstantOnManagedNote() {
             {t("aruba.hereInWyfy", "Here, in Wyfy")}
           </p>
           <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
-            {ARUBA_VENUE_IN_WYFY.map((x) => (
-              <li key={x}>{x}</li>
+            {ARUBA_VENUE_IN_WYFY.map((x, i) => (
+              <li key={x}>{t(`aruba.inWyfy${i + 1}`, x)}</li>
             ))}
           </ul>
         </div>
@@ -174,8 +174,8 @@ function InstantOnManagedNote() {
             {t("aruba.inInstantOnApp", "In the Instant On app")}
           </p>
           <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
-            {ARUBA_VENUE_IN_INSTANT_ON.map((x) => (
-              <li key={x}>{x}</li>
+            {ARUBA_VENUE_IN_INSTANT_ON.map((x, i) => (
+              <li key={x}>{t(`aruba.inApp${i + 1}`, x)}</li>
             ))}
           </ul>
         </div>

@@ -110,7 +110,7 @@ export default function NetworkActivityLog({
               className="mt-1.5 text-[var(--wy-text-muted)]"
               data-testid="aruba-connection-records-note"
             >
-              {ARUBA_CONNECTION_RECORDS_NOTE}
+              {t("arubaCopy.recordsNote", ARUBA_CONNECTION_RECORDS_NOTE)}
             </p>
           ) : (
             <p className="mt-1.5 text-[var(--wy-text-muted)]">
