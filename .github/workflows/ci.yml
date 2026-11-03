@@ -2746,7 +2746,7 @@ jobs:
       - name: aruba silence alert
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-silence-alert" 20 \
+            "aruba-silence-alert" 23 \
             "aruba silence alert: all checks passed" \
             bun run test:aruba-silence-alert
       # Aruba Instant On notes on the voucher, banner and portal builder screens;

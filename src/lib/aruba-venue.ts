@@ -14,7 +14,7 @@ export const ARUBA_VENUE_IN_WYFY: readonly string[] = [
 ];
 export const ARUBA_VENUE_IN_INSTANT_ON: readonly string[] = [
   "WiFi name, password and guest network",
-  "Speed limits for guests",
+  "Speed limits for guests (also under Usage Limits, once switched on for your venue)",
   "Websites guests can open before signing in (Allowed domains)",
   "Access point status, firmware and connected devices",
 ];

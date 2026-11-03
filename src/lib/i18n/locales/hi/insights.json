@@ -55,7 +55,9 @@
     "trackingNotStarted": "दर्ज करना शुरू हो गया है; अभी तक कुछ दर्ज नहीं हुआ।",
     "internetConfirmed": "राउटर ने इंटरनेट चालू होने की पुष्टि की",
     "onlineGap": "{{count}} मेहमानों ने लॉगिन किया, लेकिन राउटर ने उन्हें कभी ऑनलाइन नहीं बताया। हो सकता है लॉगिन के बाद उनका इंटरनेट न चला हो। अगर ऐसा बार-बार हो, तो Wyfy सपोर्ट से संपर्क करें।",
-    "onlineAllMethods": "सभी लॉगिन तरीकों में, राउटर ने {{count}} मेहमानों के ऑनलाइन होने की पुष्टि की।"
+    "onlineAllMethods": "सभी लॉगिन तरीकों में, राउटर ने {{count}} मेहमानों के ऑनलाइन होने की पुष्टि की।",
+    "internetConfirmedAruba": "Access point ने internet की पुष्टि की",
+    "onlineAllMethodsAruba": "सभी login तरीकों में, access point ने {{count}} guests को online बताया।"
   },
   "method": {
     "otp_sms": "SMS OTP",

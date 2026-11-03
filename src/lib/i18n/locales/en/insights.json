@@ -55,7 +55,9 @@
     "trackingNotStarted": "Tracking has started; nothing recorded yet.",
     "internetConfirmed": "Internet confirmed by the router",
     "onlineGap": "{{count}} guests signed in but their router never reported them online. They may have had no internet after login. If this keeps happening, contact Wyfy support.",
-    "onlineAllMethods": "Across every login method, {{count}} guests were confirmed online by the router."
+    "onlineAllMethods": "Across every login method, {{count}} guests were confirmed online by the router.",
+    "internetConfirmedAruba": "Internet confirmed by the access point",
+    "onlineAllMethodsAruba": "Across every login method, {{count}} guests were confirmed online by the access point."
   },
   "method": {
     "otp_sms": "SMS OTP",
