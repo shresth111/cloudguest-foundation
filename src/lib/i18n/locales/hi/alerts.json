@@ -28,5 +28,15 @@
     "saveFailed": "यह alert बदला नहीं जा सका। कुछ नहीं बदला। दोबारा कोशिश करें।",
     "loadFailed": "यह alert चालू है या नहीं, पता नहीं चल सका। दोबारा कोशिश के लिए page reload करें।"
   },
+  "instantOn": {
+    "unavailable": "डेटा उपलब्ध नहीं · स्रोत Instant On",
+    "alertsTitle": "Instant On app के अलर्ट",
+    "noAlerts": "Instant On app में कोई अलर्ट नहीं है।",
+    "cleared": "ठीक हो गया",
+    "active": "सक्रिय",
+    "eventsTitle": "Instant On app की हाल की घटनाएँ",
+    "eventsCaption": "सिर्फ़ वही ताज़ा घटनाएँ जो Instant On रखता है। यह पूरा इतिहास नहीं है।",
+    "noEvents": "Instant On में हाल की कोई घटना नहीं है।"
+  },
   "descriptionAruba": "आपके access points और WiFi login page में दिखी समस्याएँ, जैसे ही होती हैं।"
 }

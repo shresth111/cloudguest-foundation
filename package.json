@@ -145,6 +145,8 @@
     "test:aruba-shared-listener": "node scripts/test-aruba-shared-listener.mjs",
     "test:aruba-add-site": "node scripts/test-aruba-add-site.mjs",
     "test:aruba-access-rules": "node scripts/test-aruba-access-rules.mjs",
+    "test:instant-on-customer-data": "node scripts/test-instant-on-customer-data.mjs",
+    "test:aruba-network-total": "node scripts/test-aruba-network-total.mjs",
     "test:voucher-session-timeout": "node scripts/test-voucher-session-timeout.mjs",
     "test:aruba-silence-alert": "node scripts/test-aruba-silence-alert.mjs",
     "test:aruba-rendered-gaps": "node scripts/test-aruba-rendered-gaps.mjs",

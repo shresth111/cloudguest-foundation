@@ -80,13 +80,14 @@ writeFileSync(
    import { Toaster } from "sonner";
    import { AlertsView } from "@/components/features/AlertsView";
    import { deriveLocationLiveness } from "@/lib/location-liveness";
+   import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
    import { useCustomerStore } from "@/stores/customerStore";
    const vendor = window.__vendor;
    const liveness = deriveLocationLiveness([
      { id: "r1", name: "D", vendor, status: vendor === "mikrotik" ? "online" : "pending_provisioning" },
    ]);
    useCustomerStore.getState().setActiveLocation("loc-1", { id: "loc-1", name: "Office", liveness });
-   createRoot(document.getElementById("root")).render(<><AlertsView /><Toaster /></>);`,
+   createRoot(document.getElementById("root")).render(<QueryClientProvider client={new QueryClient()}><><AlertsView /><Toaster /></></QueryClientProvider>);`,
 );
 await build({
   entryPoints: [join(work, "entry.tsx")],

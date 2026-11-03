@@ -28,5 +28,15 @@
     "saveFailed": "Could not change this alert. Nothing has changed. Try again.",
     "loadFailed": "Could not check whether this alert is on. Reload the page to try again."
   },
+  "instantOn": {
+    "unavailable": "Data unavailable · source Instant On",
+    "alertsTitle": "Alerts from the Instant On app",
+    "noAlerts": "The Instant On app reports no alerts.",
+    "cleared": "Cleared",
+    "active": "Active",
+    "eventsTitle": "Recent events from the Instant On app",
+    "eventsCaption": "Only the latest events Instant On keeps. This is not a full history.",
+    "noEvents": "Instant On reports no recent events."
+  },
   "descriptionAruba": "Problems we've spotted with your access points and WiFi login page, as they happen."
 }

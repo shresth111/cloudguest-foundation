@@ -2765,6 +2765,22 @@ jobs:
             "marketing-picker" 15 \
             "marketing picker: all checks passed" \
             bun run test:marketing-picker
+      # Instant On's own data on customer screens at an Aruba venue: nothing until
+      # switched on, then real rows or "unavailable", never a zero.
+      - name: instant on customer data
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "instant-on-customer-data" 34 \
+            "instant on customer data: all checks passed" \
+            bun run test:instant-on-customer-data
+      # Network total speed at an Aruba venue: hidden while its flag is off, previews
+      # before any write, and says applied only on the server's word.
+      - name: aruba network total
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "aruba-network-total" 23 \
+            "aruba network total: all checks passed" \
+            bun run test:aruba-network-total
       # Rendered: Fix a Problem at Aruba, OTP report columns, usage report dashes,
       # Blocked Guests notice; MikroTik pinned on the shared screens.
       - name: aruba rendered gaps
