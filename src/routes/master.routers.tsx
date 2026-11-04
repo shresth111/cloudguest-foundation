@@ -331,6 +331,14 @@ function RouterFleetScreen() {
   const updateVendor = useUpdateRouterVendor();
   const routers = fleetQuery.data?.rows ?? [];
   const loading = fleetQuery.isLoading;
+  // Nothing read is not the same as nothing provisioned: a failed fleet read
+  // must not report zero routers.
+  const fleetUnread =
+    routers.length === 0 &&
+    (fleetQuery.isError ||
+      (fleetQuery.data?.unreachableLocationCount ?? 0) > 0 ||
+      (fleetQuery.data?.unreachableOrganizationCount ?? 0) > 0);
+  const count = (n: number) => (fleetUnread ? "—" : n);
 
   /**
    * A controller row's real answer lives on its network integration, and the
@@ -732,15 +740,20 @@ function RouterFleetScreen() {
                     : "sm:grid-cols-4",
               )}
             >
-              <MStat label="At active locations" value={summary.total} icon={RouterIcon} />
-              <MStat label="Online" value={summary.online} tone="success" icon={CheckCircle2} />
+              <MStat label="At active locations" value={count(summary.total)} icon={RouterIcon} />
+              <MStat
+                label="Online"
+                value={count(summary.online)}
+                tone="success"
+                icon={CheckCircle2}
+              />
               <MStat
                 label="Degraded"
-                value={summary.degraded}
+                value={count(summary.degraded)}
                 tone="warning"
                 icon={AlertTriangle}
               />
-              <MStat label="Offline" value={summary.offline} tone="danger" icon={WifiOff} />
+              <MStat label="Offline" value={count(summary.offline)} tone="danger" icon={WifiOff} />
               {/* Contract §11.5. Shown only when the fleet actually has one,
                * and with no tone: these rows are neither healthy nor
                * unhealthy from here, and colouring them either way would be
@@ -932,11 +945,19 @@ function RouterFleetScreen() {
                   </MTr>
                 ))}
             </MTable>
-            {!loading && rows.length === 0 && (
+            {!loading && fleetUnread && (
+              <p className="text-center text-sm text-destructive">
+                Could not load the router fleet, so these counts are unknown.{" "}
+                <button onClick={() => void fleetQuery.refetch()} className="underline">
+                  Retry
+                </button>
+              </p>
+            )}
+            {!loading && !fleetUnread && rows.length === 0 && (
               <p className="text-center text-sm text-muted-foreground">
-                {routers.length === 0
-                  ? "No routers provisioned yet."
-                  : "No routers match your filter."}
+                {routers.length > 0
+                  ? "No routers match your filter."
+                  : "No routers provisioned yet."}
               </p>
             )}
 

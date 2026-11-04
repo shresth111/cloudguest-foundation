@@ -26,6 +26,7 @@ import {
   Coins,
   FileSearch,
   Waypoints,
+  RotateCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TRAFFIC_FLOW_MODULE_NAME } from "@/lib/traffic-flow";
@@ -276,15 +277,19 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
 export function useOperatorCaps(): Set<string> {
   const { can } = useAuth();
   const granted = new Set<string>();
+  // `*` is the demo session's whole grant (AuthContext sets it on the demo host
+  // only; the backend never issues it). Without this the demo Master console
+  // has an empty sidebar, because no real key is ever in that set.
+  const all = can("*");
   for (const [cap, permissionKeys] of Object.entries(CAP_PERMISSIONS)) {
-    if (permissionKeys.some((key) => can(key))) granted.add(cap);
+    if (all || permissionKeys.some((key) => can(key))) granted.add(cap);
   }
   return granted;
 }
 
 export function MasterShell({ title, children }: { title: string; children: React.ReactNode }) {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, permissionsFailed, reloadPermissions } = useAuth();
   const caps = useOperatorCaps();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // The global theme, not a private one -- see the ThemeToggle below. `null`
@@ -352,6 +357,18 @@ export function MasterShell({ title, children }: { title: string; children: Reac
             </button>
           </div>
           <nav className="flex-1 space-y-4 overflow-y-auto px-2.5 py-3">
+            {/* Without this a failed /me/permissions is a blank sidebar with no
+                reason and no way back but a reload. */}
+            {permissionsFailed && (
+              <button
+                onClick={() => void reloadPermissions()}
+                title="Could not load your menu. Retry"
+                className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left text-[13px] font-medium text-white/80 hover:bg-white/[0.06]"
+              >
+                <RotateCw className="h-4 w-4 shrink-0" />
+                {(expanded || mobile) && <span>Could not load your menu. Retry</span>}
+              </button>
+            )}
             {groups.map((g) => (
               <div key={g.label} className="space-y-1">
                 {(expanded || mobile) && (
@@ -428,7 +445,12 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                   the row for a reason: every number on every page below it is
                   scoped by this, and until it existed that scope was an
                   invisible default (all of them). */}
-              <OrganizationScopePicker />
+              {/* NAS / RADIUS and Router Fleet always show every organization
+                  (see isEstateWideMasterPage in api.ts), so the control would
+                  do nothing there. */}
+              {pathname !== "/master/nas" && pathname !== "/master/routers" && (
+                <OrganizationScopePicker />
+              )}
               <MasterSearch />
               {/* Platform-wide: every organization's alerts, not just one --
                   a genuinely different data scope from the customer bell

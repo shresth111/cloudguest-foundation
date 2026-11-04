@@ -17,6 +17,7 @@ import {
   USER_STORAGE_KEY,
   ROLES_STORAGE_KEY,
   ORGS_STORAGE_KEY,
+  ACTIVE_ORG_STORAGE_KEY,
 } from "@/services/api";
 import { getImpersonationClaim } from "@/lib/jwt";
 import { DEMO_ACCESS_TOKEN, isDemoLogin, isHonouredDemoToken } from "@/lib/demo-host";
@@ -96,6 +97,11 @@ interface AuthContextValue {
   login: (creds: LoginCredentials) => Promise<AuthSession>;
   logout: () => Promise<void>;
   can: (permission: string) => boolean;
+  /** `GET /me/permissions` failed, so `can()` is answering false for everything
+   * because nothing is known, not because nothing is granted. */
+  permissionsFailed: boolean;
+  /** Asks for the permissions again after a failure. */
+  reloadPermissions: () => Promise<void>;
   /** Pushes a freshly-saved user (e.g. from a real PUT /me profile update)
    * into context + localStorage so the rest of the app (sidebar, header,
    * account page) reflects it immediately without a full reload. */
@@ -177,6 +183,9 @@ function clearStoredSession() {
   removeStored(USER_STORAGE_KEY);
   removeStored(ROLES_STORAGE_KEY);
   removeStored(ORGS_STORAGE_KEY);
+  // The organization picker's choice belongs to one session. Left behind, it
+  // silently narrows Master's NAS and Router Fleet lists after the next login.
+  removeStored(ACTIVE_ORG_STORAGE_KEY);
   // Defensive: these two should already be gone by the time a normal
   // logout runs (`endImpersonation` removes both once it restores the
   // operator's session). Clearing them here too means a real login/logout
@@ -194,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<RoleAssignment[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
+  const [permissionsFailed, setPermissionsFailed] = useState(false);
   const [status, setStatus] = useState<AuthStatus>("loading");
 
   useEffect(() => {
@@ -234,18 +244,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const [freshUser, freshPermissions] = await Promise.all([
-          authService.me(),
-          authService.myPermissions(),
-        ]);
-        if (cancelled) return;
-        setUser(freshUser);
-        writeStored(USER_STORAGE_KEY, JSON.stringify(freshUser));
-        setPermissions(new Set(freshPermissions));
-      } catch {
-        // A 401 here is handled globally by the api.ts response interceptor
-        // (refresh-then-retry, or clear session + redirect to /session-expired).
+      // Settled separately: a failed /auth/me says nothing about what this
+      // session may do, and used to throw away a good /me/permissions with it.
+      // A 401 on either is handled globally by the api.ts response interceptor
+      // (refresh-then-retry, or clear session + redirect to /session-expired).
+      const [freshUser, freshPermissions] = await Promise.allSettled([
+        authService.me(),
+        authService.myPermissions(),
+      ]);
+      if (cancelled) return;
+      if (freshUser.status === "fulfilled") {
+        setUser(freshUser.value);
+        writeStored(USER_STORAGE_KEY, JSON.stringify(freshUser.value));
+      }
+      if (freshPermissions.status === "fulfilled") {
+        setPermissions(new Set(freshPermissions.value));
+      } else {
+        setPermissionsFailed(true);
       }
     }
 
@@ -286,6 +301,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // instead of "End session") can never resurface later.
       removeStored(PRE_IMPERSONATION_SESSION_KEY);
       removeStored(IMPERSONATION_EXPIRES_AT_KEY);
+      // Same for the organization picker: a session that expired never ran
+      // logout(), so its choice would otherwise carry into this one.
+      removeStored(ACTIVE_ORG_STORAGE_KEY);
 
       // Demo mode: bypass the backend for one hardcoded credential pair.
       //
@@ -361,8 +379,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOrganizations(session.organizations);
       setStatus("authenticated");
 
-      const myPermissions = await authService.myPermissions();
-      setPermissions(new Set(myPermissions));
+      setPermissionsFailed(false);
+      try {
+        const myPermissions = await authService.myPermissions();
+        setPermissions(new Set(myPermissions));
+      } catch (err) {
+        setPermissionsFailed(true);
+        throw err;
+      }
 
       return session;
     },
@@ -387,10 +411,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles([]);
     setOrganizations([]);
     setPermissions(new Set());
+    setPermissionsFailed(false);
     setStatus("anonymous");
   }, [queryClient]);
 
   const can = useCallback((permission: string) => permissions.has(permission), [permissions]);
+
+  const reloadPermissions = useCallback(async () => {
+    try {
+      const myPermissions = await authService.myPermissions();
+      setPermissions(new Set(myPermissions));
+      setPermissionsFailed(false);
+    } catch {
+      setPermissionsFailed(true);
+    }
+  }, []);
 
   const updateUser = useCallback((next: User) => {
     setUser(next);
@@ -586,6 +621,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       can,
+      permissionsFailed,
+      reloadPermissions,
       updateUser,
       beginImpersonation,
       endImpersonation,
@@ -598,6 +635,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       can,
+      permissionsFailed,
+      reloadPermissions,
       updateUser,
       beginImpersonation,
       endImpersonation,
