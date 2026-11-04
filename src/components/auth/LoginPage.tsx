@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Loader2, Eye, EyeOff, ShieldCheck, UserRound } from "lucide-react";
@@ -82,6 +82,7 @@ function CountUp({ target, decimals = 0 }: { target: number; decimals?: number }
 export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const router = useRouter();
   const redirect = redirectTo;
   // "Forgot password?" renders ForgotPasswordPage in place of the login
   // form instead of navigating to the /forgot-password route -- so the
@@ -108,6 +109,26 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [settingNewPassword, setSettingNewPassword] = useState(false);
+
+  // On the bare "/" this form is rendered in place by IndexRedirect, which
+  // takes over the moment the session lands and sends the visitor to the
+  // location picker. Navigating to "/" from here as well cancelled that
+  // navigation while the picker's chunk was still loading: the URL fell back
+  // to "/", IndexRedirect stayed mounted so its effect never re-ran, and the
+  // spinner stayed up until a manual refresh. Only navigate when there is
+  // somewhere else to go.
+  //
+  // Read once at mount, not at submit: by the time login() resolves,
+  // IndexRedirect's navigation may already have moved router state on to
+  // /switch-location, which would make this form look like it is elsewhere.
+  const renderedInPlaceAtRoot = useRef(router.state.location.pathname === "/");
+  const navigateAfterLogin = () => {
+    if (!redirect && renderedInPlaceAtRoot.current) return;
+    // Small delay to let AuthRouterContextSync propagate before navigation
+    setTimeout(() => {
+      navigate({ to: redirect || "/", replace: true });
+    }, 50);
+  };
 
   const selectRole = (next: LoginRole) => {
     setRole(next);
@@ -153,10 +174,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
       localStorage.setItem("cg_login_role", role);
       await login({ email: trimmedEmail, password });
       toast.success(`Welcome back, ${role}!`);
-      // Small delay to let AuthRouterContextSync propagate before navigation
-      setTimeout(() => {
-        navigate({ to: redirect || "/", replace: true });
-      }, 50);
+      navigateAfterLogin();
     } catch (err) {
       const appError = err as AppError;
       if (
@@ -190,9 +208,7 @@ export function LoginPage({ redirectTo }: { redirectTo?: string } = {}) {
       await login({ email: email.trim(), password, newPassword });
       toast.success("Password set. Welcome!");
       setMustChangePasswordOpen(false);
-      setTimeout(() => {
-        navigate({ to: redirect || "/", replace: true });
-      }, 50);
+      navigateAfterLogin();
     } catch (err) {
       toast.error((err as AppError).message || "Could not set new password. Please try again.");
     } finally {

@@ -22,6 +22,7 @@
     "test:controller-devices": "node scripts/test-controller-devices-service.mjs",
     "test:ap-inventory-honesty": "node scripts/test-ap-inventory-honesty.mjs",
     "test:auth-email-trimmed": "node scripts/test-auth-email-trimmed.mjs",
+    "test:login-root-navigation": "node scripts/test-login-root-navigation.mjs",
     "test:portal-auth-methods": "node scripts/test-portal-auth-methods.mjs",
     "test:demo-login-host": "node scripts/test-demo-login-host.mjs",
     "test:portal-post-login": "node scripts/test-portal-post-login.mjs",
