@@ -32,7 +32,6 @@ import {
 } from "@/components/master/MasterKit";
 import { nasService } from "@/services/nas.service";
 import { routerService } from "@/services/router.service";
-import { resolveOrganizationScope } from "@/services/api";
 import {
   NAS_STATUS_LABEL,
   type NasClient,
@@ -400,11 +399,7 @@ function NasScreen() {
         )}
         {!loading && !unread && rows.length === 0 && (
           <p className="text-center text-sm text-muted-foreground">
-            {q
-              ? "No NAS clients match your search."
-              : resolveOrganizationScope()?.kind === "organization"
-                ? "No NAS clients in the selected organization. Choose All organizations at the top to see the rest."
-                : "No NAS clients registered yet."}
+            {q ? "No NAS clients match your search." : "No NAS clients registered yet."}
           </p>
         )}
 

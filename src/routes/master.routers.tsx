@@ -59,7 +59,7 @@ import {
 import { routerService } from "@/services/router.service";
 import { isDemo } from "@/services/customer.service";
 import { routerKeys, useAllRouters, useUpdateRouterVendor } from "@/hooks/useRouters";
-import { resolveOrganizationScope, type AppError } from "@/services/api";
+import type { AppError } from "@/services/api";
 import type { RouterDevice } from "@/types/router";
 import type { NetworkIntegration } from "@/types/network-integration";
 import { deriveRouterLiveness, lastContactLabel } from "@/lib/location-liveness";
@@ -957,9 +957,7 @@ function RouterFleetScreen() {
               <p className="text-center text-sm text-muted-foreground">
                 {routers.length > 0
                   ? "No routers match your filter."
-                  : resolveOrganizationScope()?.kind === "organization"
-                    ? "No routers in the selected organization. Choose All organizations at the top to see the rest."
-                    : "No routers provisioned yet."}
+                  : "No routers provisioned yet."}
               </p>
             )}
 

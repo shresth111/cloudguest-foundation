@@ -84,16 +84,14 @@ for (const key of ["total", "online", "degraded", "offline"]) {
   );
 }
 
-// 3. An empty list names the organization filter.
-for (const [name, src] of [
-  ["NAS", nas],
-  ["Fleet", fleet],
-]) {
-  expect(
-    src.includes('resolveOrganizationScope()?.kind === "organization"'),
-    `${name} empty line must say when one organization is selected`,
-  );
-}
+// 3. These two pages show every organization, so the picker must not offer a
+// choice that would do nothing there.
+expect(
+  /pathname !== "\/master\/nas" && pathname !== "\/master\/routers" && \(\s*<OrganizationScopePicker \/>/.test(
+    shell,
+  ),
+  "the organization picker must stay hidden on NAS / RADIUS and Router Fleet",
+);
 
 // 4. The demo grant opens the Master nav, and nowhere else.
 expect(/const all = can\("\*"\);/.test(shell), "useOperatorCaps must honour the demo `*` grant");

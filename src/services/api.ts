@@ -272,6 +272,18 @@ function isMasterConsoleSurface(): boolean {
 }
 
 /**
+ * Master pages that always read every organization, whatever the picker says:
+ * NAS / RADIUS and Router Fleet are the whole estate in one place. A saved
+ * single-organization choice made these read as "nothing registered".
+ * Exact paths: one router's own page keeps the normal scope.
+ */
+function isEstateWideMasterPage(): boolean {
+  if (typeof window === "undefined") return false;
+  const path = (window.location?.pathname ?? "").replace(/\/+$/, "");
+  return path === "/master/nas" || path === "/master/routers";
+}
+
+/**
  * True for a master-console operator, using the same predicate the
  * `/master` route guard, `authGuards.ts` and `roles.ts` already use:
  * a role assignment held at GLOBAL scope.
@@ -317,6 +329,8 @@ export function resolveOrganizationScope(): OrganizationScope | null {
   const ids = membershipOrganizationIds();
   const isOperator = hasGlobalScopeRole();
   const stored = safeLocalGet(ACTIVE_ORG_STORAGE_KEY);
+
+  if (isOperator && isEstateWideMasterPage()) return { kind: "all" };
 
   if (stored === ALL_ORGANIZATIONS) {
     if (isOperator) return { kind: "all" };

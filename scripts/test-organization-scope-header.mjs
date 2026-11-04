@@ -238,7 +238,7 @@ const MEMBERSHIP = { organizationId: REAL_ORG, organizationName: "WyFy Guest" };
     roles: [GLOBAL_ROLE],
     orgs: [],
     selected: DEMO_ORG,
-    pathname: "/master/routers",
+    pathname: "/master/customers",
   });
   const { org, scope } = await headersFor();
   check(
@@ -341,6 +341,36 @@ const MEMBERSHIP = { organizationId: REAL_ORG, organizationName: "WyFy Guest" };
     org === null && scope === null,
     "there is deliberately no rule that turns 'I do not know' into 'all of them' -- " +
       "that rule IS the bug. The backend answers with a 400 naming both remedies.",
+  );
+}
+
+// ---------------------------------------------------------------------
+// NAS / RADIUS and Router Fleet read the whole estate, whatever is selected.
+// ---------------------------------------------------------------------
+for (const pathname of ["/master/nas", "/master/routers", "/master/routers/"]) {
+  session({ roles: [GLOBAL_ROLE], orgs: [], selected: DEMO_ORG, pathname });
+  const { org, scope } = await headersFor();
+  check(
+    `an operator on ${pathname} reads every organization despite a saved choice`,
+    scope === ALL_ORGANIZATIONS && org === null,
+    "a saved single-organization choice made these pages read as nothing registered",
+  );
+}
+{
+  session({ roles: [GLOBAL_ROLE], orgs: [], selected: DEMO_ORG, pathname: "/master/customers" });
+  const { org } = await headersFor();
+  check("other Master pages still honour the saved choice", org === DEMO_ORG, "picker regressed");
+
+  session({ roles: [GLOBAL_ROLE], orgs: [], selected: DEMO_ORG, pathname: "/master/routers/abc" });
+  const one = await headersFor();
+  check("one router's own page keeps the normal scope", one.org === DEMO_ORG, "too broad");
+
+  session({ roles: [OWNER_ROLE], orgs: [MEMBERSHIP], pathname: "/master/nas" });
+  const tenant = await headersFor();
+  check(
+    "a non-operator on that path never asks for every organization",
+    tenant.scope === null && tenant.org === REAL_ORG,
+    "only a global role may read across tenants",
   );
 }
 
