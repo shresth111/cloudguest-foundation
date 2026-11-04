@@ -374,19 +374,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const session = await authService.login(creds);
       persistSession(session);
+
+      // Permissions first, and only then is the session live. Going the other
+      // way, a failure here told the visitor "Login failed" while a working
+      // session sat in storage, and a refresh signed them in with an empty menu.
+      let myPermissions: string[];
+      try {
+        myPermissions = await authService.myPermissions();
+      } catch (err) {
+        clearStoredSession();
+        throw err;
+      }
+
       setUser(session.user);
       setRoles(session.roles);
       setOrganizations(session.organizations);
-      setStatus("authenticated");
-
+      setPermissions(new Set(myPermissions));
       setPermissionsFailed(false);
-      try {
-        const myPermissions = await authService.myPermissions();
-        setPermissions(new Set(myPermissions));
-      } catch (err) {
-        setPermissionsFailed(true);
-        throw err;
-      }
+      setStatus("authenticated");
 
       return session;
     },
