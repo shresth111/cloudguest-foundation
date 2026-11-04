@@ -119,6 +119,15 @@ expect(
   "both logout and a fresh login must clear the saved organization choice",
 );
 
+// 6. A login whose permissions fail leaves no live session behind.
+const loginBody = auth.slice(auth.indexOf("await authService.login(creds)"));
+expect(
+  /myPermissions = await authService\.myPermissions\(\);\s*\} catch \(err\) \{\s*clearStoredSession\(\);\s*throw err;/.test(
+    loginBody,
+  ) && loginBody.indexOf("myPermissions = await") < loginBody.indexOf('setStatus("authenticated")'),
+  "login must load permissions before going live, and clear the session if they fail",
+);
+
 if (failures.length) {
   for (const f of failures) console.error(`FAIL: ${f}`);
   process.exit(1);

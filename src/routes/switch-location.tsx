@@ -471,6 +471,11 @@ function CustomerHomePage() {
     .filter((d) => floorFilter === null || d.floor.trim() === floorFilter);
   const downCount = devices.filter((d) => d.status === "down").length;
   const totalDownAcrossLocations = allDevices.filter((d) => d.status === "down").length;
+  // The server has no session and renders no devices, while the client can read
+  // them on its first render. Showing the badge only after mount keeps the two
+  // in agreement and avoids a hydration error on refresh.
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => setHasMounted(true), []);
 
   useEffect(() => {
     setSelectedDeviceIds([]);
@@ -769,7 +774,7 @@ function CustomerHomePage() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <Radio className="h-3.5 w-3.5" /> Device health
-              {totalDownAcrossLocations > 0 && (
+              {hasMounted && totalDownAcrossLocations > 0 && (
                 <span className="rounded-full bg-rose-500/20 px-1.5 text-[10px] font-semibold text-rose-300">
                   {totalDownAcrossLocations}
                 </span>
