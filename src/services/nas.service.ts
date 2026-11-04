@@ -1,6 +1,6 @@
 import { api, type AppError } from "@/services/api";
 import { getAllItems } from "@/services/list-all-pages";
-import { isDemo } from "@/services/customer.service";
+import { isDemoSession } from "@/lib/demo-host";
 import type {
   CreateNasPayload,
   NasClient,
@@ -150,7 +150,7 @@ export const nasService = {
   async listAll(): Promise<NasClient[]> {
     // The demo session never reaches the backend, and this page is one click
     // away in its sidebar. It has no NAS fixtures, which is not a failed read.
-    if (isDemo()) return [];
+    if (isDemoSession()) return [];
     const [raw, locations, orgs] = await Promise.all([
       fetchAllNasRaw(),
       fetchAllLocations(),

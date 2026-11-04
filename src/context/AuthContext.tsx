@@ -17,6 +17,7 @@ import {
   USER_STORAGE_KEY,
   ROLES_STORAGE_KEY,
   ORGS_STORAGE_KEY,
+  ACTIVE_ORG_STORAGE_KEY,
 } from "@/services/api";
 import { getImpersonationClaim } from "@/lib/jwt";
 import { DEMO_ACCESS_TOKEN, isDemoLogin, isHonouredDemoToken } from "@/lib/demo-host";
@@ -182,6 +183,9 @@ function clearStoredSession() {
   removeStored(USER_STORAGE_KEY);
   removeStored(ROLES_STORAGE_KEY);
   removeStored(ORGS_STORAGE_KEY);
+  // The organization picker's choice belongs to one session. Left behind, it
+  // silently narrows Master's NAS and Router Fleet lists after the next login.
+  removeStored(ACTIVE_ORG_STORAGE_KEY);
   // Defensive: these two should already be gone by the time a normal
   // logout runs (`endImpersonation` removes both once it restores the
   // operator's session). Clearing them here too means a real login/logout
@@ -297,6 +301,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // instead of "End session") can never resurface later.
       removeStored(PRE_IMPERSONATION_SESSION_KEY);
       removeStored(IMPERSONATION_EXPIRES_AT_KEY);
+      // Same for the organization picker: a session that expired never ran
+      // logout(), so its choice would otherwise carry into this one.
+      removeStored(ACTIVE_ORG_STORAGE_KEY);
 
       // Demo mode: bypass the backend for one hardcoded credential pair.
       //

@@ -115,6 +115,12 @@ expect(
   "both entries must stay in MASTER_NAV_GROUPS, or they silently never render",
 );
 
+// 5. The organization picker's choice never outlives its session.
+expect(
+  (auth.match(/removeStored\(ACTIVE_ORG_STORAGE_KEY\)/g) ?? []).length === 2,
+  "both logout and a fresh login must clear the saved organization choice",
+);
+
 if (failures.length) {
   for (const f of failures) console.error(`FAIL: ${f}`);
   process.exit(1);
