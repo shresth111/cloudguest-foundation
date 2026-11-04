@@ -296,6 +296,8 @@ jobs:
       # reset mail simply never comes and looks like a mail problem.
       - name: auth forms submit trimmed emails
         run: bun run test:auth-email-trimmed
+      - name: Login at the bare root never fights IndexRedirect
+        run: bun run test:login-root-navigation
 
       # The demo login (admin@example.com / test) mints a Super Admin session
       # in the browser with no backend. #284 turned it off in production; it
