@@ -299,6 +299,9 @@ jobs:
       - name: Login at the bare root never fights IndexRedirect
         run: bun run test:login-root-navigation
 
+      - name: Master nav and lists say when a read failed
+        run: bun run test:master-nav-load-states
+
       # The demo login (admin@example.com / test) mints a Super Admin session
       # in the browser with no backend. #284 turned it off in production; it
       # is back ONLY on demo.wyfyguest.com, which serves the same bundle, so

@@ -96,6 +96,11 @@ interface AuthContextValue {
   login: (creds: LoginCredentials) => Promise<AuthSession>;
   logout: () => Promise<void>;
   can: (permission: string) => boolean;
+  /** `GET /me/permissions` failed, so `can()` is answering false for everything
+   * because nothing is known, not because nothing is granted. */
+  permissionsFailed: boolean;
+  /** Asks for the permissions again after a failure. */
+  reloadPermissions: () => Promise<void>;
   /** Pushes a freshly-saved user (e.g. from a real PUT /me profile update)
    * into context + localStorage so the rest of the app (sidebar, header,
    * account page) reflects it immediately without a full reload. */
@@ -194,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<RoleAssignment[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationMembership[]>([]);
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
+  const [permissionsFailed, setPermissionsFailed] = useState(false);
   const [status, setStatus] = useState<AuthStatus>("loading");
 
   useEffect(() => {
@@ -234,18 +240,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const [freshUser, freshPermissions] = await Promise.all([
-          authService.me(),
-          authService.myPermissions(),
-        ]);
-        if (cancelled) return;
-        setUser(freshUser);
-        writeStored(USER_STORAGE_KEY, JSON.stringify(freshUser));
-        setPermissions(new Set(freshPermissions));
-      } catch {
-        // A 401 here is handled globally by the api.ts response interceptor
-        // (refresh-then-retry, or clear session + redirect to /session-expired).
+      // Settled separately: a failed /auth/me says nothing about what this
+      // session may do, and used to throw away a good /me/permissions with it.
+      // A 401 on either is handled globally by the api.ts response interceptor
+      // (refresh-then-retry, or clear session + redirect to /session-expired).
+      const [freshUser, freshPermissions] = await Promise.allSettled([
+        authService.me(),
+        authService.myPermissions(),
+      ]);
+      if (cancelled) return;
+      if (freshUser.status === "fulfilled") {
+        setUser(freshUser.value);
+        writeStored(USER_STORAGE_KEY, JSON.stringify(freshUser.value));
+      }
+      if (freshPermissions.status === "fulfilled") {
+        setPermissions(new Set(freshPermissions.value));
+      } else {
+        setPermissionsFailed(true);
       }
     }
 
@@ -361,8 +372,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOrganizations(session.organizations);
       setStatus("authenticated");
 
-      const myPermissions = await authService.myPermissions();
-      setPermissions(new Set(myPermissions));
+      setPermissionsFailed(false);
+      try {
+        const myPermissions = await authService.myPermissions();
+        setPermissions(new Set(myPermissions));
+      } catch (err) {
+        setPermissionsFailed(true);
+        throw err;
+      }
 
       return session;
     },
@@ -387,10 +404,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles([]);
     setOrganizations([]);
     setPermissions(new Set());
+    setPermissionsFailed(false);
     setStatus("anonymous");
   }, [queryClient]);
 
   const can = useCallback((permission: string) => permissions.has(permission), [permissions]);
+
+  const reloadPermissions = useCallback(async () => {
+    try {
+      const myPermissions = await authService.myPermissions();
+      setPermissions(new Set(myPermissions));
+      setPermissionsFailed(false);
+    } catch {
+      setPermissionsFailed(true);
+    }
+  }, []);
 
   const updateUser = useCallback((next: User) => {
     setUser(next);
@@ -586,6 +614,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       can,
+      permissionsFailed,
+      reloadPermissions,
       updateUser,
       beginImpersonation,
       endImpersonation,
@@ -598,6 +628,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       can,
+      permissionsFailed,
+      reloadPermissions,
       updateUser,
       beginImpersonation,
       endImpersonation,

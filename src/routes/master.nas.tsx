@@ -32,6 +32,7 @@ import {
 } from "@/components/master/MasterKit";
 import { nasService } from "@/services/nas.service";
 import { routerService } from "@/services/router.service";
+import { resolveOrganizationScope } from "@/services/api";
 import {
   NAS_STATUS_LABEL,
   type NasClient,
@@ -64,6 +65,7 @@ function NasScreen() {
   const [q, setQ] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [nasClients, setNasClients] = useState<NasClient[]>([]);
@@ -83,7 +85,9 @@ function NasScreen() {
       const [nas, routerList] = await Promise.all([nasService.listAll(), routerService.listAll()]);
       setNasClients(nas);
       setRouters(routerList.rows);
+      setLoadFailed(false);
     } catch {
+      setLoadFailed(true);
       toast.error("Could not load NAS clients from the server.");
     } finally {
       setLoading(false);
@@ -123,6 +127,11 @@ function NasScreen() {
     const pending = nasClients.filter((n) => n.status === "pending").length;
     return { total: nasClients.length, active, disabled, pending };
   }, [nasClients]);
+
+  // Nothing read is not the same as nothing registered: the tiles and the empty
+  // line must not report zero after a failed load.
+  const unread = loadFailed && nasClients.length === 0;
+  const count = (n: number) => (unread ? "—" : String(n));
 
   function errMsg(err: unknown, fallback: string) {
     return (err as AppError)?.message || fallback;
@@ -268,10 +277,10 @@ function NasScreen() {
         />
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <MStat label="NAS clients" value={String(stats.total)} icon={Server} />
-          <MStat label="Active" value={String(stats.active)} icon={Gauge} />
-          <MStat label="Disabled / suspended" value={String(stats.disabled)} icon={Ban} />
-          <MStat label="Pending" value={String(stats.pending)} icon={ShieldCheck} />
+          <MStat label="NAS clients" value={count(stats.total)} icon={Server} />
+          <MStat label="Active" value={count(stats.active)} icon={Gauge} />
+          <MStat label="Disabled / suspended" value={count(stats.disabled)} icon={Ban} />
+          <MStat label="Pending" value={count(stats.pending)} icon={ShieldCheck} />
         </div>
 
         <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
@@ -381,9 +390,21 @@ function NasScreen() {
               ))
             ))}
         </MTable>
-        {!loading && rows.length === 0 && (
+        {!loading && unread && (
+          <p className="text-center text-sm text-destructive">
+            Could not load NAS clients, so these counts are unknown.{" "}
+            <button onClick={() => refetch()} className="underline">
+              Retry
+            </button>
+          </p>
+        )}
+        {!loading && !unread && rows.length === 0 && (
           <p className="text-center text-sm text-muted-foreground">
-            No NAS clients registered yet.
+            {q
+              ? "No NAS clients match your search."
+              : resolveOrganizationScope()?.kind === "organization"
+                ? "No NAS clients in the selected organization. Choose All organizations at the top to see the rest."
+                : "No NAS clients registered yet."}
           </p>
         )}
 
