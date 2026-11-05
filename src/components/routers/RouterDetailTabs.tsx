@@ -8743,7 +8743,12 @@ export function buildRouterSetupScriptChunks(opts: {
         ? [
             `:local adminRows [:len [/user find where name="admin"]]`,
             `:if ($adminRows = 0) do={ :put "  WARNING: this router has no admin account, so no local password was set. Check /user print." }`,
-            `:if ($adminRows > 0) do={ :do { /user set [find name="admin"] password="${escapeForRouterOsString(localAdminPassword)}"; :put "  admin password set. Find it in Master, on this router, under Local login, and press Confirm there." } on-error={ :put "  RESULT: FAIL -- could not set the admin password."; :log warning "cloudguest: could not set the admin password" } }`,
+            `:local adminSet 0`,
+            `:if ($adminRows > 0) do={ :set adminSet 1 }`,
+            `:if ($adminRows > 0) do={ :do { /user set [find name="admin"] password="${escapeForRouterOsString(localAdminPassword)}" } on-error={ :set adminSet 2 } }`,
+            `:if ($adminSet = 1) do={ :put "  admin password set. Find it in Master, on this router, under Local login, and press Confirm there." }`,
+            `:if ($adminSet = 2) do={ :put "  RESULT: FAIL -- could not set the admin password." }`,
+            `:if ($adminSet = 2) do={ :log warning "cloudguest: could not set the admin password" }`,
             `:put "  WARNING: other full-access accounts keep their own passwords (/user print). This script cannot read whether one is set."`,
           ].join("; ")
         : `:put "  WARNING: set a strong password on admin and every other full-access account (/user print). This script cannot read whether one is set."`,
