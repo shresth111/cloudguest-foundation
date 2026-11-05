@@ -4994,6 +4994,12 @@ export function buildRouterSetupScriptChunks(opts: {
    * 2 (no firewall rule sees it), and the account password is all there is.
    * The "Router Admin Lockdown" chunk says which of the two was chosen. */
   blockMacWinbox?: boolean;
+  /** Sets the router's local `admin` password in the "Router Admin Lockdown"
+   * chunk. Issued by the backend, which keeps it encrypted and shows it in
+   * Master. Letters and digits only. Without it the chunk can only warn. The
+   * script cannot prove the password landed: Master's "Set on router" /
+   * "Confirm again" does that with a real login. */
+  localAdminPassword?: string;
   /** Things the panel tried to provision and could not -- a hub bridge that
    * refused, a RADIUS registration that 502'd. Passed in so the SCRIPT can
    * announce the gap instead of quietly being shorter.
@@ -5045,6 +5051,7 @@ export function buildRouterSetupScriptChunks(opts: {
     wanRoutingMode = "load_balance",
     basicConfigOnly = false,
     blockMacWinbox = false,
+    localAdminPassword,
     notProvisioned = [],
   } = opts;
   // Escaped once up front -- `lanBridge` is an operator-editable free-text
@@ -8732,7 +8739,14 @@ export function buildRouterSetupScriptChunks(opts: {
       ].join("; "),
       // The script cannot read whether a password is set, or how good it
       // is, and does not pretend to. Printed on every router, both ways.
-      `:put "  WARNING: set a strong password on admin and every other full-access account (/user print). This script cannot read whether one is set."`,
+      localAdminPassword
+        ? [
+            `:local adminRows [:len [/user find where name="admin"]]`,
+            `:if ($adminRows = 0) do={ :put "  WARNING: this router has no admin account, so no local password was set. Check /user print." }`,
+            `:if ($adminRows > 0) do={ :do { /user set [find name="admin"] password="${escapeForRouterOsString(localAdminPassword)}"; :put "  admin password set. Find it in Master, on this router, under Local login, and press Confirm there." } on-error={ :put "  RESULT: FAIL -- could not set the admin password."; :log warning "cloudguest: could not set the admin password" } }`,
+            `:put "  WARNING: other full-access accounts keep their own passwords (/user print). This script cannot read whether one is set."`,
+          ].join("; ")
+        : `:put "  WARNING: set a strong password on admin and every other full-access account (/user print). This script cannot read whether one is set."`,
       blockMacWinbox
         ? [
             `:put "  Closing MAC-WinBox on every interface. If this session is MAC-WinBox it may end here: reconnect over the tunnel and paste the remaining chunks."`,

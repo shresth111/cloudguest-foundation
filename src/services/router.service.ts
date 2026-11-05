@@ -497,6 +497,14 @@ export function routerModelGroupsForVendor(vendor: string | undefined): RouterMo
   return vendor === "tplink_omada" ? OMADA_MODEL_GROUPS : MIKROTIK_MODEL_GROUPS;
 }
 
+export interface LocalAdminCheck {
+  adminExists: boolean;
+  adminLogin: "blank" | "password_set" | "unreachable";
+  /** null when the platform has not issued a password for this router. */
+  storedPasswordWorks: boolean | null;
+  otherFullAccessUsers: string[];
+}
+
 export const routerService = {
   /**
    * Location-scoped router listing for callers that already know both the
@@ -931,6 +939,67 @@ export const routerService = {
    * since this hands back a real secret, not just metadata. `host` is the
    * router's WireGuard tunnel IP when one exists (the only address
    * reliably reachable for a remote router behind NAT/CGNAT). */
+  /** Status only, never the password. */
+  async getLocalAdminStatus(routerId: string): Promise<{
+    status: "pending" | "active" | null;
+    verifiedAt: string | null;
+  }> {
+    const { data } = await api.get<{
+      local_admin_password_status: "pending" | "active" | null;
+      local_admin_password_verified_at: string | null;
+    }>(`/platform/routers/${routerId}`);
+    return {
+      status: data.local_admin_password_status,
+      verifiedAt: data.local_admin_password_verified_at,
+    };
+  },
+
+  /** Attempts logins on the device and changes nothing there. */
+  async checkLocalAdminPassword(routerId: string): Promise<LocalAdminCheck> {
+    const { data } = await api.post<{
+      admin_exists: boolean;
+      admin_login: LocalAdminCheck["adminLogin"];
+      stored_password_works: boolean | null;
+      other_full_access_users: string[];
+    }>(`/platform/routers/${routerId}/local-admin-password/check`);
+    return {
+      adminExists: data.admin_exists,
+      adminLogin: data.admin_login,
+      storedPasswordWorks: data.stored_password_works,
+      otherFullAccessUsers: data.other_full_access_users,
+    };
+  },
+
+  /** Sets the device's password if needed and proves it with a login. */
+  async applyLocalAdminPassword(
+    routerId: string,
+  ): Promise<{ deviceChanged: boolean; otherFullAccessUsers: string[] }> {
+    const { data } = await api.post<{
+      device_changed: boolean;
+      other_full_access_users: string[];
+    }>(`/platform/routers/${routerId}/local-admin-password/apply`);
+    return {
+      deviceChanged: data.device_changed,
+      otherFullAccessUsers: data.other_full_access_users,
+    };
+  },
+
+  /** Audited on the server. Do not call this from a query. */
+  async revealLocalAdminPassword(routerId: string): Promise<{ password: string }> {
+    const { data } = await api.post<{ password: string }>(
+      `/platform/routers/${routerId}/local-admin-password/reveal`,
+    );
+    return { password: data.password };
+  },
+
+  /** The password a setup script should set. Generating again returns the same one. */
+  async issueLocalAdminPassword(routerId: string): Promise<{ password: string }> {
+    const { data } = await api.post<{ password: string }>(
+      `/platform/routers/${routerId}/local-admin-password/issue`,
+    );
+    return { password: data.password };
+  },
+
   async getDeviceConnection(
     routerId: string,
   ): Promise<{ host: string | null; username: string | null; password: string | null }> {
