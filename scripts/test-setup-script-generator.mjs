@@ -4021,6 +4021,29 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
       "this must not disturb any other part of provisioning",
     );
   }
+  {
+    const panel = readFileSync(
+      resolve(ROOT, "src/components/routers/RouterSetupScriptAdvanced.tsx"),
+      "utf8",
+    );
+    check(
+      "API Access: a Generate that does not mint still carries the stored login",
+      /routerService\.getDeviceConnection\(router\.id\)[\s\S]{0,160}apiAccess = \{ username: stored\.username, secret: stored\.password \}/.test(
+        panel,
+      ) && !/so no "API Access" chunk is in this script/.test(panel),
+      "second Generate, second script pasted: the router came up with no API login (Neehara Office, 2026-11-05)",
+    );
+    const twice = buildRouterSetupScriptChunks({
+      ...base,
+      apiAccess: { username: "cloudguest-api", secret: "stored123" },
+    }).find((c) => c.label.startsWith("API Access")).script;
+    check(
+      "API Access: the chunk creates the user or repairs its password",
+      /\/user add name="cloudguest-api" password="stored123"/.test(twice) &&
+        /else=\{ \/user set \[find name="cloudguest-api"\] password="stored123" \}/.test(twice),
+      "either branch must end with the device matching the stored password",
+    );
+  }
   check(
     "lockdown: the option changes nothing outside its own chunk",
     JSON.stringify(buildRouterSetupScriptChunks(base).filter((c) => c.label !== LOCK)) ===
