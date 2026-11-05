@@ -445,12 +445,12 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                   the row for a reason: every number on every page below it is
                   scoped by this, and until it existed that scope was an
                   invisible default (all of them). */}
-              {/* NAS / RADIUS and Router Fleet always show every organization
+              {/* NAS / RADIUS, Router Fleet and Audit Logs always show every organization
                   (see isEstateWideMasterPage in api.ts), so the control would
                   do nothing there. */}
-              {pathname !== "/master/nas" && pathname !== "/master/routers" && (
-                <OrganizationScopePicker />
-              )}
+              {pathname !== "/master/nas" &&
+                pathname !== "/master/routers" &&
+                pathname !== "/master/audit" && <OrganizationScopePicker />}
               <MasterSearch />
               {/* Platform-wide: every organization's alerts, not just one --
                   a genuinely different data scope from the customer bell
