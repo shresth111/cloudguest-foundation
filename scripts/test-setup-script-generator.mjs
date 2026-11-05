@@ -3988,6 +3988,39 @@ const unknownMenusIn = (script) => [...menusIn(script)].filter((m) => !KNOWN_MEN
     ),
     "the password is what stands between the guest LAN and MAC-WinBox when the option is off",
   );
+  {
+    const withPassword = buildRouterSetupScriptChunks({
+      ...base,
+      localAdminPassword: "Abc234Def567Ghi890Jk",
+    });
+    const chunk = withPassword.find((c) => c.label === LOCK).script;
+    check(
+      "lockdown: a local admin password is set on admin, guarded, and read off nothing",
+      /\/user set \[find name="admin"\] password="Abc234Def567Ghi890Jk"/.test(chunk) &&
+        /:if \(\$adminRows = 0\)/.test(chunk) &&
+        /on-error=\{/.test(chunk) &&
+        !/:error\b/.test(chunk),
+      "a missing admin account or a refused write must not end the import",
+    );
+    check(
+      "lockdown: the script does not claim the password is proven, and still warns about other accounts",
+      /press Confirm there/.test(chunk) &&
+        !/RESULT: PASS -- admin password/.test(chunk) &&
+        /other full-access accounts/.test(chunk),
+      "only a login from Master can prove the password landed",
+    );
+    check(
+      "lockdown: the password appears in that chunk only",
+      withPassword.filter((c) => c.script.includes("Abc234Def567Ghi890Jk")).length === 1,
+      "a second copy would be printed or logged somewhere else",
+    );
+    check(
+      "lockdown: the password changes nothing outside its own chunk",
+      JSON.stringify(withPassword.filter((c) => c.label !== LOCK)) ===
+        JSON.stringify(buildRouterSetupScriptChunks(base).filter((c) => c.label !== LOCK)),
+      "this must not disturb any other part of provisioning",
+    );
+  }
   check(
     "lockdown: the option changes nothing outside its own chunk",
     JSON.stringify(buildRouterSetupScriptChunks(base).filter((c) => c.label !== LOCK)) ===

@@ -49,6 +49,7 @@ import { useGenerateProvisioningToken, routerKeys } from "@/hooks/useRouters";
 import { nasKeys } from "@/hooks/useNas";
 import api, { getAbsoluteApiBase } from "@/services/api";
 import type { AppError } from "@/services/api";
+import { routerService } from "@/services/router.service";
 import type { RouterDevice } from "@/types/router";
 import { copyToClipboard } from "@/lib/utils";
 import { routerRscFilename } from "@/lib/rsc-filename";
@@ -991,6 +992,19 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         );
       }
 
+      // The router's local admin password. Same rule as API Access above: a
+      // failure feeds `notProvisioned`, so the script says the password was
+      // not set instead of quietly being shorter.
+      let localAdminPassword: string | undefined;
+      try {
+        ({ password: localAdminPassword } = await routerService.issueLocalAdminPassword(router.id));
+      } catch (err) {
+        notProvisioned.push({
+          what: "Local admin password",
+          why: (err as AppError).message || "the platform could not issue one",
+        });
+      }
+
       // Unconditional, and BEFORE the script is handed over: by this point
       // the server state this router is described by has moved, whether or
       // not every individual call succeeded (an `allocate-external` that
@@ -1026,6 +1040,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           lanIfs: lanIfs.length > 0 ? lanIfs : undefined,
           enableFirewall,
           blockMacWinbox,
+          localAdminPassword,
           wireguard,
           radius,
           notProvisioned,

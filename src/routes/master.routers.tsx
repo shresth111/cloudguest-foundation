@@ -49,6 +49,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RemoteAccessCard } from "@/components/routers/RouterDetailTabs";
+import { LocalAdminPasswordCard } from "@/components/routers/LocalAdminPasswordCard";
 import { FirewallBandPanel } from "@/components/master/FirewallBandPanel";
 import { RouterSnmpPanel } from "@/components/master/RouterSnmpPanel";
 import { inputCls, RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
@@ -1161,6 +1162,10 @@ function RouterFleetScreen() {
                     ) : (
                       <RemoteAccessCard routerId={sel.id} />
                     ))}
+                  {/* MikroTik only, by name: Aruba and Omada rows have no RouterOS login. */}
+                  {!demo && (sel.vendor ?? "").toLowerCase() === "mikrotik" && (
+                    <LocalAdminPasswordCard routerId={sel.id} />
+                  )}
 
                   <div>
                     <p className="mb-2 text-xs font-medium text-muted-foreground">Power</p>
