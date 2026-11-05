@@ -87,10 +87,8 @@ for (const key of ["total", "online", "degraded", "offline"]) {
 // 3. These pages show every organization, so the picker must not offer a
 // choice that would do nothing there.
 expect(
-  /pathname !== "\/master\/nas" &&\s*pathname !== "\/master\/routers" &&\s*pathname !== "\/master\/audit" &&\s*\(?\s*<OrganizationScopePicker \/>/.test(
-    shell,
-  ),
-  "the organization picker must stay hidden on NAS / RADIUS, Router Fleet and Audit Logs",
+  /!isEstateWideMasterPath\(pathname\) && <OrganizationScopePicker \/>/.test(shell),
+  "the organization picker must stay hidden on the estate-wide Master pages",
 );
 
 // 4. The demo grant opens the Master nav, and nowhere else.

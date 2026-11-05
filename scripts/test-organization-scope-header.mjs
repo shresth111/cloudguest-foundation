@@ -347,7 +347,14 @@ const MEMBERSHIP = { organizationId: REAL_ORG, organizationName: "WyFy Guest" };
 // ---------------------------------------------------------------------
 // NAS / RADIUS, Router Fleet and Audit Logs read the whole estate, whatever is selected.
 // ---------------------------------------------------------------------
-for (const pathname of ["/master/nas", "/master/routers", "/master/routers/", "/master/audit"]) {
+for (const pathname of [
+  "/master/nas",
+  "/master/routers",
+  "/master/routers/",
+  "/master/routers/abc",
+  "/master/routers/setup/abc",
+  "/master/audit",
+]) {
   session({ roles: [GLOBAL_ROLE], orgs: [], selected: DEMO_ORG, pathname });
   const { org, scope } = await headersFor();
   check(
@@ -361,9 +368,21 @@ for (const pathname of ["/master/nas", "/master/routers", "/master/routers/", "/
   const { org } = await headersFor();
   check("other Master pages still honour the saved choice", org === DEMO_ORG, "picker regressed");
 
-  session({ roles: [GLOBAL_ROLE], orgs: [], selected: DEMO_ORG, pathname: "/master/routers/abc" });
+  session({ roles: [GLOBAL_ROLE], orgs: [], selected: DEMO_ORG, pathname: "/master/routersfoo" });
   const one = await headersFor();
-  check("one router's own page keeps the normal scope", one.org === DEMO_ORG, "too broad");
+  check(
+    "a path that only starts the same way keeps the normal scope",
+    one.org === DEMO_ORG,
+    "too broad",
+  );
+
+  session({ roles: [OWNER_ROLE], orgs: [MEMBERSHIP], pathname: "/master/routers/abc" });
+  const tenantRouter = await headersFor();
+  check(
+    "a non-operator on one router's page never asks for every organization",
+    tenantRouter.scope === null && tenantRouter.org === REAL_ORG,
+    "only a global role may read across tenants",
+  );
 
   session({ roles: [OWNER_ROLE], orgs: [MEMBERSHIP], pathname: "/master/nas" });
   const tenant = await headersFor();
