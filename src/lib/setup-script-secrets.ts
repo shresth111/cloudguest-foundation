@@ -69,7 +69,9 @@ export type RotatingSecret = "agent" | "wireguard" | "radius" | "api";
  *              `else={ /user set [find name="..."] password=NEW }` -- so
  *              this one is repairable too. It also no longer rotates on
  *              every Generate (only when the router has no credentials
- *              yet, or the operator explicitly ticks the box).
+ *              yet, or the operator explicitly ticks the box), and every
+ *              script carries the chunk, so any script pasted leaves the
+ *              login correct.
  *
  * If a future change gives the WireGuard chunk a real update path, flip
  * `repairableByRepaste` here and the dialog, the banner and

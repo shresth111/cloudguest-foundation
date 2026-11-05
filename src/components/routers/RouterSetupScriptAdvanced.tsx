@@ -941,20 +941,19 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // and every control-plane call failed with nothing on the device to
       // explain why.
       //
-      // "Reuse the existing one" cannot mean re-reading it: the plaintext
-      // is deliberately never returned by the API (the router row exposes
-      // only `has_api_credentials`). It means LEAVING IT ALONE -- no mint,
-      // no PUT, and no "API Access" chunk in the script, because the device
-      // already carries the matching user and the two halves already agree.
+      // "Reuse the existing one" means no mint and no PUT. The chunk still goes
+      // in the script, carrying the stored password read back through the
+      // audited `device-connection` route. It used to be left out on the
+      // grounds that the device already had the matching user, which is only
+      // true if the FIRST script was the one pasted. Generate twice, paste the
+      // second, and the router comes up online with a working tunnel and no API
+      // login, which is what happened to Neehara Office on 2026-11-05. The chunk
+      // is safe to repeat: it creates the user or sets the same password.
       //
       // Same shape the backend now uses for the other three secrets: the
-      // implicit path reuses, and rotation is an explicit opt-in. The one
-      // case that genuinely needs a new secret is a device whose
-      // `cloudguest-api` user has been deleted -- i.e. straight after the
-      // Guided Setup recovery phase -- which is exactly what the
-      // `rotateApiSecret` checkbox is for. Rotating then is safe because
-      // the chunk's `else={ /user set ... password=NEW }` branch really
-      // does repair an existing user.
+      // implicit path reuses, and rotation is an explicit opt-in. Rotating is
+      // for a device whose `cloudguest-api` user was deleted, straight after
+      // the Guided Setup recovery phase.
       const mintApiSecret = !router.hasApiCredentials || rotateApiSecret;
       let apiAccess: { username: string; secret: string } | undefined;
       if (mintApiSecret) {
@@ -987,9 +986,22 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           );
         }
       } else {
-        toast.info(
-          'API password unchanged -- this router already has one, so no "API Access" chunk is in this script. Device Console keeps working.',
-        );
+        try {
+          const stored = await routerService.getDeviceConnection(router.id);
+          if (stored.username && stored.password) {
+            apiAccess = { username: stored.username, secret: stored.password };
+          } else {
+            notProvisioned.push({
+              what: "API Access (Device Console)",
+              why: "the platform has no stored API login for this router",
+            });
+          }
+        } catch (err) {
+          notProvisioned.push({
+            what: "API Access (Device Console)",
+            why: (err as AppError).message || "the stored API login could not be read",
+          });
+        }
       }
 
       // The router's local admin password. Same rule as API Access above: a
