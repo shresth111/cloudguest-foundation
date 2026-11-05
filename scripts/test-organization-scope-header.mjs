@@ -345,9 +345,9 @@ const MEMBERSHIP = { organizationId: REAL_ORG, organizationName: "WyFy Guest" };
 }
 
 // ---------------------------------------------------------------------
-// NAS / RADIUS and Router Fleet read the whole estate, whatever is selected.
+// NAS / RADIUS, Router Fleet and Audit Logs read the whole estate, whatever is selected.
 // ---------------------------------------------------------------------
-for (const pathname of ["/master/nas", "/master/routers", "/master/routers/"]) {
+for (const pathname of ["/master/nas", "/master/routers", "/master/routers/", "/master/audit"]) {
   session({ roles: [GLOBAL_ROLE], orgs: [], selected: DEMO_ORG, pathname });
   const { org, scope } = await headersFor();
   check(

@@ -275,12 +275,15 @@ function isMasterConsoleSurface(): boolean {
  * Master pages that always read every organization, whatever the picker says:
  * NAS / RADIUS and Router Fleet are the whole estate in one place. A saved
  * single-organization choice made these read as "nothing registered".
+ * Audit Logs is here because `/audit/entries` requires the Organization Owner
+ * role whenever an organization is named, which a global operator does not
+ * hold, so a saved choice turned the whole page into an error.
  * Exact paths: one router's own page keeps the normal scope.
  */
 function isEstateWideMasterPage(): boolean {
   if (typeof window === "undefined") return false;
   const path = (window.location?.pathname ?? "").replace(/\/+$/, "");
-  return path === "/master/nas" || path === "/master/routers";
+  return path === "/master/nas" || path === "/master/routers" || path === "/master/audit";
 }
 
 /**

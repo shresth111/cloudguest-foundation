@@ -19,12 +19,13 @@ import type { AuditListQuery } from "@/types/audit";
  * history (1,000+ real rows) and a fully real, already-built Audit page
  * (KPIs, filters, log table, activity timeline, login history) existing at
  * /_authenticated/audit, wired to the real `GET /audit/entries` (see
- * audit.service.ts). None of that page's calls ever send an
- * `X-Organization-Id` header, which the backend (audit/router.py's own
- * module docstring, "Owner-only when organization-scoped") treats as a
- * genuine platform-level/cross-tenant search across every organization --
- * exactly this console's own audience. Reuses that same real service/hook +
- * those same components here, inside MasterShell, rather than rebuilding it
+ * audit.service.ts). This page must not send `X-Organization-Id`: the backend
+ * (audit/router.py's own module docstring, "Owner-only when
+ * organization-scoped") answers 403 to an operator who is not that
+ * organization's Owner. `isEstateWideMasterPage` in api.ts keeps it on the
+ * cross-tenant search, which is this console's own audience. Reuses that
+ * same real service/hook + those same components here, inside MasterShell,
+ * rather than rebuilding it
  * (identical precedent to master.analytics.tsx's own "Global Analytics").
  */
 export const Route = createFileRoute("/master/audit")({ component: AuditScreen });
