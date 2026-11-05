@@ -991,30 +991,40 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           if (stored.username && stored.password) {
             apiAccess = { username: stored.username, secret: stored.password };
           } else {
-            notProvisioned.push({
-              what: "API Access (Device Console)",
-              why: "the platform has no stored API login for this router",
-            });
+            const why = "the platform has no stored API login for this router";
+            notProvisioned.push({ what: "API Access (Device Console)", why });
+            toast.error(`This script is incomplete: ${why}. Tick "Rotate" and generate again.`);
           }
         } catch (err) {
-          notProvisioned.push({
-            what: "API Access (Device Console)",
-            why: (err as AppError).message || "the stored API login could not be read",
-          });
+          const why = (err as AppError).message || "the stored API login could not be read";
+          notProvisioned.push({ what: "API Access (Device Console)", why });
+          toast.error(`This script is incomplete: ${why}`);
         }
       }
 
-      // The router's local admin password. Same rule as API Access above: a
-      // failure feeds `notProvisioned`, so the script says the password was
-      // not set instead of quietly being shorter.
+      // The router's local admin password. Unlike API Access this is not a
+      // `notProvisioned` gap, because a gap stops an /import before anything
+      // runs, and a venue can go live without this. On failure the lockdown
+      // chunk keeps its old warning and the operator is told here.
+      //
+      // Never when the platform itself logs in as `admin`: the chunk would
+      // overwrite the platform's own credential. The backend refuses it too.
       let localAdminPassword: string | undefined;
-      try {
-        ({ password: localAdminPassword } = await routerService.issueLocalAdminPassword(router.id));
-      } catch (err) {
-        notProvisioned.push({
-          what: "Local admin password",
-          why: (err as AppError).message || "the platform could not issue one",
-        });
+      if (apiAccess?.username !== "admin") {
+        try {
+          ({ password: localAdminPassword } = await routerService.issueLocalAdminPassword(
+            router.id,
+          ));
+          toast.info(
+            "This script sets the router's admin password. Anyone using the old one will need the new one from Local login in Master.",
+          );
+        } catch (err) {
+          toast.error(
+            `This script will not set the admin password: ${
+              (err as AppError).message || "the platform could not issue one"
+            }`,
+          );
+        }
       }
 
       // Unconditional, and BEFORE the script is handed over: by this point

@@ -1461,6 +1461,26 @@ function doBodies(script) {
 const multiStatement = (script) => doBodies(script).filter((b) => b.statements.length > 1);
 
 {
+  const withPassword = { ...VARIANTS[0][1], localAdminPassword: "Abc234Def567Ghi890Jk" };
+  const chunks = buildRouterSetupScriptChunks(withPassword);
+  const offenders = [
+    ...chunks.flatMap((c) => multiStatement(c.script)),
+    ...multiStatement(chunksToSingleLineScript(chunks)),
+  ];
+  check(
+    "local admin password: no multi-statement do={} body, in chunks or the single line",
+    offenders.length === 0,
+    `${offenders.length} offender(s); the Validate button reports these as syntax errors`,
+  );
+  const report = validateSetupScriptChunks(chunks);
+  check(
+    "local admin password: the validator does not flag the chunk or quote the password",
+    !JSON.stringify(report).includes("Abc234Def567Ghi890Jk"),
+    "a validator message excerpt would show the password on screen",
+  );
+}
+
+{
   const offenders = [];
   for (const [label, script] of pasteables) {
     for (const b of multiStatement(script)) {
