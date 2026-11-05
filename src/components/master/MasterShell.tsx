@@ -36,6 +36,7 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { MasterSearch } from "@/components/master/MasterSearch";
 import { OrganizationScopePicker } from "@/components/master/OrganizationScopePicker";
+import { isEstateWideMasterPath } from "@/services/api";
 
 export interface MasterNavItem {
   to: string;
@@ -445,12 +446,10 @@ export function MasterShell({ title, children }: { title: string; children: Reac
                   the row for a reason: every number on every page below it is
                   scoped by this, and until it existed that scope was an
                   invisible default (all of them). */}
-              {/* NAS / RADIUS, Router Fleet and Audit Logs always show every organization
-                  (see isEstateWideMasterPage in api.ts), so the control would
-                  do nothing there. */}
-              {pathname !== "/master/nas" &&
-                pathname !== "/master/routers" &&
-                pathname !== "/master/audit" && <OrganizationScopePicker />}
+              {/* These pages always show every organization (see
+                  isEstateWideMasterPath in api.ts), so the control would do
+                  nothing there. */}
+              {!isEstateWideMasterPath(pathname) && <OrganizationScopePicker />}
               <MasterSearch />
               {/* Platform-wide: every organization's alerts, not just one --
                   a genuinely different data scope from the customer bell

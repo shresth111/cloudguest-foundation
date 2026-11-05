@@ -278,12 +278,23 @@ function isMasterConsoleSurface(): boolean {
  * Audit Logs is here because `/audit/entries` requires the Organization Owner
  * role whenever an organization is named, which a global operator does not
  * hold, so a saved choice turned the whole page into an error.
- * Exact paths: one router's own page keeps the normal scope.
+ * One router's own pages are here because the fleet list shows every
+ * organization's routers: opening one that is outside the saved organization
+ * got a 403 from `GET /routers/{id}` and the whole page became an error.
  */
+export function isEstateWideMasterPath(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, "");
+  return (
+    path === "/master/nas" ||
+    path === "/master/routers" ||
+    path.startsWith("/master/routers/") ||
+    path === "/master/audit"
+  );
+}
+
 function isEstateWideMasterPage(): boolean {
   if (typeof window === "undefined") return false;
-  const path = (window.location?.pathname ?? "").replace(/\/+$/, "");
-  return path === "/master/nas" || path === "/master/routers" || path === "/master/audit";
+  return isEstateWideMasterPath(window.location?.pathname ?? "");
 }
 
 /**
