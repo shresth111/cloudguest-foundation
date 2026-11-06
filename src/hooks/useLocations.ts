@@ -102,7 +102,9 @@ export function useDeleteLocations() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ids: string[]) => locationService.remove(ids),
-    onSuccess: () => invalidateLocationCaches(qc),
+    // Settled, not success: a bulk archive where one location is refused
+    // (409) has still archived the others, and the list must show that.
+    onSettled: () => invalidateLocationCaches(qc),
   });
 }
 
