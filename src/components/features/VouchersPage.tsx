@@ -51,7 +51,7 @@ import type {
   VoucherRedemption,
 } from "@/types/voucher";
 import { maskMac } from "@/lib/masking";
-import { parseVoucherCodes } from "@/lib/voucher-import";
+import { MAX_IMPORT_CODES, MAX_IMPORT_FILE_BYTES, parseVoucherCodes } from "@/lib/voucher-import";
 
 interface Voucher {
   code: string;
@@ -207,9 +207,25 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
   const [importing, setImporting] = useState(false);
 
   const importCodesFromFile = async (b: BatchRow, file: File) => {
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      toast.error(
+        t("v.importTooLarge", "That file is too large. Use a CSV or text file under 1 MB."),
+      );
+      return;
+    }
     const codes = parseVoucherCodes(await file.text());
     if (codes.length === 0) {
       toast.error(t("v.importNoCodes", "No codes found in that file."));
+      return;
+    }
+    if (codes.length > MAX_IMPORT_CODES) {
+      toast.error(
+        t(
+          "v.importTooMany",
+          "That file has {{count}} codes. Import at most {{max}} at a time: split the file and import each part.",
+          { count: codes.length, max: MAX_IMPORT_CODES },
+        ),
+      );
       return;
     }
     setImporting(true);

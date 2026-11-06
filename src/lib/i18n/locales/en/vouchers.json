@@ -94,6 +94,8 @@
     "importDone": "{{imported}} codes imported",
     "importFailed": "Couldn't import the codes. Nothing was added.",
     "importing": "Importing…",
-    "importHint": "Import adds pre-printed codes to this batch: one code per line, or the first column of a CSV."
+    "importHint": "Import adds pre-printed codes to this batch: one code per line, or the first column of a CSV.",
+    "importTooLarge": "That file is too large. Use a CSV or text file under 1 MB.",
+    "importTooMany": "That file has {{count}} codes. Import at most {{max}} at a time: split the file and import each part."
   }
 }
