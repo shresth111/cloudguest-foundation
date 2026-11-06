@@ -5,7 +5,7 @@ import i18n from "@/lib/i18n";
 import { Trans, useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { DEMO_VENUE_NAMES } from "@/lib/demo-world";
-import { Plus, Trash2, Download, Printer, Mail, Eye, Ticket } from "lucide-react";
+import { Plus, Trash2, Download, Printer, Mail, Eye, Ticket, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ import type {
   VoucherRedemption,
 } from "@/types/voucher";
 import { maskMac } from "@/lib/masking";
+import { parseVoucherCodes } from "@/lib/voucher-import";
 
 interface Voucher {
   code: string;
@@ -64,6 +65,7 @@ interface Voucher {
 // lists the same venues as the venue switcher.
 const UNITS: string[] = [...DEMO_VENUE_NAMES];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BATCH_PAGE_SIZE = 25;
 
 /** Clamps a (possibly NaN, from an emptied number input) value into [lo, hi], falling back to `fallback` when NaN. */
 const clamp = (n: number, fallback: number, lo: number, hi: number) =>
@@ -146,6 +148,13 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
   const [items, setItems] = useState<Voucher[]>(demo ? DEMO_SEED : []);
   const [batches, setBatches] = useState<BatchRow[]>([]);
   const [loading, setLoading] = useState(!demo);
+  // A failed read is an error, not "0 batches". Real mode renders `batches`,
+  // so the old fallback to DEMO_SEED never showed and the page read as empty.
+  const [loadError, setLoadError] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalBatches, setTotalBatches] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -191,6 +200,45 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
   // they just toasted. Real actions need a real batch, so they live here,
   // in the batch-scoped view dialog, not floating at the page level.
   const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
+  // Import pre-printed codes into THIS batch (`POST /vouchers/import`). The
+  // page-level "Import CSV" button used to toast "Bulk import started" with
+  // no file picker and no request; the real route needs a target batch, so
+  // the action lives here with the batch's other actions.
+  const [importing, setImporting] = useState(false);
+
+  const importCodesFromFile = async (b: BatchRow, file: File) => {
+    const codes = parseVoucherCodes(await file.text());
+    if (codes.length === 0) {
+      toast.error(t("v.importNoCodes", "No codes found in that file."));
+      return;
+    }
+    setImporting(true);
+    try {
+      const res = await voucherService.importCodes(b.id, b.organizationId, codes);
+      if (res.rejected.length > 0) {
+        toast.warning(
+          t(
+            "v.importPartial",
+            "{{imported}} codes imported, {{rejected}} rejected (e.g. {{example}})",
+            {
+              imported: res.importedCount,
+              rejected: res.rejected.length,
+              example: `${res.rejected[0].code}: ${res.rejected[0].reason}`,
+            },
+          ),
+        );
+      } else {
+        toast.success(
+          t("v.importDone", "{{imported}} codes imported", { imported: res.importedCount }),
+        );
+      }
+      if (res.importedCount > 0) await openView(b);
+    } catch {
+      toast.error(t("v.importFailed", "Couldn't import the codes. Nothing was added."));
+    } finally {
+      setImporting(false);
+    }
+  };
   const [emailTo, setEmailTo] = useState("");
   const [emailing, setEmailing] = useState(false);
 
@@ -282,16 +330,26 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
     setEmailTo("");
   };
 
+  // A different venue starts again at page 1.
+  useEffect(() => {
+    setPage(1);
+  }, [locationId]);
+
   useEffect(() => {
     if (demo) return;
     let cancelled = false;
     setLoading(true);
+    setLoadError(false);
     (async () => {
       // /me/organizations instead of the platform-wide GET /organizations
       // -- see customer.service.ts's resolveOrgId doc comment.
       const orgId = await resolveOrgId();
-      const res = await voucherService.listBatches(1, 50, orgId);
+      // This venue's batches plus organization-wide ones. Without
+      // `locationId` every venue listed every venue's batches.
+      const res = await voucherService.listBatches(page, BATCH_PAGE_SIZE, orgId, locationId);
       if (cancelled) return;
+      setTotalBatches(res.total);
+      setTotalPages(Math.max(1, res.totalPages));
       setBatches(
         res.rows.map((b) => ({
           id: b.id,
@@ -306,7 +364,10 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
       );
     })()
       .catch(() => {
-        if (!cancelled) setItems(DEMO_SEED);
+        if (!cancelled) {
+          setBatches([]);
+          setLoadError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -314,7 +375,7 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
     return () => {
       cancelled = true;
     };
-  }, [demo, locationId]);
+  }, [demo, locationId, page, reloadKey]);
 
   const rows = demo ? items : batches;
 
@@ -413,19 +474,14 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
             <span className="tabular-nums">
               {demo
                 ? t("v.countVouchers", { count: rows.length })
-                : t("v.countBatches", { count: rows.length })}
+                : loadError
+                  ? null
+                  : t("v.countBatches", { count: totalBatches })}
             </span>
           </>
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.success(t("v.bulkImportStarted"))}
-            >
-              {t("v.importCsv")}
-            </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -602,6 +658,20 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
           <div className="p-4">
             <LoadingSkeleton rows={4} />
           </div>
+        ) : !demo && loadError ? (
+          <EmptyState
+            icon={Ticket}
+            title={t("v.couldNotLoadBatches", "Couldn't load voucher batches")}
+            description={t(
+              "v.couldNotLoadBatchesBody",
+              "This is a problem reading the list, not a sign that there are no batches.",
+            )}
+            action={
+              <Button variant="outline" size="sm" onClick={() => setReloadKey((k) => k + 1)}>
+                {t("v.retry", "Retry")}
+              </Button>
+            }
+          />
         ) : (
           <DataTable<Voucher | BatchRow>
             ariaLabel={demo ? t("v.vouchers") : t("v.voucherBatches")}
@@ -717,6 +787,33 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
               </>
             )}
           />
+        )}
+        {!demo && !loading && !loadError && totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-[var(--wy-border)] px-4 py-2 text-xs text-[var(--wy-text-muted)]">
+            <span className="tabular-nums">
+              {t("v.pageOf", "Page {{page}} of {{pages}}", { page, pages: totalPages })}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                {t("v.previous", "Previous")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                {t("v.next", "Next")}
+              </Button>
+            </div>
+          </div>
         )}
       </Panel>
 
@@ -916,7 +1013,30 @@ export function VouchersPage({ locationId, scope }: { locationId?: string; scope
                     <Printer className="mr-1.5 h-3.5 w-3.5" />
                     {exporting === "pdf" ? t("v.downloading") : t("v.downloadPdf")}
                   </Button>
+                  <label
+                    className={`inline-flex h-8 cursor-pointer items-center rounded-[var(--wy-radius)] border border-[var(--wy-border-strong)] bg-[var(--wy-surface)] px-3 text-xs font-medium text-[var(--wy-text)] hover:bg-[var(--wy-surface-2)] focus-within:ring-2 focus-within:ring-[var(--wy-accent)] ${importing ? "pointer-events-none opacity-60" : ""}`}
+                  >
+                    <Upload className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                    {importing ? t("v.importing", "Importing…") : t("v.importCsv")}
+                    <input
+                      type="file"
+                      accept=".csv,.txt,text/csv,text/plain"
+                      className="sr-only"
+                      disabled={importing}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) void importCodesFromFile(viewBatch as BatchRow, file);
+                      }}
+                    />
+                  </label>
                 </div>
+                <p className="text-[11px] text-[var(--wy-text-muted)]">
+                  {t(
+                    "v.importHint",
+                    "Import adds pre-printed codes to this batch: one code per line, or the first column of a CSV.",
+                  )}
+                </p>
                 <div className="flex gap-2">
                   <input
                     type="email"
