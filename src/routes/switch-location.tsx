@@ -497,12 +497,6 @@ function CustomerHomePage() {
   const toggleSelectAllVisible = () =>
     setSelectedDeviceIds(allVisibleSelected ? [] : filteredDevices.map((d) => d.id));
   const clearDeviceSelection = () => setSelectedDeviceIds([]);
-  const runBulkAction = (label: string) => {
-    toast.success(
-      `${label} — ${selectedDevices.length} device${selectedDevices.length === 1 ? "" : "s"}`,
-    );
-    clearDeviceSelection();
-  };
   const exportSelectedDevices = () => {
     const rows = [
       ["Name", "MAC", "Type", "Floor", "Status"],
@@ -1311,20 +1305,12 @@ function CustomerHomePage() {
                       {visibleSelectedIds.length} selected
                     </span>
                     <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                      {[
-                        { label: "Restart", icon: RefreshCw },
-                        { label: "Mark for maintenance", icon: HardDrive },
-                      ].map(({ label, icon: Icon }) => (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => runBulkAction(label)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                        >
-                          <Icon className="h-3 w-3" aria-hidden="true" />
-                          {label}
-                        </button>
-                      ))}
+                      {/* "Restart" and "Mark for maintenance" used to sit here and
+                       * only toasted: no request was sent. Monitored hardware
+                       * (APs, printers) has no restart or maintenance endpoint
+                       * (backend monitored_hardware: create, list, delete), and
+                       * the router restart would reboot the whole venue, not
+                       * these devices. Removed until a real action exists. */}
                       <button
                         type="button"
                         onClick={exportSelectedDevices}
@@ -1369,13 +1355,12 @@ function CustomerHomePage() {
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2">Status Since</th>
                         <th className="px-3 py-2">CPU Usage</th>
-                        <th className="px-3 py-2 text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDevices.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-8 text-center text-xs text-white/40">
+                          <td colSpan={9} className="py-8 text-center text-xs text-white/40">
                             {devices.length === 0
                               ? "No hardware set up here yet — add your first device from this location's Devices page."
                               : "Nothing matches that search. Check the spelling or clear your filters."}
@@ -1522,17 +1507,6 @@ function CustomerHomePage() {
                                     </span>
                                   </div>
                                 )}
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                <button
-                                  type="button"
-                                  aria-label={`View history for ${d.name}`}
-                                  onClick={() => toast.success(`History for ${d.name}`)}
-                                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-indigo-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                                >
-                                  <Eye className="h-3 w-3" aria-hidden="true" />
-                                  View
-                                </button>
                               </td>
                             </tr>
                           );
