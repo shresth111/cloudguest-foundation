@@ -24,7 +24,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MasterShell } from "@/components/master/MasterShell";
+import { MasterShell, useOperatorCaps } from "@/components/master/MasterShell";
 import {
   MPageShell,
   MSectionHeader,
@@ -310,6 +310,7 @@ function RouterFleetScreen() {
   } | null>(null);
   const demo = isDemo();
   const queryClient = useQueryClient();
+  const caps = useOperatorCaps();
   // Aruba Instant On sites (Master only): Add is the only way to create one;
   // Remove is the fleet's ordinary decommission, which deregisters RADIUS
   // first. See `InstantOnSiteDialogs.tsx`.
@@ -664,7 +665,9 @@ function RouterFleetScreen() {
               <MButton variant="outline" onClick={backToFleet}>
                 <ArrowLeft className="h-3.5 w-3.5" /> Back to Router Fleet
               </MButton>
-            ) : !demo && !advancedId ? (
+            ) : !demo && !advancedId && caps.has("routers.create") ? (
+              // POST /instant-on/sites needs routers.create@GLOBAL; Platform
+              // Support would only ever get a 403 from this button.
               <MButton
                 variant="outline"
                 onClick={() => setAddSiteOpen(true)}
@@ -982,7 +985,7 @@ function RouterFleetScreen() {
                     <TerminalSquare /> Open Device Console
                   </MButton>
                 ) : (
-                  <Link to="/master/console" className="w-full">
+                  <Link to="/master/console" search={{ routerId: sel.id }} className="w-full">
                     <MButton variant="primary" className="w-full justify-center">
                       <TerminalSquare /> Open Device Console
                     </MButton>

@@ -87,8 +87,10 @@ for (const key of ["total", "online", "degraded", "offline"]) {
 // 3. These pages show every organization, so the picker must not offer a
 // choice that would do nothing there.
 expect(
-  /!isEstateWideMasterPath\(pathname\) && <OrganizationScopePicker \/>/.test(shell),
-  "the organization picker must stay hidden on the estate-wide Master pages",
+  /isEstateWideMasterPath\(pathname\) \? null : isOrgPickerInertMasterPath\(pathname\) \?/.test(
+    shell,
+  ) && /<AllOrganizationsBadge \/>[\s\S]{0,40}<OrganizationScopePicker \/>/.test(shell),
+  "the organization picker must stay hidden on the estate-wide Master pages, and show the fixed badge on pages whose backend ignores it",
 );
 
 // 4. The demo grant opens the Master nav, and nowhere else.

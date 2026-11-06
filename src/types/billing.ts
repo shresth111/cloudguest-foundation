@@ -199,8 +199,20 @@ export interface Reminder {
   type: "expiry" | "invoice_due" | "payment_failed" | "trial_ending";
   title: string;
   organizationName: string;
+  /** The organization the reminder is about. Needed to send it; a row
+   * without one renders no Send button. */
+  organizationId?: string;
   dueAt: string;
   severity: "info" | "warning" | "critical";
+}
+
+/** The reminder kinds POST /billing/reminders/send accepts. */
+export type SendableReminderKind = "payment_failed" | "invoice_due" | "expiry";
+
+export interface ReminderSendResult {
+  emailSent: boolean;
+  emailRecipient: string | null;
+  emailError: string | null;
 }
 
 export interface ScheduledBillingReport {

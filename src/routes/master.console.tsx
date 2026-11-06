@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { TerminalSquare, Send, AlertTriangle, Loader2 } from "lucide-react";
 import { MasterShell } from "@/components/master/MasterShell";
+import { useOrganizationScopeVersion } from "@/hooks/useOrganizationScopeVersion";
 import {
   MPageShell,
   MSectionHeader,
@@ -18,7 +19,11 @@ import type { RouterDevice } from "@/types/router";
 import { isControllerManagedRow, routerVendorLabel } from "@/lib/router-vendors";
 import type { AppError } from "@/services/api";
 
+/** `?routerId=` preselects a router (Router Fleet's drawer links here with
+ * the router it was showing). Ignored if that router is not in the list. */
 export const Route = createFileRoute("/master/console")({
+  validateSearch: (search: Record<string, unknown>): { routerId?: string } =>
+    typeof search.routerId === "string" && search.routerId ? { routerId: search.routerId } : {},
   component: DeviceConsoleScreen,
 });
 
@@ -32,6 +37,8 @@ interface HistoryEntry {
 }
 
 function DeviceConsoleScreen() {
+  const { routerId: requestedRouterId } = Route.useSearch();
+  const scopeVersion = useOrganizationScopeVersion();
   const [routers, setRouters] = useState<RouterDevice[]>([]);
   const [loadingRouters, setLoadingRouters] = useState(true);
   const [routerId, setRouterId] = useState("");
@@ -49,6 +56,9 @@ function DeviceConsoleScreen() {
           await routerService.listAll();
         if (!cancelled) {
           setRouters(rows);
+          if (requestedRouterId && rows.some((r) => r.id === requestedRouterId)) {
+            setRouterId((current) => current || requestedRouterId);
+          }
           if (unreachableOrganizationCount > 0)
             toast.warning(
               `${unreachableOrganizationCount} customer${unreachableOrganizationCount === 1 ? "" : "s"}' locations could not be read; their routers are missing from this list`,
@@ -67,7 +77,8 @@ function DeviceConsoleScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Reload when the header organization picker changes scope.
+  }, [scopeVersion, requestedRouterId]);
 
   const selectedRouter = routers.find((r) => r.id === routerId) ?? null;
   const canRun = !!selectedRouter && command.trim().length > 0 && !running;

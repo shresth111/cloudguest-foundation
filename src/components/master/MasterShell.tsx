@@ -27,6 +27,7 @@ import {
   FileSearch,
   Waypoints,
   RotateCw,
+  Globe2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TRAFFIC_FLOW_MODULE_NAME } from "@/lib/traffic-flow";
@@ -36,7 +37,7 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { MasterSearch } from "@/components/master/MasterSearch";
 import { OrganizationScopePicker } from "@/components/master/OrganizationScopePicker";
-import { isEstateWideMasterPath } from "@/services/api";
+import { isEstateWideMasterPath, isOrgPickerInertMasterPath } from "@/services/api";
 
 export interface MasterNavItem {
   to: string;
@@ -167,15 +168,12 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
  * at least one of its listed keys is present in the operator's own
  * effective grants.
  *
- * `impersonate` has no corresponding permission anywhere in the RBAC model
- * (no `PermissionModule`/action pair, no `RequirePermission("*impersonate*")`
- * call site) because no impersonation feature exists in the console yet --
- * this key itself has zero call sites today (nothing calls
- * `caps.has("impersonate")`). Gated on `users.manage`, the closest existing
- * permission, as a conservative placeholder; wiring an actual "log in as
- * this customer" feature needs its own dedicated `users.impersonate`
- * permission_key added to the backend first, a product/RBAC decision, not
- * something to invent here.
+ * `impersonate` ("View as this customer" in the Customers drawer) is
+ * `users.impersonate`, the exact key `POST /users/{id}/impersonate`
+ * (`app/domains/user/router.py`) requires at GLOBAL scope. The seed grants
+ * it to Super Admin only: `expand_grant_level` strips IMPERSONATE from
+ * FULL, so Platform Admin holds `users.manage` but not this, and gating on
+ * `users.manage` showed them a button that always 403'd.
  */
 const CAP_PERMISSIONS: Record<string, string[]> = {
   overview: ["dashboard.view"],
@@ -242,8 +240,14 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   operators: ["users.manage"],
   "billing.edit": ["billing.update", "billing.manage"],
   "router.control": ["routers.execute", "routers.manage"],
+  /** "Add Instant On site" on Router Fleet: the platform route is
+   * `routers.create` pinned to GLOBAL. */
+  "routers.create": ["routers.create"],
   "nas.generate": ["radius.execute", "radius.manage"],
-  impersonate: ["users.manage"],
+  impersonate: ["users.impersonate"],
+  /** Billing > Reminders "Send": POST /billing/reminders/send is
+   * `billing.manage` pinned to GLOBAL. */
+  "billing.remind": ["billing.manage"],
   /** Lock/unlock a customer's paid add-ons (today: Guest Marketing) from the
    * Customers drawer (`CustomerAddonsPanel`). The platform PUT/DELETE are
    * `billing.manage` pinned to GLOBAL scope
@@ -286,6 +290,21 @@ export function useOperatorCaps(): Set<string> {
     if (all || permissionKeys.some((key) => can(key))) granted.add(cap);
   }
   return granted;
+}
+
+/** Shown in place of the org picker on pages that always read every
+ * organization. Not a control: nothing on these pages follows the picker. */
+export function AllOrganizationsBadge() {
+  return (
+    <span
+      data-testid="all-organizations-badge"
+      title="This page always shows every organization; the organization picker does not apply here."
+      className="flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground"
+    >
+      <Globe2 className="h-4 w-4 shrink-0" />
+      <span>All organizations</span>
+    </span>
+  );
 }
 
 export function MasterShell({ title, children }: { title: string; children: React.ReactNode }) {
@@ -449,7 +468,14 @@ export function MasterShell({ title, children }: { title: string; children: Reac
               {/* These pages always show every organization (see
                   isEstateWideMasterPath in api.ts), so the control would do
                   nothing there. */}
-              {!isEstateWideMasterPath(pathname) && <OrganizationScopePicker />}
+              {/* Pages whose backend ignores the organization header (see
+                  isOrgPickerInertMasterPath) get a fixed badge instead, so
+                  the header never says "Org X" above estate-wide numbers. */}
+              {isEstateWideMasterPath(pathname) ? null : isOrgPickerInertMasterPath(pathname) ? (
+                <AllOrganizationsBadge />
+              ) : (
+                <OrganizationScopePicker />
+              )}
               <MasterSearch />
               {/* Platform-wide: every organization's alerts, not just one --
                   a genuinely different data scope from the customer bell

@@ -40,10 +40,10 @@ import {
 } from "@/services/api";
 import { organizationService } from "@/services/organization.service";
 
-/** Every query root whose data is scoped by the selected organization. Same
- * list `WorkspaceContext.setActiveLocationId` invalidates -- kept identical on
- * purpose, so the two switchers cannot drift into disagreeing about what
- * "scope-dependent" means. */
+/** Every query root whose data is scoped by the selected organization. The
+ * list `WorkspaceContext.setActiveLocationId` invalidates, plus "master".
+ * Pages that load outside React Query reload via
+ * `useOrganizationScopeVersion` (setOrganizationScope fires the event). */
 const SCOPE_DEPENDENT_QUERY_ROOTS = [
   "permissions",
   "dashboard",
@@ -57,6 +57,10 @@ const SCOPE_DEPENDENT_QUERY_ROOTS = [
   "notifications",
   "locations",
   "settings",
+  // Master-only screens cache under ["master", ...] (Alert Channels:
+  // ["master","notification-channels",...]). WorkspaceContext never needs
+  // this root, so it is the one deliberate difference from its list.
+  "master",
 ] as const;
 
 function labelFor(scope: OrganizationScope | null, names: Map<string, string>): string {

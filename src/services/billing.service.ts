@@ -23,7 +23,12 @@ import type {
   TaxType,
   UsageRow,
 } from "@/types/billing";
-import type { BillingReportFormat, PaymentGateway, ReportFrequency } from "@/types/billing";
+import type {
+  BillingReportFormat,
+  PaymentGateway,
+  ReminderSendResult,
+  SendableReminderKind,
+} from "@/types/billing";
 
 // The Master Console's demo sign-in (master-login.tsx's "admin@example.com
 // / test") issues a local-only token the real backend never accepts --
@@ -1120,6 +1125,7 @@ function dashboardRemindersFrom(
     type: "payment_failed",
     title: row.payment.failure_reason ?? "Payment retry required",
     organizationName: resolveOrgName(row.payment.organization_id) ?? "Unknown organization",
+    organizationId: row.payment.organization_id,
     dueAt: row.payment.updated_at,
     severity: "critical",
   }));
@@ -1132,6 +1138,7 @@ function dashboardRemindersFrom(
         type: "invoice_due",
         title: `${c.outstanding_invoice_count} outstanding invoice(s)`,
         organizationName: c.organization_name,
+        organizationId: c.organization_id,
         dueAt: new Date().toISOString(),
         severity: "warning",
       });
@@ -1158,6 +1165,7 @@ function expiryRemindersFrom(subscriptions: Subscription[], now: number): Remind
             ? `${s.planName} plan expired`
             : `${s.planName} plan expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
         organizationName: s.organizationName,
+        organizationId: s.organizationId,
         dueAt: s.expiryDate,
         severity: daysLeft <= 3 ? ("critical" as const) : ("warning" as const),
       };
@@ -1843,11 +1851,28 @@ export const billingService = {
     };
   },
 
-  // No reminder-dispatch endpoint exists in backend/app/domains/billing --
-  // kept mocked.
-  async sendReminder(id: string, _frequency?: ReportFrequency) {
-    await delay(200);
-    return { ok: true, id };
+  // Real POST /billing/reminders/send (GLOBAL billing.manage). The server
+  // reads the email's facts from its own billing tables; we send only the
+  // organization and the kind. `emailSent` is the real outcome: false when
+  // no mail provider is configured, the org has no contact email, or SMTP
+  // failed (`emailError` says which). A 409 means nothing to remind about.
+  async sendReminder(input: {
+    organizationId: string;
+    kind: SendableReminderKind;
+  }): Promise<ReminderSendResult> {
+    const { data } = await api.post<{
+      email_sent: boolean;
+      email_recipient: string | null;
+      email_error: string | null;
+    }>("/billing/reminders/send", {
+      organization_id: input.organizationId,
+      kind: input.kind,
+    });
+    return {
+      emailSent: data.email_sent,
+      emailRecipient: data.email_recipient,
+      emailError: data.email_error,
+    };
   },
 
   // GST / tax rate configuration -- real /tax-rates CRUD. The backend
