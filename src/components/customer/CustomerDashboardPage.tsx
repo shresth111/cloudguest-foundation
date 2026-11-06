@@ -303,21 +303,23 @@ export function CustomerDashboardPage() {
     {
       label: t("kpi.online", "Currently online"),
       icon: <Wifi className="h-3.5 w-3.5" />,
-      value: d && d.kpis.onlineUsers !== null ? d.kpis.onlineUsers.toLocaleString(intlLocale()) : null,
+      value:
+        d && d.kpis.onlineUsers !== null ? d.kpis.onlineUsers.toLocaleString(intlLocale()) : null,
       loading: isLoading,
       live: !!d && (d.kpis.onlineUsers ?? 0) > 0,
-      footer: d && d.kpis.onlineUsers === null ? (
-        <span>{t("couldNotLoad", "Couldn't load")}</span>
-      ) : s ? (
-        <span>
-          {t("kpi.onlineFooter", "Peak {{range}}: {{peak}}", {
-            range: rangeLabel,
-            peak: s.peakOnline.toLocaleString(intlLocale()),
-          })}
-        </span>
-      ) : isError ? (
-        <span>{t("couldNotLoad", "Couldn't load")}</span>
-      ) : null,
+      footer:
+        d && d.kpis.onlineUsers === null ? (
+          <span>{t("couldNotLoad", "Couldn't load")}</span>
+        ) : s ? (
+          <span>
+            {t("kpi.onlineFooter", "Peak {{range}}: {{peak}}", {
+              range: rangeLabel,
+              peak: s.peakOnline.toLocaleString(intlLocale()),
+            })}
+          </span>
+        ) : isError ? (
+          <span>{t("couldNotLoad", "Couldn't load")}</span>
+        ) : null,
     },
     {
       label: t("kpi.avgSession", "Avg. session time"),

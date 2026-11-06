@@ -471,15 +471,18 @@ export default function ManageTeamsPage({
   const revokeTeam = async (t: Team) => {
     const prev = teams;
     setTeams((p) => p.filter((x) => x.id !== t.id));
-    toast.success(tr("toast.revoked", "Group revoked"));
+    // Success is reported only once the server has agreed. This toasted
+    // "Group revoked" before the request, so a failure showed both toasts.
     if (!demo) {
       try {
         await guestService.revokeTeam(t.id, undefined, orgId ?? undefined);
       } catch {
         setTeams(prev);
         toast.error(tr("toast.revokeFailed", "Could not revoke on the server."));
+        return;
       }
     }
+    toast.success(tr("toast.revoked", "Group revoked"));
   };
 
   // Update User Details form

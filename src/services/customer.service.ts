@@ -1104,9 +1104,7 @@ export const customerService = {
           const lastSeenMs = (routers ?? [])
             .map((r) => (r.last_seen_at ? new Date(r.last_seen_at).getTime() : NaN))
             .filter((t) => Number.isFinite(t));
-          const lastSync = lastSeenMs.length
-            ? formatRelative(Math.max(...lastSeenMs))
-            : null;
+          const lastSync = lastSeenMs.length ? formatRelative(Math.max(...lastSeenMs)) : null;
           return summaryFromLiveness(
             {
               id: loc.id,
