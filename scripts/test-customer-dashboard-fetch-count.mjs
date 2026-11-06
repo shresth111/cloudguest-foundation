@@ -563,10 +563,15 @@ check(
 // one-row-per-guest (2026-10-05) -- the same list read under its new name.
 const sessionListReads = (calls) =>
   countOf(calls, "/guest-sessions") + countOf(calls, "/guest-session-groups");
+// Four since the QA fix (2026-11-06): getDashboard reads two different
+// datasets (the 24h window and every status=active session, see
+// "guest-sessions-window-and-active-once-each" above), getUsers the groups,
+// and listLocations the venue's active sessions. Still a control: it shows
+// the harness sees every list read the three service calls make.
 check(
   "control-guest-sessions-triples",
-  sessionListReads(control) === 3,
-  `the pre-fix trio issued /guest-sessions + /guest-session-groups ${sessionListReads(control)} time(s); expected 3 (100 / 1&6 / 50)`,
+  sessionListReads(control) === 4,
+  `the pre-fix trio issued /guest-sessions + /guest-session-groups ${sessionListReads(control)} time(s); expected 4 (24h window + active / groups / venue active)`,
 );
 
 await browser.close();
