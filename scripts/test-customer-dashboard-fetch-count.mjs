@@ -439,10 +439,17 @@ check(
   countOf(dash, "/guest-analytics/dashboard-series") === 1,
   `GET /guest-analytics/dashboard-series issued ${countOf(dash, "/guest-analytics/dashboard-series")} time(s), expected 1`,
 );
+// Two different datasets, each read once: the 24h window (arrivals, today,
+// averages) and every OPEN session (status=active) for "Currently online",
+// which the 24h/100-row page undercounted. A fake that returns a single page
+// means the active read is one request here.
+const sessionReads = dash.filter((c) => c.url === "/guest-sessions");
 check(
-  "guest-sessions-once",
-  countOf(dash, "/guest-sessions") === 1,
-  `GET /guest-sessions issued ${countOf(dash, "/guest-sessions")} time(s), expected 1 -- ${listOf(dash, "/guest-sessions")}`,
+  "guest-sessions-window-and-active-once-each",
+  sessionReads.length === 2 &&
+    sessionReads.filter((c) => c.params?.status === "active").length === 1 &&
+    sessionReads.filter((c) => c.params?.start_date).length === 1,
+  `GET /guest-sessions issued ${sessionReads.length} time(s), expected 2 (one 24h window + one status=active) -- ${listOf(dash, "/guest-sessions")}`,
 );
 // Three readers now: the two WAN cards' `listLinks({ page: 1, ... })` and
 // `getDashboard()`'s SLA leg, which omits `page`. All three collapse only
