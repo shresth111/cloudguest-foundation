@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
-# On-box half of the CD pipeline. Runs on the app server (i-0cf9b79511abe6000)
-# as `ubuntu`, delivered by SSM SendCommand from GitHub Actions -- the whole
+# On-box half of the CD pipeline. Runs on the app server as `ubuntu`, delivered by SSM SendCommand from GitHub Actions -- the whole
 # file is base64'd into the command payload, so there is nothing to bootstrap
 # on the box and the version that runs is always the version in the repo that
 # triggered the deploy.
@@ -51,7 +50,11 @@
 #     `image: ${FRONTEND_IMAGE}` instead of `build:` stanzas -- the version
 #     committed alongside this file at deploy/docker-compose.prod.yml.
 #   * The instance role can pull from ECR and (for api) write to
-#     s3://wyfy-guest-app-storage-1787805585.
+#     s3://$BACKUP_BUCKET (default below; override in the environment).
+#
+# EVERYTHING THIS SCRIPT PRINTS ENDS UP IN A PUBLIC ACTIONS LOG. Print status,
+# key names and S3 *keys*; never bucket names, ARNs, or raw AWS error text
+# (which embeds the caller's role ARN and account id).
 #
 set -euo pipefail
 
@@ -167,14 +170,14 @@ docker pull "$IMAGE" >/dev/null || die "docker pull $IMAGE failed; nothing chang
 if [[ "$SERVICE" == "api" && "$DB_BACKUP" == "1" ]]; then
   STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
   KEY="db-backups/pre-deploy-$STAMP.sql.gz"
-  log "dumping database to s3://$BACKUP_BUCKET/$KEY"
+  log "dumping database to the backup bucket: $KEY"
   if docker exec deploy-postgres-1 pg_dump -U cloudguest -d cloudguest \
        | gzip -9 \
        | aws s3 cp - "s3://$BACKUP_BUCKET/$KEY" --region "$REGION" >/dev/null; then
-    log "backup ok: s3://$BACKUP_BUCKET/$KEY"
+    log "backup ok: $KEY"
   else
     die "pre-deploy database backup FAILED. Refusing to run migrations without one.
-     Fix the backup path (instance role s3:PutObject on $BACKUP_BUCKET) or
+     Fix the backup path (instance role s3:PutObject on the backup bucket) or
      re-run with DB_BACKUP=0 if you have a dump from elsewhere."
   fi
 fi
