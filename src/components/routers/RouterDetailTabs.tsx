@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { hasGlobalScopeRole } from "@/lib/roles";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { nasOnlyDeviceRefusalMessage } from "@/lib/nas-only-device";
@@ -132,7 +134,16 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
   // a drawer that is missing most of its tabs with no explanation reads as a
   // broken console.
   const controller = isControllerManaged(router.vendor);
-  const tabs = routerDetailTabsFor(router.vendor);
+  // WireGuard (and the Remote Access card inside it, which reveals the
+  // platform's device login) is Master-only. The backend gates
+  // `GET /routers/{id}/device-connection` at GLOBAL scope, so a non-operator
+  // would only collect a 403 here. The route guard already keeps venue owners
+  // off this screen; this holds even if the component is mounted elsewhere.
+  const { roles } = useAuth();
+  const isOperator = hasGlobalScopeRole(roles);
+  const tabs = routerDetailTabsFor(router.vendor).filter(
+    (t) => isOperator || t.key !== "wireguard",
+  );
   const notApplicable = routerDetailTabsNotApplicableFor(router.vendor);
   // `?tab=wireguard` is a real, bookmarkable URL. Landing a controller on a
   // trigger that is not rendered would leave Radix showing no panel at all.
@@ -370,9 +381,11 @@ export function RouterDetailTabs({ router, initialTab = "overview" }: Props) {
               }}
             />
           </TabsContent>
-          <TabsContent value="wireguard">
-            <WireGuardTab routerId={router.id} />
-          </TabsContent>
+          {isOperator && (
+            <TabsContent value="wireguard">
+              <WireGuardTab routerId={router.id} />
+            </TabsContent>
+          )}
           <TabsContent value="wifi">
             <EmptyState
               icon={Wifi}
@@ -8858,6 +8871,8 @@ function describeHubAllocationFailure(err: unknown, action: string): string {
 }
 
 function WireGuardTab({ routerId }: { routerId: string }) {
+  const { roles } = useAuth();
+  const isOperator = hasGlobalScopeRole(roles);
   const { data: rawPeer, isLoading, isError, refetch } = useWireGuardPeer(routerId);
   // ONE mutation for both buttons, because there is now only one endpoint.
   // See `useAllocateWireGuardPeer` and `routerService.allocateWireGuardPeerFromHub`:
@@ -9034,7 +9049,7 @@ function WireGuardTab({ routerId }: { routerId: string }) {
         </CardContent>
       </Card>
 
-      {peer && <RemoteAccessCard routerId={routerId} />}
+      {peer && isOperator && <RemoteAccessCard routerId={routerId} />}
 
       <ConfirmDialog
         open={confirmReallocate}

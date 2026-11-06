@@ -188,9 +188,11 @@ export const voucherService = {
     page = 1,
     pageSize = 25,
     organizationId?: string,
+    /** One venue's batches plus the organization-wide ones. */
+    locationId?: string,
   ): Promise<VoucherBatchListResult> {
     const { data } = await api.get<BackendVoucherBatchListResponse>("/voucher-batches", {
-      params: { page, page_size: pageSize },
+      params: { page, page_size: pageSize, ...(locationId ? { location_id: locationId } : {}) },
       headers: organizationId ? { "X-Organization-Id": organizationId } : undefined,
     });
     return {
@@ -283,6 +285,28 @@ export const voucherService = {
       { params: { page, page_size: pageSize }, headers: { "X-Organization-Id": organizationId } },
     );
     return { rows: data.items.map(toVoucher), total: data.total_items };
+  },
+
+  /**
+   * `POST /vouchers/import`: adds pre-printed codes to an existing batch.
+   * Partial success is normal (duplicates are rejected with a reason), so
+   * both lists come back for the caller to report.
+   */
+  async importCodes(
+    batchId: string,
+    organizationId: string,
+    codes: string[],
+  ): Promise<{ importedCount: number; rejected: { code: string; reason: string }[] }> {
+    const { data } = await api.post<{
+      imported_count: number;
+      imported_codes: string[];
+      rejected: { code: string; reason: string }[];
+    }>(
+      "/vouchers/import",
+      { batch_id: batchId, codes },
+      { headers: { "X-Organization-Id": organizationId } },
+    );
+    return { importedCount: data.imported_count, rejected: data.rejected ?? [] };
   },
 
   async getStats(batchId: string, organizationId: string): Promise<VoucherBatchStats> {

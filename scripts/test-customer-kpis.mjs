@@ -267,6 +267,7 @@ eq(
 console.log("\nthe real screens use these helpers");
 
 const service = readFileSync(join(ROOT, "src/services/customer.service.ts"), "utf8");
+const activeSessionsLib = readFileSync(join(ROOT, "src/lib/active-sessions.ts"), "utf8");
 const dashboard = readFileSync(
   join(ROOT, "src/components/customer/CustomerDashboardPage.tsx"),
   "utf8",
@@ -350,7 +351,11 @@ check(
 );
 check(
   "Currently online is a distinct-guest count, not a raw session count",
-  /distinctGuestCount\([\s\S]*?activeSessions\.map/.test(service) &&
+  // Counted from every OPEN session (status=active, paged), not the
+  // 24h/100-row page, via the shared rule in lib/active-sessions.ts.
+  /countOnlineGuests\(activeRead\.rows/.test(service) &&
+    /distinctGuestCount\(online\.map/.test(activeSessionsLib) &&
+    /status:\s*"active"/.test(activeSessionsLib) &&
     /onlineUsers:\s*onlineGuestCount/.test(service),
 );
 // The tile now follows the date-range selector, so it is "Guests" for the

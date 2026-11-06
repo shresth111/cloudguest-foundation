@@ -439,10 +439,17 @@ check(
   countOf(dash, "/guest-analytics/dashboard-series") === 1,
   `GET /guest-analytics/dashboard-series issued ${countOf(dash, "/guest-analytics/dashboard-series")} time(s), expected 1`,
 );
+// Two different datasets, each read once: the 24h window (arrivals, today,
+// averages) and every OPEN session (status=active) for "Currently online",
+// which the 24h/100-row page undercounted. A fake that returns a single page
+// means the active read is one request here.
+const sessionReads = dash.filter((c) => c.url === "/guest-sessions");
 check(
-  "guest-sessions-once",
-  countOf(dash, "/guest-sessions") === 1,
-  `GET /guest-sessions issued ${countOf(dash, "/guest-sessions")} time(s), expected 1 -- ${listOf(dash, "/guest-sessions")}`,
+  "guest-sessions-window-and-active-once-each",
+  sessionReads.length === 2 &&
+    sessionReads.filter((c) => c.params?.status === "active").length === 1 &&
+    sessionReads.filter((c) => c.params?.start_date).length === 1,
+  `GET /guest-sessions issued ${sessionReads.length} time(s), expected 2 (one 24h window + one status=active) -- ${listOf(dash, "/guest-sessions")}`,
 );
 // Three readers now: the two WAN cards' `listLinks({ page: 1, ... })` and
 // `getDashboard()`'s SLA leg, which omits `page`. All three collapse only
@@ -556,10 +563,15 @@ check(
 // one-row-per-guest (2026-10-05) -- the same list read under its new name.
 const sessionListReads = (calls) =>
   countOf(calls, "/guest-sessions") + countOf(calls, "/guest-session-groups");
+// Four since the QA fix (2026-11-06): getDashboard reads two different
+// datasets (the 24h window and every status=active session, see
+// "guest-sessions-window-and-active-once-each" above), getUsers the groups,
+// and listLocations the venue's active sessions. Still a control: it shows
+// the harness sees every list read the three service calls make.
 check(
   "control-guest-sessions-triples",
-  sessionListReads(control) === 3,
-  `the pre-fix trio issued /guest-sessions + /guest-session-groups ${sessionListReads(control)} time(s); expected 3 (100 / 1&6 / 50)`,
+  sessionListReads(control) === 4,
+  `the pre-fix trio issued /guest-sessions + /guest-session-groups ${sessionListReads(control)} time(s); expected 4 (24h window + active / groups / venue active)`,
 );
 
 await browser.close();

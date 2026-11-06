@@ -14,7 +14,6 @@
     "batchRevoked": "Batch revoked",
     "couldNotRevokeOnThe": "Could not revoke on the server.",
     "vouchers": "Vouchers",
-    "bulkImportStarted": "Bulk import started",
     "importCsv": "Import CSV",
     "generateVoucherBatch": "Generate Voucher Batch",
     "batchName": "Batch Name",
@@ -83,6 +82,20 @@
     "sessionTimeoutMin": "Session timeout (minutes, optional)",
     "sessionTimeoutHint": "How long each login lasts. Blank means the full validity. Every login uses one of Max Uses, so raise Max Uses to allow more logins.",
     "sessionTimeoutInvalid": "Must be between 1 minute and the validity.",
-    "validityAruba": "The guest's session ends after this time unless you set a shorter session timeout. 1440 minutes is 24 hours."
+    "validityAruba": "The guest's session ends after this time unless you set a shorter session timeout. 1440 minutes is 24 hours.",
+    "couldNotLoadBatches": "Couldn't load voucher batches",
+    "couldNotLoadBatchesBody": "This is a problem reading the list, not a sign that there are no batches.",
+    "retry": "Retry",
+    "pageOf": "Page {{page}} of {{pages}}",
+    "previous": "Previous",
+    "next": "Next",
+    "importNoCodes": "No codes found in that file.",
+    "importPartial": "{{imported}} codes imported, {{rejected}} rejected (e.g. {{example}})",
+    "importDone": "{{imported}} codes imported",
+    "importFailed": "Couldn't import the codes. Nothing was added.",
+    "importing": "Importing…",
+    "importHint": "Import adds pre-printed codes to this batch: one code per line, or the first column of a CSV.",
+    "importTooLarge": "That file is too large. Use a CSV or text file under 1 MB.",
+    "importTooMany": "That file has {{count}} codes. Import at most {{max}} at a time: split the file and import each part."
   }
 }

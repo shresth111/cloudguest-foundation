@@ -605,10 +605,22 @@ export function AgentsPage({ locationId, scope }: { locationId?: string; scope?:
       removeStoreAgent(id);
       return;
     }
+    // Optimistic, so restore the row if the server refuses: it used to stay
+    // gone until a refresh while the staff member was still active.
+    const removed = realAgents.find((a) => a.id === id);
+    const index = realAgents.findIndex((a) => a.id === id);
     setRealAgents((p) => p.filter((a) => a.id !== id));
-    rbacService
-      .deactivateUser(id, orgId ?? undefined)
-      .catch(() => toast.error("Could not deactivate on the server."));
+    rbacService.deactivateUser(id, orgId ?? undefined).catch((err) => {
+      if (removed) {
+        setRealAgents((p) => {
+          if (p.some((a) => a.id === id)) return p;
+          const next = [...p];
+          next.splice(Math.min(Math.max(index, 0), next.length), 0, removed);
+          return next;
+        });
+      }
+      toast.error((err as AppError).message || "Could not deactivate on the server.");
+    });
   };
 
   const toggleLocation = (loc: string) => {

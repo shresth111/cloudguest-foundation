@@ -16,6 +16,7 @@ import { dashboardRangeWindow } from "@/lib/dashboard-range";
 import type { DashboardRange, DashboardRangeWindow } from "@/lib/dashboard-range";
 import { guestPresence } from "@/lib/guest-presence";
 import { distinctGuestCount } from "@/lib/guest-counts";
+import { countOnlineGuests, fetchActiveSessions } from "@/lib/active-sessions";
 import { canonicalApMac } from "@/lib/aruba-access-points";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
@@ -172,7 +173,8 @@ export interface CustomerLocationSummary {
   status: "online" | "offline" | "degraded" | "unknown";
   /** The real answer, and why. See `@/lib/location-liveness`. */
   liveness: LocationLiveness;
-  onlineUsers: number;
+  /** Distinct guests online now; `null` when the sessions read failed. */
+  onlineUsers: number | null;
   /**
    * `null` -- not `0` -- when there is nothing to compute a percentage
    * from (no routers, or the routers could not be read). A "0% health"
@@ -180,9 +182,12 @@ export interface CustomerLocationSummary {
    * measurement.
    */
   routerHealth: number | null;
-  bandwidth: string;
-  isp: string;
-  lastSync: string;
+  /** Current throughput label; `null` when nothing real is known (hidden). */
+  bandwidth: string | null;
+  /** ISP provider name; `null` when not known (hidden). */
+  isp: string | null;
+  /** When a router here last checked in; `null` when none ever has. */
+  lastSync: string | null;
   organizationId: string;
   organizationName: string;
   /** `null` when the routers could not be read -- see `routerHealth`. */
@@ -232,8 +237,9 @@ export interface CustomerDashboardData {
      * own derivation and its own name -- not this field back.
      *
      * `newToday` went the same way: identical expression to `todayGuests`
-     * below, and never rendered anywhere. */
-    onlineUsers: number;
+     * below, and never rendered anywhere. `null` when the active-sessions
+     * read failed: "we could not tell", not "nobody is online". */
+    onlineUsers: number | null;
     /** `true` when the guest-sessions read itself failed, so `onlineUsers`,
      * `todayGuests` and `recentUsers` are empty for want of an answer, not
      * because nobody signed in. Optional: absent (demo, older callers) means
@@ -535,6 +541,8 @@ export interface CustomerFeatureData {
   vouchers?: { code: string; plan: string; status: string; used: number }[];
   portal?: { status: string; theme: string; authMethods: string[]; languages: string[] };
   devices?: { mac: string; ip: string; device: string; firstSeen: string; lastSeen: string }[];
+  /** The server's total for `devices`, which may hold only the newest rows. */
+  devicesTotal?: number;
   macAuth?: {
     id: string;
     mac: string;
@@ -1060,10 +1068,10 @@ export const customerService = {
               params: { page_size: 100 },
               headers: locationHeaders,
             }),
-            api.get<{ items: RawGuestSessionStatus[] }>("/guest-sessions", {
-              params: { location_id: loc.id, page_size: 50 },
-              headers: locationHeaders,
-            }),
+            // The same open-sessions read and the same counting rule as the
+            // dashboard's "Currently online", so the two screens agree. This
+            // was the newest 50 session rows of any status, counted as rows.
+            fetchActiveSessions(loc.id, locationHeaders),
           ]);
           // `null`, NOT `[]`, when the routers request failed. These are
           // two completely different facts -- "this venue has no routers"
@@ -1073,8 +1081,7 @@ export const customerService = {
           // treats null as `unknown` and refuses to answer.
           const routers =
             routersR.status === "fulfilled" ? (routersR.value.data?.items ?? []) : null;
-          const sessions =
-            sessionsR.status === "fulfilled" ? (sessionsR.value.data?.items ?? []) : [];
+          const activeRead = sessionsR.status === "fulfilled" ? sessionsR.value : null;
           const liveness = deriveLocationLiveness(routers);
           // A location with zero online routers can't genuinely have online
           // guests, so don't let a stale "active" session row contradict
@@ -1083,29 +1090,37 @@ export const customerService = {
           // falsy": when liveness is `unknown` we have no grounds to zero
           // a real session count either, so the honest figure stands.
           const nothingIsUp = liveness.routersOnline === 0;
-          // Presence, not the session row's own lifecycle -- the rule
-          // lib/guest-presence.ts states once for every surface. `is_online`
-          // is the server's own answer (session active AND the device not
-          // observed as gone), so a guest whose device dropped off the
-          // network stops counting here. `status` alone kept counting them
-          // until the timeout sweep, which never reaches a session that has
-          // no timeout at all.
-          const active = nothingIsUp
-            ? 0
-            : sessions.filter((s) => s.is_online ?? s.status === "active").length;
+          const offlineRouterIds = new Set(
+            liveness.routers.filter((r) => r.key && r.status === "fail").map((r) => r.key),
+          );
+          const online =
+            activeRead === null
+              ? null
+              : nothingIsUp
+                ? 0
+                : countOnlineGuests(activeRead.rows, offlineRouterIds);
+          // The newest router heartbeat, the one real "last heard from" this
+          // read has. It used to be the literal "Just now" for every venue.
+          const lastSeenMs = (routers ?? [])
+            .map((r) => (r.last_seen_at ? new Date(r.last_seen_at).getTime() : NaN))
+            .filter((t) => Number.isFinite(t));
+          const lastSync = lastSeenMs.length ? formatRelative(Math.max(...lastSeenMs)) : null;
           return summaryFromLiveness(
             {
               id: loc.id,
               name: loc.name,
               city: loc.city,
-              onlineUsers: active,
-              bandwidth: `${(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0) + (se.bytes_uploaded || 0), 0) / 1e6).toFixed(0)} MB`,
-              isp: "Active",
-              lastSync: "Just now",
+              onlineUsers: online,
+              // No per-venue throughput or ISP name is read here. These were
+              // the summed bytes of the last 50 sessions shown as "N MB" and
+              // the literal "Active"; hidden rather than made up.
+              bandwidth: null,
+              isp: null,
+              lastSync,
               organizationId: orgId,
               organizationName: orgName,
-              sessionsActive: active,
-              sessionsTotal: sessions.length,
+              sessionsActive: activeRead?.rows.length ?? 0,
+              sessionsTotal: activeRead?.total ?? 0,
               propertyType: loc.property_type,
             },
             liveness,
@@ -1154,7 +1169,7 @@ export const customerService = {
         liveness: loc.liveness,
         health: {
           ...healthStrings(loc.liveness),
-          isp: loc.isp,
+          isp: loc.isp ?? "Unknown",
         },
         kpis: {
           onlineUsers: demoOnlineNow(venue.id, now),
@@ -1226,7 +1241,7 @@ export const customerService = {
     const locationHeaders = {
       headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId },
     };
-    const [rR, sR, aR, gR, iR, lR] = await Promise.allSettled([
+    const [rR, sR, aR, gR, iR, lR, oR] = await Promise.allSettled([
       api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, {
         params: { page_size: 100 },
         ...locationHeaders,
@@ -1260,7 +1275,12 @@ export const customerService = {
       // WiFi OK right now").
       api.get<{
         items: { severity: string; message: string; triggered_at: string; status: string }[];
-      }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...locationHeaders }),
+      }>("/alerts", {
+        // `location_id`: this venue's alerts only. Without it the card listed
+        // every venue's alerts while Needs Attention beside it filtered.
+        params: { page_size: 10, organization_id: orgId, location_id: locationId },
+        ...locationHeaders,
+      }),
       // Bulk guest-identity lookup, same "one fetch per page load, matched
       // client-side by guest_id" shape as getUsers()' own connected-device
       // fetch below -- best-effort, so recentUsers just falls back to "Guest"
@@ -1294,6 +1314,11 @@ export const customerService = {
         "/admin-logs/dashboard-logins",
         { params: { page_size: 100 }, ...orgHeaders },
       ),
+      // "Currently online" from every OPEN session, whenever it started --
+      // not from the 24h/100-row page above, which dropped a guest whose
+      // session began yesterday and, at a busy venue, older still-open
+      // sessions past row 100. See `fetchActiveSessions`.
+      fetchActiveSessions<RawGuestSession>(locationId, locationHeaders.headers),
     ]);
     // `null`, not `[]`, on failure -- see listLocations()'s identical
     // comment. A failed routers read is not a report of zero routers.
@@ -1376,7 +1401,14 @@ export const customerService = {
     // `openByHour` is "how many were online at that hour", which is what
     // "Guests online, last 24h" claims to show.
     const startsByHour = sessionStartsByHour(sessions);
-    const openByHour = sessionsOpenByHour(sessions);
+    // Sessions still open that started before the 24h window were missing
+    // from "Guests online, last 24h" too; fold them in (deduped by id).
+    const activeRead = oR.status === "fulfilled" ? oR.value : null;
+    const inWindow = new Set(sessions.map((s) => s.id));
+    const openByHour = sessionsOpenByHour([
+      ...sessions,
+      ...(activeRead?.rows ?? []).filter((s) => !inWindow.has(s.id)),
+    ]);
     // "Online Users" and "Active Sessions" are the same real thing (one
     // online guest == one active session) and must come from the same
     // count -- `sessions` here is every row /guest-sessions returned
@@ -1401,21 +1433,16 @@ export const customerService = {
     // exclusion above stays -- it covers the case the presence signal cannot,
     // a whole venue whose routers are unreachable. The old `status` reading
     // remains as the fallback for a backend that predates the field.
-    const activeSessions = sessions.filter(
-      (s) =>
-        (s.is_online ?? s.status === "active") &&
-        (!s.router_id || !offlineRouterIds.has(s.router_id)),
-    );
     // "Currently online" is a people count, so reconnects or multiple devices
-    // belonging to one guest must be one person. The workspace dashboard already
-    // uses this same distinct-guest rule; counting raw session rows here caused
-    // the two dashboards to disagree for the very guests currently on Wi‑Fi.
+    // belonging to one guest must be one person (`countOnlineGuests`, the
+    // same rule the location picker and the workspace dashboard use).
+    // `null` when the active-sessions read failed: not a report of zero.
     const onlineGuestCount =
-      liveness.routersOnline === 0
-        ? 0
-        : distinctGuestCount(
-            activeSessions.map((session) => ({ guestId: session.guest_id ?? null })),
-          );
+      activeRead === null
+        ? null
+        : liveness.routersOnline === 0
+          ? 0
+          : countOnlineGuests(activeRead.rows, offlineRouterIds);
     return {
       liveness,
       health: {
@@ -1434,7 +1461,7 @@ export const customerService = {
       },
       kpis: {
         onlineUsers: onlineGuestCount,
-        sessionsReadFailed: sR.status !== "fulfilled",
+        sessionsReadFailed: sR.status !== "fulfilled" || onlineGuestCount === null,
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
         todayGuests: (() => {
@@ -2032,151 +2059,49 @@ export const customerService = {
     if (isDemo()) return getDemoFeatureData(feature, locationId);
 
     switch (feature) {
-      case "analytics": {
-        // `start_date`/`end_date` are REQUIRED query params on both of
-        // these endpoints -- omitting them is a 422, not a default
-        // "all time" window, so this pair used to fail every time and
-        // report zeros (or, before the fallback above was removed, the
-        // fixture's invented 1892 sessions / 847 guests). Same 30-day
-        // window guest.service.ts's own `analyticsWindow()` uses.
-        const endDate = new Date();
-        const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const window = {
-          params: { start_date: startDate.toISOString(), end_date: endDate.toISOString() },
-        };
-        const [summary, guests] = await Promise.allSettled([
-          api
-            .get<{
-              visitors: number;
-              unique_guests: number;
-              returning_guests: number;
-              average_session_duration_seconds: number | null;
-            }>("/guest-analytics/summary", window)
-            .catch(() => null),
-          api
-            .get<{ items: Array<Record<string, unknown>> }>("/guest-analytics/top-devices", window)
-            .catch(() => null),
-        ]);
-        const s = summary.status === "fulfilled" && summary.value?.data ? summary.value.data : null;
-        return {
-          analytics: {
-            totalSessions: s?.visitors ?? 0,
-            uniqueGuests: s?.unique_guests ?? 0,
-            returningRate: s?.returning_guests ?? 0,
-            avgDuration: (s?.average_session_duration_seconds ?? 0) / 60,
-          },
-        };
-      }
-      case "campaigns": {
-        const { data } = await api
-          .get<{
-            items: { id: string; name: string; status: string }[];
-          }>("/campaigns", { params: { page_size: 20 } })
-          .catch(() => ({ data: { items: [] } }));
-        return {
-          campaigns: (data?.items ?? []).map((c) => ({
-            id: c.id,
-            name: c.name,
-            status: c.status,
-            impressions: 0,
-            conversions: 0,
-          })),
-        };
-      }
-      case "vouchers": {
-        const { data } = await api
-          .get<{
-            items: { code?: string; plan?: string; status: string; used_count?: number }[];
-          }>("/voucher-batches", { params: { page_size: 20 } })
-          .catch(() => ({ data: { items: [] } }));
-        return {
-          vouchers:
-            data?.items?.map((v) => ({
-              code: v.code ?? "",
-              plan: v.plan ?? "",
-              status: v.status,
-              used: v.used_count ?? 0,
-            })) ?? [],
-        };
-      }
-      case "portal": {
-        // Was the worst offender in this file: it fetched `/captive-portal`
-        // -- a path that does not exist (404; the real collection is
-        // `/captive-portal-configs`, see portal.service.ts) -- then threw
-        // the response away and returned a hardcoded "Live" /
-        // "Enterprise Blue" / Email OTP + SMS + Voucher / EN + HI + AR
-        // card. Not a fallback: that ran on the success path too, so it
-        // was fabricated for every real customer unconditionally, and
-        // described a portal configuration nobody had. Wyfy Demo's real
-        // config, for instance, is theme "default" with email OTP and
-        // username/password only, English only.
-        const { data } = await api.get<{
-          items: {
-            is_active: boolean;
-            theme: string | null;
-            supported_languages: string[] | null;
-            default_language: string | null;
-            otp_email_enabled: boolean;
-            otp_sms_enabled: boolean;
-            otp_whatsapp_enabled: boolean;
-            voucher_enabled: boolean;
-            username_password_enabled: boolean;
-            pin_login_enabled: boolean;
-            social_login_enabled: boolean;
-          }[];
-        }>("/captive-portal-configs", {
-          params: { page: 1, page_size: 100, ...(locationId ? { location_id: locationId } : {}) },
-        });
-        // The portal actually serving this location is the active one;
-        // fall back to the first config only so a location whose portal is
-        // switched off still describes the portal it has.
-        const configs = data?.items ?? [];
-        const config = configs.find((c) => c.is_active) ?? configs[0] ?? null;
-        if (!config) return { portal: undefined };
-        const authMethods = [
-          config.otp_email_enabled && "Email OTP",
-          config.otp_sms_enabled && "SMS OTP",
-          config.otp_whatsapp_enabled && "WhatsApp OTP",
-          config.voucher_enabled && "Voucher",
-          config.username_password_enabled && "Username & password",
-          config.pin_login_enabled && "PIN",
-          config.social_login_enabled && "Social login",
-        ].filter((m): m is string => typeof m === "string");
-        const languages = (
-          config.supported_languages?.length
-            ? config.supported_languages
-            : [config.default_language ?? "en"]
-        ).map((l) => l.toUpperCase());
-        return {
-          portal: {
-            status: config.is_active ? "Live" : "Inactive",
-            theme: config.theme ?? "default",
-            authMethods,
-            languages,
-          },
-        };
-      }
+      // "analytics", "campaigns", "vouchers" and "portal" used to live here
+      // too. Nothing requested them (the only consumers ask for "devices",
+      // "mac-auth" and "admin-logs"), and two mapped the wrong fields, so
+      // they were removed rather than left for someone to re-wire.
       case "devices": {
         // Same fix -- /connected-devices requires connected_devices.read
         // at ORGANIZATION scope via X-Organization-Id.
+        //
+        // Paged, and errors propagate. This read 10 rows and caught every
+        // failure into an empty list, so the panel said "10 guest devices
+        // seen" at a busy venue and "No connected devices yet" when the read
+        // failed. It now reads up to DEVICE_PAGES x 100 newest rows and
+        // reports the server's own total, so the panel can say when it is
+        // showing only part of the list.
         const orgId = await resolveOrgId();
-        const { data } = await api
-          .get<{
-            items: {
-              mac_address: string;
-              ip_address: string;
-              hostname: string | null;
-              vendor: string | null;
-              connected_at: string;
-              last_seen_at: string;
-            }[];
+        type RawDevice = {
+          mac_address: string;
+          ip_address: string;
+          hostname: string | null;
+          vendor: string | null;
+          connected_at: string;
+          last_seen_at: string;
+        };
+        const DEVICE_PAGES = 5;
+        const items: RawDevice[] = [];
+        let total = 0;
+        for (let page = 1; page <= DEVICE_PAGES; page++) {
+          const { data } = await api.get<{
+            items: RawDevice[];
+            total_items?: number;
+            has_next?: boolean;
           }>("/connected-devices", {
-            params: { location_id: locationId, page_size: 10 },
+            params: { location_id: locationId, page, page_size: 100 },
             headers: { "X-Organization-Id": orgId },
-          })
-          .catch(() => ({ data: { items: [] } }));
+          });
+          const pageItems = data?.items ?? [];
+          items.push(...pageItems);
+          total = data?.total_items ?? items.length;
+          if (!(data?.has_next ?? items.length < total) || pageItems.length === 0) break;
+        }
         return {
-          devices: (data?.items ?? []).map((d) => ({
+          devicesTotal: Math.max(total, items.length),
+          devices: items.map((d) => ({
             mac: d.mac_address,
             ip: d.ip_address,
             // Show the MAC address rather than a bare "Unknown" when the
@@ -2560,51 +2485,6 @@ type DashboardDataResult = CustomerDashboardData;
 
 function getDemoFeatureData(feature: string, locationId?: string): CustomerFeatureData {
   switch (feature) {
-    case "analytics": {
-      // Same 30-day window as the real branch, counted off the venue's demo
-      // roster (`@/lib/demo-world`) like every other demo guest number.
-      const venue = demoVenue(locationId) ?? DEMO_VENUES[0];
-      const now = demoNow();
-      const from = now - 30 * 86_400_000;
-      const c = demoGuestCounts(venue.id, from, now, now);
-      const roster = demoRoster(venue.id, now);
-      const [a, b] = demoSessionsIn(roster, from, now);
-      const returning = new Set<number>();
-      for (let i = a; i < b; i++) {
-        if (roster.firstSeen[roster.guest[i]] < from) returning.add(roster.guest[i]);
-      }
-      return {
-        analytics: {
-          totalSessions: c.sessions,
-          uniqueGuests: c.guests,
-          returningRate: c.guests ? Math.round((returning.size / c.guests) * 100) : 0,
-          avgDuration: c.avgSessionMinutes ?? 0,
-        },
-      };
-    }
-    case "campaigns":
-      return {
-        campaigns: [
-          { id: "1", name: "Summer Promo", status: "active", impressions: 2841, conversions: 423 },
-          { id: "2", name: "New Year", status: "draft", impressions: 0, conversions: 0 },
-        ],
-      };
-    case "vouchers":
-      return {
-        vouchers: [
-          { code: "VCH-8821", plan: "1h", status: "active", used: 3 },
-          { code: "VCH-8822", plan: "24h", status: "active", used: 12 },
-        ],
-      };
-    case "portal":
-      return {
-        portal: {
-          status: "Live",
-          theme: "Enterprise Blue",
-          authMethods: ["Email OTP", "SMS", "Voucher"],
-          languages: ["EN", "HI", "AR"],
-        },
-      };
     case "devices":
       return {
         devices: [

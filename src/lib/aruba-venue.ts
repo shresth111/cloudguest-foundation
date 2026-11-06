@@ -24,7 +24,7 @@ export const ARUBA_VENUE_IN_INSTANT_ON: readonly string[] = [
 export function arubaVenueStats(
   data:
     | {
-        kpis: { onlineUsers: number; todayGuests: number; sessionsReadFailed?: boolean };
+        kpis: { onlineUsers: number | null; todayGuests: number; sessionsReadFailed?: boolean };
         recentUsers: { time: string }[];
       }
     | undefined,
@@ -34,7 +34,7 @@ export function arubaVenueStats(
     return { online: "—", today: "—", lastSignIn: "—" };
   }
   return {
-    online: String(data.kpis.onlineUsers),
+    online: data.kpis.onlineUsers === null ? "—" : String(data.kpis.onlineUsers),
     today: String(data.kpis.todayGuests),
     lastSignIn: data.recentUsers[0]?.time ?? "None in the last 24 hours",
   };
