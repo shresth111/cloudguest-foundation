@@ -16,6 +16,7 @@ import { dashboardRangeWindow } from "@/lib/dashboard-range";
 import type { DashboardRange, DashboardRangeWindow } from "@/lib/dashboard-range";
 import { guestPresence } from "@/lib/guest-presence";
 import { distinctGuestCount } from "@/lib/guest-counts";
+import { countOnlineGuests, fetchActiveSessions } from "@/lib/active-sessions";
 import { canonicalApMac } from "@/lib/aruba-access-points";
 // getDashboard()'s SLA-uptime leg reads the same `/isp/links` list the
 // dashboard's own WAN cards read, so it goes through the same service --
@@ -172,7 +173,8 @@ export interface CustomerLocationSummary {
   status: "online" | "offline" | "degraded" | "unknown";
   /** The real answer, and why. See `@/lib/location-liveness`. */
   liveness: LocationLiveness;
-  onlineUsers: number;
+  /** Distinct guests online now; `null` when the sessions read failed. */
+  onlineUsers: number | null;
   /**
    * `null` -- not `0` -- when there is nothing to compute a percentage
    * from (no routers, or the routers could not be read). A "0% health"
@@ -180,9 +182,12 @@ export interface CustomerLocationSummary {
    * measurement.
    */
   routerHealth: number | null;
-  bandwidth: string;
-  isp: string;
-  lastSync: string;
+  /** Current throughput label; `null` when nothing real is known (hidden). */
+  bandwidth: string | null;
+  /** ISP provider name; `null` when not known (hidden). */
+  isp: string | null;
+  /** When a router here last checked in; `null` when none ever has. */
+  lastSync: string | null;
   organizationId: string;
   organizationName: string;
   /** `null` when the routers could not be read -- see `routerHealth`. */
@@ -232,8 +237,9 @@ export interface CustomerDashboardData {
      * own derivation and its own name -- not this field back.
      *
      * `newToday` went the same way: identical expression to `todayGuests`
-     * below, and never rendered anywhere. */
-    onlineUsers: number;
+     * below, and never rendered anywhere. `null` when the active-sessions
+     * read failed: "we could not tell", not "nobody is online". */
+    onlineUsers: number | null;
     /** `true` when the guest-sessions read itself failed, so `onlineUsers`,
      * `todayGuests` and `recentUsers` are empty for want of an answer, not
      * because nobody signed in. Optional: absent (demo, older callers) means
@@ -1060,10 +1066,10 @@ export const customerService = {
               params: { page_size: 100 },
               headers: locationHeaders,
             }),
-            api.get<{ items: RawGuestSessionStatus[] }>("/guest-sessions", {
-              params: { location_id: loc.id, page_size: 50 },
-              headers: locationHeaders,
-            }),
+            // The same open-sessions read and the same counting rule as the
+            // dashboard's "Currently online", so the two screens agree. This
+            // was the newest 50 session rows of any status, counted as rows.
+            fetchActiveSessions(loc.id, locationHeaders),
           ]);
           // `null`, NOT `[]`, when the routers request failed. These are
           // two completely different facts -- "this venue has no routers"
@@ -1073,8 +1079,7 @@ export const customerService = {
           // treats null as `unknown` and refuses to answer.
           const routers =
             routersR.status === "fulfilled" ? (routersR.value.data?.items ?? []) : null;
-          const sessions =
-            sessionsR.status === "fulfilled" ? (sessionsR.value.data?.items ?? []) : [];
+          const activeRead = sessionsR.status === "fulfilled" ? sessionsR.value : null;
           const liveness = deriveLocationLiveness(routers);
           // A location with zero online routers can't genuinely have online
           // guests, so don't let a stale "active" session row contradict
@@ -1083,29 +1088,39 @@ export const customerService = {
           // falsy": when liveness is `unknown` we have no grounds to zero
           // a real session count either, so the honest figure stands.
           const nothingIsUp = liveness.routersOnline === 0;
-          // Presence, not the session row's own lifecycle -- the rule
-          // lib/guest-presence.ts states once for every surface. `is_online`
-          // is the server's own answer (session active AND the device not
-          // observed as gone), so a guest whose device dropped off the
-          // network stops counting here. `status` alone kept counting them
-          // until the timeout sweep, which never reaches a session that has
-          // no timeout at all.
-          const active = nothingIsUp
-            ? 0
-            : sessions.filter((s) => s.is_online ?? s.status === "active").length;
+          const offlineRouterIds = new Set(
+            liveness.routers.filter((r) => r.key && r.status === "fail").map((r) => r.key),
+          );
+          const online =
+            activeRead === null
+              ? null
+              : nothingIsUp
+                ? 0
+                : countOnlineGuests(activeRead.rows, offlineRouterIds);
+          // The newest router heartbeat, the one real "last heard from" this
+          // read has. It used to be the literal "Just now" for every venue.
+          const lastSeenMs = (routers ?? [])
+            .map((r) => (r.last_seen_at ? new Date(r.last_seen_at).getTime() : NaN))
+            .filter((t) => Number.isFinite(t));
+          const lastSync = lastSeenMs.length
+            ? formatRelative(Math.max(...lastSeenMs))
+            : null;
           return summaryFromLiveness(
             {
               id: loc.id,
               name: loc.name,
               city: loc.city,
-              onlineUsers: active,
-              bandwidth: `${(sessions.reduce((s, se) => s + (se.bytes_downloaded || 0) + (se.bytes_uploaded || 0), 0) / 1e6).toFixed(0)} MB`,
-              isp: "Active",
-              lastSync: "Just now",
+              onlineUsers: online,
+              // No per-venue throughput or ISP name is read here. These were
+              // the summed bytes of the last 50 sessions shown as "N MB" and
+              // the literal "Active"; hidden rather than made up.
+              bandwidth: null,
+              isp: null,
+              lastSync,
               organizationId: orgId,
               organizationName: orgName,
-              sessionsActive: active,
-              sessionsTotal: sessions.length,
+              sessionsActive: activeRead?.rows.length ?? 0,
+              sessionsTotal: activeRead?.total ?? 0,
               propertyType: loc.property_type,
             },
             liveness,
@@ -1154,7 +1169,7 @@ export const customerService = {
         liveness: loc.liveness,
         health: {
           ...healthStrings(loc.liveness),
-          isp: loc.isp,
+          isp: loc.isp ?? "Unknown",
         },
         kpis: {
           onlineUsers: demoOnlineNow(venue.id, now),
@@ -1226,7 +1241,7 @@ export const customerService = {
     const locationHeaders = {
       headers: { "X-Organization-Id": orgId, "X-Location-Id": locationId },
     };
-    const [rR, sR, aR, gR, iR, lR] = await Promise.allSettled([
+    const [rR, sR, aR, gR, iR, lR, oR] = await Promise.allSettled([
       api.get<{ items: RawRouterStatus[] }>(`/locations/${locationId}/routers`, {
         params: { page_size: 100 },
         ...locationHeaders,
@@ -1294,6 +1309,11 @@ export const customerService = {
         "/admin-logs/dashboard-logins",
         { params: { page_size: 100 }, ...orgHeaders },
       ),
+      // "Currently online" from every OPEN session, whenever it started --
+      // not from the 24h/100-row page above, which dropped a guest whose
+      // session began yesterday and, at a busy venue, older still-open
+      // sessions past row 100. See `fetchActiveSessions`.
+      fetchActiveSessions<RawGuestSession>(locationId, locationHeaders.headers),
     ]);
     // `null`, not `[]`, on failure -- see listLocations()'s identical
     // comment. A failed routers read is not a report of zero routers.
@@ -1376,7 +1396,14 @@ export const customerService = {
     // `openByHour` is "how many were online at that hour", which is what
     // "Guests online, last 24h" claims to show.
     const startsByHour = sessionStartsByHour(sessions);
-    const openByHour = sessionsOpenByHour(sessions);
+    // Sessions still open that started before the 24h window were missing
+    // from "Guests online, last 24h" too; fold them in (deduped by id).
+    const activeRead = oR.status === "fulfilled" ? oR.value : null;
+    const inWindow = new Set(sessions.map((s) => s.id));
+    const openByHour = sessionsOpenByHour([
+      ...sessions,
+      ...(activeRead?.rows ?? []).filter((s) => !inWindow.has(s.id)),
+    ]);
     // "Online Users" and "Active Sessions" are the same real thing (one
     // online guest == one active session) and must come from the same
     // count -- `sessions` here is every row /guest-sessions returned
@@ -1401,21 +1428,16 @@ export const customerService = {
     // exclusion above stays -- it covers the case the presence signal cannot,
     // a whole venue whose routers are unreachable. The old `status` reading
     // remains as the fallback for a backend that predates the field.
-    const activeSessions = sessions.filter(
-      (s) =>
-        (s.is_online ?? s.status === "active") &&
-        (!s.router_id || !offlineRouterIds.has(s.router_id)),
-    );
     // "Currently online" is a people count, so reconnects or multiple devices
-    // belonging to one guest must be one person. The workspace dashboard already
-    // uses this same distinct-guest rule; counting raw session rows here caused
-    // the two dashboards to disagree for the very guests currently on Wi‑Fi.
+    // belonging to one guest must be one person (`countOnlineGuests`, the
+    // same rule the location picker and the workspace dashboard use).
+    // `null` when the active-sessions read failed: not a report of zero.
     const onlineGuestCount =
-      liveness.routersOnline === 0
-        ? 0
-        : distinctGuestCount(
-            activeSessions.map((session) => ({ guestId: session.guest_id ?? null })),
-          );
+      activeRead === null
+        ? null
+        : liveness.routersOnline === 0
+          ? 0
+          : countOnlineGuests(activeRead.rows, offlineRouterIds);
     return {
       liveness,
       health: {
@@ -1434,7 +1456,7 @@ export const customerService = {
       },
       kpis: {
         onlineUsers: onlineGuestCount,
-        sessionsReadFailed: sR.status !== "fulfilled",
+        sessionsReadFailed: sR.status !== "fulfilled" || onlineGuestCount === null,
         routersOnline: liveness.routersOnline,
         totalRouters: liveness.routersTotal,
         todayGuests: (() => {

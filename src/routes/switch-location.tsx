@@ -530,6 +530,9 @@ function CustomerHomePage() {
     (l) => l.liveness.state === "unknown",
   ).length;
   const totalOnlineUsers = (locations ?? []).reduce((sum, l) => sum + (l.onlineUsers ?? 0), 0);
+  // A venue whose sessions read failed contributes nothing to the total, so
+  // say so rather than present a confident undercount.
+  const someOnlineUnknown = (locations ?? []).some((l) => l.onlineUsers === null);
   const heroStats = [
     { label: "Locations", value: totalLocations, note: null as string | null },
     {
@@ -537,7 +540,11 @@ function CustomerHomePage() {
       value: liveLocations,
       note: undeterminedLocations > 0 ? `${undeterminedLocations} we can't currently check` : null,
     },
-    { label: "Guests online", value: totalOnlineUsers, note: null as string | null },
+    {
+      label: "Guests online",
+      value: totalOnlineUsers,
+      note: someOnlineUnknown ? "Some venues could not be read" : (null as string | null),
+    },
   ];
 
   return (
@@ -925,7 +932,7 @@ function CustomerHomePage() {
                     <div className="mt-4 flex items-end justify-between">
                       <div>
                         <p className="font-display text-2xl font-bold tracking-tight tabular-nums text-white">
-                          {loc.onlineUsers}
+                          {loc.onlineUsers ?? "—"}
                         </p>
                         <p className="text-[11px] text-white/45">guests online</p>
                       </div>
@@ -987,14 +994,15 @@ function CustomerHomePage() {
                      * (h-full flex-col above), so mt-auto pins this footer to
                      * the bottom of every card in a row alike, chips row or not. */}
                     <div
-                      title={`Last synced ${loc.lastSync}`}
+                      title={loc.lastSync ? `Router last heard from ${loc.lastSync}` : undefined}
                       className="mt-auto flex items-center justify-between border-t border-white/10 pt-2.5 text-[11px] text-white/40"
                     >
                       <span className="flex min-w-0 items-center gap-1.5 truncate">
-                        {loc.isp && loc.isp !== "Active" && loc.isp !== "Unknown" && (
+                        {loc.isp && (
                           <>
                             <IspProviderIcon providerName={loc.isp} className="h-3.5 w-3.5" />
-                            {loc.isp} ·{" "}
+                            {loc.isp}
+                            {loc.bandwidth ? " · " : ""}
                           </>
                         )}
                         {loc.bandwidth}
