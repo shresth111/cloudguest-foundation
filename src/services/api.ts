@@ -292,6 +292,38 @@ export function isEstateWideMasterPath(pathname: string): boolean {
   );
 }
 
+/**
+ * Master pages whose backend never reads the organization header, so the
+ * header picker cannot change what they show. MasterShell shows a fixed
+ * "All organizations" badge there instead of the picker, so the header never
+ * says "Org X" above estate-wide numbers. Unlike `isEstateWideMasterPath`
+ * this does NOT change what the interceptor sends: it is a display rule.
+ *
+ * - `/master` (Platform Overview) and `/master/analytics`: the KPIs come from
+ *   `/dashboard/super-admin/unified`, which hard-codes organization_id=None,
+ *   and the per-org rows from `/dashboard/super-admin/organizations`.
+ * - `/master/integrations`: filters only on its own `organization_id` query
+ *   param (the page's filter control), never the header.
+ * - `/master/traffic-flow`, `/master/device-logs`: no `CurrentOrganization`
+ *   anywhere in those routers.
+ *
+ * `/master/billing` is deliberately NOT here: its KPI grid is estate-wide,
+ * but its tables are read through `GET /organizations`, which the header
+ * does scope. That page labels the KPI grid instead.
+ */
+export function isOrgPickerInertMasterPath(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  return (
+    path === "/master" ||
+    path === "/master/analytics" ||
+    path === "/master/integrations" ||
+    path === "/master/traffic-flow" ||
+    path.startsWith("/master/traffic-flow/") ||
+    path === "/master/device-logs" ||
+    path.startsWith("/master/device-logs/")
+  );
+}
+
 function isEstateWideMasterPage(): boolean {
   if (typeof window === "undefined") return false;
   return isEstateWideMasterPath(window.location?.pathname ?? "");
@@ -367,11 +399,20 @@ export function resolveActiveOrganizationId(): string | null {
 
 /** Records the deliberate choice. `OrganizationScopePicker` is the UI that
  * calls this; nothing else should. */
+/** Fired on `window` after `setOrganizationScope` writes a new scope. Pages
+ * that load in a plain `useEffect` (not React Query, so the picker's
+ * invalidation cannot reach them) listen for it via
+ * `useOrganizationScopeVersion` and reload. */
+export const ORGANIZATION_SCOPE_CHANGED_EVENT = "wyfy:organization-scope-changed";
+
 export function setOrganizationScope(scope: OrganizationScope): void {
   safeLocalSet(
     ACTIVE_ORG_STORAGE_KEY,
     scope.kind === "all" ? ALL_ORGANIZATIONS : scope.organizationId,
   );
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new Event(ORGANIZATION_SCOPE_CHANGED_EVENT));
+  }
 }
 
 /** Back-compat alias for the id-only setter. */

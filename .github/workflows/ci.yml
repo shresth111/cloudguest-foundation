@@ -302,6 +302,11 @@ jobs:
       - name: Master nav and lists say when a read failed
         run: bun run test:master-nav-load-states
 
+      # Master console QA 2026-11-06: org picker scope, reminder send,
+      # capability gates, suspend confirmation, location delete, /settings.
+      - name: Master console QA fixes
+        run: bun run test:master-console-qa
+
       # The demo login (admin@example.com / test) mints a Super Admin session
       # in the browser with no backend. #284 turned it off in production; it
       # is back ONLY on demo.wyfyguest.com, which serves the same bundle, so

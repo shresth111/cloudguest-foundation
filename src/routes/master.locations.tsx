@@ -16,6 +16,7 @@ import {
   MDialog,
   MField,
   M_INPUT,
+  MLoadErrorRow,
 } from "@/components/master/MasterKit";
 import { locationService } from "@/services/location.service";
 import { defaultTimezoneForCountry } from "@/lib/countries";
@@ -24,6 +25,8 @@ import { requestErrorMessage } from "@/services/api";
 import { isDemo } from "@/services/customer.service";
 import { PROPERTY_TYPE_LABEL, type Location, type PropertyType } from "@/types/location";
 import { businessTypeIcon } from "@/lib/business-type-icons";
+import { useOrganizationScopeVersion } from "@/hooks/useOrganizationScopeVersion";
+import { LocationDeleteDialog } from "@/components/master/LocationDeleteDialog";
 
 // The Master Console's demo sign-in (see master-login.tsx, "admin@example.com
 // / test") issues a local-only `demo-access-token` that the real backend
@@ -107,6 +110,8 @@ function LocationsScreen() {
   const [q, setQ] = useState(initialQ ?? "");
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const scopeVersion = useOrganizationScopeVersion();
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -125,6 +130,7 @@ function LocationsScreen() {
 
   async function refetch() {
     setLoading(true);
+    setLoadError(null);
     // Demo sessions (master-login.tsx's "admin@example.com / test" shortcut)
     // hold a token the real backend never accepts -- every call below would
     // 401. Serve the local demo dataset instead of a doomed network round
@@ -146,14 +152,17 @@ function LocationsScreen() {
     } catch (err) {
       const message = requestErrorMessage(err, "Could not load locations from the server.");
       toast.error(message);
+      setLoadError(message);
+      setLocations([]);
     } finally {
       setLoading(false);
     }
   }
 
+  // Reload when the header organization picker changes scope.
   useEffect(() => {
     refetch();
-  }, []);
+  }, [scopeVersion]);
 
   const rows = useMemo(
     () =>
@@ -230,15 +239,20 @@ function LocationsScreen() {
     }
   }
 
+  // The trash button opens LocationDeleteDialog (typed name + attached
+  // routers/integrations); only its confirm reaches handleDelete.
+  const [deleteTarget, setDeleteTarget] = useState<Location | null>(null);
+
   async function handleDelete(l: Location) {
-    if (!window.confirm(`Delete location "${l.name}"? This cannot be undone.`)) return;
     setDeletingId(l.id);
     try {
       await locationService.remove([l.id], l.organizationId);
       toast.success(`Location "${l.name}" deleted`);
       setLocations((prev) => prev.filter((x) => x.id !== l.id));
-    } catch {
-      toast.error("Could not delete the location.");
+      setDeleteTarget(null);
+    } catch (err) {
+      // A 409 here is the backend refusing because routers are attached.
+      toast.error(requestErrorMessage(err, "Could not delete the location."));
     } finally {
       setDeletingId(null);
     }
@@ -280,7 +294,9 @@ function LocationsScreen() {
             </>
           }
         >
+          {!loading && loadError && <MLoadErrorRow message={loadError} onRetry={refetch} />}
           {!loading &&
+            !loadError &&
             (rows.length === 0 ? (
               <MTr>
                 <MTd className="text-center text-muted-foreground" />
@@ -328,7 +344,7 @@ function LocationsScreen() {
                         <button
                           aria-label={`Delete ${l.name}`}
                           disabled={deletingId === l.id}
-                          onClick={() => handleDelete(l)}
+                          onClick={() => setDeleteTarget(l)}
                           className="inline-flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                         >
                           {deletingId === l.id ? (
@@ -344,9 +360,15 @@ function LocationsScreen() {
               })
             ))}
         </MTable>
-        {!loading && rows.length === 0 && (
+        {!loading && !loadError && rows.length === 0 && (
           <p className="text-center text-sm text-muted-foreground">No locations yet.</p>
         )}
+        <LocationDeleteDialog
+          location={deleteTarget}
+          deleting={!!deleteTarget && deletingId === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={(l) => void handleDelete(l)}
+        />
 
         <MDialog
           open={addOpen}

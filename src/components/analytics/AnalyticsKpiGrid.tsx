@@ -99,7 +99,7 @@ export function AnalyticsKpiGrid({ data, isLoading, isError, onRetry }: Props) {
     { label: "Total sessions", value: fmt.format(data.totalSessions), icon: LogIn, tone: "info" },
     {
       label: "Avg. session duration",
-      value: `${data.avgSessionDuration}m`,
+      value: data.avgSessionDuration == null ? "—" : `${data.avgSessionDuration}m`,
       icon: Timer,
       tone: "default",
     },

@@ -19,6 +19,7 @@ import { LocationDetailTabs } from "@/components/locations/LocationDetailTabs";
 import { LocationStatusBadge } from "@/components/locations/LocationStatusBadge";
 import { useDeleteLocations, useLocation, useUpdateLocationStatus } from "@/hooks/useLocations";
 import { usePermissions } from "@/hooks/usePermissions";
+import type { AppError } from "@/services/api";
 
 const searchSchema = z.object({ tab: z.string().optional() });
 
@@ -127,9 +128,18 @@ function LocationDetailPage() {
                         description: "This archives the location.",
                         destructive: true,
                         onConfirm: async () => {
-                          await remove.mutateAsync([location.id]);
-                          toast.success("Location archived");
-                          navigate({ to: "/locations" });
+                          // A refusal (409: a router is still attached) must be
+                          // shown here: ConfirmDialog does not catch it.
+                          try {
+                            await remove.mutateAsync([location.id]);
+                            toast.success("Location archived");
+                            navigate({ to: "/locations" });
+                          } catch (err) {
+                            toast.error(
+                              (err as unknown as AppError).message ||
+                                "Could not archive the location",
+                            );
+                          }
                         },
                       })
                     }

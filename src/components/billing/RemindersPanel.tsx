@@ -15,7 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { useSendReminder } from "@/hooks/useBilling";
-import type { Reminder } from "@/types/billing";
+import { requestErrorMessage } from "@/services/api";
+import type { Reminder, SendableReminderKind } from "@/types/billing";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 
@@ -32,17 +33,28 @@ const SEVERITY_CLASS: Record<Reminder["severity"], string> = {
   critical: "bg-rose-500/10 text-rose-600 border-rose-500/20",
 };
 
+/** Kinds the backend can actually email. `trial_ending` has no send path. */
+const SENDABLE: ReadonlySet<Reminder["type"]> = new Set<SendableReminderKind>([
+  "payment_failed",
+  "invoice_due",
+  "expiry",
+]);
+
 interface Props {
   data?: Reminder[];
   isLoading?: boolean;
   isError?: boolean;
   onRetry?: () => void;
+  /** Show "Send". Only the Master console passes this, for operators who
+   * hold `billing.manage`: POST /billing/reminders/send is GLOBAL-pinned. */
+  canSend?: boolean;
 }
 
-export function RemindersPanel({ data, isLoading, isError, onRetry }: Props) {
-  // No reminder-dispatch endpoint exists in backend/app/domains/billing --
-  // "Send" calls billingService.sendReminder's own already-documented
-  // mock rather than firing a bare, unbacked toast.
+export function RemindersPanel({ data, isLoading, isError, onRetry, canSend = false }: Props) {
+  // Real POST /billing/reminders/send. Success is reported only when the
+  // backend says the email actually went out (`emailSent`); "not sent"
+  // (no mail provider, no contact email, SMTP error) is an error toast with
+  // the backend's reason.
   const send = useSendReminder();
   return (
     <Card>
@@ -84,24 +96,43 @@ export function RemindersPanel({ data, isLoading, isError, onRetry }: Props) {
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={send.isPending}
-                  onClick={() =>
-                    send.mutate(r.id, {
-                      onSuccess: () => toast.success(`Reminder sent to ${r.organizationName}`),
-                      onError: () => toast.error("Could not send the reminder"),
-                    })
-                  }
-                >
-                  {send.isPending ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Send className="mr-1.5 h-3.5 w-3.5" />
-                  )}{" "}
-                  Send
-                </Button>
+                {canSend && r.organizationId && SENDABLE.has(r.type) ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={send.isPending}
+                    onClick={() =>
+                      send.mutate(
+                        {
+                          organizationId: r.organizationId!,
+                          kind: r.type as SendableReminderKind,
+                        },
+                        {
+                          onSuccess: (result) => {
+                            if (result.emailSent) {
+                              toast.success(
+                                `Reminder emailed to ${result.emailRecipient ?? r.organizationName}`,
+                              );
+                            } else {
+                              toast.error(
+                                `Reminder not sent: ${result.emailError ?? "unknown reason"}`,
+                              );
+                            }
+                          },
+                          onError: (err) =>
+                            toast.error(requestErrorMessage(err, "Could not send the reminder")),
+                        },
+                      )
+                    }
+                  >
+                    {send.isPending && send.variables?.organizationId === r.organizationId ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="mr-1.5 h-3.5 w-3.5" />
+                    )}{" "}
+                    Send
+                  </Button>
+                ) : null}
               </div>
             );
           })

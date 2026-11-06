@@ -10,11 +10,13 @@ import {
   MSeg,
   MTag,
   MButton,
+  MDialog,
   MTable,
   MTh,
   MTd,
   MTr,
   MDrawer,
+  MLoadErrorRow,
 } from "@/components/master/MasterKit";
 import {
   AlertDialog,
@@ -37,9 +39,10 @@ import { PlatformLocationWizard } from "@/components/locations/PlatformLocationW
 import { CustomerAddonsPanel } from "@/components/master/CustomerAddonsPanel";
 import { CustomerCreditsPanel } from "@/components/master/CustomerCreditsPanel";
 import { businessTypeIcon } from "@/lib/business-type-icons";
-import type { AppError } from "@/services/api";
+import { requestErrorMessage, type AppError } from "@/services/api";
 import type { PropertyType } from "@/types/location";
 import type { Organization, OrgStatus } from "@/types/organization";
+import { useOrganizationScopeVersion } from "@/hooks/useOrganizationScopeVersion";
 
 export const Route = createFileRoute("/master/customers")({
   // `open` carries an organization id in from MasterSearch (the header's
@@ -79,7 +82,10 @@ function CustomersScreen() {
   // doc comment) -- undefined for the plain "Add Customer" entry point.
   const [wizardOrgId, setWizardOrgId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const scopeVersion = useOrganizationScopeVersion();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [statusConfirm, setStatusConfirm] = useState<Enriched | null>(null);
   const [rows, setRows] = useState<Enriched[]>([]);
   // "View as this customer" (impersonation) confirm dialog -- kept
   // separate from `selected`/the drawer's own open state so closing the
@@ -91,6 +97,7 @@ function CustomersScreen() {
 
   async function refetch() {
     setLoading(true);
+    setLoadError(null);
     try {
       // getOverview(), not getSnapshot(). The only thing this page reads from
       // billing is each customer's PLAN NAME, and getSnapshot() fetches every
@@ -124,16 +131,20 @@ function CustomersScreen() {
           businessType: businessTypeByOrg.get(o.id) ?? null,
         })),
       );
-    } catch {
-      toast.error("Could not load customers from the server.");
+    } catch (err) {
+      const message = requestErrorMessage(err, "Could not load customers from the server.");
+      toast.error(message);
+      setLoadError(message);
+      setRows([]);
     } finally {
       setLoading(false);
     }
   }
 
+  // Reload when the header organization picker changes scope.
   useEffect(() => {
     refetch();
-  }, []);
+  }, [scopeVersion]);
 
   // Auto-open the drawer for a search result once the real customer list
   // has loaded, then drop `open` from the URL so it doesn't re-trigger on
@@ -159,6 +170,7 @@ function CustomersScreen() {
   );
 
   async function handleToggleStatus(c: Enriched) {
+    // Only reached from the confirmation dialog below.
     const next: OrgStatus = c.status === "suspended" ? "active" : "suspended";
     setBusyId(c.id);
     try {
@@ -300,7 +312,9 @@ function CustomersScreen() {
             </>
           }
         >
+          {!loading && loadError && <MLoadErrorRow message={loadError} onRetry={refetch} />}
           {!loading &&
+            !loadError &&
             filtered.map((c) => {
               const TypeIcon = businessTypeIcon(c.businessType);
               return (
@@ -331,7 +345,7 @@ function CustomersScreen() {
                 </MTr>
               );
             })}
-          {!loading && filtered.length === 0 && (
+          {!loading && !loadError && filtered.length === 0 && (
             <MTr>
               <MTd className="py-10 text-center text-muted-foreground">
                 <span className="block">No customers match your filter.</span>
@@ -366,17 +380,17 @@ function CustomersScreen() {
                   <CreditCard /> Edit Plan
                 </MButton>
                 <MButton
-                  variant="primary"
+                  variant="outline"
                   disabled={busyId === selected.id}
-                  onClick={() => handleToggleStatus(selected)}
+                  onClick={() => setStatusConfirm(selected)}
                 >
                   {selected.status === "suspended" ? <CheckCircle /> : <Ban />}
                   {selected.status === "suspended" ? "Reactivate" : "Suspend"}
                 </MButton>
                 {/* Gated on the same `impersonate` capability key every
                     other capability-gated master-console action uses (see
-                    MasterShell's CAP_PERMISSIONS / useOperatorCaps) -- today
-                    that's `users.manage`, per that map's own doc comment.
+                    MasterShell's CAP_PERMISSIONS / useOperatorCaps) -- that's
+                    `users.impersonate`, the key the endpoint requires.
                     A 403 from POST /users/{id}/impersonate is still the
                     real backstop; this only decides whether the button is
                     worth showing. */}
@@ -435,6 +449,59 @@ function CustomersScreen() {
             </div>
           )}
         </MDrawer>
+
+        {/* Suspend / Reactivate confirmation. The copy states what the
+            backend actually does (organization/service.py _set_status,
+            location/service.py _assert_organization_active, analytics
+            list_active_organization_ids): suspension is an account flag,
+            not a service cut-off. */}
+        <MDialog
+          open={!!statusConfirm}
+          onClose={() => setStatusConfirm(null)}
+          title={
+            statusConfirm?.status === "suspended"
+              ? `Reactivate ${statusConfirm?.name ?? ""}?`
+              : `Suspend ${statusConfirm?.name ?? ""}?`
+          }
+          footer={
+            <>
+              <MButton variant="outline" onClick={() => setStatusConfirm(null)}>
+                Cancel
+              </MButton>
+              <MButton
+                variant="primary"
+                data-testid="confirm-status-change"
+                disabled={!!statusConfirm && busyId === statusConfirm.id}
+                onClick={() => {
+                  const target = statusConfirm;
+                  setStatusConfirm(null);
+                  if (target) void handleToggleStatus(target);
+                }}
+              >
+                {statusConfirm?.status === "suspended" ? "Reactivate" : "Suspend"}
+              </MButton>
+            </>
+          }
+        >
+          {statusConfirm?.status === "suspended" ? (
+            <p className="text-sm text-muted-foreground">
+              The organization goes back to active: it can add new locations again and is included
+              in the daily analytics roll-up. Nothing else changes. Guest WiFi was never stopped.
+            </p>
+          ) : (
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>Suspension marks the account as suspended. Today that means:</p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>It cannot add new locations (existing ones can still be edited).</li>
+                <li>It is left out of the daily analytics roll-up.</li>
+              </ul>
+              <p className="font-medium text-foreground">
+                It does not stop guest WiFi, router access, logins to the dashboard or billing.
+              </p>
+              <p>The change is recorded in the audit log and can be reversed.</p>
+            </div>
+          )}
+        </MDialog>
 
         {/* Smart provisioning: creates the organization (or reuses one), its first
             location, first router, plan assignment, and a real owner account with

@@ -27,7 +27,13 @@ const money = new Intl.NumberFormat(undefined, {
 });
 
 export function OrganizationAnalyticsPanel({ data, isLoading, isError, onRetry }: Props) {
-  const sorted = data ? [...data].sort((a, b) => b.revenue - a.revenue) : [];
+  // Revenue is not tracked per organization on real data (null), so fall
+  // back to active users for the ranking rather than sorting on a fake 0.
+  const sorted = data
+    ? [...data].sort(
+        (a, b) => (b.revenue ?? -1) - (a.revenue ?? -1) || b.activeUsers - a.activeUsers,
+      )
+    : [];
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -68,13 +74,31 @@ export function OrganizationAnalyticsPanel({ data, isLoading, isError, onRetry }
                     <TableCell className="text-right tabular-nums">{row.activeRouters}</TableCell>
                     <TableCell className="text-right tabular-nums">{row.activeLocations}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {money.format(row.revenue)}
+                      {row.revenue == null ? (
+                        <span
+                          className="text-muted-foreground"
+                          title="Not tracked per organization"
+                        >
+                          —
+                        </span>
+                      ) : (
+                        money.format(row.revenue)
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Badge variant={row.monthlyGrowth >= 10 ? "default" : "secondary"}>
-                        {row.monthlyGrowth >= 0 ? "+" : ""}
-                        {row.monthlyGrowth.toFixed(1)}%
-                      </Badge>
+                      {row.monthlyGrowth == null ? (
+                        <span
+                          className="text-muted-foreground"
+                          title="Not tracked per organization"
+                        >
+                          —
+                        </span>
+                      ) : (
+                        <Badge variant={row.monthlyGrowth >= 10 ? "default" : "secondary"}>
+                          {row.monthlyGrowth >= 0 ? "+" : ""}
+                          {row.monthlyGrowth.toFixed(1)}%
+                        </Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

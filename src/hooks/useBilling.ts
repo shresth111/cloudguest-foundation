@@ -6,6 +6,7 @@ import type {
   PaymentGateway,
   Plan,
   ScheduledBillingReport,
+  SendableReminderKind,
   TaxRate,
 } from "@/types/billing";
 
@@ -240,10 +241,12 @@ export function useMyBillingDashboard(
   });
 }
 
-// No reminder-dispatch endpoint exists in backend/app/domains/billing --
-// billingService.sendReminder is intentionally still mocked (see its own
-// comment); this hook just routes RemindersPanel's "Send" button through
-// that one existing mock instead of a bare, unbacked toast.
+// Real POST /billing/reminders/send. Resolves with the actual delivery
+// outcome (`emailSent` false when nothing went out); RemindersPanel must
+// only report success when `emailSent` is true.
 export function useSendReminder() {
-  return useMutation({ mutationFn: (id: string) => billingService.sendReminder(id) });
+  return useMutation({
+    mutationFn: (input: { organizationId: string; kind: SendableReminderKind }) =>
+      billingService.sendReminder(input),
+  });
 }

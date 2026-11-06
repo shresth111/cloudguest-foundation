@@ -562,3 +562,26 @@ export function MTr({
     </tr>
   );
 }
+
+/** A failed list load, inside an `MTable`. Before this, a failure toasted and
+ * then rendered the table's own "No … yet" row, so an outage read as an
+ * empty directory. Spans every column (same `colSpan={999}` the skeleton
+ * rows use) and offers a retry. */
+export function MLoadErrorRow({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <tr data-testid="m-load-error-row">
+      <td colSpan={999} className="px-4 py-10 text-center">
+        <span role="alert" className="block text-sm text-destructive">
+          {message}
+        </span>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-3 inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-accent"
+        >
+          Retry
+        </button>
+      </td>
+    </tr>
+  );
+}

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { RefreshCw } from "lucide-react";
-import { MasterShell } from "@/components/master/MasterShell";
+import { Globe2, RefreshCw } from "lucide-react";
+import { MasterShell, useOperatorCaps } from "@/components/master/MasterShell";
 import { MPageShell, MSectionHeader, MButton, MSeg } from "@/components/master/MasterKit";
 import { BillingKpiGrid } from "@/components/billing/BillingKpiGrid";
 import { SubscriptionTable } from "@/components/billing/SubscriptionTable";
@@ -43,11 +43,11 @@ import { useBillingSnapshot } from "@/hooks/useBilling";
  *     on real data -- `paymentSuccessRate: []` in getSnapshot() -- no
  *     backend field feeds it (see billing.service.ts's own comment above
  *     the aggregate `return`). The other 5 charts on that panel are real.
- *   - RemindersPanel's "Send" button calls billingService.sendReminder(),
- *     which is intentionally mocked -- no reminder-dispatch endpoint
- *     exists in backend/app/domains/billing (already documented on that
- *     hook). The reminders themselves (expiring plans, failed payments,
- *     outstanding invoices) are real, computed from the real
+ *   - RemindersPanel's "Send" button calls the real POST
+ *     /billing/reminders/send (GLOBAL billing.manage, so it is shown only
+ *     with the `billing.remind` cap) and reports the real delivery outcome.
+ *     The reminders themselves (expiring plans, failed payments,
+ *     outstanding invoices) are computed from the real
  *     /billing/dashboard/super-admin composite.
  *
  * The one real cut: the old "Overview" tab. It rendered
@@ -124,6 +124,7 @@ function BillingScreen() {
   const [pricingTab, setPricingTab] = useState<PricingTab>("tax-rates");
   const qc = useQueryClient();
   const snap = useBillingSnapshot();
+  const caps = useOperatorCaps();
   const state = { isLoading: snap.isLoading, isError: snap.isError, onRetry: () => snap.refetch() };
 
   const refresh = () => {
@@ -148,6 +149,12 @@ function BillingScreen() {
             revision of this file. All 9 tiles are real (getSnapshot()'s
             kpis) and were never exclusive to the now-removed Overview
             tab; see this file's module comment for the full audit. */}
+        {/* The KPI tiles come from /billing/dashboard/super-admin, which
+            never reads the organization header: they are always the whole
+            estate, whatever the header picker says. Say so. */}
+        <p className="-mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Globe2 className="h-3.5 w-3.5" /> KPIs: all organizations
+        </p>
         <BillingKpiGrid data={snap.data?.kpis} {...state} />
 
         {/* Same MasterKit vocabulary (MSeg for the group, a secondary
@@ -195,7 +202,11 @@ function BillingScreen() {
               />
             )}
             {revenueTab === "reminders" && (
-              <RemindersPanel data={snap.data?.reminders} {...state} />
+              <RemindersPanel
+                data={snap.data?.reminders}
+                {...state}
+                canSend={caps.has("billing.remind")}
+              />
             )}
           </div>
         )}

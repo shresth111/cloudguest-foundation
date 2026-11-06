@@ -877,7 +877,7 @@ function IntegrationDrawer({
    * provisioning -- was unavailable.
    *
    * Guarded by typing the name, the same bar `/master/locations` uses for
-   * deleting a venue and for the same reason: this strands a venue's guest
+   * deleting a venue (LocationDeleteDialog) and for the same reason: this strands a venue's guest
    * sign-in entirely, the rows read near-identically, and the failure mode is
    * acting on the wrong one rather than not meaning to act at all.
    */

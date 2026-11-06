@@ -26,6 +26,7 @@ import {
   MButton,
   MField,
   M_INPUT,
+  MLoadErrorRow,
 } from "@/components/master/MasterKit";
 import { organizationService } from "@/services/organization.service";
 import { ticketService } from "@/services/ticket.service";
@@ -37,6 +38,8 @@ import {
   type TicketReply,
   type TicketStatus,
 } from "@/types/support-ticket";
+import { useOrganizationScopeVersion } from "@/hooks/useOrganizationScopeVersion";
+import { requestErrorMessage } from "@/services/api";
 
 export const Route = createFileRoute("/master/tickets")({
   component: TicketsScreen,
@@ -47,6 +50,8 @@ type Filter = "all" | TicketStatus;
 function TicketsScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const scopeVersion = useOrganizationScopeVersion();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [orgNames, setOrgNames] = useState<Map<string, string>>(new Map());
   const [selected, setSelected] = useState<SupportTicket | null>(null);
@@ -62,6 +67,7 @@ function TicketsScreen() {
 
   async function refetch() {
     setLoading(true);
+    setLoadError(null);
     try {
       const [rows, orgs] = await Promise.all([
         ticketService.listAllOrgs(),
@@ -69,16 +75,20 @@ function TicketsScreen() {
       ]);
       setTickets(rows);
       setOrgNames(new Map(orgs.map((o) => [o.id, o.name])));
-    } catch {
-      toast.error("Could not load support tickets from the server.");
+    } catch (err) {
+      const message = requestErrorMessage(err, "Could not load support tickets from the server.");
+      toast.error(message);
+      setLoadError(message);
+      setTickets([]);
     } finally {
       setLoading(false);
     }
   }
 
+  // Reload when the header organization picker changes scope.
   useEffect(() => {
     refetch();
-  }, []);
+  }, [scopeVersion]);
 
   const rows = useMemo(
     () => tickets.filter((t) => (filter === "all" ? true : t.status === filter)),
@@ -261,7 +271,9 @@ function TicketsScreen() {
             </>
           }
         >
+          {!loading && loadError && <MLoadErrorRow message={loadError} onRetry={refetch} />}
           {!loading &&
+            !loadError &&
             rows.map((t) => (
               <MTr key={t.id} onClick={() => setSelected(t)}>
                 <MTd>
@@ -297,7 +309,7 @@ function TicketsScreen() {
                 </MTd>
               </MTr>
             ))}
-          {!loading && rows.length === 0 && (
+          {!loading && !loadError && rows.length === 0 && (
             <MTr>
               <MTd className="py-10 text-center text-muted-foreground">
                 <span className="block">No tickets match this filter.</span>

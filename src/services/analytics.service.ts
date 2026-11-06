@@ -165,9 +165,10 @@ async function fetchOrganizationRows(
         activeUsers: row.guest_count_unique,
         activeRouters: row.router_count,
         activeLocations: row.location_count,
-        // Unavailable, exactly as on the per-row path below.
-        revenue: 0,
-        monthlyGrowth: 0,
+        // Not tracked, exactly as on the per-row path below: null renders
+        // as "—", not as a real ₹0 / 0%.
+        revenue: null,
+        monthlyGrowth: null,
       }));
     } catch (err) {
       if ((err as { status?: number | null } | null)?.status !== 404) throw err;
@@ -198,8 +199,9 @@ async function fetchOrganizationRowsPerOrganization(
         // Unavailable: no billing/subscription data at org level (see
         // backend dashboard_schemas.RevenueMetricsResponse) and
         // customer_growth is platform-wide only, not per-organization.
-        revenue: 0,
-        monthlyGrowth: 0,
+        // null renders as "—", not as a real ₹0 / 0%.
+        revenue: null,
+        monthlyGrowth: null,
       };
     }),
   );
@@ -216,7 +218,7 @@ const DEMO_PLATFORM_KPIS: AnalyticsKpis = {
   totalGuests: 2180,
   activeGuests: 2,
   totalSessions: 2,
-  avgSessionDuration: 0,
+  avgSessionDuration: null,
   dailyLogins: 24,
   monthlyLogins: 430,
   revenue: 129940,
@@ -242,9 +244,9 @@ async function fetchPlatformSummary(): Promise<{ kpis: AnalyticsKpis; routers: R
     // "active guests" -- there is no platform-wide unique-guest gauge.
     activeGuests: platform.active_sessions,
     totalSessions: platform.total_sessions,
-    // Unavailable platform-wide (OrganizationDashboardResponse has it
-    // per-org, no platform aggregate exists).
-    avgSessionDuration: 0,
+    // Not tracked platform-wide (OrganizationDashboardResponse has it
+    // per-org, no platform aggregate exists). null renders as "—".
+    avgSessionDuration: null,
     dailyLogins: platform.todays_guests,
     monthlyLogins: platform.monthly_guests,
     revenue: unified.total_revenue ?? 0,

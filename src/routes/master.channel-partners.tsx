@@ -27,6 +27,7 @@ import {
   MButton,
   MField,
   M_INPUT,
+  MLoadErrorRow,
 } from "@/components/master/MasterKit";
 import {
   AlertDialog,
@@ -40,13 +41,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import type { AppError } from "@/services/api";
+import { requestErrorMessage, type AppError } from "@/services/api";
 import { channelPartnerService } from "@/services/channel-partner.service";
 import {
   CHANNEL_PARTNER_STATUS_LABEL,
   type ChannelPartner,
   type ChannelPartnerStatus,
 } from "@/types/channel-partner";
+import { useOrganizationScopeVersion } from "@/hooks/useOrganizationScopeVersion";
 
 export const Route = createFileRoute("/master/channel-partners")({
   component: ChannelPartnersScreen,
@@ -130,6 +132,8 @@ function ChannelPartnersScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const scopeVersion = useOrganizationScopeVersion();
   const [partners, setPartners] = useState<ChannelPartner[]>([]);
   const [selected, setSelected] = useState<ChannelPartner | null>(null);
 
@@ -143,19 +147,24 @@ function ChannelPartnersScreen() {
 
   async function refetch() {
     setLoading(true);
+    setLoadError(null);
     try {
       const rows = await channelPartnerService.list();
       setPartners(rows);
-    } catch {
-      toast.error("Could not load channel partners from the server.");
+    } catch (err) {
+      const message = requestErrorMessage(err, "Could not load channel partners from the server.");
+      toast.error(message);
+      setLoadError(message);
+      setPartners([]);
     } finally {
       setLoading(false);
     }
   }
 
+  // Reload when the header organization picker changes scope.
   useEffect(() => {
     refetch();
-  }, []);
+  }, [scopeVersion]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -367,7 +376,9 @@ function ChannelPartnersScreen() {
             </>
           }
         >
+          {!loading && loadError && <MLoadErrorRow message={loadError} onRetry={refetch} />}
           {!loading &&
+            !loadError &&
             rows.map((p) => (
               <MTr key={p.id} onClick={() => setSelected(p)}>
                 <MTd>
@@ -393,7 +404,7 @@ function ChannelPartnersScreen() {
                 </MTd>
               </MTr>
             ))}
-          {!loading && rows.length === 0 && (
+          {!loading && !loadError && rows.length === 0 && (
             <MTr>
               <MTd className="py-10 text-center text-muted-foreground">
                 <span className="block">No channel partners match this filter.</span>

@@ -17,6 +17,7 @@ import {
   MButton,
   MField,
   M_INPUT,
+  MLoadErrorRow,
 } from "@/components/master/MasterKit";
 import { demoRequestService } from "@/services/demo-request.service";
 import {
@@ -24,6 +25,8 @@ import {
   type DemoRequest,
   type DemoRequestStatus,
 } from "@/types/demo-request";
+import { useOrganizationScopeVersion } from "@/hooks/useOrganizationScopeVersion";
+import { requestErrorMessage } from "@/services/api";
 
 export const Route = createFileRoute("/master/demo-requests")({
   component: DemoRequestsScreen,
@@ -42,6 +45,8 @@ function DemoRequestsScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const scopeVersion = useOrganizationScopeVersion();
   const [requests, setRequests] = useState<DemoRequest[]>([]);
   const [selected, setSelected] = useState<DemoRequest | null>(null);
   const [saving, setSaving] = useState(false);
@@ -49,19 +54,24 @@ function DemoRequestsScreen() {
 
   async function refetch() {
     setLoading(true);
+    setLoadError(null);
     try {
       const rows = await demoRequestService.list();
       setRequests(rows);
-    } catch {
-      toast.error("Could not load demo requests from the server.");
+    } catch (err) {
+      const message = requestErrorMessage(err, "Could not load demo requests from the server.");
+      toast.error(message);
+      setLoadError(message);
+      setRequests([]);
     } finally {
       setLoading(false);
     }
   }
 
+  // Reload when the header organization picker changes scope.
   useEffect(() => {
     refetch();
-  }, []);
+  }, [scopeVersion]);
 
   useEffect(() => {
     if (selected) setNotes(selected.internalNotes ?? "");
@@ -164,7 +174,9 @@ function DemoRequestsScreen() {
             </>
           }
         >
+          {!loading && loadError && <MLoadErrorRow message={loadError} onRetry={refetch} />}
           {!loading &&
+            !loadError &&
             rows.map((r) => (
               <MTr key={r.id} onClick={() => setSelected(r)}>
                 <MTd>
@@ -183,7 +195,7 @@ function DemoRequestsScreen() {
                 </MTd>
               </MTr>
             ))}
-          {!loading && rows.length === 0 && (
+          {!loading && !loadError && rows.length === 0 && (
             <MTr>
               <MTd className="py-10 text-center text-muted-foreground">
                 <span className="block">No demo requests match this filter.</span>

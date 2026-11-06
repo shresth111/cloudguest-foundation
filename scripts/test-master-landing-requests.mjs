@@ -168,8 +168,8 @@ const expectedRow = (o) => ({
   activeUsers: o.guests,
   activeRouters: o.routers,
   activeLocations: o.locations,
-  revenue: 0,
-  monthlyGrowth: 0,
+  revenue: null, // not tracked per organization (M5): "—", never a fake 0
+  monthlyGrowth: null,
 });
 
 // ---------------------------------------------------------------------------

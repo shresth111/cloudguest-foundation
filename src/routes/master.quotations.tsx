@@ -28,6 +28,7 @@ import {
   MButton,
   MField,
   M_INPUT,
+  MLoadErrorRow,
 } from "@/components/master/MasterKit";
 import {
   AlertDialog,
@@ -40,7 +41,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthContext";
-import type { AppError } from "@/services/api";
+import { requestErrorMessage, type AppError } from "@/services/api";
 import { quotationService } from "@/services/quotation.service";
 import {
   QUOTATION_STATUS_LABEL,
@@ -48,6 +49,7 @@ import {
   type QuotationLineItemInput,
   type QuotationStatus,
 } from "@/types/quotation";
+import { useOrganizationScopeVersion } from "@/hooks/useOrganizationScopeVersion";
 
 export const Route = createFileRoute("/master/quotations")({
   component: QuotationsScreen,
@@ -142,6 +144,8 @@ function QuotationsScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const scopeVersion = useOrganizationScopeVersion();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [selected, setSelected] = useState<Quotation | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -163,19 +167,24 @@ function QuotationsScreen() {
 
   async function refetch() {
     setLoading(true);
+    setLoadError(null);
     try {
       const rows = await quotationService.list();
       setQuotations(rows);
-    } catch {
-      toast.error("Could not load quotations from the server.");
+    } catch (err) {
+      const message = requestErrorMessage(err, "Could not load quotations from the server.");
+      toast.error(message);
+      setLoadError(message);
+      setQuotations([]);
     } finally {
       setLoading(false);
     }
   }
 
+  // Reload when the header organization picker changes scope.
   useEffect(() => {
     refetch();
-  }, []);
+  }, [scopeVersion]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -373,7 +382,9 @@ function QuotationsScreen() {
             </>
           }
         >
+          {!loading && loadError && <MLoadErrorRow message={loadError} onRetry={refetch} />}
           {!loading &&
+            !loadError &&
             rows.map((q) => (
               <MTr key={q.id} onClick={() => setSelected(q)}>
                 <MTd className="font-mono text-sm font-bold text-primary">{q.quotationNumber}</MTd>
@@ -393,7 +404,7 @@ function QuotationsScreen() {
                 </MTd>
               </MTr>
             ))}
-          {!loading && rows.length === 0 && (
+          {!loading && !loadError && rows.length === 0 && (
             <MTr>
               <MTd className="py-10 text-center text-muted-foreground">
                 <span className="block">No quotations match this filter.</span>

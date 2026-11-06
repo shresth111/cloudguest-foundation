@@ -86,8 +86,8 @@ function downloadBlobUrl(url: string, filename: string) {
  * permanent header, not a tab -- they were never exclusive to "Overview",
  * the KPI grid rendered above the tab strip even in the old 12-tab layout),
  * Organizations (real per-org fan-out against `/dashboard/organization`;
- * revenue/growth columns are still hardcoded 0 -- no org-level billing
- * aggregate exists yet -- flagged as a known gap, not cut, since active
+ * revenue/growth are not tracked per organization and render "—" (null),
+ * never a fake ₹0 / 0% -- kept, not cut, since active
  * users/routers/locations per org are real and genuinely useful), Reports
  * (6 of 9 report types are real; the other 3 fail honestly with a toast,
  * never a fake success) and Scheduled (fully real CRUD against

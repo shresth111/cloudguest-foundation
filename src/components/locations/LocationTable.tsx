@@ -211,9 +211,15 @@ export function LocationTable() {
         description: "This archives the selected locations.",
         destructive: true,
         onConfirm: async () => {
-          await remove.mutateAsync(ids);
-          toast.success("Locations archived");
-          setSelected(new Set());
+          // ConfirmDialog neither awaits nor catches this, so a refusal (409:
+          // a router is still attached) must be shown here or it is silent.
+          try {
+            await remove.mutateAsync(ids);
+            toast.success("Locations archived");
+            setSelected(new Set());
+          } catch (err) {
+            toast.error((err as unknown as AppError).message || "Could not archive the locations");
+          }
         },
       });
       return;
@@ -561,8 +567,15 @@ export function LocationTable() {
                                 description: "This archives the location.",
                                 destructive: true,
                                 onConfirm: async () => {
-                                  await remove.mutateAsync([r.id]);
-                                  toast.success("Archived");
+                                  try {
+                                    await remove.mutateAsync([r.id]);
+                                    toast.success("Archived");
+                                  } catch (err) {
+                                    toast.error(
+                                      (err as unknown as AppError).message ||
+                                        "Could not archive the location",
+                                    );
+                                  }
                                 },
                               });
                             }

@@ -16,7 +16,9 @@ export interface AnalyticsKpis {
   totalGuests: number;
   activeGuests: number;
   totalSessions: number;
-  avgSessionDuration: number; // minutes
+  /** Minutes. `null` = not tracked platform-wide (no backend aggregate);
+   * render "—", never 0. */
+  avgSessionDuration: number | null;
   dailyLogins: number;
   monthlyLogins: number;
   revenue: number;
@@ -91,8 +93,9 @@ export interface OrganizationAnalyticsRow {
   activeUsers: number;
   activeRouters: number;
   activeLocations: number;
-  revenue: number;
-  monthlyGrowth: number;
+  /** `null` = not tracked per organization (no backend field); render "—". */
+  revenue: number | null;
+  monthlyGrowth: number | null;
 }
 
 export interface DeviceAnalytics {
