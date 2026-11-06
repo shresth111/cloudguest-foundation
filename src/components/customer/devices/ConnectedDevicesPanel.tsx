@@ -68,6 +68,8 @@ export function ConnectedDevicesPanel({
     return real.length ? real : demo ? DEMO_DEVICES : [];
   }, [data, demo]);
   const rows = useMemo(() => toConnectedRows(raw, masked), [raw, masked]);
+  // The server's own count. `rows` is at most the newest few hundred.
+  const total = Math.max(data?.devicesTotal ?? 0, rows.length);
   const shown = useMemo(() => queryConnectedRows(rows, query, sort), [rows, query, sort]);
   const onSort = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: 1 }));
@@ -78,9 +80,15 @@ export function ConnectedDevicesPanel({
       title={<PanelTitle icon={<Wifi />}>{t("connected.title", "Connected Devices")}</PanelTitle>}
       description={
         rows.length
-          ? t("connected.meta", "{{count}} guest devices seen on this network", {
-              count: rows.length,
-            })
+          ? total > rows.length
+            ? t(
+                "connected.metaPartial",
+                "Newest {{shown}} of {{count}} guest devices seen on this network",
+                { shown: rows.length, count: total },
+              )
+            : t("connected.meta", "{{count}} guest devices seen on this network", {
+                count: total,
+              })
           : undefined
       }
       actions={
@@ -137,7 +145,6 @@ export function ConnectedDevicesPanel({
           <table className="w-full border-collapse text-[13px]">
             <caption className="sr-only">
               {t("connected.caption", "Guest devices seen on this network")}
-              {masked ? ` ${t("connected.maskedNote", "(MAC addresses are masked)")}` : ""}
             </caption>
             <thead className="bg-[var(--wy-surface-2)]">
               <tr className="border-b border-[var(--wy-border)]">

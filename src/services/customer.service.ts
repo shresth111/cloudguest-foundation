@@ -541,6 +541,8 @@ export interface CustomerFeatureData {
   vouchers?: { code: string; plan: string; status: string; used: number }[];
   portal?: { status: string; theme: string; authMethods: string[]; languages: string[] };
   devices?: { mac: string; ip: string; device: string; firstSeen: string; lastSeen: string }[];
+  /** The server's total for `devices`, which may hold only the newest rows. */
+  devicesTotal?: number;
   macAuth?: {
     id: string;
     mac: string;
@@ -1275,7 +1277,12 @@ export const customerService = {
       // WiFi OK right now").
       api.get<{
         items: { severity: string; message: string; triggered_at: string; status: string }[];
-      }>("/alerts", { params: { page_size: 10, organization_id: orgId }, ...locationHeaders }),
+      }>("/alerts", {
+        // `location_id`: this venue's alerts only. Without it the card listed
+        // every venue's alerts while Needs Attention beside it filtered.
+        params: { page_size: 10, organization_id: orgId, location_id: locationId },
+        ...locationHeaders,
+      }),
       // Bulk guest-identity lookup, same "one fetch per page load, matched
       // client-side by guest_id" shape as getUsers()' own connected-device
       // fetch below -- best-effort, so recentUsers just falls back to "Guest"
@@ -2054,151 +2061,49 @@ export const customerService = {
     if (isDemo()) return getDemoFeatureData(feature, locationId);
 
     switch (feature) {
-      case "analytics": {
-        // `start_date`/`end_date` are REQUIRED query params on both of
-        // these endpoints -- omitting them is a 422, not a default
-        // "all time" window, so this pair used to fail every time and
-        // report zeros (or, before the fallback above was removed, the
-        // fixture's invented 1892 sessions / 847 guests). Same 30-day
-        // window guest.service.ts's own `analyticsWindow()` uses.
-        const endDate = new Date();
-        const startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-        const window = {
-          params: { start_date: startDate.toISOString(), end_date: endDate.toISOString() },
-        };
-        const [summary, guests] = await Promise.allSettled([
-          api
-            .get<{
-              visitors: number;
-              unique_guests: number;
-              returning_guests: number;
-              average_session_duration_seconds: number | null;
-            }>("/guest-analytics/summary", window)
-            .catch(() => null),
-          api
-            .get<{ items: Array<Record<string, unknown>> }>("/guest-analytics/top-devices", window)
-            .catch(() => null),
-        ]);
-        const s = summary.status === "fulfilled" && summary.value?.data ? summary.value.data : null;
-        return {
-          analytics: {
-            totalSessions: s?.visitors ?? 0,
-            uniqueGuests: s?.unique_guests ?? 0,
-            returningRate: s?.returning_guests ?? 0,
-            avgDuration: (s?.average_session_duration_seconds ?? 0) / 60,
-          },
-        };
-      }
-      case "campaigns": {
-        const { data } = await api
-          .get<{
-            items: { id: string; name: string; status: string }[];
-          }>("/campaigns", { params: { page_size: 20 } })
-          .catch(() => ({ data: { items: [] } }));
-        return {
-          campaigns: (data?.items ?? []).map((c) => ({
-            id: c.id,
-            name: c.name,
-            status: c.status,
-            impressions: 0,
-            conversions: 0,
-          })),
-        };
-      }
-      case "vouchers": {
-        const { data } = await api
-          .get<{
-            items: { code?: string; plan?: string; status: string; used_count?: number }[];
-          }>("/voucher-batches", { params: { page_size: 20 } })
-          .catch(() => ({ data: { items: [] } }));
-        return {
-          vouchers:
-            data?.items?.map((v) => ({
-              code: v.code ?? "",
-              plan: v.plan ?? "",
-              status: v.status,
-              used: v.used_count ?? 0,
-            })) ?? [],
-        };
-      }
-      case "portal": {
-        // Was the worst offender in this file: it fetched `/captive-portal`
-        // -- a path that does not exist (404; the real collection is
-        // `/captive-portal-configs`, see portal.service.ts) -- then threw
-        // the response away and returned a hardcoded "Live" /
-        // "Enterprise Blue" / Email OTP + SMS + Voucher / EN + HI + AR
-        // card. Not a fallback: that ran on the success path too, so it
-        // was fabricated for every real customer unconditionally, and
-        // described a portal configuration nobody had. Wyfy Demo's real
-        // config, for instance, is theme "default" with email OTP and
-        // username/password only, English only.
-        const { data } = await api.get<{
-          items: {
-            is_active: boolean;
-            theme: string | null;
-            supported_languages: string[] | null;
-            default_language: string | null;
-            otp_email_enabled: boolean;
-            otp_sms_enabled: boolean;
-            otp_whatsapp_enabled: boolean;
-            voucher_enabled: boolean;
-            username_password_enabled: boolean;
-            pin_login_enabled: boolean;
-            social_login_enabled: boolean;
-          }[];
-        }>("/captive-portal-configs", {
-          params: { page: 1, page_size: 100, ...(locationId ? { location_id: locationId } : {}) },
-        });
-        // The portal actually serving this location is the active one;
-        // fall back to the first config only so a location whose portal is
-        // switched off still describes the portal it has.
-        const configs = data?.items ?? [];
-        const config = configs.find((c) => c.is_active) ?? configs[0] ?? null;
-        if (!config) return { portal: undefined };
-        const authMethods = [
-          config.otp_email_enabled && "Email OTP",
-          config.otp_sms_enabled && "SMS OTP",
-          config.otp_whatsapp_enabled && "WhatsApp OTP",
-          config.voucher_enabled && "Voucher",
-          config.username_password_enabled && "Username & password",
-          config.pin_login_enabled && "PIN",
-          config.social_login_enabled && "Social login",
-        ].filter((m): m is string => typeof m === "string");
-        const languages = (
-          config.supported_languages?.length
-            ? config.supported_languages
-            : [config.default_language ?? "en"]
-        ).map((l) => l.toUpperCase());
-        return {
-          portal: {
-            status: config.is_active ? "Live" : "Inactive",
-            theme: config.theme ?? "default",
-            authMethods,
-            languages,
-          },
-        };
-      }
+      // "analytics", "campaigns", "vouchers" and "portal" used to live here
+      // too. Nothing requested them (the only consumers ask for "devices",
+      // "mac-auth" and "admin-logs"), and two mapped the wrong fields, so
+      // they were removed rather than left for someone to re-wire.
       case "devices": {
         // Same fix -- /connected-devices requires connected_devices.read
         // at ORGANIZATION scope via X-Organization-Id.
+        //
+        // Paged, and errors propagate. This read 10 rows and caught every
+        // failure into an empty list, so the panel said "10 guest devices
+        // seen" at a busy venue and "No connected devices yet" when the read
+        // failed. It now reads up to DEVICE_PAGES x 100 newest rows and
+        // reports the server's own total, so the panel can say when it is
+        // showing only part of the list.
         const orgId = await resolveOrgId();
-        const { data } = await api
-          .get<{
-            items: {
-              mac_address: string;
-              ip_address: string;
-              hostname: string | null;
-              vendor: string | null;
-              connected_at: string;
-              last_seen_at: string;
-            }[];
+        type RawDevice = {
+          mac_address: string;
+          ip_address: string;
+          hostname: string | null;
+          vendor: string | null;
+          connected_at: string;
+          last_seen_at: string;
+        };
+        const DEVICE_PAGES = 5;
+        const items: RawDevice[] = [];
+        let total = 0;
+        for (let page = 1; page <= DEVICE_PAGES; page++) {
+          const { data } = await api.get<{
+            items: RawDevice[];
+            total_items?: number;
+            has_next?: boolean;
           }>("/connected-devices", {
-            params: { location_id: locationId, page_size: 10 },
+            params: { location_id: locationId, page, page_size: 100 },
             headers: { "X-Organization-Id": orgId },
-          })
-          .catch(() => ({ data: { items: [] } }));
+          });
+          const pageItems = data?.items ?? [];
+          items.push(...pageItems);
+          total = data?.total_items ?? items.length;
+          if (!(data?.has_next ?? items.length < total) || pageItems.length === 0) break;
+        }
         return {
-          devices: (data?.items ?? []).map((d) => ({
+          devicesTotal: Math.max(total, items.length),
+          devices: items.map((d) => ({
             mac: d.mac_address,
             ip: d.ip_address,
             // Show the MAC address rather than a bare "Unknown" when the
@@ -2582,51 +2487,6 @@ type DashboardDataResult = CustomerDashboardData;
 
 function getDemoFeatureData(feature: string, locationId?: string): CustomerFeatureData {
   switch (feature) {
-    case "analytics": {
-      // Same 30-day window as the real branch, counted off the venue's demo
-      // roster (`@/lib/demo-world`) like every other demo guest number.
-      const venue = demoVenue(locationId) ?? DEMO_VENUES[0];
-      const now = demoNow();
-      const from = now - 30 * 86_400_000;
-      const c = demoGuestCounts(venue.id, from, now, now);
-      const roster = demoRoster(venue.id, now);
-      const [a, b] = demoSessionsIn(roster, from, now);
-      const returning = new Set<number>();
-      for (let i = a; i < b; i++) {
-        if (roster.firstSeen[roster.guest[i]] < from) returning.add(roster.guest[i]);
-      }
-      return {
-        analytics: {
-          totalSessions: c.sessions,
-          uniqueGuests: c.guests,
-          returningRate: c.guests ? Math.round((returning.size / c.guests) * 100) : 0,
-          avgDuration: c.avgSessionMinutes ?? 0,
-        },
-      };
-    }
-    case "campaigns":
-      return {
-        campaigns: [
-          { id: "1", name: "Summer Promo", status: "active", impressions: 2841, conversions: 423 },
-          { id: "2", name: "New Year", status: "draft", impressions: 0, conversions: 0 },
-        ],
-      };
-    case "vouchers":
-      return {
-        vouchers: [
-          { code: "VCH-8821", plan: "1h", status: "active", used: 3 },
-          { code: "VCH-8822", plan: "24h", status: "active", used: 12 },
-        ],
-      };
-    case "portal":
-      return {
-        portal: {
-          status: "Live",
-          theme: "Enterprise Blue",
-          authMethods: ["Email OTP", "SMS", "Voucher"],
-          languages: ["EN", "HI", "AR"],
-        },
-      };
     case "devices":
       return {
         devices: [
