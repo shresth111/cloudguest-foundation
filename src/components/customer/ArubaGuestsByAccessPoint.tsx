@@ -55,7 +55,7 @@ export function ArubaGuestsByAccessPoint({ locationId }: { locationId: string })
         <CardDescription className="text-xs">
           {t(
             "arubaAp.description",
-            "From guest sign-ins at this venue. Devices that are not signed in to the guest WiFi are listed in the Instant On app.",
+            "From guest sign-ins at this venue. Devices that haven't signed in to the guest WiFi aren't shown.",
           )}
         </CardDescription>
       </CardHeader>

@@ -378,8 +378,9 @@ export function venueVerdict(signals: VenueSignals): VenueVerdict {
   // true here and no amount of waiting changes it: nothing on this platform
   // measures a controller, so the absence is permanent and is not a fault.
   // Aruba Instant On (NAS-only): not a controller the owner knows, and there
-  // is no connection of ours to it at all -- the access points are run from
-  // the Instant On app. Same status and tone; PM_SPEC §2.3's words.
+  // is no connection of ours to it at all. Same status and tone; PM_SPEC
+  // §2.3's words, minus any pointer to another vendor's app (owner rule
+  // 2026-11-07).
   if (!measured && brand === ROUTER_VENDOR_LABEL[ARUBA_INSTANT_ON_VENDOR]) {
     return {
       ...base,
@@ -391,7 +392,7 @@ export function venueVerdict(signals: VenueSignals): VenueVerdict {
         CONTROLLER_STATE_COPY.no_controller_api.sentence + guestsClause(signals.guestsOnline),
       action:
         "Guest sign-ins, sessions and the lookup below all still work as normal. For the WiFi " +
-        "itself, use the Instant On app.",
+        "itself, ask your Wyfy Guest contact.",
     };
   }
   if (!measured) {
@@ -628,7 +629,7 @@ export function guestVerdict(signals: GuestSignals): GuestVerdict {
         "Wyfy doesn't measure the line at an Aruba Instant On venue.",
       action:
         "Ask them to turn WiFi off and on, then open a website. If other guests have the same " +
-        "problem, check the access point and the internet line in the Instant On app.",
+        "problem, check the access point's power and ask your provider about the internet line.",
       checked: ["Whether they're blocked here", "Their session", "Their data allowance"],
       notChecked: [
         "Your internet connection — Wyfy doesn't measure the line at an Aruba Instant On venue.",

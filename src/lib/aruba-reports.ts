@@ -73,10 +73,10 @@ export const ARUBA_CONNECTION_RECORDS_NOTE =
   "currently guarantee a specific data-retention period for these records.";
 
 /** Security Score with no Wyfy-managed gateway, at an Aruba Instant On venue
- * (P2-M): nothing to connect -- the access points are managed in their app. */
+ * (P2-M): nothing to connect. Never names another vendor's app. */
 export const ARUBA_SECURITY_EMPTY = {
   title: "Security checks run on Wyfy-managed routers",
   description:
-    "Your Aruba Instant On access points are managed in the Instant On app, so there is " +
+    "This venue has Aruba Instant On access points and no Wyfy-managed router, so there is " +
     "nothing to score here. Guest sign-in rules still apply under Usage Limits.",
 };

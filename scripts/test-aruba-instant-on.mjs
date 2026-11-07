@@ -17,7 +17,7 @@
  *      `unavailable` with the spec's copy (U0/U1/U2/U6/U7; U8 retired), never a
  *      controller sentence that says "we could not reach it".
  *   3. NO "OFFLINE" FOR AN ARUBA ROW (§0.4 item 5). `no_controller_api` is
- *      "Set up in Instant On", tone neutral, never a fault -- with or without
+ *      "Sign-ins only", tone neutral, never a fault -- with or without
  *      the backend's `controller_state`.
  *   4. THE PORTAL NEVER POSTS A GUEST IDENTIFIER TO AN UNTRUSTED HOST (AC1-6).
  *      `switchip` comes off a query string anyone can type.
@@ -89,7 +89,7 @@ const src = (p) => readFileSync(join(ROOT, p), "utf8");
 // wording from every customer screen; the gate stays, the copy is neutral.
 const U0 = "This feature isn't available for this venue yet.";
 const U1 =
-  "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set speed limits in the Instant On app, on the guest network.";
+  "Speed limits aren't supported through sign-in on Aruba Instant On access points. One speed applies to everyone on the guest network.";
 const U2 =
   "Wyfy can't disconnect a device from Aruba Instant On access points. The guest stays online until their session time runs out.";
 const U2_BLOCK =
@@ -283,10 +283,52 @@ eq(
 check(
   "its panel opens with U0 and names the screen",
   (RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? "").startsWith(U0) &&
-    /Internet connection details/.test(
-      RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? "",
-    ),
+    /Internet Connection/.test(RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? ""),
 );
+// P0-3 (2026-11-07): one paragraph, Internet Connection in the list, no
+// controller sentence and no duplicated "all work this way" paragraph.
+{
+  const notice = src("src/components/customer/ControllerManagedFeatureNotice.tsx");
+  const nasBranch = notice.slice(
+    notice.indexOf("if (isNasOnlyVendor(vendor))"),
+    notice.indexOf("return (", notice.indexOf("if (isNasOnlyVendor(vendor))") + 40),
+  );
+  check(
+    "gated notice: Aruba branch renders the one paragraph only",
+    /if \(isNasOnlyVendor\(vendor\)\)/.test(notice) &&
+      !/Wyfy Guest contact manages/.test(nasBranch) &&
+      !/all work this way/.test(nasBranch),
+  );
+  check(
+    "gated notice: Internet Connection is in the Aruba list",
+    /Internet Connection/.test(RV.NAS_ONLY_GATED_SCREENS) &&
+      RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every((id) =>
+        (RV.controllerUnsupportedCopy(id, "Office", ARUBA) ?? "").includes(
+          RV.NAS_ONLY_GATED_SCREENS,
+        ),
+      ),
+  );
+  check(
+    "gated notice: every Aruba panel says the rest works, once",
+    RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every(
+      (id) =>
+        (RV.controllerUnsupportedCopy(id, "Office", ARUBA) ?? "").split("work as usual").length ===
+        2,
+    ),
+  );
+  const sidebar = src("src/components/customer/CustomerSidebar.tsx");
+  check(
+    "sidebar: no U0 footnote at a NAS-only venue",
+    /controllerManaged && !isNasOnlyVendor\(controllerVendor\) && !collapsed && anyUnsupported/.test(
+      sidebar,
+    ),
+  );
+  const how = src("src/components/customer/HowItWorksPage.tsx");
+  check(
+    "How It Works: no U0 group footnote at a NAS-only venue",
+    /controllerManaged &&\s*!nasOnlyVenue &&\s*group\.items\.some/.test(how),
+  );
+}
 const lockSidebarSrc = src("src/components/customer/CustomerSidebar.tsx");
 check(
   // Console sidebar (2026-11-01): one row per screen or section, so the
@@ -307,8 +349,9 @@ eq(
 );
 eq("U6: traffic charts", RV.controllerDeviceMetricsReason(ARUBA), U6);
 check(
-  "device-write reason names the app, not a controller",
-  /Instant On app/.test(RV.controllerRouterDeviceWriteReason(ARUBA)) &&
+  "device-write reason names no other app and no controller",
+  /aren't available for this venue/.test(RV.controllerRouterDeviceWriteReason(ARUBA)) &&
+    !/Instant On app/.test(RV.controllerRouterDeviceWriteReason(ARUBA)) &&
     !/controller/.test(RV.controllerRouterDeviceWriteReason(ARUBA)),
 );
 check(
@@ -457,22 +500,56 @@ for (const a of ["block", "unblock", "speed", "speed-clear"]) {
   );
 }
 
+// Owner rule 2026-11-07: the customer dashboard never sends anyone to another
+// vendor's app. Master-only files (setup panel, site dialogs, location
+// wizard, router setup script, shared-listener panel) are exempt.
+{
+  const MASTER_ONLY = new Set([
+    "src/components/routers/ArubaInstantOnSetupPanel.tsx",
+    "src/components/routers/InstantOnSiteDialogs.tsx",
+    "src/components/routers/RouterSetupScriptAdvanced.tsx",
+    "src/components/locations/PlatformLocationWizard.tsx",
+    "src/lib/aruba-shared-listener.ts",
+    "src/lib/aruba-instant-on-setup.ts",
+    "src/routes/master.routers.tsx",
+  ]);
+  const walk = (dir) =>
+    readdirSync(join(ROOT, dir)).flatMap((name) => {
+      const rel = `${dir}/${name}`;
+      if (statSync(join(ROOT, rel)).isDirectory()) return walk(rel);
+      return /\.(tsx?|json)$/.test(name) ? [rel] : [];
+    });
+  const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const offenders = walk("src")
+    .filter((f) => !MASTER_ONLY.has(f) && !f.includes("/master-i18n/"))
+    .filter((f) =>
+      /Instant On app|Instant On ऐप|Set up in Instant On|instant-on\.hpe\.com|Open Instant On/.test(
+        strip(src(f)),
+      ),
+    );
+  check(
+    "no customer source sends the owner to the Instant On app",
+    offenders.length === 0,
+    offenders.join(", "),
+  );
+}
+
 // ---------------------------------------------------------------------------
 console.log("\n4. Never Offline: the `no_controller_api` state (§0.4 item 5, §2.3)");
 // ---------------------------------------------------------------------------
 const NOW = new Date("2026-10-02T10:00:00Z");
 const copy = RV.CONTROLLER_STATE_COPY.no_controller_api;
-eq("label", copy.label, "Set up in Instant On");
+eq("label", copy.label, "Sign-ins only");
 eq("tone", copy.tone, "neutral");
 eq(
   "sentence",
   copy.sentence,
-  "This venue's access points are managed in Aruba's Instant On app. Wyfy doesn't see their status directly. It sees guests signing in.",
+  "Wyfy sees guests signing in through this venue's access points, not the access points' own status.",
 );
 eq(
   "next step",
   RV.CONTROLLER_STATE_NEXT_STEP.no_controller_api,
-  "Nothing to do here. To change the WiFi name or password, use the Instant On app.",
+  "Nothing to do here. To change the WiFi name or password, ask your Wyfy Guest contact.",
 );
 eq("not a fault", RV.controllerStateIsFault("no_controller_api"), false);
 eq("a recognised controller state", RV.isControllerState("no_controller_api"), true);
@@ -492,8 +569,8 @@ for (const [what, raw] of [
 ]) {
   const r = LL.deriveRouterLiveness(raw, NOW);
   check(
-    `${what}: "Set up in Instant On", not-applicable, never a fail`,
-    r.shortLabel === "Set up in Instant On" && r.state === "not-applicable" && r.status !== "fail",
+    `${what}: "Sign-ins only", not-applicable, never a fail`,
+    r.shortLabel === "Sign-ins only" && r.state === "not-applicable" && r.status !== "fail",
     JSON.stringify({ s: r.shortLabel, st: r.state, status: r.status }),
   );
   check(
@@ -1032,11 +1109,7 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
     [row({ controller_state: "no_controller_api" })],
     NOW,
   );
-  eq(
-    "an Aruba-only venue's badge reads Set up in Instant On",
-    arubaVenue.label,
-    "Set up in Instant On",
-  );
+  eq("an Aruba-only venue's badge reads Sign-ins only", arubaVenue.label, "Sign-ins only");
   eq("its state stays `unknown` (grey), never not-live", arubaVenue.state, "unknown");
   eq("its summary is the §2.3 sentence", arubaVenue.summary, copy.sentence);
   eq("locationIsNasOnly: yes", LL.locationIsNasOnly(arubaVenue), true);
@@ -1144,10 +1217,11 @@ console.log("\n8. Customer venue view: our own records only, never Offline, neve
   }
   if (aV && oV) {
     check(
-      "Fix a Problem at Aruba: access points + Instant On app, no controller",
+      "Fix a Problem at Aruba: access points + Wyfy Guest contact, no app, no controller",
       aV.status === "controller-not-measured" &&
         /Aruba Instant On access points/.test(aV.headline) &&
-        /Instant On app/.test(aV.action ?? "") &&
+        /Wyfy Guest contact/.test(aV.action ?? "") &&
+        !/Instant On app/.test(`${aV.headline} ${aV.meaning} ${aV.action}`) &&
         !/controller/i.test(`${aV.headline} ${aV.meaning} ${aV.action}`),
       JSON.stringify(aV),
     );
@@ -1254,9 +1328,9 @@ console.log("\nRouter Fleet: a NAS-only row is never 'No integration' (prod test
     "Via controller",
   );
   eq(
-    "Aruba badge is 'Set up in Instant On'",
+    "Aruba badge is 'Sign-ins only'",
     FV.notMeasuredBadge("aruba_instant_on").label,
-    "Set up in Instant On",
+    "Sign-ins only",
   );
   eq("Aruba badge is neutral", FV.notMeasuredBadge("aruba_instant_on").tone, "normal");
   eq(

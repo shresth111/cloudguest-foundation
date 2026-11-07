@@ -424,7 +424,7 @@ export function quietSpell(minutes: number): string {
 /**
  * The guest-activity line for an Aruba Instant On venue (PLAN P1-F), or null
  * when there is no usable `last_radius_at` -- the caller then keeps the
- * "Set up in Instant On" copy it always had.
+ * "Sign-ins only" copy it always had.
  */
 export function guestActivityCopy(
   iso: string | null | undefined,

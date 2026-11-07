@@ -51,7 +51,7 @@ export function InstantOnVenueData({ locationId }: { locationId: string }) {
       data-testid="instant-on-venue-data"
     >
       <p className="font-medium text-[var(--wy-text)]">
-        {t("aruba.fromInstantOn", "From the Instant On app")}
+        {t("aruba.fromInstantOn", "Reported by the access points")}
       </p>
       {allUnavailable ? (
         <p className="text-[var(--wy-text-muted)]" data-testid="instant-on-unavailable">
@@ -99,7 +99,7 @@ export function InstantOnActivityPanels({ locationId }: { locationId: string }) 
     <>
       {alerts.status !== "off" && (
         <div data-testid="instant-on-alerts">
-          <Panel title={t("instantOn.alertsTitle", "Alerts from the Instant On app")}>
+          <Panel title={t("instantOn.alertsTitle", "Alerts from the access points")}>
             {alerts.status === "loading" ? (
               <div className="h-10 animate-pulse rounded-[var(--wy-radius)] bg-muted" />
             ) : alerts.status === "unavailable" ? (
@@ -111,7 +111,7 @@ export function InstantOnActivityPanels({ locationId }: { locationId: string }) 
               </p>
             ) : alerts.items.length === 0 ? (
               <p className="text-xs text-[var(--wy-text-muted)]">
-                {t("instantOn.noAlerts", "The Instant On app reports no alerts.")}
+                {t("instantOn.noAlerts", "No alerts reported for the access points.")}
               </p>
             ) : (
               <ul className="divide-y divide-[var(--wy-border)] text-xs">
@@ -141,7 +141,7 @@ export function InstantOnActivityPanels({ locationId }: { locationId: string }) 
       {events.status !== "off" && (
         <div data-testid="instant-on-events">
           <Panel
-            title={t("instantOn.eventsTitle", "Recent events from the Instant On app")}
+            title={t("instantOn.eventsTitle", "Recent events from the access points")}
             description={t(
               "instantOn.eventsCaption",
               "Only the latest events Instant On keeps. This is not a full history.",

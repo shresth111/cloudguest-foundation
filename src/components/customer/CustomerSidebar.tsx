@@ -35,6 +35,7 @@ import { locationControllerVendor, locationIsControllerManaged } from "@/lib/loc
 import {
   controllerVenueFeatureReason,
   featureAppliesToControllerVenue,
+  isNasOnlyVendor,
 } from "@/lib/router-vendors";
 import { useCustomerStore } from "@/stores/customerStore";
 import { DataMaskingOtpDialog } from "@/components/features/HeaderControls";
@@ -571,7 +572,12 @@ function SidebarEntries({
           </SidebarGroupContent>
         </SidebarGroup>
       ))}
-      {controllerManaged && !collapsed && anyUnsupported && (
+      {/* Not at a NAS-only (Aruba Instant On) venue: there the reason is the
+          bare "This feature isn't available for this venue yet.", which under
+          Help read as a stray error on every screen (live walk 2026-11-07).
+          The muted rows keep it as their tooltip. MikroTik never gets here
+          (`controllerManaged` is false); Omada is unchanged. */}
+      {controllerManaged && !isNasOnlyVendor(controllerVendor) && !collapsed && anyUnsupported && (
         <p className="px-4 pb-2 pt-1 text-[11px] leading-snug text-[var(--wy-text-faint)]">
           {controllerReason}
         </p>

@@ -3,6 +3,7 @@ import {
   controllerUnsupportedHeadline,
   controllerUnsupportedCopy,
   controllerVenueFeatureReason,
+  isNasOnlyVendor,
 } from "@/lib/router-vendors";
 
 /**
@@ -56,6 +57,26 @@ export function ControllerManagedFeatureNotice({
   // vendor-neutral sentence otherwise, so a screen this panel is reused for
   // later still says something true rather than nothing.
   const planned = controllerUnsupportedCopy(featureId, venueName, vendor);
+  // Aruba Instant On (NAS-only): headline plus ONE paragraph. That paragraph
+  // already names every gated screen and what still works, so the shared
+  // "all work this way" paragraph would repeat it, and there is no controller
+  // for "Your Wyfy Guest contact manages this venue's controller" to be about.
+  // Omada keeps everything below byte-for-byte.
+  if (isNasOnlyVendor(vendor)) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+          <Server className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <h3 className="text-base font-semibold text-foreground">
+          {controllerUnsupportedHeadline(vendor, featureId)}
+        </h3>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
+          {planned ?? controllerVenueFeatureReason(vendor)}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="rounded-xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">

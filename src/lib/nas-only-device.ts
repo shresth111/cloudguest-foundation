@@ -20,6 +20,6 @@ export function nasOnlyDeviceRefusalMessage(err: unknown): string | null {
   if (!isNasOnlyDeviceRefusal(err)) return null;
   const op = (err as { data?: { operation?: unknown } }).data?.operation;
   return op === "reboot"
-    ? "Aruba Instant On access points are restarted from the Instant On app, not from Wyfy."
-    : "Devices on Aruba Instant On access points are managed in the Instant On app, not from Wyfy.";
+    ? "Wyfy can't restart Aruba Instant On access points."
+    : "Wyfy doesn't manage devices on Aruba Instant On access points.";
 }

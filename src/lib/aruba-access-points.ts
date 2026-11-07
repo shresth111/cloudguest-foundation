@@ -173,8 +173,10 @@ export function apStatusDetail(
   relative: (iso: string) => string,
 ): string {
   if (ap.statusSource === "instant_on") {
-    const from = asOf ? `From the Instant On app, ${relative(asOf)}` : "From the Instant On app";
-    return ap.instantOnStatus === "offline" ? `${from} · the app shows it disconnected` : from;
+    const from = asOf
+      ? `Reported by the access points, ${relative(asOf)}`
+      : "Reported by the access points";
+    return ap.instantOnStatus === "offline" ? `${from} · reported disconnected` : from;
   }
   return ap.lastSeenAt ? `Last guest activity ${relative(ap.lastSeenAt)}` : "No guest activity yet";
 }
@@ -228,4 +230,6 @@ export function sessionApLabel(
 export const ARUBA_AP_UNAVAILABLE = "Access point data is unavailable right now.";
 export const ARUBA_AP_EMPTY =
   "No access points are listed for this venue yet. They appear here once your access points are added to this venue.";
-export const ARUBA_AP_MANAGE_NOTE = "Manage access points in the Instant On app.";
+/** Owner rule 2026-11-07: what Wyfy sees, never "go to another app". */
+export const ARUBA_AP_MANAGE_NOTE =
+  "Wyfy sees guests signing in, not the access points' own status.";

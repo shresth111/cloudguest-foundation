@@ -1555,7 +1555,7 @@ export function CampaignsPage({ locationId, scope }: { locationId?: string; scop
                   >
                     {t(
                       "offersEdit.imageNasOnly",
-                      "Guests aren't online yet when they see this. An image hosted on another site won't load unless that site's domain is allowed on the guest network in the Instant On app.",
+                      "Guests aren't online yet when they see this, so an image hosted on another site may not load for them.",
                     )}
                   </p>
                 )}

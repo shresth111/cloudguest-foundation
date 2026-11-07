@@ -163,10 +163,7 @@ function NasOnlyVenueRedirect({ locationId }: { locationId: string }) {
       <Wifi className="h-4 w-4" />
       <AlertTitle>This venue uses Aruba Instant On</AlertTitle>
       <AlertDescription className="flex items-center justify-between gap-3">
-        <span>
-          Its access points are managed in Aruba&apos;s Instant On app. Open the venue from your
-          dashboard to see its guests.
-        </span>
+        <span>Open the venue from your dashboard to see its guests.</span>
         <Button asChild size="sm" variant="outline">
           <Link to="/switch-location">Choose venue</Link>
         </Button>

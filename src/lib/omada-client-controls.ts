@@ -748,8 +748,8 @@ export function clientControlVerdict(
 /** U1, re-measured 2026-10-03: the AP21 ignores the bandwidth attributes sent
  * at sign-in (512/256 kbps sent, ~200 Mbps measured). */
 export const NAS_ONLY_SPEED =
-  "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set " +
-  "speed limits in the Instant On app, on the guest network.";
+  "Speed limits aren't supported through sign-in on Aruba Instant On access points. One " +
+  "speed applies to everyone on the guest network.";
 /**
  * Speed at an Aruba Instant On venue whose guests reach the internet through
  * a Wyfy-managed MikroTik gateway (the hybrid setup). The limit is a queue per

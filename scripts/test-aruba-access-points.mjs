@@ -169,23 +169,23 @@ eq(
   "Last guest activity 2 minutes ago",
 );
 eq(
-  "Instant On evidence names the app, at the read's as_of",
+  "Instant On evidence names the access points (never the app), at the read's as_of",
   AP.apStatusDetail(
     { statusSource: "instant_on", lastSeenAt: null, instantOnStatus: "online" },
     "t",
     () => "1 minute ago",
   ),
-  "From the Instant On app, 1 minute ago",
+  "Reported by the access points, 1 minute ago",
 );
 check(
-  "an Instant On 'offline' is attributed to the app, never a bare Offline",
+  "an Instant On 'offline' is attributed to the access points, never a bare Offline",
   (() => {
     const d = AP.apStatusDetail(
       { statusSource: "instant_on", lastSeenAt: null, instantOnStatus: "offline" },
       "t",
       () => "1 minute ago",
     );
-    return /Instant On app/.test(d) && !/Offline/.test(d);
+    return /reported disconnected/.test(d) && !/Instant On app/.test(d) && !/Offline/.test(d);
   })(),
 );
 eq("no unattributed note for 0", AP.apUnattributedNote(0), null);
@@ -624,8 +624,9 @@ console.log("\nB2. Aruba dashboard: the access points card");
   );
   check("never Offline", !rows.some((t) => /Offline/.test(t)));
   check(
-    "the manage note names the Instant On app",
-    /Manage access points in the Instant On app/.test(r.html),
+    "the note says what Wyfy sees and names no other app",
+    /Wyfy sees guests signing in, not the access points(&#x27;|’|')? own status/.test(r.html) &&
+      !/Instant On app/.test(r.html),
   );
   await done(r);
 }

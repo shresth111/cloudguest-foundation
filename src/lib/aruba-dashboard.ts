@@ -64,7 +64,7 @@ export function apVerdict(
   if (ap.status === "online") {
     const detail =
       ap.statusSource === "instant_on"
-        ? "online in the Instant On app"
+        ? "reported online by the access points"
         : ap.lastSeenAt
           ? `guest activity ${relative(ap.lastSeenAt)}`
           : "";
@@ -76,9 +76,7 @@ export function apVerdict(
   return verdict(
     false,
     "Idle",
-    ap.instantOnStatus === "offline"
-      ? `${detail} · the Instant On app shows it disconnected`
-      : detail,
+    ap.instantOnStatus === "offline" ? `${detail} · reported disconnected` : detail,
     "signed in",
   );
 }

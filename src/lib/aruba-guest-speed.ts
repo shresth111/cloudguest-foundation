@@ -154,10 +154,11 @@ export function speedOptions(presets: readonly number[], held: number | null): n
     : [...presets, held].sort((a, b) => a - b);
 }
 
-/** The network's limit is "Network" mode in the Instant On app. */
+/** The network's limit is in "Network" mode, set outside Wyfy. Never names
+ * another vendor's app (owner rule 2026-11-07). */
 export const NETWORK_WIDE_LIMIT_SET =
-  "It's set in the Instant On app, so Wyfy can't change it here. To set a speed per device " +
-  "from Wyfy, switch it back to per-client in the app.";
+  "It wasn't set from Wyfy, so Wyfy can't change it here. To set a speed per device from " +
+  "Wyfy, ask your Wyfy Guest contact to switch this network back to a per-device limit.";
 
 /** What the network holds right now, in one line. */
 export function currentSpeedSentence(network: GuestNetworkSpeed): string {
@@ -189,8 +190,7 @@ export const SAME_SETTING_AS_SSID_TIERS =
 /** Cloud control off: what is needed, and who does it. Never a save. */
 export const GUEST_SPEED_NEEDS_CLOUD =
   "Setting the guest WiFi speed from Wyfy needs Instant On cloud control, which isn't switched " +
-  "on for this venue yet. Ask your Wyfy Guest contact to turn it on. Until then, the speed can " +
-  "be set on the guest network in the Instant On app.";
+  "on for this venue yet. Ask your Wyfy Guest contact to turn it on.";
 
 /** The sentence after an apply, from what the server said. `applied` only
  * when Instant On's read-back confirmed it. */

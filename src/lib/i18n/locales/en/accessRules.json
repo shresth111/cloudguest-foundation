@@ -15,7 +15,7 @@
     "errorRange": "Must be between 1 Mbps and 10,000 Mbps.",
     "notSaved": "Limits saved for {{location}}, but the total venue speed was not — it reads back as {{actual}}.",
     "rejected": "Could not save — {{message}}",
-    "unavailableAruba": "Wyfy can't set this at Aruba Instant On venues yet. The Instant On app has a network-wide limit in a guest network's Bandwidth Control. It applies to that one network, not the whole venue, and a network uses either that or the per-device speed, not both."
+    "unavailableAruba": "Wyfy can't set a total for the whole venue at Aruba Instant On venues yet. A network-wide limit applies to one guest network, not the whole venue, and a network uses either that or the per-device speed, not both."
   },
   "guestSpeed": {
     "applyUnreachable": "We couldn't reach Instant On to change the speed, so nothing has changed.",
@@ -38,7 +38,7 @@
     "confirmApply": "Apply",
     "sameForEveryDevice": "One speed for every device on this guest WiFi network. Aruba Instant On can't give one guest a different speed from another, so this applies to everyone on it alike. It's the most a device can use, not a guaranteed speed.",
     "sameSettingAsTiers": "Speed tiers by WiFi network (below) set this same Instant On speed for their networks: whichever is applied last is the one Instant On holds.",
-    "needsCloud": "Setting the guest WiFi speed from Wyfy needs Instant On cloud control, which isn't switched on for this venue yet. Ask your Wyfy Guest contact to turn it on. Until then, the speed can be set on the guest network in the Instant On app."
+    "needsCloud": "Setting the guest WiFi speed from Wyfy needs Instant On cloud control, which isn't switched on for this venue yet. Ask your Wyfy Guest contact to turn it on."
   },
   "limitsTable": {
     "subtitle": "What guests get at each location. A location marked Default has nothing saved yet.",
@@ -79,8 +79,38 @@
     "modeDevice": "Each device",
     "modeNetwork": "Whole WiFi network",
     "restored": "Instant On didn't keep the network total. The previous setting was put back.",
-    "stateUnknown": "Instant On didn't confirm the network total, and we don't know what's set now. Check this network in the Instant On app.",
-    "noAnswer": "We didn't get an answer, so we don't know whether this changed. Check this network in the Instant On app."
+    "stateUnknown": "Instant On didn't confirm the network total, and we don't know what's set now. Reload this page to read it again.",
+    "noAnswer": "We didn't get an answer, so we don't know whether this changed. Reload this page to see what's set now."
   },
-  "subtitleAruba": "Set usage limits for this location."
+  "subtitleAruba": "Set usage limits for this location.",
+  "ssidTiers": {
+    "title": "Speed tiers by WiFi network",
+    "intro": "Run a free and a paid guest network side by side. Guests with a voucher, or on the network's guest list, can join the paid network; everyone else stays on the free one.",
+    "oneSpeed": "Each WiFi network has one speed for all its guests. Aruba Instant On can't give one guest a different speed from another on the same network.",
+    "paidHint": "Guests without a voucher who aren't on this network's guest list are turned away from this network and shown how to get a voucher.",
+    "saved": "Saved. Wyfy now checks who may join each network when a guest signs in. Each network's speed is applied on the access points by your Wyfy Guest contact, not from this screen.",
+    "saveFailed": "Couldn't save.",
+    "loading": "Loading…",
+    "loadFailed": "Couldn't load the WiFi networks for this location.",
+    "empty": "No networks mapped. Every guest on every WiFi network is treated the same.",
+    "ssidLabel": "WiFi network name (SSID)",
+    "ssidAria": "WiFi network name",
+    "tierLabel": "Tier",
+    "tierAria": "Tier name",
+    "tierPlaceholder": "Premium",
+    "downloadLabel": "Download speed per guest (Mbps)",
+    "downloadAria": "Download Mbps",
+    "uploadLabel": "Upload speed per guest (Mbps)",
+    "uploadAria": "Upload Mbps",
+    "noCap": "No cap",
+    "paidOnly": "Paid / voucher guests only",
+    "remove": "Remove",
+    "openToAll": "Open to every guest who signs in.",
+    "rowSpeed": "Speed: {{speed}}, the same for every guest on “{{ssid}}”.",
+    "thisNetwork": "this network",
+    "addNetwork": "Add WiFi network",
+    "save": "Save",
+    "speedsAppliedTitle": "Network speeds",
+    "speedsAppliedBody": "Wyfy saves which guests may join each network. Your Wyfy Guest contact applies each network's speed on the access points, one speed per network, using the names above. A different spelling is a different network."
+  }
 }

@@ -38,6 +38,8 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { useIsDemo } from "@/hooks/useCustomerDashboard";
+import { useCustomerStore } from "@/stores/customerStore";
+import { locationIsNasOnly } from "@/lib/location-liveness";
 import { portalService } from "@/services/portal.service";
 import { resolveOrgId } from "@/services/customer.service";
 import { brandAssetService } from "@/services/brand-asset.service";
@@ -170,6 +172,17 @@ const AUTH_OPTIONS: [PortalLoginMethod, string][] = [
   ["social", "Social Login"],
 ];
 
+/**
+ * The switches this venue is offered. At an Aruba Instant On (NAS-only) venue
+ * "Social Login" is dropped, as the builder palette already does
+ * (PortalBuilder.tsx): it saves a schema-only flag, no OAuth exists, and the
+ * access points' allowed domains have no OAuth host anyway. Every other
+ * vendor keeps all seven until the owner decides (2026-11-03).
+ */
+function authOptionsFor(nasOnly: boolean): [PortalLoginMethod, string][] {
+  return nasOnly ? AUTH_OPTIONS.filter(([k]) => k !== "social") : AUTH_OPTIONS;
+}
+
 /** A bordered sub-section inside a panel (a settings row, a picker group). */
 const INSET = "rounded-[var(--wy-radius)] border border-[var(--wy-border)] p-3";
 /** An upload thumbnail frame. */
@@ -300,6 +313,8 @@ export function PortalPage({ locationId, scope }: { locationId?: string; scope?:
   const wideLayout = useWideLayout();
   const [previewSheetOpen, setPreviewSheetOpen] = useState(false);
   const demo = useIsDemo();
+  const activeLocation = useCustomerStore((s) => s.activeLocation);
+  const authOptions = authOptionsFor(locationIsNasOnly(activeLocation?.liveness));
   const [primary, setPrimary] = useState("#1B57F5");
   // The actual big heading a guest sees on the sign-in screen (e.g.
   // "Welcome to Haldwani") -- backed by `seo.pageTitle` / `splash_headline`.
@@ -2037,7 +2052,7 @@ export function PortalPage({ locationId, scope }: { locationId?: string; scope?:
                 Auth Methods
               </p>
               <div className="flex flex-wrap gap-2">
-                {AUTH_OPTIONS.map(([k, v]) => (
+                {authOptions.map(([k, v]) => (
                   <motion.div
                     key={k}
                     whileTap={{ scale: 0.96 }}

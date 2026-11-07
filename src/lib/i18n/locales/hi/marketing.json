@@ -73,7 +73,7 @@
     "previewEmpty": "अभी कोई banner नहीं है — Edit से जोड़ें, फिर दोबारा preview करें।",
     "saved": "Banner save हो गया",
     "saveFailed": "Banner save नहीं हो सका — connection जाँचकर दोबारा कोशिश करें।",
-    "imageNasOnly": "यह दिखते समय guests अभी online नहीं होते। किसी दूसरी site पर रखी image तब तक load नहीं होगी, जब तक उस site का domain Instant On app में guest network पर allowed न हो।",
+    "imageNasOnly": "यह दिखते समय guests अभी online नहीं होते, इसलिए किसी दूसरी site पर रखी image उनके लिए शायद load न हो।",
     "surveySaved": "Survey save हो गया",
     "surveySaveFailed": "Survey save नहीं हो सका — connection जाँचकर दोबारा कोशिश करें।",
     "saveDetails": "जानकारी save करें"

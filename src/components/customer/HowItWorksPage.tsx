@@ -19,8 +19,10 @@ import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { useCustomerStore } from "@/stores/customerStore";
 import { locationControllerVendor, locationIsControllerManaged } from "@/lib/location-liveness";
 import {
+  controllerUnsupportedHeadline,
   controllerVenueFeatureReason,
   featureAppliesToControllerVenue,
+  isNasOnlyVendor,
 } from "@/lib/router-vendors";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +118,10 @@ export function HowItWorksView({ scope }: { scope?: PageScope } = {}) {
   const controllerManaged = locationIsControllerManaged(activeLocation?.liveness);
   const controllerVendor = locationControllerVendor(activeLocation?.liveness);
   const controllerReason = controllerVenueFeatureReason(controllerVendor);
+  // Aruba Instant On: the reason is one bare sentence, so it goes on each
+  // gated row (as the row's own status line) rather than as a group footnote
+  // that read as an orphan after Call Priority and Trusted Devices.
+  const nasOnlyVenue = controllerManaged && isNasOnlyVendor(controllerVendor);
 
   // Same two-stage narrowing as the sidebar (CustomerSidebar.tsx) -- role
   // preference first, then the caller's real effective grants. Both only
@@ -225,6 +231,11 @@ export function HowItWorksView({ scope }: { scope?: PageScope } = {}) {
                                 {description}
                               </span>
                             )}
+                            {viaController && nasOnlyVenue && (
+                              <span className="mt-0.5 block text-xs text-[var(--wy-text-faint)]">
+                                {controllerUnsupportedHeadline(controllerVendor, item.id)}
+                              </span>
+                            )}
                           </span>
                           <ChevronRight
                             aria-hidden
@@ -243,6 +254,7 @@ export function HowItWorksView({ scope }: { scope?: PageScope } = {}) {
                     not, and this page is where a reader goes precisely BECAUSE
                     they did not understand the sidebar. */}
                 {controllerManaged &&
+                  !nasOnlyVenue &&
                   group.items.some(
                     (item) => !featureAppliesToControllerVenue(item.id, controllerVendor),
                   ) && (

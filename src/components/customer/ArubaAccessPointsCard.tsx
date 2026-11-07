@@ -7,8 +7,9 @@
  * Data: `GET /locations/{id}/access-points` (P0-A2) -- per AP, guests on it
  * now and guest data today from this platform's own sign-in records, plus the
  * Instant On read where the venue has it. No fixture rows, no zeros standing
- * in for a failed read (see `lib/aruba-access-points.ts`). Customer copy names
- * the Instant On app only -- never RADIUS, NAS or a tunnel.
+ * in for a failed read (see `lib/aruba-access-points.ts`). Customer copy never
+ * sends the owner to another vendor's app (owner rule 2026-11-07) and never
+ * says RADIUS, NAS or a tunnel.
  */
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
@@ -134,7 +135,7 @@ function StatTile({ icon, value, label }: { icon: ReactNode; value: string; labe
 }
 
 /**
- * The ONE "managed in the Instant On app" note on the dashboard, collapsed:
+ * The ONE "what Wyfy sees" note on the dashboard, collapsed:
  * the summary line is the whole message, the two lists are there for whoever
  * asks "so what can I change here?". It replaces the venue card and the
  * liveness explainer, which said the same sentence twice above it.
@@ -172,7 +173,7 @@ function InstantOnManagedNote() {
         </div>
         <div>
           <p className="mb-1 font-medium text-foreground">
-            {t("aruba.inInstantOnApp", "In the Instant On app")}
+            {t("aruba.inInstantOnApp", "Not set from Wyfy")}
           </p>
           <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
             {ARUBA_VENUE_IN_INSTANT_ON.map((x, i) => (

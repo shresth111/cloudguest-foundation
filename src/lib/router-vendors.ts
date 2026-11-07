@@ -507,11 +507,12 @@ export const CONTROLLER_STATE_COPY: Record<ControllerState, ControllerStateCopy>
   // NAS-only vendors (Aruba Instant On). Not a fault and not "not registered":
   // there is no controller connection to register. PM_SPEC §2.3.
   no_controller_api: {
-    label: "Set up in Instant On",
+    // Owner rule 2026-11-07: say what Wyfy sees, never name another app.
+    label: "Sign-ins only",
     tone: "neutral",
     sentence:
-      "This venue's access points are managed in Aruba's Instant On app. Wyfy doesn't see " +
-      "their status directly. It sees guests signing in.",
+      "Wyfy sees guests signing in through this venue's access points, not the access " +
+      "points' own status.",
   },
   not_registered: {
     label: "Not connected",
@@ -570,7 +571,7 @@ export const CONTROLLER_STATE_COPY: Record<ControllerState, ControllerStateCopy>
  */
 export const CONTROLLER_STATE_NEXT_STEP: Record<ControllerState, string> = {
   no_controller_api:
-    "Nothing to do here. To change the WiFi name or password, use the Instant On app.",
+    "Nothing to do here. To change the WiFi name or password, ask your Wyfy Guest contact.",
   not_registered: "Add this controller's connection details to the venue's network integration.",
   disabled: "Switch the integration back on when the venue should be signing guests in again.",
   credentials_rejected:
@@ -699,6 +700,12 @@ export const NAS_ONLY_DATA_USAGE_UNREPORTED = "Data usage isn't reported for thi
  * `NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`). */
 export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {};
 
+/** Every screen gated at a NAS-only venue, in the sidebar's words: the
+ * controller list plus Internet Connection (`NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`). */
+export const NAS_ONLY_GATED_SCREENS =
+  "Network Zones, IP Addresses, Port Forwarding, Call Priority, Internet Connection, " +
+  "website blocking, firewall rules and web filtering";
+
 export function controllerUnsupportedCopy(
   featureId: string,
   venueName: string | null | undefined,
@@ -711,11 +718,16 @@ export function controllerUnsupportedCopy(
   if (!entry) return null;
   const who = venueName?.trim() || "This venue";
   if (isNasOnlyVendor(vendor)) {
-    // PM_SPEC U0 (= U9) verbatim first, then what it means for this screen.
+    // PM_SPEC U0 (= U9) verbatim first, then the other screens this covers and
+    // what still works -- ONE paragraph. `ControllerManagedFeatureNotice`
+    // renders nothing else at a NAS-only venue: the second "all work this way"
+    // paragraph and the "manages this venue's controller" line said the same
+    // thing again and named a controller this venue does not have (live walk
+    // 2026-11-07).
+    const at = who === "This venue" ? "this venue" : who;
     return (
-      `${controllerVenueFeatureReason(vendor)} ${entry.noun} for ${who === "This venue" ? "this venue" : who} ` +
-      `${entry.verb} part of that. Guest sign-in, sessions, vouchers, the portal and reports ` +
-      "for this venue all work here as usual."
+      `${controllerVenueFeatureReason(vendor)} The same goes for ${NAS_ONLY_GATED_SCREENS} at ` +
+      `${at}. Guests, sessions, vouchers, the sign-in portal and reports all work as usual.`
     );
   }
   return (
@@ -789,9 +801,9 @@ export function excludedControllerRoutersNote(
   if (controllerManaged.every((r) => isNasOnlyVendor(r.vendor))) {
     return n === 1
       ? "One device at this venue is an Aruba Instant On access point and isn't listed here — " +
-          "it's set up in the Instant On app."
+          "Wyfy doesn't configure it."
       : `${n} devices at this venue are Aruba Instant On access points and aren't listed here — ` +
-          "they're set up in the Instant On app.";
+          "Wyfy doesn't configure them.";
   }
   if (n === 1) {
     return (
@@ -820,7 +832,7 @@ export function controllerRouterDeviceWriteReason(vendor: string | null | undefi
     return (
       `This venue uses ${controllerNounPhrase(vendor)} rather than a WyfyGuest-managed router, so ` +
       "we do not reach the device itself from here. Health checks, failover and traffic routing " +
-      "are set up in the Instant On app."
+      "aren't available for this venue."
     );
   }
   const who = vendor ? `a ${routerVendorLabel(vendor)} controller` : "a network controller";

@@ -4,15 +4,12 @@
  * each access point), then the guest lookup, then what to try for each complaint.
  * Idle is not "down": an access point with no guests sends nothing.
  */
-import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Panel, StatusBadge } from "@/components/customer/console";
 import { useArubaAccessPoints } from "@/hooks/useArubaAccessPoints";
 import i18n from "@/lib/i18n";
 import { relativeTime } from "@/lib/friendly";
 import { arubaVenueStatus } from "@/lib/aruba-dashboard";
-
-const INSTANT_ON_PORTAL = "https://portal.instant-on.hpe.com/";
 
 function Fact({ label, value, testId }: { label: string; value: string; testId: string }) {
   return (
@@ -66,7 +63,7 @@ export function ArubaVenueStatusCard({
         <p className="text-xs text-[var(--wy-text-muted)]">
           {t(
             "aruba.statusNote",
-            "This comes from guests signing in, not from the access point itself. Idle can just mean nobody is connected. To see whether an access point is powered on, open the Instant On app.",
+            "This comes from guests signing in, not from the access point itself. Idle can just mean nobody is connected. Wyfy can't see whether an access point is powered on.",
           )}
         </p>
       </Panel>
@@ -88,20 +85,9 @@ export function ArubaWifiHelp() {
   const { t } = useTranslation("fixProblem", { i18n });
   return (
     <div data-testid="aruba-fix-help">
-      <Panel
-        title={t("aruba.helpTitle", "What's the guest seeing?")}
-        actions={
-          <a
-            href={INSTANT_ON_PORTAL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-[var(--wy-accent)] hover:underline"
-          >
-            {t("aruba.openApp", "Open Instant On")}
-            <ExternalLink aria-hidden className="h-3 w-3" />
-          </a>
-        }
-      >
+      {/* No outbound link: the dashboard never sends an owner to another
+          vendor's app (owner rule 2026-11-07). */}
+      <Panel title={t("aruba.helpTitle", "What's the guest seeing?")}>
         <div className="divide-y divide-[var(--wy-border)]">
           {HELP.map((item) => (
             <details key={item.id} className="group py-2.5">

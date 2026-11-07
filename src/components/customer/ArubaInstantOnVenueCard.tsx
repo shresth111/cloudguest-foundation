@@ -10,7 +10,8 @@
  * neutral), never calls the Instant On cloud, and never prints a stand-in
  * zero: when the sessions read failed, the numbers read "—".
  *
- * Customer copy only names the Instant On app -- never RADIUS, NAS, the hub,
+ * Customer copy never names another vendor's app (owner rule 2026-11-07) and
+ * never says RADIUS, NAS, the hub,
  * a public IP or a secret (`cloudguest_wireguard_customer_scope`).
  *
  * Data source: `useCustomerDashboard` (`GET /guest-sessions` for the last 24
@@ -53,7 +54,7 @@ export function ArubaInstantOnVenueCard({ locationId }: { locationId: string }) 
         className="h-full"
         title={t("aruba.venueTitle", "Aruba Instant On access points")}
         actions={
-          // Neutral grey on purpose: "set up in Instant On" is not a fault
+          // Neutral grey on purpose: "Sign-ins only" is not a fault
           // and not a health claim (PM_SPEC §2.3).
           <span title={copy.sentence}>
             <StatusBadge status="offline">{copy.label}</StatusBadge>
@@ -92,7 +93,7 @@ export function ArubaInstantOnVenueCard({ locationId }: { locationId: string }) 
           </div>
           <div>
             <p className="mb-1 font-medium text-[var(--wy-text)]">
-              {t("aruba.managedInApp", "Managed in the Instant On app")}
+              {t("aruba.managedInApp", "Not set from Wyfy")}
             </p>
             <ul className="list-disc space-y-0.5 pl-4 text-[var(--wy-text-muted)]">
               {ARUBA_VENUE_IN_INSTANT_ON.map((x, i) => (

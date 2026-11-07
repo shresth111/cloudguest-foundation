@@ -523,12 +523,14 @@ console.log("\n4. 409 NAS_ONLY_DEVICE (BE #360)");
     data: { code: "NAS_ONLY_DEVICE", operation: op },
   });
   check(
-    "connected_devices refusal -> Instant On sentence",
-    /Instant On app/.test(m.nasOnlyDeviceRefusalMessage(refusal("connected_devices")) ?? ""),
+    "connected_devices refusal -> neutral sentence, no other app",
+    /Wyfy doesn't manage devices on Aruba Instant On access points/.test(
+      m.nasOnlyDeviceRefusalMessage(refusal("connected_devices")) ?? "",
+    ),
   );
   check(
-    "reboot refusal -> restarted from the Instant On app",
-    /restarted from the Instant On app/.test(
+    "reboot refusal -> Wyfy can't restart it, no other app",
+    /Wyfy can't restart Aruba Instant On access points/.test(
       m.nasOnlyDeviceRefusalMessage(refusal("reboot")) ?? "",
     ),
   );

@@ -54,6 +54,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useCustomerLocations, useIsDemo, useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { useNetLogsList, useNetLogsSummary } from "@/hooks/useNetLogs";
 import { navItemAllowed } from "@/lib/customerNavPermissions";
+import { locationIsNasOnly } from "@/lib/location-liveness";
+import { useCustomerStore } from "@/stores/customerStore";
 import { IPDR_EXPORT, IPDR_READ, hasIpdrPermission } from "@/lib/ipdr";
 import { DEMO_NETLOGS_LOCATIONS, demoNetLogsRoutersFor } from "@/lib/netlogs-demo";
 import { resolveMarketingScope } from "@/lib/marketing-scope";
@@ -129,6 +131,13 @@ export function NetLogsView({
   scope?: PageScope;
 }) {
   const navigate = useNavigate();
+  const { t } = useTranslation("nav", { i18n });
+  // Aruba Instant On (NAS-only): sign-in decisions and login-page failures
+  // are written server-side, so they appear; the access points send no device
+  // log lines. Said once, so an empty router section is not read as a fault.
+  // Every other vendor: nothing rendered, unchanged.
+  const activeLocation = useCustomerStore((s) => s.activeLocation);
+  const nasOnlyVenue = locationIsNasOnly(activeLocation?.liveness);
   const rawSearch = useSearch({ strict: false }) as Record<string, unknown>;
   const searchKey = JSON.stringify(rawSearch ?? {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,6 +299,15 @@ export function NetLogsView({
           locationHeader={locationHeader}
           exportDisabled={featureOff || !!error}
         />
+
+        {nasOnlyVenue && (
+          <p className="text-xs text-[var(--wy-text-muted)]" data-testid="netlogs-aruba-note">
+            {t(
+              "netlogs.arubaNote",
+              "At this venue you'll see guest sign-ins accepted or refused and login page errors. Its Aruba Instant On access points don't send their own device log lines, so there are no router events here.",
+            )}
+          </p>
+        )}
 
         {win.clamped && (
           <p className="text-xs text-[var(--wy-text-muted)]">

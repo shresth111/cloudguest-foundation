@@ -142,7 +142,7 @@ export const NAS_ONLY_LIMITS_FOOTER_CLOUD =
  * per SSID, so a venue with two guest networks has no single total, and Wyfy
  * sends no write for that mode (its body is unverified). */
 export const NAS_ONLY_VENUE_SPEED =
-  "Wyfy can't set this at Aruba Instant On venues yet. The Instant On app has a network-wide limit in a guest network's Bandwidth Control. It applies to that one network, not the whole venue, and a network uses either that or the per-device speed, not both.";
+  "Wyfy can't set a total for the whole venue at Aruba Instant On venues yet. A network-wide limit applies to one guest network, not the whole venue, and a network uses either that or the per-device speed, not both.";
 
 const AVAILABLE = (control: NasOnlyLimitId): NasOnlyLimitVerdict => ({
   control,

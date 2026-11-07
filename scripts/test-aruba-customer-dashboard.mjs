@@ -392,7 +392,7 @@ console.log("\n0. One verdict per AP and per venue (pure, lib/aruba-dashboard)")
   eq(
     "Instant On online -> active, says where from",
     D.apVerdict(ap({ status: "online", statusSource: "instant_on" }), rel).sentence,
-    "Active · online in the Instant On app",
+    "Active · reported online by the access points",
   );
   check(
     "no verdict ever says Offline",

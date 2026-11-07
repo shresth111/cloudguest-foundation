@@ -1,16 +1,20 @@
 /**
  * Access Rules -> "Speed tiers by WiFi network", shown only at an Aruba
  * Instant On (NAS-only) venue. Lists the venue's guest WiFi networks, the tier
- * each stands for, its speed, and who may join it; saves the mapping; and says
- * exactly what to set in Instant On by hand. In the Master console (a global
- * session) it also previews / pushes the speeds through Instant On cloud
- * control, which is OFF unless ops switched it on for the venue.
+ * each stands for, its speed, and who may join it, and saves the mapping. The
+ * customer is told their Wyfy Guest contact applies the speeds -- never "go
+ * and type them into another app" (owner rule 2026-11-07). In the Master
+ * console (a global session) it also lists the backend's manual steps and
+ * previews / pushes the speeds through Instant On cloud control, which is OFF
+ * unless ops switched it on for the venue.
  *
  * Copy is held to what is true: one speed per network for every guest on it
  * (`ONE_SPEED_PER_NETWORK`), never a per-guest speed.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { Gauge, Loader2, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -37,6 +41,7 @@ function mbps(value: string): number | null {
 }
 
 export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
+  const { t } = useTranslation("accessRules", { i18n });
   const qc = useQueryClient();
   const isPlatform = crossOrganizationHeaders() !== undefined;
   const queryKey = ["ssid-tiers", locationId];
@@ -63,11 +68,14 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
       qc.setQueryData(queryKey, view);
       setDirty(false);
       setMessage(
-        "Saved. Wyfy now checks who may join each network when a guest signs in. " +
-          "Set each network's speed in Instant On (below) — Wyfy doesn't change it there for you.",
+        t(
+          "ssidTiers.saved",
+          "Saved. Wyfy now checks who may join each network when a guest signs in. Each network's speed is applied on the access points by your Wyfy Guest contact, not from this screen.",
+        ),
       );
     },
-    onError: (e: unknown) => setMessage(e instanceof Error ? e.message : "Couldn't save."),
+    onError: (e: unknown) =>
+      setMessage(e instanceof Error ? e.message : t("ssidTiers.saveFailed", "Couldn't save.")),
   });
 
   const push = useMutation({
@@ -90,18 +98,22 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
             <Gauge className="h-4 w-4 text-[#4f46e5]" />
           </div>
           <div>
-            <h2 className="text-base font-semibold">{SSID_TIERS_TITLE}</h2>
-            <p className="text-sm text-muted-foreground">{SSID_TIERS_INTRO}</p>
+            <h2 className="text-base font-semibold">{t("ssidTiers.title", SSID_TIERS_TITLE)}</h2>
+            <p className="text-sm text-muted-foreground">
+              {t("ssidTiers.intro", SSID_TIERS_INTRO)}
+            </p>
             <p className="mt-1 text-sm font-medium" data-testid="ssid-tiers-one-speed">
-              {ONE_SPEED_PER_NETWORK}
+              {t("ssidTiers.oneSpeed", ONE_SPEED_PER_NETWORK)}
             </p>
           </div>
         </div>
 
-        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">{t("ssidTiers.loading", "Loading…")}</p>
+        )}
         {isError && (
           <p className="text-sm text-destructive">
-            Couldn't load the WiFi networks for this location.
+            {t("ssidTiers.loadFailed", "Couldn't load the WiFi networks for this location.")}
           </p>
         )}
 
@@ -109,53 +121,62 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
           <div className="space-y-3">
             {draft.length === 0 && (
               <p className="text-sm text-muted-foreground" data-testid="ssid-tiers-empty">
-                No networks mapped. Every guest on every WiFi network is treated the same.
+                {t(
+                  "ssidTiers.empty",
+                  "No networks mapped. Every guest on every WiFi network is treated the same.",
+                )}
               </p>
             )}
             {draft.map((row, i) => (
               <div key={i} className="space-y-3 rounded-lg border p-3" data-testid="ssid-tier-row">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium">WiFi network name (SSID)</span>
+                    <span className="font-medium">
+                      {t("ssidTiers.ssidLabel", "WiFi network name (SSID)")}
+                    </span>
                     <input
                       className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                       value={row.ssid}
                       maxLength={32}
                       placeholder="WYFY_PREMIUM"
-                      aria-label="WiFi network name"
+                      aria-label={t("ssidTiers.ssidAria", "WiFi network name")}
                       onChange={(e) => update(i, { ssid: e.target.value })}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium">Tier</span>
+                    <span className="font-medium">{t("ssidTiers.tierLabel", "Tier")}</span>
                     <input
                       className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                       value={row.tierName}
                       maxLength={100}
-                      placeholder="Premium"
-                      aria-label="Tier name"
+                      placeholder={t("ssidTiers.tierPlaceholder", "Premium")}
+                      aria-label={t("ssidTiers.tierAria", "Tier name")}
                       onChange={(e) => update(i, { tierName: e.target.value })}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium">Download speed per guest (Mbps)</span>
+                    <span className="font-medium">
+                      {t("ssidTiers.downloadLabel", "Download speed per guest (Mbps)")}
+                    </span>
                     <input
                       className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                       inputMode="numeric"
                       value={Number.isFinite(row.downloadMbps) ? (row.downloadMbps as number) : ""}
-                      placeholder="No cap"
-                      aria-label="Download Mbps"
+                      placeholder={t("ssidTiers.noCap", "No cap")}
+                      aria-label={t("ssidTiers.downloadAria", "Download Mbps")}
                       onChange={(e) => update(i, { downloadMbps: mbps(e.target.value) })}
                     />
                   </label>
                   <label className="space-y-1 text-sm">
-                    <span className="font-medium">Upload speed per guest (Mbps)</span>
+                    <span className="font-medium">
+                      {t("ssidTiers.uploadLabel", "Upload speed per guest (Mbps)")}
+                    </span>
                     <input
                       className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                       inputMode="numeric"
                       value={Number.isFinite(row.uploadMbps) ? (row.uploadMbps as number) : ""}
-                      placeholder="No cap"
-                      aria-label="Upload Mbps"
+                      placeholder={t("ssidTiers.noCap", "No cap")}
+                      aria-label={t("ssidTiers.uploadAria", "Upload Mbps")}
                       onChange={(e) => update(i, { uploadMbps: mbps(e.target.value) })}
                     />
                   </label>
@@ -167,9 +188,9 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
                       onCheckedChange={(v) =>
                         update(i, v ? { paidOnly: true } : { paidOnly: false, policyId: null })
                       }
-                      aria-label="Paid / voucher guests only"
+                      aria-label={t("ssidTiers.paidOnly", "Paid / voucher guests only")}
                     />
-                    Paid / voucher guests only
+                    {t("ssidTiers.paidOnly", "Paid / voucher guests only")}
                   </label>
                   <button
                     type="button"
@@ -179,16 +200,24 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
                       setDirty(true);
                     }}
                   >
-                    <Trash2 className="h-4 w-4" /> Remove
+                    <Trash2 className="h-4 w-4" /> {t("ssidTiers.remove", "Remove")}
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {row.paidOnly ? PAID_ROW_HINT : "Open to every guest who signs in."} Speed:{" "}
-                  {formatTierSpeed(
-                    Number.isFinite(row.downloadMbps) ? row.downloadMbps : null,
-                    Number.isFinite(row.uploadMbps) ? row.uploadMbps : null,
+                  {row.paidOnly
+                    ? t("ssidTiers.paidHint", PAID_ROW_HINT)
+                    : t("ssidTiers.openToAll", "Open to every guest who signs in.")}{" "}
+                  {t(
+                    "ssidTiers.rowSpeed",
+                    "Speed: {{speed}}, the same for every guest on “{{ssid}}”.",
+                    {
+                      speed: formatTierSpeed(
+                        Number.isFinite(row.downloadMbps) ? row.downloadMbps : null,
+                        Number.isFinite(row.uploadMbps) ? row.uploadMbps : null,
+                      ),
+                      ssid: row.ssid || t("ssidTiers.thisNetwork", "this network"),
+                    },
                   )}
-                  , the same for every guest on “{row.ssid || "this network"}”.
                 </p>
                 {/* Only once saved and unedited: the list hangs off the saved row. */}
                 {row.paidOnly && !dirty && data?.items.some((x) => x.ssid === row.ssid) && (
@@ -207,7 +236,7 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
                   setDirty(true);
                 }}
               >
-                <Plus className="h-4 w-4" /> Add WiFi network
+                <Plus className="h-4 w-4" /> {t("ssidTiers.addNetwork", "Add WiFi network")}
               </button>
               <button
                 type="button"
@@ -215,7 +244,8 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
                 className="inline-flex items-center gap-1 rounded-md bg-[#4f46e5] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
                 onClick={() => save.mutate()}
               >
-                {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save
+                {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{" "}
+                {t("ssidTiers.save", "Save")}
               </button>
               {dirty && problem && (
                 <span className="text-sm text-destructive" data-testid="ssid-tiers-problem">
@@ -229,12 +259,29 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
               </p>
             )}
 
-            {data && data.manualSteps.length > 0 && (
-              <div className="rounded-lg bg-muted/50 p-3" data-testid="ssid-tiers-manual">
-                <p className="text-sm font-medium">Set these speeds in the Instant On app</p>
+            {/* The customer is never told to type speeds into another app
+                (owner rule 2026-11-07): their Wyfy Guest contact applies
+                them. The backend's manual steps are for Master only. */}
+            {!isPlatform && data && data.items.length > 0 && (
+              <div className="rounded-lg bg-muted/50 p-3" data-testid="ssid-tiers-speeds-note">
+                <p className="text-sm font-medium">
+                  {t("ssidTiers.speedsAppliedTitle", "Network speeds")}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  The speed lives in Instant On, one per network. Use the same names as above — a
-                  different spelling is a different network.
+                  {t(
+                    "ssidTiers.speedsAppliedBody",
+                    "Wyfy saves which guests may join each network. Your Wyfy Guest contact applies each network's speed on the access points, one speed per network, using the names above. A different spelling is a different network.",
+                  )}
+                </p>
+              </div>
+            )}
+
+            {isPlatform && data && data.manualSteps.length > 0 && (
+              <div className="rounded-lg bg-muted/50 p-3" data-testid="ssid-tiers-manual">
+                <p className="text-sm font-medium">Manual speed steps (Master)</p>
+                <p className="text-xs text-muted-foreground">
+                  The speed is held on the access points, one per network. Use the same names as
+                  above — a different spelling is a different network.
                 </p>
                 <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
                   {data.manualSteps.map((step) => (
