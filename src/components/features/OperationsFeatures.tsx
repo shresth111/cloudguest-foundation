@@ -6,7 +6,7 @@
  * pick up the Aurora Teal identity automatically. Mock data only -- these
  * are the seam a per-location backend call replaces.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
@@ -69,6 +69,9 @@ import {
   openHoursOrDefault,
   openHoursEveryDay,
   validateOpenHoursSchedule,
+  canonicalTimezone,
+  sameTimezone,
+  suggestedOpenHoursTimezone,
   type OpenHoursDraft,
 } from "@/lib/open-hours-draft";
 import { DhcpManagement } from "@/components/network/DhcpManagement";
@@ -196,9 +199,19 @@ export function OpenHoursView({
   // The venue's vendor straight off the persisted summary -- no request (the
   // capabilities read in `useClientControls` is for controller venues and has
   // nothing to say about Open Hours).
-  const openHoursVendor = locationControllerVendor(
-    useCustomerStore((s) => s.activeLocation)?.liveness,
+  const openHoursLocation = useCustomerStore((s) => s.activeLocation);
+  const openHoursVendor = locationControllerVendor(openHoursLocation?.liveness);
+  // The zone to OFFER (the venue's location timezone, else the browser's),
+  // never applied without Save -- see suggestedOpenHoursTimezone. Read via
+  // a ref inside the load effect so a summary that arrives after the fetch
+  // started still seeds a brand-new config.
+  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const suggestedTimezone = suggestedOpenHoursTimezone(
+    openHoursLocation?.timezone,
+    browserTimezone,
   );
+  const suggestedTimezoneRef = useRef(suggestedTimezone);
+  suggestedTimezoneRef.current = suggestedTimezone;
   // `demo` itself (a plain isDemo() read, not the SSR-safe useIsDemo()
   // hook) is fine to use in effects/handlers below -- those only ever run
   // client-side. What isn't safe is seeding useState's *initial* value
@@ -215,8 +228,8 @@ export function OpenHoursView({
   const demo = isDemo();
   const [configId, setConfigId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
-  const [timezone, setTimezone] = useState(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  const [timezone, setTimezone] = useState(() =>
+    canonicalTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"),
   );
   const [schedule, setSchedule] = useState<BusinessHoursSchedule>({});
   const [closedMessage, setClosedMessage] = useState(
@@ -277,7 +290,7 @@ export function OpenHoursView({
           // operator expects, so editing the day grid below actually bites.
           // See openHoursOrDefault's own note.
           enabled: defaulted ? true : cfg.enabled,
-          timezone: cfg.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+          timezone: cfg.timezone || suggestedTimezoneRef.current || "UTC",
           schedule: loadedSchedule,
           closedMessage: cfg.closedMessage ?? closedMessage,
         });
@@ -298,7 +311,9 @@ export function OpenHoursView({
           // openHoursOrDefault's own note.
           const idle = normalizeOpenHoursDraft({
             enabled: true,
-            timezone,
+            // A new config starts in the venue's own zone when its location
+            // has one, else the owner's browser zone -- never UTC by default.
+            timezone: suggestedTimezoneRef.current || timezone,
             schedule: openHoursEveryDay(),
             closedMessage,
           });
@@ -402,8 +417,18 @@ export function OpenHoursView({
   // admin is editing from -- the exact setup under which "I set 9am-9pm and
   // guests still got in at 11pm" used to happen (the browser zone was saved
   // over the venue zone on every save).
-  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const timezoneMismatch = !demo && timezone !== browserTimezone;
+  // Compared as zones, not strings: "Asia/Calcutta" (what the browser says)
+  // IS "Asia/Kolkata" (what the list offers).
+  const timezoneMismatch = !demo && !sameTimezone(timezone, browserTimezone);
+  // One click to the offered zone; it only edits the draft, Save applies it.
+  const offerTimezone =
+    !demo &&
+    !loading &&
+    loadError === null &&
+    suggestedTimezone !== null &&
+    !sameTimezone(timezone, suggestedTimezone)
+      ? suggestedTimezone
+      : null;
 
   // A venue whose stored zone is outside BUSINESS_HOURS_TIMEZONES must
   // still render (and stay selectable after a save round-trip) -- an
@@ -513,7 +538,7 @@ export function OpenHoursView({
             "This schedule is enforced in {{venueZone}} — not your browser's {{browserZone}}. Times below are the venue's local time.",
             {
               venueZone: timezone.replace(/_/g, " "),
-              browserZone: browserTimezone.replace(/_/g, " "),
+              browserZone: canonicalTimezone(browserTimezone).replace(/_/g, " "),
             },
           )}
         </Callout>
@@ -567,6 +592,17 @@ export function OpenHoursView({
                   ))}
                 </SelectContent>
               </Select>
+              {offerTimezone && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="open-hours-use-timezone"
+                  onClick={() => setTimezone(offerTimezone)}
+                >
+                  {t("useTimezone", "Use {{zone}}", { zone: offerTimezone.replace(/_/g, " ") })}
+                </Button>
+              )}
             </div>
             <div className="grid grid-cols-1 gap-3 @[34rem]:grid-cols-2 @[52rem]:grid-cols-3 @[70rem]:grid-cols-4">
               {BH_DAYS.map(({ key, label: englishLabel }) => {

@@ -445,6 +445,22 @@ console.log("\n2. Aruba Devices page: online guests by access point (P1-H)");
   check("never Offline", !/\bOffline\b/.test(t));
   check("device health card titled for access points", has(r.html, "aruba-device-health-title"));
   check("no 'each network port' at Aruba", !/each network port/.test(t));
+  // The AP21 arrives as the venue's router row; at a NAS-only venue it IS the
+  // access point, so the strip and the TYPE column say so.
+  const strip = await r.page.$eval('[data-wy="fleet-strip"]', (e) =>
+    e.innerText.replace(/\s+/g, " ").trim(),
+  );
+  check("fleet strip: Access points 1", /Access points ?1\b/.test(strip), strip);
+  check("fleet strip: Routers 0", /Routers ?0\b/.test(strip), strip);
+  check("fleet strip: no 'add a router' nudge", !/No router at this venue yet/.test(strip), strip);
+  const types = await r.page.$$eval('[data-wy="hw-row"]', (els) =>
+    els.map((e) => e.innerText.replace(/\s+/g, " ").trim()),
+  );
+  check(
+    "inventory: the AP21 row is typed Access Point, not Router",
+    types.length > 0 && types.every((x) => /Access Point/.test(x) && !/\bRouter\b/.test(x)),
+    JSON.stringify(types),
+  );
   await done(r);
 }
 {

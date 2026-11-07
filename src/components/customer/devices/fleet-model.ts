@@ -21,7 +21,7 @@ import type { RouterLiveness } from "@/lib/location-liveness";
 import type { RouterDevice } from "@/types/router";
 import type { MonitoredDeviceRow } from "@/services/deviceHardware.service";
 import { describeLiveness, hardwareLivenessIsMeasured } from "@/lib/device-liveness";
-import { isControllerManaged, routerVendorLabel } from "@/lib/router-vendors";
+import { isControllerManaged, isNasOnlyVendor, routerVendorLabel } from "@/lib/router-vendors";
 import { routerStatus } from "@/components/customer/dashboard/overview/topology-model";
 
 /** What the strip counts. `unmeasured` is NOT `unknown`: unknown says we
@@ -52,7 +52,7 @@ export interface InventoryRow {
   kind: FleetKind;
   name: string;
   /** "Router", "Access Point", "Printer", ... -- the registered type, or
-   * "Router" for a venue router. */
+   * "Router" for a venue router ("Access Point" for a NAS-only one). */
   typeLabel: string;
   /** Free-text floor, "" when none recorded (routers have none). */
   floor: string;
@@ -130,12 +130,16 @@ export function hardwareRow(d: MonitoredDeviceRow, now: number = Date.now()): In
 
 export function routerRow(r: RouterLiveness, device?: RouterDevice): InventoryRow {
   const vendor = r.vendor ?? device?.vendor ?? null;
+  // At a NAS-only venue (Aruba Instant On) the "router" row IS the access
+  // point: the AP signs guests in and there is no router of ours. Count and
+  // label it as one. Every other vendor (MikroTik, Omada) stays a Router.
+  const nasOnly = isNasOnlyVendor(vendor);
   return {
     key: `rt:${r.key}`,
     source: "router",
-    kind: "router",
+    kind: nasOnly ? "ap" : "router",
     name: r.label,
-    typeLabel: "Router",
+    typeLabel: nasOnly ? "Access Point" : "Router",
     floor: "",
     mac: device?.macAddress || null,
     // A controller row's `model` column carries whatever was typed at

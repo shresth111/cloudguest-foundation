@@ -156,3 +156,57 @@ export function openHoursOrDefault(stored: BusinessHoursSchedule | null | undefi
     ? { schedule: openHoursEveryDay(), enabledDefault: true }
     : { schedule: stored as BusinessHoursSchedule, enabledDefault: false };
 }
+
+/* ── Which zone the schedule should run in ───────────────────────── */
+
+/**
+ * Legacy IANA names a browser may still report, mapped to the name the
+ * zone list (and the backend's `zoneinfo`) uses today. Chrome on an Indian
+ * laptop says "Asia/Calcutta"; the list offers "Asia/Kolkata". They are the
+ * same zone, and comparing the raw strings kept the "enforced in a different
+ * zone" warning up after the owner had picked the right one.
+ */
+const LEGACY_TIMEZONE_ALIASES: Record<string, string> = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Asia/Katmandu": "Asia/Kathmandu",
+  "Asia/Rangoon": "Asia/Yangon",
+  "Asia/Dacca": "Asia/Dhaka",
+  "Europe/Kiev": "Europe/Kyiv",
+  "Etc/UTC": "UTC",
+  "Etc/GMT": "UTC",
+  GMT: "UTC",
+  UCT: "UTC",
+  Zulu: "UTC",
+};
+
+export function canonicalTimezone(tz: string | null | undefined): string {
+  const z = (tz ?? "").trim();
+  return LEGACY_TIMEZONE_ALIASES[z] ?? z;
+}
+
+export function sameTimezone(a: string | null | undefined, b: string | null | undefined): boolean {
+  return canonicalTimezone(a) === canonicalTimezone(b);
+}
+
+/**
+ * The zone to OFFER the owner (never applied without a Save): the venue's
+ * own location timezone when one has been set (the backend's location
+ * column defaults to "UTC", so "UTC" there says nothing), otherwise the
+ * zone of the browser the owner is editing from. `null` when neither says
+ * anything beyond UTC.
+ *
+ * Enforcement does not read this. The backend evaluates the schedule in
+ * the portal config's own `business_hours_timezone` and nothing else, so a
+ * venue that never saves a new zone keeps exactly the behaviour it has.
+ */
+export function suggestedOpenHoursTimezone(
+  venueTimezone: string | null | undefined,
+  browserTimezone: string | null | undefined,
+): string | null {
+  const venue = canonicalTimezone(venueTimezone);
+  if (venue && venue !== "UTC") return venue;
+  const browser = canonicalTimezone(browserTimezone);
+  if (browser && browser !== "UTC") return browser;
+  return null;
+}

@@ -72,6 +72,8 @@ interface RawLocationSummary {
   name: string;
   city: string;
   property_type: string | null;
+  /** `LocationResponse.timezone` (IANA name; the column defaults to "UTC"). */
+  timezone?: string | null;
 }
 interface RawGuestSession {
   id: string;
@@ -193,6 +195,11 @@ export interface CustomerLocationSummary {
   // Backend `Location.property_type` (see business-type-icons.ts) -- null
   // for locations created before this field existed.
   propertyType: string | null;
+  /** The location's own IANA timezone (`Location.timezone`, default "UTC").
+   * Optional: demo seeds and summaries persisted before this field have
+   * none. Open Hours offers it as the schedule's zone; it does not change
+   * where the schedule is enforced until the owner saves it there. */
+  timezone?: string | null;
 }
 
 export interface CustomerDashboardData {
@@ -1107,6 +1114,7 @@ export const customerService = {
               sessionsActive: active,
               sessionsTotal: sessions.length,
               propertyType: loc.property_type,
+              timezone: loc.timezone ?? null,
             },
             liveness,
           );
