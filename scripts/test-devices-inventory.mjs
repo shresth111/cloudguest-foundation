@@ -64,6 +64,7 @@ writeFileSync(
    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
    export * as fm from "${p("src/components/customer/devices/fleet-model.ts")}";
    export { HardwareInventory } from "${p("src/components/customer/devices/HardwareInventory.tsx")}";
+   export { FleetSummaryStrip } from "${p("src/components/customer/devices/FleetSummaryStrip.tsx")}";
    export { ConnectedDevicesPanel } from "${p("src/components/customer/devices/ConnectedDevicesPanel.tsx")}";
    export { toConnectedRows, queryConnectedRows } from "${p("src/components/customer/devices/connected-rows.ts")}";
    export { DeviceStatusCardView } from "${p("src/components/customer/dashboard/DeviceStatusCard.tsx")}";
@@ -248,6 +249,54 @@ eq(
   JSON.stringify(counts.other),
   JSON.stringify({ ok: 0, warn: 1, crit: 0, unknown: 0, unmeasured: 1 }),
 );
+
+console.log("\n1b. a NAS-only (Aruba Instant On) router row is the access point");
+{
+  const aruba = {
+    ...ROUTERS[0],
+    key: "r9",
+    label: "Instant On AP21",
+    vendor: "aruba_instant_on",
+    shortLabel: "No recent guest activity",
+  };
+  const arows = fm.buildInventory({ routers: [aruba], hardware: [] });
+  eq("aruba row kind", arows[0].kind, "ap");
+  eq("aruba row TYPE", arows[0].typeLabel, "Access Point");
+  eq("aruba row is still a router-sourced row", arows[0].source, "router");
+  const ac = fm.countByKind(arows);
+  eq("aruba venue: Routers 0", fm.totalOf(ac.router), 0);
+  eq("aruba venue: Access points 1", fm.totalOf(ac.ap), 1);
+  eq(
+    "vendor case does not matter",
+    fm.routerRow({ ...aruba, vendor: "ARUBA_INSTANT_ON" }).kind,
+    "ap",
+  );
+  // MikroTik and Omada rows are exactly as before.
+  eq(
+    "mikrotik row stays a Router",
+    by["rt:r1"].kind + "/" + by["rt:r1"].typeLabel,
+    "router/Router",
+  );
+  eq("omada row stays a Router", by["rt:r2"].kind + "/" + by["rt:r2"].typeLabel, "router/Router");
+  const strip = (rs) =>
+    html(
+      m.React.createElement(m.FleetSummaryStrip, {
+        rows: rs,
+        filter: fm.NO_FILTER,
+        routersUnread: false,
+        onFilter: () => {},
+      }),
+    );
+  const as = strip(arows);
+  check("aruba strip: no 'add a router' nudge", !/No router at this venue yet/.test(as), as);
+  check("aruba strip: says no router is needed", /None needed/.test(as), as);
+  const ms = strip(fm.buildInventory({ routers: [], hardware: [] }));
+  check(
+    "empty MikroTik-style venue keeps 'No router at this venue yet.'",
+    /No router at this venue yet/.test(ms),
+    ms,
+  );
+}
 
 console.log("\n2. filter and sort");
 const F = fm.NO_FILTER;

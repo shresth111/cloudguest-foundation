@@ -27,6 +27,7 @@
   },
   "timezone": "Timezone",
   "timezonePlaceholder": "Select a timezone",
+  "useTimezone": "Use {{zone}}",
   "days": {
     "monday": "Monday",
     "tuesday": "Tuesday",

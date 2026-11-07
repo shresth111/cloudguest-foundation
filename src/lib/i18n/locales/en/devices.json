@@ -107,6 +107,7 @@
   "fleet": {
     "label": "Fleet status",
     "noRouters": "No router at this venue yet.",
+    "noRoutersNasOnly": "None needed: your access points sign guests in.",
     "noneRegistered": "None added yet.",
     "routersUnread": "Couldn't read this venue's routers just now.",
     "title": "Network hardware"

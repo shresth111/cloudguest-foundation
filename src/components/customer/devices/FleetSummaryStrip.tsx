@@ -52,6 +52,10 @@ export function FleetSummaryStrip({
   const bucketLabel = useBucketLabel();
   const kindLabel = useKindLabel();
   const counts = countByKind(rows);
+  // A NAS-only venue's access point arrives as a router row counted under
+  // Access points; the empty Routers tile then says none is needed rather
+  // than inviting the owner to add one.
+  const routerRowsAreAps = rows.some((r) => r.source === "router" && r.kind === "ap");
 
   return (
     <div
@@ -90,7 +94,9 @@ export function FleetSummaryStrip({
             ) : total === 0 ? (
               <p className="text-[11px] text-[var(--wy-text-faint)]">
                 {kind === "router"
-                  ? t("fleet.noRouters", "No router at this venue yet.")
+                  ? routerRowsAreAps
+                    ? t("fleet.noRoutersNasOnly", "None needed: your access points sign guests in.")
+                    : t("fleet.noRouters", "No router at this venue yet.")
                   : t("fleet.noneRegistered", "None added yet.")}
               </p>
             ) : (

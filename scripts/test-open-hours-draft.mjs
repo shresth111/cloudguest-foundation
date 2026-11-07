@@ -54,6 +54,9 @@ const {
   openHoursEveryDay,
   hasNoStoredSchedule,
   openHoursOrDefault,
+  canonicalTimezone,
+  sameTimezone,
+  suggestedOpenHoursTimezone,
 } = await import(`file://${outfile}`);
 
 const base = {
@@ -224,6 +227,37 @@ check(
 );
 check("the no-config-yet branch seeds the same 24/7 grid", /openHoursEveryDay\(\)/.test(view));
 check("inputs do not auto-save", !/onChange=\{[^}]*businessHoursService/.test(view));
+
+console.log("\nwhich zone the schedule runs in");
+check("Asia/Calcutta is Asia/Kolkata", canonicalTimezone("Asia/Calcutta") === "Asia/Kolkata");
+check("an unaliased zone is unchanged", canonicalTimezone("Asia/Dubai") === "Asia/Dubai");
+check("same zone under two names", sameTimezone("Asia/Calcutta", "Asia/Kolkata"));
+check("different zones differ", !sameTimezone("UTC", "Asia/Kolkata"));
+check(
+  "the venue's own zone is offered first",
+  suggestedOpenHoursTimezone("Asia/Dubai", "Asia/Calcutta") === "Asia/Dubai",
+);
+check(
+  "a location on the UTC column default falls back to the browser zone, canonical",
+  suggestedOpenHoursTimezone("UTC", "Asia/Calcutta") === "Asia/Kolkata",
+);
+check(
+  "no location zone at all (older summary) falls back to the browser zone",
+  suggestedOpenHoursTimezone(undefined, "Asia/Kolkata") === "Asia/Kolkata",
+);
+check("nothing beyond UTC offers nothing", suggestedOpenHoursTimezone("UTC", "Etc/UTC") === null);
+check(
+  "the stored config zone still wins on load (the suggestion only fills a blank)",
+  /timezone: cfg\.timezone \|\| suggestedTimezoneRef\.current \|\| "UTC"/.test(view),
+);
+check(
+  "the mismatch warning compares zones, not strings",
+  /!sameTimezone\(timezone, browserTimezone\)/.test(view),
+);
+check(
+  "the offered zone only edits the draft (Save applies it)",
+  /onClick=\{\(\) => setTimezone\(offerTimezone\)\}/.test(view),
+);
 
 console.log(`\n${checks} checks, ${failures} failed`);
 if (failures > 0) process.exit(1);

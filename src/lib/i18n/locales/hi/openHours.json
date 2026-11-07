@@ -27,6 +27,7 @@
   },
   "timezone": "टाइमज़ोन",
   "timezonePlaceholder": "टाइमज़ोन चुनें",
+  "useTimezone": "{{zone}} इस्तेमाल करें",
   "days": {
     "monday": "सोमवार",
     "tuesday": "मंगलवार",
