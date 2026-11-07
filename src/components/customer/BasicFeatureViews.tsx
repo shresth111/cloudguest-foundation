@@ -353,7 +353,7 @@ function HardwareEmptyState({
         nasOnly
           ? t(
               "hw.emptyAruba",
-              "Add a device by MAC address to keep a record of it. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does.",
+              "Add a device by MAC address to keep a record of it. Wyfy doesn't see the status of Aruba Instant On access points, only the guests signing in through them.",
             )
           : controllerManaged
             ? // "start monitoring it" is a promise this venue cannot be
@@ -547,7 +547,7 @@ export function NetworkHardwareView({ locationId }: { locationId?: string }) {
   const sourceNote = nasOnlyVenue
     ? t(
         "hw.noteAruba",
-        "Keep a record of other hardware at this location by MAC address and floor. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does.",
+        "Keep a record of other hardware at this location by MAC address and floor. Wyfy doesn't see the status of Aruba Instant On access points, only the guests signing in through them.",
       )
     : controllerManaged
       ? t(

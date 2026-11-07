@@ -10,7 +10,7 @@
  *      Records keeps the "router's routable WAN address" note. With
  *      `BASELINE_ROOT` the DOM and request list must be identical.
  *   2. P2-M, ARUBA: no "connect a gateway" invitation; says the access
- *      points are managed in the Instant On app.
+ *      points have no Wyfy-managed router (never "the Instant On app").
  *   3. P2-N, ARUBA: the records note says public IP is not reported by
  *      Instant On; the session-log rows read "Not reported by Instant On" for
  *      a missing public IP and "—" (null) for an unaccounted session, while
@@ -436,7 +436,11 @@ console.log("\n2. Aruba Security Score (P2-M)");
   const t = await text(r.page);
   check("no 'No gateway is connected yet'", !/No gateway is connected yet/.test(t));
   check("no 'once one is connected'", !/[Oo]nce one is connected/.test(t));
-  check("names the Instant On app", /managed in the Instant On app/.test(t), t.slice(0, 300));
+  check(
+    "says there is no Wyfy-managed router, names no other app",
+    /no Wyfy-managed router/.test(t) && !/Instant On app/.test(t),
+    t.slice(0, 300),
+  );
   check("no firewall link", !/Firewall/.test(t));
   await done(r);
 }

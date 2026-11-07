@@ -55,7 +55,7 @@ export function ArubaNetworkTotalControl({
         : result.reason === "network_total_state_unknown"
           ? t(
               "networkTotal.stateUnknown",
-              "Instant On didn't confirm the network total, and we don't know what's set now. Check this network in the Instant On app.",
+              "Instant On didn't confirm the network total, and we don't know what's set now. Reload this page to read it again.",
             )
           : t("networkTotal.notChanged", "Instant On didn't change the speed. Reason: {{reason}}", {
               reason: result.reason ?? result.status,
@@ -73,7 +73,7 @@ export function ArubaNetworkTotalControl({
     toast.error(
       t(
         "networkTotal.noAnswer",
-        "We didn't get an answer, so we don't know whether this changed. Check this network in the Instant On app.",
+        "We didn't get an answer, so we don't know whether this changed. Reload this page to see what's set now.",
       ),
     );
   const send = (dryRun: boolean) =>

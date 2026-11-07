@@ -269,7 +269,24 @@ console.log("\n3. wiring");
 
   const ui = src("src/components/features/SsidSpeedTiers.tsx");
   check("UI states one speed per network", /ONE_SPEED_PER_NETWORK/.test(ui));
-  check("UI lists manual Instant On steps", /Set these speeds in the Instant On app/.test(ui));
+  check(
+    "manual Instant On steps are Master-only",
+    /isPlatform && data && data\.manualSteps\.length > 0/.test(ui),
+  );
+  check(
+    "the customer is told their Wyfy Guest contact applies speeds, not another app",
+    /!isPlatform && data && data\.items\.length > 0/.test(ui) &&
+      /ssidTiers\.speedsAppliedBody/.test(ui) &&
+      !/Set each network's speed in Instant On/.test(ui),
+  );
+  check(
+    "customer copy is i18n (en + hi carry ssidTiers)",
+    ["en", "hi"].every((l) =>
+      Boolean(
+        JSON.parse(src(`src/lib/i18n/locales/${l}/accessRules.json`)).ssidTiers?.speedsAppliedBody,
+      ),
+    ),
+  );
   check(
     "push buttons only for a platform session",
     /isPlatform && data && data\.items\.length > 0/.test(ui),

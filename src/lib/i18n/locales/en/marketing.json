@@ -73,7 +73,7 @@
     "previewEmpty": "No banner configured yet — use Edit to add one, then preview again.",
     "saved": "Banner saved",
     "saveFailed": "Could not save the banner — check the connection and try again.",
-    "imageNasOnly": "Guests aren't online yet when they see this. An image hosted on another site won't load unless that site's domain is allowed on the guest network in the Instant On app.",
+    "imageNasOnly": "Guests aren't online yet when they see this, so an image hosted on another site may not load for them.",
     "surveySaved": "Survey saved",
     "surveySaveFailed": "Could not save the survey — check the connection and try again.",
     "saveDetails": "Save details"

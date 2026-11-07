@@ -1360,7 +1360,7 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                       {nasOnlyVenue
                         ? t(
                             "venueSpeed.unavailableAruba",
-                            "Wyfy can't set this at Aruba Instant On venues yet. The Instant On app has a network-wide limit in a guest network's Bandwidth Control. It applies to that one network, not the whole venue, and a network uses either that or the per-device speed, not both.",
+                            "Wyfy can't set a total for the whole venue at Aruba Instant On venues yet. A network-wide limit applies to one guest network, not the whole venue, and a network uses either that or the per-device speed, not both.",
                           )
                         : t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
                     </p>

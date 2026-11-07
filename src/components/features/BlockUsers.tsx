@@ -1443,7 +1443,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 isNasOnlyVendor(clientControls.vendor)
                   ? t(
                       "blockedDevicesInApp",
-                      "Devices kept off from a guest's device panel are listed in the Instant On app, under Clients, Blocked.",
+                      "Devices kept off from a guest's device panel aren't listed here. Each guest's device panel shows whether their device is blocked.",
                     )
                   : clientControls.controllerManaged
                     ? "Devices kept off from a guest's device panel are not listed here — this venue's controller does not offer a list we can read."

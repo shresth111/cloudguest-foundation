@@ -138,7 +138,7 @@
     "dialogTitle": "नेटवर्क डिवाइस जोड़ें",
     "dupMac": "इस MAC वाला डिवाइस पहले से जुड़ा है।",
     "elsewhereToast": "यह MAC किसी दूसरी लोकेशन पर भी दर्ज है। अगर यह लोकेशन इसे कभी न देखे, तो MAC पता दोबारा जाँचें।",
-    "emptyAruba": "रिकॉर्ड रखने के लिए MAC पते से डिवाइस जोड़ें। Aruba Instant On एक्सेस पॉइंट का हाल Wyfy नहीं देखता; वह Instant On ऐप में दिखता है।",
+    "emptyAruba": "रिकॉर्ड रखने के लिए MAC पते से डिवाइस जोड़ें। Aruba Instant On एक्सेस पॉइंट का हाल Wyfy नहीं देखता, सिर्फ़ उनसे साइन इन करने वाले गेस्ट देखता है।",
     "emptyBody": "एक्सेस पॉइंट, प्रिंटर या कैमरा पर नज़र रखने के लिए उसे MAC पते से जोड़ें। आपका राउटर ऊपर पहले से दिख रहा है।",
     "emptyController": "रिकॉर्ड रखने के लिए MAC पते से डिवाइस जोड़ें। आपके एक्सेस पॉइंट का हाल ऊपर कंट्रोलर से आता है।",
     "emptyTitle": "अभी कोई डिवाइस नहीं जोड़ा गया",
@@ -150,7 +150,7 @@
     "nameHint": "पूरे डैशबोर्ड पर MAC पते की जगह यही नाम दिखेगा।",
     "namePlaceholder": "जैसे लॉबी AP",
     "note": "राउटर अपना हाल ख़ुद भेजते हैं। जो एक्सेस पॉइंट, प्रिंटर और कैमरा आप MAC पते से जोड़ते हैं, उन्हें आपके राउटर से जाँचा जाता है।",
-    "noteAruba": "इस लोकेशन के बाकी डिवाइस का रिकॉर्ड MAC पते और मंज़िल के साथ रखें। Aruba Instant On एक्सेस पॉइंट का हाल Wyfy नहीं देखता; वह Instant On ऐप में दिखता है।",
+    "noteAruba": "इस लोकेशन के बाकी डिवाइस का रिकॉर्ड MAC पते और मंज़िल के साथ रखें। Aruba Instant On एक्सेस पॉइंट का हाल Wyfy नहीं देखता, सिर्फ़ उनसे साइन इन करने वाले गेस्ट देखता है।",
     "noteController": "इस लोकेशन के बाकी डिवाइस का रिकॉर्ड MAC पते और मंज़िल के साथ रखें। आपके एक्सेस पॉइंट ऊपर हैं, उनकी जानकारी आपका कंट्रोलर देता है।",
     "removeFailed": "यह डिवाइस नहीं हटा पाए।",
     "removed": "{{name}} हटा दिया गया",
@@ -260,11 +260,11 @@
     "title": "डिवाइस की हालत और पोर्ट ट्रैफ़िक",
     "via": "{{source}} से",
     "apHealthTitle": "Access point की health",
-    "apHealthDescription": "Aruba Instant On access points अपनी health और traffic Instant On app में दिखाते हैं। Wyfy उन पर sign in करने वाले guests को देखता है।"
+    "apHealthDescription": "Wyfy इन Aruba Instant On access points से sign in करने वाले guests को देखता है, access points की अपनी health या traffic नहीं।"
   },
   "arubaAp": {
     "title": "हर access point पर online guests",
-    "description": "इस venue के guest sign-ins से। जो devices guest WiFi में sign in नहीं हैं, वे Instant On app में दिखते हैं।",
+    "description": "इस venue के guest sign-ins से। जो devices guest WiFi में sign in नहीं हुए, वे यहाँ नहीं दिखते।",
     "colAp": "Access point",
     "colStatus": "स्थिति",
     "colGuests": "Online guests",

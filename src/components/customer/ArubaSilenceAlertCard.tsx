@@ -116,7 +116,7 @@ export function ArubaSilenceAlertCard() {
             <p>
               {t(
                 "silence.limits",
-                "No guests means no traffic, so a quiet venue does not raise an alert, and an outage with no guests connected will not either. Wyfy can't tell a power cut from a lost internet line; check the Instant On app.",
+                "No guests means no traffic, so a quiet venue does not raise an alert, and an outage with no guests connected will not either. Wyfy can't tell a power cut from a lost internet line.",
               )}
             </p>
           </div>

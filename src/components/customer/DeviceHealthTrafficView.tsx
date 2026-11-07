@@ -559,7 +559,7 @@ export function DeviceHealthTrafficView({ locationId }: { locationId?: string })
           nasOnlyVenue ? (
             t(
               "traffic.apHealthDescription",
-              "Aruba Instant On access points report their health and traffic in the Instant On app. Wyfy sees the guests signing in through them.",
+              "Wyfy sees the guests signing in through these Aruba Instant On access points, not the access points' own health or traffic.",
             )
           ) : (
             <>

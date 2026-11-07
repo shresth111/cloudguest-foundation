@@ -261,7 +261,7 @@ console.log("\n5. Truly empty is a real answer");
 {
   const page = await open("empty");
   const t = await text(page);
-  check("no alerts is stated", t.includes("reports no alerts"));
+  check("no alerts is stated", t.includes("No alerts reported for the access points"));
   check("no events is stated", t.includes("no recent events"));
   await page.close();
 }

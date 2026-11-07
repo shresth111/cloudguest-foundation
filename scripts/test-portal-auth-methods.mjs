@@ -277,5 +277,26 @@ console.log("portal sign-in methods");
   );
 }
 
+// P0-2 (2026-11-07): the Portal page's "Social Login" switch is dropped at an
+// Aruba Instant On (NAS-only) venue, as the builder palette already is. Every
+// other vendor keeps all seven switches (owner decision pending). Source-level
+// for the same reason as the block above: PortalPage needs the whole console.
+{
+  const page = readFileSync(join(SRC, "components/features/PortalPage.tsx"), "utf8");
+  check(
+    "Portal page: social switch filtered only for a NAS-only venue",
+    /nasOnly \? AUTH_OPTIONS\.filter\(\(\[k\]\) => k !== "social"\) : AUTH_OPTIONS/.test(page) &&
+      /authOptionsFor\(locationIsNasOnly\(activeLocation\?\.liveness\)\)/.test(page),
+  );
+  check(
+    "Portal page: the switches render from the filtered list",
+    /\{authOptions\.map\(/.test(page) && !/\{AUTH_OPTIONS\.map\(/.test(page),
+  );
+  check(
+    "Portal page: the full list still offers Social Login elsewhere",
+    /\["social", "Social Login"\]/.test(page),
+  );
+}
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);

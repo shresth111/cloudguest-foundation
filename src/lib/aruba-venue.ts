@@ -5,8 +5,9 @@
  * `src/components/customer/ArubaInstantOnVenueCard.tsx`.
  */
 
-/** What Wyfy does at this venue, and what lives in the Instant On app. The
- * second list is PM_SPEC §3's UNSUPPORTED rows, in the owner's words. */
+/** What Wyfy does at this venue, and what it does not set. The second list
+ * is PM_SPEC §3's UNSUPPORTED rows, in the owner's words; its heading never
+ * names another vendor's app (owner rule 2026-11-07). */
 export const ARUBA_VENUE_IN_WYFY: readonly string[] = [
   "Your sign-in page, sign-in methods and offers",
   "Who signed in, when, and on which device",

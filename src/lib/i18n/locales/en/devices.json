@@ -138,7 +138,7 @@
     "dialogTitle": "Add network hardware",
     "dupMac": "A device with this MAC is already set up.",
     "elsewhereToast": "This MAC is also registered at another venue. If this location never sees it, check the MAC address.",
-    "emptyAruba": "Add a device by MAC address to keep a record of it. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does.",
+    "emptyAruba": "Add a device by MAC address to keep a record of it. Wyfy doesn't see the status of Aruba Instant On access points, only the guests signing in through them.",
     "emptyBody": "Add an access point, printer or camera by MAC address to start monitoring it. Your router is already tracked above.",
     "emptyController": "Add a device by MAC address to keep a record of it. Status for your access points comes from your controller, above.",
     "emptyTitle": "No hardware added yet",
@@ -150,7 +150,7 @@
     "nameHint": "Shown across the dashboard instead of the raw MAC address.",
     "namePlaceholder": "e.g. Lobby AP",
     "note": "Routers report in on their own. Access points, printers and cameras you add by MAC address are checked through your router.",
-    "noteAruba": "Keep a record of other hardware at this location by MAC address and floor. Wyfy doesn't see the status of Aruba Instant On access points; the Instant On app does.",
+    "noteAruba": "Keep a record of other hardware at this location by MAC address and floor. Wyfy doesn't see the status of Aruba Instant On access points, only the guests signing in through them.",
     "noteController": "Keep a record of other hardware at this location by MAC address and floor. Your access points are listed above, reported by your controller.",
     "removeFailed": "Could not remove this device.",
     "removed": "{{name}} removed",
@@ -260,11 +260,11 @@
     "title": "Device health & port traffic",
     "via": "via {{source}}",
     "apHealthTitle": "Access point health",
-    "apHealthDescription": "Aruba Instant On access points report their health and traffic in the Instant On app. Wyfy sees the guests signing in through them."
+    "apHealthDescription": "Wyfy sees the guests signing in through these Aruba Instant On access points, not the access points' own health or traffic."
   },
   "arubaAp": {
     "title": "Online guests by access point",
-    "description": "From guest sign-ins at this venue. Devices that are not signed in to the guest WiFi are listed in the Instant On app.",
+    "description": "From guest sign-ins at this venue. Devices that haven't signed in to the guest WiFi aren't shown.",
     "colAp": "Access point",
     "colStatus": "Status",
     "colGuests": "Guests online",

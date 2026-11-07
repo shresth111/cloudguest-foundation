@@ -9,7 +9,7 @@
  *   2. P1-F: an Aruba row's `last_radius_at` becomes "Guest sign-ins working
  *      · last activity X ago" (< 60 min) or "No guest activity for Xh"; the
  *      state stays `unknown` (neutral tone, no gate moves); never "Offline"
- *      or "Unknown"; no `last_radius_at` keeps "Set up in Instant On".
+ *      or "Unknown"; no `last_radius_at` keeps "Sign-ins only".
  *   3. P1-J: only an Aruba snapshot is ever re-read or replaced; a failed
  *      fresh read never replaces it. A failed-read, MikroTik or Omada
  *      snapshot is never re-read or written (owner rule: zero change there).
@@ -110,11 +110,7 @@ for (const vendor of ["mikrotik", "tplink_omada"]) {
 console.log("\n2. Aruba guest activity (P1-F)");
 {
   const none = L.deriveLocationLiveness([row("aruba_instant_on")], NOW);
-  check(
-    "no last_radius_at: Set up in Instant On kept",
-    none.label === "Set up in Instant On",
-    none.label,
-  );
+  check("no last_radius_at: Sign-ins only kept", none.label === "Sign-ins only", none.label);
   for (const [min, label, sentence] of [
     [0.2, "Guest sign-ins working", "Guest sign-ins working · last activity just now"],
     [4, "Guest sign-ins working", "Guest sign-ins working · last activity 4 minutes ago"],
@@ -138,11 +134,7 @@ console.log("\n2. Aruba guest activity (P1-F)");
   }
   for (const bad of ["not-a-date", "2026-10-05T10:00:00.000Z"]) {
     const v = L.deriveLocationLiveness([row("aruba_instant_on", { last_radius_at: bad })], NOW);
-    check(
-      `unusable last_radius_at ${bad}: Set up in Instant On`,
-      v.label === "Set up in Instant On",
-      v.label,
-    );
+    check(`unusable last_radius_at ${bad}: Sign-ins only`, v.label === "Sign-ins only", v.label);
   }
   const two = L.deriveLocationLiveness(
     [
@@ -179,7 +171,7 @@ console.log("\n2. Aruba guest activity (P1-F)");
   );
   check(
     "per-router callers (Master fleet, Fix-a-Problem) unchanged",
-    perRouter.shortLabel === "Set up in Instant On",
+    perRouter.shortLabel === "Sign-ins only",
     perRouter.shortLabel,
   );
 }

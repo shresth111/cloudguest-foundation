@@ -71,7 +71,7 @@ const OMADA = "tplink_omada";
 
 // PM_SPEC §4, verbatim.
 const U1 =
-  "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set speed limits in the Instant On app, on the guest network.";
+  "Speed limits aren't supported through sign-in on Aruba Instant On access points. One speed applies to everyone on the guest network.";
 // U3a ("aren't available yet") retired: V3 usage reporting MEASURED on the
 // AP21 (~/wyfy-ops/aruba-ap21/ACCESS_RULES.md sections 2-3).
 const U3A_RETIRED = "Data limits aren't available on Aruba Instant On yet.";

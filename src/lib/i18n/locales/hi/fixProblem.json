@@ -72,20 +72,19 @@
     "guestsNow": "अभी online guests",
     "accessPoints": "Access points",
     "lastActivity": "आखिरी guest गतिविधि",
-    "statusNote": "यह जानकारी guests के sign in से आती है, access point से नहीं। Idle का मतलब यह भी हो सकता है कि कोई जुड़ा नहीं है। Access point चालू है या नहीं, यह देखने के लिए Instant On app खोलें।",
+    "statusNote": "यह जानकारी guests के sign in से आती है, access point से नहीं। Idle का मतलब यह भी हो सकता है कि कोई जुड़ा नहीं है। Access point चालू है या नहीं, यह Wyfy नहीं देख सकता।",
     "helpTitle": "Guest को क्या दिख रहा है?",
-    "openApp": "Instant On खोलें",
     "help": {
       "noNetwork": {
         "title": "Guest को WiFi नहीं दिख रहा",
         "step1": "देखें कि access point में बिजली आ रही है और उसकी light जल रही है।",
-        "step2": "Instant On app में देखें कि access point online है और guest network चालू है।"
+        "step2": "अगर light जल रही है और फिर भी WiFi नहीं दिखता, तो अपने Wyfy Guest contact से guest network जाँचने को कहें।"
       },
       "noLoginPage": {
         "title": "WiFi जुड़ता है, पर login page नहीं खुलता",
         "step1": "Guest से mobile data और कोई भी VPN या Private DNS बंद करने को कहें।",
         "step2": "उनसे WiFi network forget करके दोबारा जुड़ने और कोई भी website खोलने को कहें।",
-        "step3": "अगर किसी को भी page नहीं दिखता, तो Instant On app में देखें कि इस network पर Guest Portal चालू है।"
+        "step3": "अगर किसी को भी page नहीं दिखता, तो अपने Wyfy Guest contact से इस network का login page setup जाँचने को कहें।"
       },
       "noCode": {
         "title": "Login code नहीं आ रहा",
@@ -96,17 +95,17 @@
         "title": "Sign in हो गया, पर internet नहीं चल रहा",
         "step1": "ऊपर guest को खोजें: दिखेगा कि वे block हैं या उनका समय पूरा हो गया है।",
         "step2": "उनसे WiFi बंद करके चालू करने और दोबारा sign in करने को कहें।",
-        "step3": "अगर सभी guests को दिक्कत है, तो Instant On app में access point और venue की internet line देखें।"
+        "step3": "अगर सभी guests को दिक्कत है, तो access point की power देखें और venue की internet line के बारे में अपने provider से पूछें।"
       },
       "slow": {
         "title": "Internet धीमा है",
-        "step1": "Guest WiFi Limits या Instant On app में guest speed limit देखें। यह उस network के हर device पर लगती है।",
+        "step1": "Guest WiFi Limits में guest speed limit देखें। यह उस network के हर device पर लगती है।",
         "step2": "अगर कोई limit नहीं है, तो अपने provider से venue की internet line जाँच करवाएँ।"
       },
       "oneSite": {
         "title": "एक website नहीं खुल रही",
         "step1": "Guest से कोई दूसरी website खोलने को कहें। वह खुल जाए तो दिक्कत शायद उसी site में है।",
-        "step2": "Wyfy इस venue से website की जाँच नहीं कर सकता। Instant On app में कोई नियम हों तो देखें।"
+        "step2": "Wyfy इस venue से website की जाँच नहीं कर सकता। अगर यह हर guest के लिए नहीं खुलती, तो अपने Wyfy Guest contact से कहें।"
       }
     }
   }
