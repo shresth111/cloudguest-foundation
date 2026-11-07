@@ -1623,8 +1623,8 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   write goes to the venue's hardware and is not instant. */}
               {nasOnlyVenue
                 ? clientControls.instantOnCloudControl === true
-                  ? NAS_ONLY_LIMITS_FOOTER_CLOUD
-                  : NAS_ONLY_LIMITS_FOOTER
+                  ? t("nasOnly.limitsFooterCloud", NAS_ONLY_LIMITS_FOOTER_CLOUD)
+                  : t("nasOnly.limitsFooter", NAS_ONLY_LIMITS_FOOTER)
                 : t(
                     "limitsApplyNote",
                     "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",

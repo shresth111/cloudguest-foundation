@@ -30,11 +30,11 @@
   },
   "instantOn": {
     "unavailable": "डेटा उपलब्ध नहीं · स्रोत Instant On",
-    "alertsTitle": "Access points के अलर्ट",
+    "alertsTitle": "Access points के लिए अलर्ट",
     "noAlerts": "Access points के लिए कोई अलर्ट नहीं है।",
     "cleared": "ठीक हो गया",
     "active": "सक्रिय",
-    "eventsTitle": "Access points की हाल की घटनाएँ",
+    "eventsTitle": "Access points के लिए हाल की घटनाएँ",
     "eventsCaption": "सिर्फ़ वही ताज़ा घटनाएँ जो Instant On रखता है। यह पूरा इतिहास नहीं है।",
     "noEvents": "Instant On में हाल की कोई घटना नहीं है।"
   },

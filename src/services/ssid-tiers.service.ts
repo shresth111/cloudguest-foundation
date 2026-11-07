@@ -1,7 +1,7 @@
 /**
  * Speed tiers by WiFi network (backend `app/domains/guest/ssid_tier_router.py`).
  *
- * The two location routes are tenant routes: `api`'s interceptor attaches the
+ * The location routes are tenant routes: `api`'s interceptor attaches the
  * session's organization, and the backend checks the location against it and
  * against the location the permission was checked at. `syncToInstantOn` is
  * GLOBAL (Master only); a customer session gets 403 by design.
@@ -11,8 +11,10 @@ import { guestPortalApi } from "./guest-portal-api";
 import {
   toGuestSsidAccess,
   toSsidTiersBody,
+  toSsidSpeedStatus,
   toSsidTiersView,
   type GuestSsidAccess,
+  type SsidSpeedStatus,
   type SsidTier,
   type SsidTiersView,
 } from "@/lib/ssid-tiers";
@@ -43,6 +45,15 @@ export const ssidTiersService = {
   async replace(locationId: string, items: SsidTier[]): Promise<SsidTiersView> {
     const { data } = await api.put(`/locations/${locationId}/ssid-tiers`, toSsidTiersBody(items));
     return toSsidTiersView(data);
+  },
+
+  /** Customer (backend #510, `bandwidth.update`): apply the saved per-network
+   * speeds through cloud control. `null` when the answer is not a status. */
+  async applySpeeds(locationId: string, dryRun: boolean): Promise<SsidSpeedStatus | null> {
+    const { data } = await api.post(`/locations/${locationId}/ssid-tiers/apply-speeds`, {
+      dry_run: dryRun,
+    });
+    return toSsidSpeedStatus(data);
   },
 
   /** Master only. `dryRun` defaults to a preview: nothing is written. */

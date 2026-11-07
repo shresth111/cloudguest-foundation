@@ -173,7 +173,7 @@ function InstantOnManagedNote() {
         </div>
         <div>
           <p className="mb-1 font-medium text-foreground">
-            {t("aruba.inInstantOnApp", "Not set from Wyfy")}
+            {t("aruba.notSetFromWyfy", "Not set from Wyfy")}
           </p>
           <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground">
             {ARUBA_VENUE_IN_INSTANT_ON.map((x, i) => (

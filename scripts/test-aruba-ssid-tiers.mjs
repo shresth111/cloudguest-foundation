@@ -106,9 +106,105 @@ console.log("\n1. pure: wire mapping");
   check("paid row is paidOnly", view.items[1].paidOnly === true);
   eq("manual steps: strings only", view.manualSteps, ["step 1"]);
   eq("push flag off", view.pushEnabled, false);
+  eq("no speed_status on the body -> null (not available)", view.speedStatus, null);
+
+  // Backend #510: `speed_status` on GET/PUT, and the apply-speeds answer.
+  const withStatus = T.toSsidTiersView({
+    items: [],
+    speed_status: {
+      status: "pending",
+      reason: "not_all_applied",
+      cloud_apply_available: true,
+      items: [
+        { ssid: "WYFY_FREE", download_mbps: 5, upload_mbps: 2, status: "applied", reason: null },
+        {
+          ssid: "WYFY_PREMIUM",
+          download_mbps: 50,
+          upload_mbps: null,
+          status: "pending",
+          reason: "network_not_found",
+        },
+        "junk",
+      ],
+    },
+  });
+  eq("speed_status: parsed", withStatus.speedStatus, {
+    status: "pending",
+    reason: "not_all_applied",
+    cloudApplyAvailable: true,
+    items: [
+      { ssid: "WYFY_FREE", downloadMbps: 5, uploadMbps: 2, status: "applied", reason: null },
+      {
+        ssid: "WYFY_PREMIUM",
+        downloadMbps: 50,
+        uploadMbps: null,
+        status: "pending",
+        reason: "network_not_found",
+      },
+    ],
+  });
+  eq(
+    "speed_status: cloud_apply_available must be literally true",
+    T.toSsidSpeedStatus({
+      status: "pending",
+      reason: "awaiting_setup",
+      cloud_apply_available: "yes",
+    }).cloudApplyAvailable,
+    false,
+  );
+  eq("speed_status: unknown status -> null", T.toSsidSpeedStatus({ status: "done" }), null);
+  eq("speed_status: not an object -> null", T.toSsidSpeedStatus("applied"), null);
+  eq(
+    "reason key: snake to camel under ssidTiers.speed",
+    T.ssidSpeedReasonKey("network_has_other_limit"),
+    "ssidTiers.speed.networkHasOtherLimit",
+  );
+  eq(
+    "reason key: unknown / null code -> awaitingSetup",
+    [T.ssidSpeedReasonKey("weird"), T.ssidSpeedReasonKey(null)],
+    ["ssidTiers.speed.awaitingSetup", "ssidTiers.speed.awaitingSetup"],
+  );
+  eq(
+    "reason copy: unknown -> saved here only",
+    T.ssidSpeedReasonCopy("weird"),
+    T.SPEEDS_SAVED_HERE_ONLY,
+  );
+  {
+    const en = JSON.parse(src("src/lib/i18n/locales/en/accessRules.json")).ssidTiers;
+    const hi = JSON.parse(src("src/lib/i18n/locales/hi/accessRules.json")).ssidTiers;
+    const camel = (c) => c.replace(/_([a-z])/g, (_, x) => x.toUpperCase());
+    check(
+      "every reason code's en value is its lib sentence, with a hi twin",
+      Object.entries(T.SSID_SPEED_REASON_COPY).every(
+        ([code, text]) => en.speed[camel(code)] === text && !!hi.speed[camel(code)],
+      ),
+    );
+    check(
+      "saved-here-only sentence is the en body",
+      en.speedsAppliedBody === T.SPEEDS_SAVED_HERE_ONLY,
+    );
+    check(
+      "no copy promises a person applies the speeds",
+      ![en.saved, en.speedsAppliedBody, ...Object.values(en.speed)].some((x) =>
+        /Wyfy Guest contact (applies|switches)/.test(x),
+      ),
+    );
+    check(
+      "no copy names another vendor's app",
+      ![JSON.stringify(en), JSON.stringify(hi)].some((x) => /Instant On app|Instant On ऐप/.test(x)),
+    );
+  }
+  check("permission: bandwidth.update grants apply", T.canApplySsidSpeeds(["bandwidth.update"]));
+  check("permission: without it, no apply", !T.canApplySsidSpeeds(["policy.update"]));
+  check(
+    "permission: unknown grants fail open (backend 403 is the boundary)",
+    T.canApplySsidSpeeds(undefined) && T.canApplySsidSpeeds([]),
+  );
+
   const empty = T.toSsidTiersView(null);
   eq("null view is empty", empty.items, []);
   eq("null view keeps the honest note", empty.note, T.ONE_SPEED_PER_NETWORK);
+  eq("null view: no speed status", empty.speedStatus, null);
 
   const body = T.toSsidTiersBody([
     { ...view.items[0], ssid: " WYFY_FREE ", policyId: "stale", voucherPlanIds: ["x"] },
@@ -274,10 +370,40 @@ console.log("\n3. wiring");
     /isPlatform && data && data\.manualSteps\.length > 0/.test(ui),
   );
   check(
-    "the customer is told their Wyfy Guest contact applies speeds, not another app",
-    /!isPlatform && data && data\.items\.length > 0/.test(ui) &&
+    "customer box: speed status, never manual steps or another app",
+    /!isPlatform && data && data\.items\.length > 0 && speed\?\.status !== "not_applicable"/.test(
+      ui,
+    ) &&
       /ssidTiers\.speedsAppliedBody/.test(ui) &&
       !/Set each network's speed in Instant On/.test(ui),
+  );
+  check(
+    "missing speed status reads as not available (saved-here-only, no button)",
+    /!speed\s*\?\s*t\("ssidTiers\.speedsAppliedBody", SPEEDS_SAVED_HERE_ONLY\)/.test(ui) &&
+      /!!speed && speed\.cloudApplyAvailable/.test(ui),
+  );
+  check(
+    "Apply speeds: only with cloud_apply_available, bandwidth.update, and a clean draft",
+    /const showApply =\s*!!speed && speed\.cloudApplyAvailable && !dirty && canApplySsidSpeeds\(permissions\)/.test(
+      ui,
+    ),
+  );
+  check(
+    "Apply speeds: confirm step, then dry_run false, then a toast",
+    /setConfirmApply\(true\)/.test(ui) &&
+      /ssidTiersService\.applySpeeds\(locationId, false\)/.test(ui) &&
+      /toast\.success\(/.test(ui) &&
+      /toast\.warning\(/.test(ui) &&
+      /toast\.error\(/.test(ui),
+  );
+  check(
+    "per-SSID status line from speed_status items",
+    /speed\.items\.map\(/.test(ui) && /data-testid="ssid-tiers-speed-item"/.test(ui),
+  );
+  const svcSrc = src("src/services/ssid-tiers.service.ts");
+  check(
+    "apply-speeds route and body",
+    /\/ssid-tiers\/apply-speeds`,\s*\{\s*dry_run: dryRun,?\s*\}/.test(svcSrc),
   );
   check(
     "customer copy is i18n (en + hi carry ssidTiers)",

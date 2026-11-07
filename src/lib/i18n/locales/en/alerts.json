@@ -30,11 +30,11 @@
   },
   "instantOn": {
     "unavailable": "Data unavailable · source Instant On",
-    "alertsTitle": "Alerts from the access points",
+    "alertsTitle": "Alerts for the access points",
     "noAlerts": "No alerts reported for the access points.",
     "cleared": "Cleared",
     "active": "Active",
-    "eventsTitle": "Recent events from the access points",
+    "eventsTitle": "Recent events for the access points",
     "eventsCaption": "Only the latest events Instant On keeps. This is not a full history.",
     "noEvents": "Instant On reports no recent events."
   },

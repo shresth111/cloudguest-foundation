@@ -2,8 +2,11 @@
  * Access Rules -> "Speed tiers by WiFi network", shown only at an Aruba
  * Instant On (NAS-only) venue. Lists the venue's guest WiFi networks, the tier
  * each stands for, its speed, and who may join it, and saves the mapping. The
- * customer is told their Wyfy Guest contact applies the speeds -- never "go
- * and type them into another app" (owner rule 2026-11-07). In the Master
+ * customer sees whether each network's speed is live (backend #510
+ * `speed_status`) and, when cloud control is on for the venue and they hold
+ * `bandwidth.update`, an Apply speeds button. Never "go and type them into
+ * another app" (owner rule 2026-11-07), and no promise that a person will
+ * apply them: until cloud control is on they are saved here only. In the Master
  * console (a global session) it also lists the backend's manual steps and
  * previews / pushes the speeds through Instant On cloud control, which is OFF
  * unless ops switched it on for the venue.
@@ -16,6 +19,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { Gauge, Loader2, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { useMyPermissions } from "@/hooks/useCustomerDashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { SsidTierGuests } from "./SsidTierGuests";
@@ -27,10 +32,16 @@ import {
   PAID_ROW_HINT,
   SSID_TIERS_INTRO,
   SSID_TIERS_TITLE,
+  SPEEDS_SAVED_HERE_ONLY,
+  canApplySsidSpeeds,
   emptySsidTier,
   formatTierSpeed,
+  ssidSpeedReasonCopy,
+  ssidSpeedReasonKey,
   ssidTiersProblem,
+  type SsidSpeedStatus,
   type SsidTier,
+  type SsidTiersView,
 } from "@/lib/ssid-tiers";
 
 function mbps(value: string): number | null {
@@ -55,6 +66,8 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [sync, setSync] = useState<InstantOnSyncResult | null>(null);
+  const [confirmApply, setConfirmApply] = useState(false);
+  const { data: permissions } = useMyPermissions();
 
   useEffect(() => {
     if (data && !dirty) setDraft(data.items);
@@ -70,13 +83,49 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
       setMessage(
         t(
           "ssidTiers.saved",
-          "Saved. Wyfy now checks who may join each network when a guest signs in. Each network's speed is applied on the access points by your Wyfy Guest contact, not from this screen.",
+          "Saved. Wyfy now checks who may join each network when a guest signs in. Each network's speed is applied once cloud control is on for this venue; until then it is saved here only.",
         ),
       );
     },
     onError: (e: unknown) =>
       setMessage(e instanceof Error ? e.message : t("ssidTiers.saveFailed", "Couldn't save.")),
   });
+
+  // Customer apply (backend #510). The answer is a speed status: it replaces
+  // the one on the cached view, and the view is re-read after.
+  const applySpeeds = useMutation({
+    mutationFn: () => ssidTiersService.applySpeeds(locationId, false),
+    onSuccess: (result) => {
+      setConfirmApply(false);
+      if (result) {
+        qc.setQueryData<SsidTiersView>(queryKey, (prev) =>
+          prev ? { ...prev, speedStatus: result } : prev,
+        );
+      }
+      void qc.invalidateQueries({ queryKey });
+      if (result?.status === "applied") {
+        toast.success(t("ssidTiers.speed.appliedToast", "Speeds applied to every mapped network."));
+      } else {
+        toast.warning(t("ssidTiers.speed.pendingToast", "Not every speed was applied."), {
+          description: t(ssidSpeedReasonKey(result?.reason ?? null), {
+            defaultValue: ssidSpeedReasonCopy(result?.reason ?? null),
+          }),
+        });
+      }
+    },
+    onError: () => {
+      setConfirmApply(false);
+      toast.error(
+        t(
+          "ssidTiers.speed.noAnswerToast",
+          "We didn't get an answer, so we don't know whether the speeds changed. Reload this page to see what's set now.",
+        ),
+      );
+    },
+  });
+  const speed: SsidSpeedStatus | null = data?.speedStatus ?? null;
+  const showApply =
+    !!speed && speed.cloudApplyAvailable && !dirty && canApplySsidSpeeds(permissions);
 
   const push = useMutation({
     mutationFn: (dryRun: boolean) => ssidTiersService.syncToInstantOn(locationId, dryRun),
@@ -259,20 +308,100 @@ export default function SsidSpeedTiers({ locationId }: { locationId: string }) {
               </p>
             )}
 
-            {/* The customer is never told to type speeds into another app
-                (owner rule 2026-11-07): their Wyfy Guest contact applies
-                them. The backend's manual steps are for Master only. */}
-            {!isPlatform && data && data.items.length > 0 && (
-              <div className="rounded-lg bg-muted/50 p-3" data-testid="ssid-tiers-speeds-note">
+            {/* Customer: whether each network's speed is live, from the
+                backend's neutral `speed_status`. Never tells the owner to type
+                speeds into another app (owner rule 2026-11-07), and never
+                promises a person will apply them. A missing status reads as
+                "not available": no button, the saved-here-only sentence. */}
+            {!isPlatform && data && data.items.length > 0 && speed?.status !== "not_applicable" && (
+              <div
+                className="space-y-2 rounded-lg bg-muted/50 p-3"
+                data-testid="ssid-tiers-speeds-note"
+              >
                 <p className="text-sm font-medium">
                   {t("ssidTiers.speedsAppliedTitle", "Network speeds")}
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  {t(
-                    "ssidTiers.speedsAppliedBody",
-                    "Wyfy saves which guests may join each network. Your Wyfy Guest contact applies each network's speed on the access points, one speed per network, using the names above. A different spelling is a different network.",
-                  )}
+                <p className="text-xs text-muted-foreground" data-testid="ssid-tiers-speed-summary">
+                  {!speed
+                    ? t("ssidTiers.speedsAppliedBody", SPEEDS_SAVED_HERE_ONLY)
+                    : speed.status === "applied"
+                      ? t(
+                          "ssidTiers.speed.allApplied",
+                          "Every mapped network's speed is applied on the access points.",
+                        )
+                      : t(ssidSpeedReasonKey(speed.reason), {
+                          defaultValue: ssidSpeedReasonCopy(speed.reason),
+                        })}
                 </p>
+                {speed && speed.items.length > 0 && (
+                  <ul className="space-y-0.5 text-xs" data-testid="ssid-tiers-speed-items">
+                    {speed.items.map((it) => (
+                      <li key={it.ssid} data-testid="ssid-tiers-speed-item">
+                        {it.status === "applied"
+                          ? t("ssidTiers.speed.itemApplied", "“{{ssid}}”: {{speed}}, applied", {
+                              ssid: it.ssid,
+                              speed: formatTierSpeed(it.downloadMbps, it.uploadMbps),
+                            })
+                          : t(
+                              "ssidTiers.speed.itemPending",
+                              "“{{ssid}}”: {{speed}}, not applied yet",
+                              {
+                                ssid: it.ssid,
+                                speed: formatTierSpeed(it.downloadMbps, it.uploadMbps),
+                              },
+                            )}
+                        {it.status !== "applied" && it.reason && (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            {t(ssidSpeedReasonKey(it.reason), {
+                              defaultValue: ssidSpeedReasonCopy(it.reason),
+                            })}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {showApply &&
+                  (confirmApply ? (
+                    <div
+                      className="flex flex-wrap items-center gap-2"
+                      data-testid="ssid-tiers-apply-confirm"
+                    >
+                      <span className="text-xs">
+                        {t(
+                          "ssidTiers.speed.confirm",
+                          "Apply these speeds to the guest WiFi now? Guests on each network get its new speed.",
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-md bg-[#4f46e5] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                        disabled={applySpeeds.isPending}
+                        onClick={() => applySpeeds.mutate()}
+                      >
+                        {applySpeeds.isPending && <Loader2 className="h-3 w-3 animate-spin" />}{" "}
+                        {t("ssidTiers.speed.confirmApply", "Apply now")}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border px-3 py-1.5 text-xs"
+                        disabled={applySpeeds.isPending}
+                        onClick={() => setConfirmApply(false)}
+                      >
+                        {t("ssidTiers.speed.cancel", "Cancel")}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded-md border px-3 py-1.5 text-xs font-medium"
+                      data-testid="ssid-tiers-apply"
+                      onClick={() => setConfirmApply(true)}
+                    >
+                      {t("ssidTiers.speed.apply", "Apply speeds")}
+                    </button>
+                  ))}
               </div>
             )}
 

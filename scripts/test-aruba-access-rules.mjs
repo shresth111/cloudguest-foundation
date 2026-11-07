@@ -152,8 +152,68 @@ check(
 );
 check(
   "customer copy names the product",
-  copy.every((s) => s.includes("Aruba Instant On")),
+  // Idle timeout is the one exception: since the 2026-11-07 QA follow-up it
+  // says "Your access points" and is pinned verbatim below.
+  copy.filter((s) => s !== R.NAS_ONLY_IDLE_TIMEOUT).every((s) => s.includes("Aruba Instant On")),
 );
+eq(
+  "idle timeout: the plain caveat, no 'not yet confirmed on hardware'",
+  R.NAS_ONLY_IDLE_TIMEOUT,
+  "Your access points may not apply this; sessions still end at the session timeout.",
+);
+// Every NAS-only reason has an accessRules.nasOnly.* key whose en value is the
+// constant byte-for-byte, and a non-empty hi twin (ControllerControlNotice and
+// the Usage Limits footer render t(key, constant)).
+{
+  const en = JSON.parse(
+    readFileSync(join(ROOT, "src/lib/i18n/locales/en/accessRules.json"), "utf8"),
+  );
+  const hi = JSON.parse(
+    readFileSync(join(ROOT, "src/lib/i18n/locales/hi/accessRules.json"), "utf8"),
+  );
+  const at = (o, k) => k.split(".").reduce((x, p) => (x == null ? x : x[p]), o);
+  const pairs = Object.entries(R.NAS_ONLY_REASON_KEYS);
+  check("ten NAS-only reasons have i18n keys", pairs.length === 10, String(pairs.length));
+  check(
+    "each en value is its constant byte-for-byte",
+    pairs.every(([text, key]) => at(en, key) === text),
+    pairs
+      .filter(([text, key]) => at(en, key) !== text)
+      .map(([, k]) => k)
+      .join(", "),
+  );
+  check(
+    "each has a Hindi twin that is not the English",
+    pairs.every(
+      ([text, key]) => typeof at(hi, key) === "string" && at(hi, key) && at(hi, key) !== text,
+    ),
+  );
+  check(
+    "the map covers every reason the verdict can return",
+    [
+      "data-limit",
+      "idle-timeout",
+      "daily-limit",
+      "open-hours",
+      "allow-list",
+      "trusted-devices",
+    ].every((id) =>
+      [false, true].every((cloud) => {
+        const r = R.nasOnlyLimitVerdict(id, ARUBA, { cloudControl: cloud }).reason;
+        return r === null || r in R.NAS_ONLY_REASON_KEYS;
+      }),
+    ),
+  );
+  const notice = readFileSync(
+    join(ROOT, "src/components/customer/ControllerControlNotice.tsx"),
+    "utf8",
+  );
+  check(
+    "ControllerControlNotice translates only mapped reasons",
+    /NAS_ONLY_REASON_KEYS\[verdict\.reason\]/.test(notice) &&
+      /reasonKey \? t\(reasonKey, verdict\.reason\) : verdict\.reason/.test(notice),
+  );
+}
 check(
   "the daily limit is enforced mid-session now (V1 measured 2026-10-03)",
   /^Enforced\./.test(R.NAS_ONLY_DAILY_LIMIT) &&

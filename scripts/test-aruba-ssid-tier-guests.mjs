@@ -81,6 +81,13 @@ writeFileSync(
      async get(id) { return G.find((g) => g.id === id) ?? null; },
    };`,
 );
+// SsidSpeedTiers reads the grant list for its Apply speeds button
+// (bandwidth.update). The real hook pulls in the whole auth context; an
+// unknown grant list is what it returns while loading.
+writeFileSync(
+  join(work, "dashboard-hooks-stub.js"),
+  `export function useMyPermissions() { return { data: undefined }; }`,
+);
 writeFileSync(
   join(work, "entry.tsx"),
   `import { createRoot } from "react-dom/client";
@@ -111,6 +118,7 @@ await build({
     "@/services/bandwidth-policy.service": join(work, "policy-stub.js"),
     "@/services/customer.service": join(work, "customer-stub.js"),
     "@/services/guest.service": join(work, "guest-stub.js"),
+    "@/hooks/useCustomerDashboard": join(work, "dashboard-hooks-stub.js"),
     "@": join(ROOT, "src"),
   },
   plugins: [

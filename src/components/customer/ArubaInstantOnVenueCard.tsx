@@ -93,7 +93,7 @@ export function ArubaInstantOnVenueCard({ locationId }: { locationId: string }) 
           </div>
           <div>
             <p className="mb-1 font-medium text-[var(--wy-text)]">
-              {t("aruba.managedInApp", "Not set from Wyfy")}
+              {t("aruba.notSetFromWyfy", "Not set from Wyfy")}
             </p>
             <ul className="list-disc space-y-0.5 pl-4 text-[var(--wy-text-muted)]">
               {ARUBA_VENUE_IN_INSTANT_ON.map((x, i) => (
