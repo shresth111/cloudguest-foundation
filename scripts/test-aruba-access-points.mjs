@@ -12,8 +12,8 @@
  *   1. MIKROTIK AND OMADA ARE UNCHANGED. The real `CustomerDashboardPage` and
  *      the real Guests page are mounted for a MikroTik venue and an Omada
  *      venue: neither requests `/locations/{id}/access-points`, neither
- *      renders a single `aruba-*` element, the Guests table keeps its eleven
- *      columns, and `/guest-sessions` is asked with the exact params it was
+ *      renders a single `aruba-*` element, the Guests table keeps its ten
+ *      columns (eleven at Aruba, with Access point), and `/guest-sessions` is asked with the exact params it was
  *      asked with before (no `ap_mac`).
  *
  *      With `BASELINE_ROOT=<a checkout of origin/staging>` the same two venues
@@ -553,7 +553,9 @@ for (const venue of ["mikrotik", "omada"]) {
     );
     if (which === "users") {
       const heads = await r.page.$$eval("thead th", (ths) => ths.length);
-      eq(`${venue} users: nine columns, as before (console Guests table)`, heads, 9);
+      // 10 since #558 added the IP column (Guest, Phone, MAC, IP, Device,
+      // Duration, Connected at, Download, Status, Actions).
+      eq(`${venue} users: ten columns, as before (console Guests table)`, heads, 10);
     }
     if (which === "users") {
       const csv = await exportCsv(r.page);
@@ -659,7 +661,7 @@ console.log("\nB3. Aruba Guests page: column and filter");
 {
   const r = await render(ROOT, "aruba", "users");
   const heads = await r.page.$$eval("thead th", (ths) => ths.map((t) => t.textContent.trim()));
-  eq("ten columns (one more: Access point)", heads.length, 10);
+  eq("eleven columns (one more: Access point)", heads.length, 11);
   check("an Access point column", heads.includes("Access point"), heads.join("|"));
   const cells = await r.page.$$eval('[data-testid="aruba-ap-cell"]', (els) =>
     els.map((e) => e.textContent),
