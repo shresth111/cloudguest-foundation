@@ -88,7 +88,7 @@
     "intro": "एक free और एक paid guest network साथ-साथ चलाएँ। Voucher वाले guests, या network की guest list वाले, paid network से जुड़ सकते हैं; बाकी सब free network पर रहते हैं।",
     "oneSpeed": "हर WiFi network पर उसके सभी guests के लिए एक ही speed होती है। Aruba Instant On एक ही network पर एक guest को दूसरे से अलग speed नहीं दे सकता।",
     "paidHint": "जिन guests के पास voucher नहीं है और जो इस network की guest list में नहीं हैं, उन्हें इस network से लौटा दिया जाता है और voucher पाने का तरीका दिखाया जाता है।",
-    "saved": "Save हो गया। अब guest के sign in करते समय Wyfy जाँचता है कि कौन किस network से जुड़ सकता है। हर network की speed आपका Wyfy Guest contact access points पर लगाता है, इस screen से नहीं।",
+    "saved": "Save हो गया। अब guest के sign in करते समय Wyfy जाँचता है कि कौन किस network से जुड़ सकता है। हर network की speed तब लगती है जब इस venue पर cloud control चालू हो; तब तक वह सिर्फ़ यहाँ save रहती है।",
     "saveFailed": "Save नहीं हो सका।",
     "loading": "Load हो रहा है…",
     "loadFailed": "इस location के WiFi networks load नहीं हो सके।",
@@ -111,6 +111,36 @@
     "addNetwork": "WiFi network जोड़ें",
     "save": "Save करें",
     "speedsAppliedTitle": "Network की speeds",
-    "speedsAppliedBody": "Wyfy save करता है कि कौन-से guests किस network से जुड़ सकते हैं। हर network की speed आपका Wyfy Guest contact ऊपर दिए नामों से access points पर लगाता है, हर network पर एक speed। अलग spelling का मतलब अलग network है।"
+    "speedsAppliedBody": "Speeds, access points पर तब लगती हैं जब इस venue पर cloud control चालू हो। तब तक वे सिर्फ़ यहाँ save रहती हैं।",
+    "speed": {
+      "allApplied": "हर mapped network की speed access points पर लग गई है।",
+      "awaitingSetup": "Speeds, access points पर तब लगती हैं जब इस venue पर cloud control चालू हो। तब तक वे सिर्फ़ यहाँ save रहती हैं।",
+      "notYetApplied": "यहाँ save है, access points पर अभी नहीं लगी।",
+      "notAllApplied": "कुछ networks की speed अभी access points पर नहीं लगी।",
+      "applyFailed": "यह speed लगाने की पिछली कोशिश पूरी नहीं हुई।",
+      "networkNotFound": "इस venue पर इस नाम का कोई guest WiFi network नहीं मिला।",
+      "networkHasOtherLimit": "इस network पर एक network-wide limit है जो Wyfy से set नहीं हुई, इसलिए Wyfy उसे जैसा है वैसा छोड़ देता है।",
+      "itemApplied": "“{{ssid}}”: {{speed}}, लग गई",
+      "itemPending": "“{{ssid}}”: {{speed}}, अभी नहीं लगी",
+      "apply": "Speeds लगाएँ",
+      "confirm": "ये speeds अभी guest WiFi पर लगाएँ? हर network के guests को उसकी नई speed मिलेगी।",
+      "confirmApply": "अभी लगाएँ",
+      "cancel": "रद्द करें",
+      "appliedToast": "हर mapped network पर speeds लग गईं।",
+      "pendingToast": "हर speed नहीं लगी।",
+      "noAnswerToast": "कोई जवाब नहीं मिला, इसलिए पता नहीं कि speeds बदलीं या नहीं। अभी क्या लगा है, यह देखने के लिए page reload करें।"
+    }
+  },
+  "nasOnly": {
+    "dataLimit": "Usage गिना जाता है। Limit पूरी होने पर guest फिर से sign in नहीं कर सकता, लेकिन Wyfy, Aruba Instant On access points से किसी device को disconnect नहीं कर सकता, इसलिए वे अपना session खत्म होने तक online रहते हैं।",
+    "dataLimitCloud": "Usage गिना जाता है। Limit पूरी होने पर Wyfy, Instant On के ज़रिए उनका device WiFi से हटा देता है, limit पार होने के लगभग 5 मिनट के अंदर (usage हर ~5 मिनट में आता है), और limit reset होने तक वे फिर से sign in नहीं कर सकते। अगर Instant On block की पुष्टि नहीं करता, तो guest को उसके अगले sign in पर मना कर दिया जाता है।",
+    "idleTimeout": "हो सकता है आपके access points इसे लागू न करें; sessions फिर भी session timeout पर खत्म होते हैं।",
+    "dailyLimit": "लागू है। जब किसी guest का आज का समय खत्म होता है, Aruba Instant On access points उसका session खत्म कर देते हैं, और allowance reset होने तक वह फिर से sign in नहीं कर सकता।",
+    "openHours": "Aruba Instant On access points पर भी लागू है: बंद होने के समय जो guest online है, वह तभी sign out हो जाता है, और आपके फिर से खुलने तक कोई sign in नहीं कर सकता।",
+    "allowList": "ये नियम guest के sign in करते समय लागू होते हैं। Wyfy, Aruba Instant On access points से किसी device को disconnect नहीं कर सकता, इसलिए किसी को हटाने से, या \"सिर्फ़ इस list के लोग\" चालू करने से, अभी online कोई offline नहीं होता। वे अपना session खत्म होने तक जुड़े रहते हैं।",
+    "allowListCloud": "ये नियम guest के sign in करते समय लागू होते हैं। \"सिर्फ़ इस list के लोग\" चालू होने पर, list में न होने वाला कोई भी online guest कुछ ही मिनटों में Instant On के ज़रिए WiFi से हटाया जा सकता है। वरना, किसी को हटाने से वह अपना session खत्म होने तक offline नहीं होता।",
+    "trustedDevices": "Aruba Instant On access points पर trusted device फिर भी कुछ पल के लिए WiFi sign-in page खोलता है, फिर बिना code के अपने-आप जुड़ जाता है। किसी device को हटाना उसका मौजूदा session खत्म होने पर लागू होता है।",
+    "limitsFooter": "बदलाव हर guest के अगली बार sign in करने पर लागू होते हैं। Aruba Instant On access points हर session उसका समय पूरा होने पर खत्म करते हैं, इसलिए अभी online हर कोई तब तक वही limits रखता है जिनके साथ उसने sign in किया था।",
+    "limitsFooterCloud": "समय की limits और device count हर guest के अगली बार sign in करने पर लागू होते हैं: Aruba Instant On access points हर session उसका समय पूरा होने पर खत्म करते हैं, इसलिए अभी online हर कोई तब तक वही समय रखता है जिसके साथ उसने sign in किया था। Data limit अलग है: वह guests के पहले से खर्च किए usage को गिनती है, इसलिए उसे जोड़ने या घटाने से कोई कुछ ही मिनटों में offline हो सकता है।"
   }
 }

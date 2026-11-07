@@ -99,7 +99,7 @@ export function InstantOnActivityPanels({ locationId }: { locationId: string }) 
     <>
       {alerts.status !== "off" && (
         <div data-testid="instant-on-alerts">
-          <Panel title={t("instantOn.alertsTitle", "Alerts from the access points")}>
+          <Panel title={t("instantOn.alertsTitle", "Alerts for the access points")}>
             {alerts.status === "loading" ? (
               <div className="h-10 animate-pulse rounded-[var(--wy-radius)] bg-muted" />
             ) : alerts.status === "unavailable" ? (
@@ -141,7 +141,7 @@ export function InstantOnActivityPanels({ locationId }: { locationId: string }) 
       {events.status !== "off" && (
         <div data-testid="instant-on-events">
           <Panel
-            title={t("instantOn.eventsTitle", "Recent events from the access points")}
+            title={t("instantOn.eventsTitle", "Recent events for the access points")}
             description={t(
               "instantOn.eventsCaption",
               "Only the latest events Instant On keeps. This is not a full history.",

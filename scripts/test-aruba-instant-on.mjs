@@ -281,9 +281,10 @@ eq(
   false,
 );
 check(
-  "its panel opens with U0 and names the screen",
+  "its panel opens with U0 and lists the other gated screens, not itself",
   (RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? "").startsWith(U0) &&
-    /Internet Connection/.test(RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? ""),
+    /Network Zones/.test(RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? "") &&
+    !/Internet Connection/.test(RV.controllerUnsupportedCopy("isp-details", "Office", ARUBA) ?? ""),
 );
 // P0-3 (2026-11-07): one paragraph, Internet Connection in the list, no
 // controller sentence and no duplicated "all work this way" paragraph.
@@ -301,12 +302,27 @@ check(
   );
   check(
     "gated notice: Internet Connection is in the Aruba list",
-    /Internet Connection/.test(RV.NAS_ONLY_GATED_SCREENS) &&
+    RV.NAS_ONLY_GATED_SCREEN_NAMES.some(
+      ([id, n]) => id === "isp-details" && n === "Internet Connection",
+    ) &&
       RV.CONTROLLER_UNSUPPORTED_FEATURE_IDS.every((id) =>
         (RV.controllerUnsupportedCopy(id, "Office", ARUBA) ?? "").includes(
-          RV.NAS_ONLY_GATED_SCREENS,
+          RV.nasOnlyGatedScreensExcept(id),
         ),
       ),
+  );
+  // QA follow-up 2026-11-07: "The same goes for ..." never names the screen
+  // the owner is already on.
+  for (const [id, name] of RV.NAS_ONLY_GATED_SCREEN_NAMES) {
+    if (id === "web-filtering") continue;
+    const copy = RV.controllerUnsupportedCopy(id, "Office", ARUBA) ?? "";
+    const list = copy.slice(copy.indexOf("The same goes for"));
+    check(`gated notice "${id}": its own name is left out of the list`, !list.includes(name), list);
+  }
+  eq(
+    "gated list: joined with commas and a final 'and'",
+    RV.nasOnlyGatedScreensExcept("vlans"),
+    "IP Addresses, Port Forwarding, Call Priority, Internet Connection, website blocking, firewall rules and web filtering",
   );
   check(
     "gated notice: every Aruba panel says the rest works, once",

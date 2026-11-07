@@ -80,10 +80,10 @@ export const NAS_ONLY_DATA_LIMIT_CLOUD =
   "minutes), and they can't sign in again until the limit resets. If Instant On doesn't " +
   "confirm the block, the guest is refused at their next sign-in instead.";
 
-/** Idle timeout before hardware check V2. Says what happens either way. */
+/** Idle timeout before hardware check V2. Says what happens either way,
+ * without the "not yet confirmed on hardware" engineering caveat. */
 export const NAS_ONLY_IDLE_TIMEOUT =
-  "Sent to your Aruba Instant On access points, but not yet confirmed on hardware. If " +
-  "they ignore it, the session still ends at the session timeout.";
+  "Your access points may not apply this; sessions still end at the session timeout.";
 
 /** Max daily session after V1 was measured on the AP21 (2026-10-03): the
  * remaining allowance caps the session time the access point enforces. */
@@ -143,6 +143,26 @@ export const NAS_ONLY_LIMITS_FOOTER_CLOUD =
  * sends no write for that mode (its body is unverified). */
 export const NAS_ONLY_VENUE_SPEED =
   "Wyfy can't set a total for the whole venue at Aruba Instant On venues yet. A network-wide limit applies to one guest network, not the whole venue, and a network uses either that or the per-device speed, not both.";
+
+/**
+ * accessRules.json key for each sentence above. `ControllerControlNotice` and
+ * the Usage Limits footer render `t(key, sentence)`, so Hindi readers get the
+ * hi twin and the English stays this module's constant byte-for-byte (every
+ * pin on these constants still holds). A reason not in this map -- every
+ * Omada and MikroTik sentence -- renders exactly as before.
+ */
+export const NAS_ONLY_REASON_KEYS: Readonly<Record<string, string>> = {
+  [NAS_ONLY_DATA_LIMIT]: "nasOnly.dataLimit",
+  [NAS_ONLY_DATA_LIMIT_CLOUD]: "nasOnly.dataLimitCloud",
+  [NAS_ONLY_IDLE_TIMEOUT]: "nasOnly.idleTimeout",
+  [NAS_ONLY_DAILY_LIMIT]: "nasOnly.dailyLimit",
+  [NAS_ONLY_OPEN_HOURS]: "nasOnly.openHours",
+  [NAS_ONLY_ALLOW_LIST]: "nasOnly.allowList",
+  [NAS_ONLY_ALLOW_LIST_CLOUD]: "nasOnly.allowListCloud",
+  [NAS_ONLY_TRUSTED_DEVICES]: "nasOnly.trustedDevices",
+  [NAS_ONLY_LIMITS_FOOTER]: "nasOnly.limitsFooter",
+  [NAS_ONLY_LIMITS_FOOTER_CLOUD]: "nasOnly.limitsFooterCloud",
+};
 
 const AVAILABLE = (control: NasOnlyLimitId): NasOnlyLimitVerdict => ({
   control,

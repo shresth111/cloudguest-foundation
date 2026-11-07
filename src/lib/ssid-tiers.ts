@@ -61,6 +61,99 @@ export interface SsidTiersView {
   note: string;
   manualSteps: string[];
   pushEnabled: boolean;
+  /** Backend #510's neutral speed state. `null` when the response does not
+   * carry it (an older backend, or a malformed body): read as "not available",
+   * so no Apply button and the neutral saved-here-only sentence. */
+  speedStatus: SsidSpeedStatus | null;
+}
+
+/** Whether each network's speed is live on the access points (backend #510,
+ * `speed_status`). Never names another vendor's app: the reasons are codes,
+ * and the sentences for them live here and in accessRules.ssidTiers.speed. */
+export type SsidSpeedState = "applied" | "pending" | "not_applicable";
+
+export interface SsidSpeedItem {
+  ssid: string;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  status: "applied" | "pending";
+  reason: string | null;
+}
+
+export interface SsidSpeedStatus {
+  status: SsidSpeedState;
+  reason: string | null;
+  cloudApplyAvailable: boolean;
+  items: SsidSpeedItem[];
+}
+
+const SPEED_STATES: readonly SsidSpeedState[] = ["applied", "pending", "not_applicable"];
+
+/** `speed_status` (GET/PUT) or the apply-speeds answer. `null` for anything
+ * that is not a recognisable status -- the caller then offers nothing. */
+export function toSsidSpeedStatus(raw: unknown): SsidSpeedStatus | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Raw;
+  if (!SPEED_STATES.includes(r.status as SsidSpeedState)) return null;
+  const items = Array.isArray(r.items)
+    ? (r.items as unknown[])
+        .filter((x): x is Raw => !!x && typeof x === "object")
+        .map((x) => ({
+          ssid: String(x.ssid ?? ""),
+          downloadMbps: num(x.download_mbps),
+          uploadMbps: num(x.upload_mbps),
+          status: x.status === "applied" ? ("applied" as const) : ("pending" as const),
+          reason: str(x.reason),
+        }))
+    : [];
+  return {
+    status: r.status as SsidSpeedState,
+    reason: str(r.reason),
+    // Only a literal `true` offers the button.
+    cloudApplyAvailable: r.cloud_apply_available === true,
+    items,
+  };
+}
+
+/** Saved but not live, and the honest reason: no promise that a person will
+ * do it. Used when the status is missing, and for `awaiting_setup`. */
+export const SPEEDS_SAVED_HERE_ONLY =
+  "Speeds are applied to the access points once cloud control is on for this venue. Until " +
+  "then they are saved here only.";
+
+/** One sentence per backend reason code. Unknown codes fall back to the
+ * saved-here-only sentence rather than inventing a cause. */
+export const SSID_SPEED_REASON_COPY: Record<string, string> = {
+  awaiting_setup: SPEEDS_SAVED_HERE_ONLY,
+  not_yet_applied: "Saved here, not applied to the access points yet.",
+  not_all_applied: "Some networks' speeds aren't applied to the access points yet.",
+  apply_failed: "The last attempt to apply this speed didn't go through.",
+  network_not_found: "No guest WiFi network with this name was found at this venue.",
+  network_has_other_limit:
+    "This network has a network-wide limit that wasn't set from Wyfy, so Wyfy leaves it as it is.",
+};
+
+/** The i18n key for a reason code (accessRules.ssidTiers.speed.<camel>). */
+export function ssidSpeedReasonKey(reason: string | null): string {
+  const code = reason && reason in SSID_SPEED_REASON_COPY ? reason : "awaiting_setup";
+  return `ssidTiers.speed.${code.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())}`;
+}
+
+/** The FE side of the apply route's `bandwidth.update`, the key the Usage
+ * Limits guest-speed write needs. Fails open on "don't know" (in flight,
+ * failed, empty grant list) like the sidebar; the backend's 403 is the real
+ * boundary. */
+export function canApplySsidSpeeds(permissions: unknown): boolean {
+  return (
+    !Array.isArray(permissions) ||
+    permissions.length === 0 ||
+    permissions.includes("bandwidth.update")
+  );
+}
+
+/** The English sentence for a reason code (the i18n default). */
+export function ssidSpeedReasonCopy(reason: string | null): string {
+  return (reason && SSID_SPEED_REASON_COPY[reason]) || SPEEDS_SAVED_HERE_ONLY;
 }
 
 type Raw = Record<string, unknown>;
@@ -91,6 +184,7 @@ export function toSsidTiersView(raw: unknown): SsidTiersView {
       ? r.instant_on_manual_steps.filter((x): x is string => typeof x === "string")
       : [],
     pushEnabled: r.instant_on_push_enabled === true,
+    speedStatus: toSsidSpeedStatus(r.speed_status),
   };
 }
 

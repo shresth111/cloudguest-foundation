@@ -35,7 +35,7 @@ export interface GuestNetworkSpeed {
   /** null = no limit in that direction. */
   downloadMbps: number | null;
   uploadMbps: number | null;
-  /** A network-wide limit set in the Instant On app, not a per-device cap.
+  /** A network-wide limit set outside Wyfy, not a per-device cap.
    * Read-only: Wyfy won't write over it. Per network, not per venue. */
   otherModeLimit: boolean;
   networkDownloadMbps: number | null;
@@ -157,8 +157,8 @@ export function speedOptions(presets: readonly number[], held: number | null): n
 /** The network's limit is in "Network" mode, set outside Wyfy. Never names
  * another vendor's app (owner rule 2026-11-07). */
 export const NETWORK_WIDE_LIMIT_SET =
-  "It wasn't set from Wyfy, so Wyfy can't change it here. To set a speed per device from " +
-  "Wyfy, ask your Wyfy Guest contact to switch this network back to a per-device limit.";
+  "It wasn't set from Wyfy, so Wyfy leaves it as it is and can't set a per-device speed on " +
+  "this network.";
 
 /** What the network holds right now, in one line. */
 export function currentSpeedSentence(network: GuestNetworkSpeed): string {

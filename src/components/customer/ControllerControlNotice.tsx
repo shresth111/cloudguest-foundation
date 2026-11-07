@@ -1,5 +1,8 @@
 import { Info, Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import type { ControlVerdict } from "@/lib/omada-client-controls";
+import { NAS_ONLY_REASON_KEYS } from "@/lib/nas-only-access-rules";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,7 +47,13 @@ export function ControllerControlNotice({
   verdict: ControlVerdict<string>;
   className?: string;
 }) {
+  const { t } = useTranslation("accessRules", { i18n });
   if (verdict.availability === "available" || !verdict.reason) return null;
+  // Aruba Instant On sentences have accessRules.nasOnly.* twins (Hindi).
+  // Everything else -- every Omada and MikroTik reason -- has no key here and
+  // renders its own text exactly as before.
+  const reasonKey = NAS_ONLY_REASON_KEYS[verdict.reason];
+  const reason = reasonKey ? t(reasonKey, verdict.reason) : verdict.reason;
 
   const blocked = verdict.availability === "unavailable";
   const Icon = blocked ? Lock : Info;
@@ -66,7 +75,7 @@ export function ControllerControlNotice({
       )}
     >
       <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <span>{verdict.reason}</span>
+      <span>{reason}</span>
     </p>
   );
 }

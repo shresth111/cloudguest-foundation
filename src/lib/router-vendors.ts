@@ -700,11 +700,31 @@ export const NAS_ONLY_DATA_USAGE_UNREPORTED = "Data usage isn't reported for thi
  * `NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`). */
 export const NAS_ONLY_FEATURE_COPY: Record<string, string> = {};
 
-/** Every screen gated at a NAS-only venue, in the sidebar's words: the
- * controller list plus Internet Connection (`NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`). */
-export const NAS_ONLY_GATED_SCREENS =
-  "Network Zones, IP Addresses, Port Forwarding, Call Priority, Internet Connection, " +
-  "website blocking, firewall rules and web filtering";
+/** Every screen gated at a NAS-only venue, in the sidebar's words, keyed by
+ * feature id: the controller list plus Internet Connection
+ * (`NAS_ONLY_EXTRA_UNSUPPORTED_FEATURE_IDS`). Web filtering is a section of
+ * the Websites tab, not a nav row, so it has its own key. */
+export const NAS_ONLY_GATED_SCREEN_NAMES: readonly (readonly [string, string])[] = [
+  ["vlans", "Network Zones"],
+  ["dhcp", "IP Addresses"],
+  ["port-forwarding", "Port Forwarding"],
+  ["voip", "Call Priority"],
+  ["isp-details", "Internet Connection"],
+  ["website-blocking", "website blocking"],
+  ["firewall", "firewall rules"],
+  ["web-filtering", "web filtering"],
+];
+
+/** "A, B and C": the gated screens other than `featureId`, so a panel never
+ * says "the same goes for" the screen the owner is already on. */
+export function nasOnlyGatedScreensExcept(featureId: string): string {
+  const names = NAS_ONLY_GATED_SCREEN_NAMES.filter(([id]) => id !== featureId).map(
+    ([, name]) => name,
+  );
+  return names.length > 1
+    ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+    : (names[0] ?? "");
+}
 
 export function controllerUnsupportedCopy(
   featureId: string,
@@ -726,7 +746,7 @@ export function controllerUnsupportedCopy(
     // 2026-11-07).
     const at = who === "This venue" ? "this venue" : who;
     return (
-      `${controllerVenueFeatureReason(vendor)} The same goes for ${NAS_ONLY_GATED_SCREENS} at ` +
+      `${controllerVenueFeatureReason(vendor)} The same goes for ${nasOnlyGatedScreensExcept(featureId)} at ` +
       `${at}. Guests, sessions, vouchers, the sign-in portal and reports all work as usual.`
     );
   }
