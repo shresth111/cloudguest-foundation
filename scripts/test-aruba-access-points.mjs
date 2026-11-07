@@ -13,7 +13,7 @@
  *      the real Guests page are mounted for a MikroTik venue and an Omada
  *      venue: neither requests `/locations/{id}/access-points`, neither
  *      renders a single `aruba-*` element, the Guests table keeps its ten
- *      columns (eleven at Aruba, with Access point), and `/guest-sessions` is asked with the exact params it was
+ *      columns (the same ten at Aruba since the Access point column went), and `/guest-sessions` is asked with the exact params it was
  *      asked with before (no `ap_mac`).
  *
  *      With `BASELINE_ROOT=<a checkout of origin/staging>` the same two venues
@@ -661,12 +661,12 @@ console.log("\nB3. Aruba Guests page: column and filter");
 {
   const r = await render(ROOT, "aruba", "users");
   const heads = await r.page.$$eval("thead th", (ths) => ths.map((t) => t.textContent.trim()));
-  eq("eleven columns (one more: Access point)", heads.length, 11);
-  check("an Access point column", heads.includes("Access point"), heads.join("|"));
-  const cells = await r.page.$$eval('[data-testid="aruba-ap-cell"]', (els) =>
-    els.map((e) => e.textContent),
-  );
-  eq("each session names its AP", cells.join(","), "Lobby,Terrace");
+  // The Access point column was dropped 2026-11-07 (owner's call); the AP
+  // filter and the CSV columns stay, so the table matches MikroTik/Omada.
+  eq("ten columns, same as MikroTik and Omada", heads.length, 10);
+  check("no Access point column", !heads.includes("Access point"), heads.join("|"));
+  const rowsBefore = await r.page.$$eval("tbody tr", (trs) => trs.length);
+  eq("unfiltered: both guests listed", rowsBefore, 2);
   check(
     "unfiltered: no ap_mac sent",
     sessionParams(r.calls).every((p) => !p.includes("ap_mac")),
@@ -681,10 +681,8 @@ console.log("\nB3. Aruba Guests page: column and filter");
     sessionParams(calls).some((p) => p.includes(`"ap_mac":"${AP2}"`)),
     sessionParams(calls).join(" "),
   );
-  const after = await r.page.$$eval('[data-testid="aruba-ap-cell"]', (els) =>
-    els.map((e) => e.textContent),
-  );
-  eq("filtered: only Terrace's guest is listed", after.join(","), "Terrace");
+  const rowsAfter = await r.page.$$eval("tbody tr", (trs) => trs.length);
+  eq("filtered: only Terrace's guest is listed", rowsAfter, 1);
   const csv = (await exportCsv(r.page)).replace(/^\uFEFF/, "").split(/\r?\n/);
   eq(
     "CSV: Access point columns appended at Aruba",
