@@ -678,7 +678,9 @@ function CustomerUsersPage() {
                       u.ip ? (
                         u.ip
                       ) : (
-                        <span className="font-sans text-[13px] text-[var(--wy-text-muted)]">&mdash;</span>
+                        <span className="font-sans text-[13px] text-[var(--wy-text-muted)]">
+                          {"\u2014"}
+                        </span>
                       ),
                   },
                   {
