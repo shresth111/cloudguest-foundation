@@ -9,6 +9,7 @@
   "colUser": "Guest",
   "colPhone": "Phone",
   "colMac": "MAC",
+  "colIp": "IP",
   "colDevice": "Device",
   "colDuration": "Duration",
   "colConnectedAt": "Connected at",
