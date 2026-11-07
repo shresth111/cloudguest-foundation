@@ -689,21 +689,8 @@ function CustomerUsersPage() {
                     visibleFrom: "2xl",
                     cell: (u) => u.device,
                   },
-                  ...(arubaVenue
-                    ? [
-                        {
-                          id: "accessPoint",
-                          header: t("colAccessPoint", "Access point"),
-                          visibleFrom: "lg" as const,
-                          mobile: "hidden" as const,
-                          cell: (u: NonNullable<typeof data>["users"][number]) => (
-                            <span data-testid="aruba-ap-cell">
-                              {sessionApLabel(u.apMac, u.apName, apItems)}
-                            </span>
-                          ),
-                        },
-                      ]
-                    : []),
+                  // No Access point column (owner's call 2026-11-07): the AP
+                  // filter above the table and the CSV export still carry it.
                   {
                     id: "duration",
                     header: t("colDuration"),
