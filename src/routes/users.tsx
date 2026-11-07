@@ -665,6 +665,23 @@ function CustomerUsersPage() {
                       ),
                   },
                   {
+                    id: "ip",
+                    header: t("colIp", "IP"),
+                    mono: true,
+                    visibleFrom: "xl",
+                    mobile: "hidden",
+                    // The session's own address (RADIUS Framed-IP-Address at
+                    // Aruba Instant On, the hotspot host at MikroTik), already
+                    // in the CSV export and the detail panel; the table never
+                    // showed it, which read as "IP missing" at Aruba venues.
+                    cell: (u) =>
+                      u.ip ? (
+                        u.ip
+                      ) : (
+                        <span className="font-sans text-[13px] text-[var(--wy-text-muted)]">&mdash;</span>
+                      ),
+                  },
+                  {
                     id: "device",
                     header: t("colDevice"),
                     visibleFrom: "2xl",
