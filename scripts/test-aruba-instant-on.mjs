@@ -85,8 +85,9 @@ const OMADA = "tplink_omada";
 const src = (p) => readFileSync(join(ROOT, p), "utf8");
 
 // U-copy, verbatim from PM_SPEC §4.
-const U0 =
-  "Your WiFi runs on Aruba Instant On access points. This is set up in the Instant On app, not here.";
+// 2026-11-07: the owner dropped the "set up in the Instant On app, not here"
+// wording from every customer screen; the gate stays, the copy is neutral.
+const U0 = "This feature isn't available for this venue yet.";
 const U1 =
   "Speed limits aren't supported through sign-in on Aruba Instant On access points. Set speed limits in the Instant On app, on the guest network.";
 const U2 =
@@ -300,9 +301,9 @@ check(
   ),
 );
 eq(
-  "other headlines name the app",
+  "other headlines stay neutral",
   RV.controllerUnsupportedHeadline(ARUBA, "vlans"),
-  "Set up in the Instant On app, not here.",
+  "Not available at this venue yet.",
 );
 eq("U6: traffic charts", RV.controllerDeviceMetricsReason(ARUBA), U6);
 check(

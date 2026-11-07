@@ -331,10 +331,9 @@ export function controllerVenueFeatureReason(vendor: string | null | undefined):
   // PM_SPEC U0. A NAS-only venue has no controller the owner would
   // recognise; it has access points and an app.
   if (isNasOnlyVendor(vendor)) {
-    return (
-      `Your WiFi runs on ${routerVendorLabel(vendor)} access points. ` +
-      "This is set up in the Instant On app, not here."
-    );
+    // Owner's call 2026-11-07: never send the customer to another app from
+    // the dashboard. Say only that the screen is not available here yet.
+    return "This feature isn't available for this venue yet.";
   }
   // A missing vendor string is a real case, not a defensive one: this reason
   // is rendered from a venue summary that may have been persisted by an
@@ -675,7 +674,7 @@ export function controllerUnsupportedHeadline(
   featureId?: string,
 ): string {
   if (!isNasOnlyVendor(vendor)) return CONTROLLER_UNSUPPORTED_HEADLINE;
-  return "Set up in the Instant On app, not here.";
+  return "Not available at this venue yet.";
 }
 
 /**
@@ -715,8 +714,8 @@ export function controllerUnsupportedCopy(
     // PM_SPEC U0 (= U9) verbatim first, then what it means for this screen.
     return (
       `${controllerVenueFeatureReason(vendor)} ${entry.noun} for ${who === "This venue" ? "this venue" : who} ` +
-      `${entry.verb} part of that. Wyfy signs guests in at this venue; it doesn't configure the ` +
-      "access points."
+      `${entry.verb} part of that. Guest sign-in, sessions, vouchers, the portal and reports ` +
+      "for this venue all work here as usual."
     );
   }
   return (
