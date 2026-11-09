@@ -525,6 +525,7 @@
     "deviceLabel": "Device addresses (MAC)",
     "deviceHint": "Paste one or more device (Wi-Fi/MAC) addresses separated by commas. Your router cuts the device off now and every time it reconnects.",
     "deviceMacNote": "Anonymous guests can switch on a private Wi-Fi address on their phone and come back as a new device, so use this for devices you know.",
+    "blocking": "Blocking…",
     "deviceConfirmBody": "Your router will drop these devices now and every time they reconnect, until you unblock them."
   },
   "consoleShell": {

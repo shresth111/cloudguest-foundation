@@ -54,6 +54,7 @@ import {
   NAS_ONLY_BLOCK_SIGNIN_CLOUD_UNCONFIRMED,
 } from "@/lib/omada-client-controls";
 import { isNasOnlyVendor } from "@/lib/router-vendors";
+import { createSingleFlight } from "@/lib/single-flight";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 
 // `identifier` holds a phone number, an email address, or a MAC (see
@@ -422,6 +423,9 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [showModal, setShowModal] = useState(false);
+  // Only ever true at a NAS-only venue (see `confirmBlock`).
+  const [blocking, setBlocking] = useState(false);
+  const blockFlight = useRef(createSingleFlight());
   const [sortKey, setSortKey] = useState<SortKey>("blockedOn");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -739,6 +743,26 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
     }
   };
 
+  // The dialog's confirm button. At a NAS-only venue (Aruba Instant On) a
+  // block waits on the vendor's cloud, so the dialog used to sit open with
+  // nothing happening and every further click wrote another rule for the same
+  // number. There it now closes on the first click and later clicks are
+  // dropped; a failure leaves the typed list in the box to retry.
+  //
+  // Every other vendor goes straight to `handleBlock`, as before.
+  const confirmBlock = () => {
+    if (!isNasOnlyVendor(clientControls.vendor)) return handleBlock();
+    return blockFlight.current.run(async () => {
+      setShowModal(false);
+      setBlocking(true);
+      try {
+        await handleBlock();
+      } finally {
+        setBlocking(false);
+      }
+    });
+  };
+
   // The primary "Block N number(s)" button used to be hard-`disabled` any
   // time parsed.valid was empty -- which covers 4 different situations
   // (nothing typed, invalid format, duplicates, already-blocked). A native
@@ -972,7 +996,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                 Cancel
               </button>
               <button
-                onClick={handleBlock}
+                onClick={confirmBlock}
                 className="rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-4 py-2 text-sm font-semibold text-[var(--wy-accent-fg)] transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] focus:ring-offset-2"
               >
                 Block {mode === "device" ? "devices" : mode === "email" ? "emails" : "numbers"}
@@ -1182,6 +1206,7 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
                     : "9876543210, +919812345678"
               }
               value={textarea}
+              readOnly={blocking}
               onChange={(e) => setTextarea(e.target.value)}
               className="block w-full rounded-[var(--wy-radius)] border border-[var(--wy-border)] px-3 py-2 text-sm placeholder:text-[var(--wy-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)]"
             />
@@ -1299,18 +1324,24 @@ export default function BlockUsers({ locationId }: { locationId?: string } = {})
             <ControllerControlNotice verdict={blockDeviceVerdict} className="mt-0 max-w-xl" />
             <button
               ref={triggerRef}
-              disabled={textarea.trim() === ""}
+              disabled={textarea.trim() === "" || blocking}
               onClick={handlePrimaryClick}
               className="inline-flex items-center gap-2 rounded-[var(--wy-radius)] bg-[var(--wy-accent)] px-8 py-2.5 text-sm font-semibold text-[var(--wy-accent-fg)] transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--wy-accent)] focus:ring-offset-2 disabled:opacity-60"
             >
-              Block{" "}
-              {parsed.valid.length > 0
-                ? `${parsed.valid.length} ${identifierNoun(parsed.valid.length)}`
-                : mode === "device"
-                  ? "devices"
-                  : mode === "email"
-                    ? "email addresses"
-                    : "numbers"}
+              {blocking ? (
+                t("blockGuests.blocking", "Blocking…")
+              ) : (
+                <>
+                  Block{" "}
+                  {parsed.valid.length > 0
+                    ? `${parsed.valid.length} ${identifierNoun(parsed.valid.length)}`
+                    : mode === "device"
+                      ? "devices"
+                      : mode === "email"
+                        ? "email addresses"
+                        : "numbers"}
+                </>
+              )}
             </button>
           </div>
         </CardContent>
