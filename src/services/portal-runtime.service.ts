@@ -1,6 +1,7 @@
 import { guestPortalApi } from "@/services/guest-portal-api";
 import { clampFeedbackDwellMinutes } from "@/lib/portal-post-connect";
 import { normalizeGuestIdentifier } from "@/lib/portal-guest-identifier";
+import { rememberSessionToken, sessionTokenFor } from "@/lib/portal-session-token";
 import {
   clampBackgroundFocal,
   clampBackgroundOverlayStrength,
@@ -178,6 +179,10 @@ interface BackendGuestSession {
 interface BackendGuestLoginResponse {
   guest_id: string;
   identifier: string;
+  /** Signed proof of this login (backend QA 2026-11-06 H1). Present on
+   * `/guest/login/*` responses, always null from `/guest/session/active`,
+   * absent on a backend that predates it. See `@/lib/portal-session-token`. */
+  session_token?: string | null;
   is_new_guest: boolean;
   has_password: boolean;
   /** Optional until the backend adds them alongside `has_password` -- see
@@ -360,6 +365,7 @@ function toRuntimeConfig(c: BackendCaptivePortalConfig): RuntimePortalConfig {
 
 function toRuntimeSession(data: BackendGuestLoginResponse): RuntimeSession {
   const s = data.session;
+  rememberSessionToken(s.id, data.session_token);
   return {
     guestId: data.guest_id,
     identifier: data.identifier,
@@ -618,6 +624,7 @@ export const portalRuntimeService = {
     await guestPortalApi.post("/guest/set-password", {
       guest_id: params.guestId,
       session_id: params.sessionId,
+      session_token: sessionTokenFor(params.sessionId),
       password: params.password,
     });
   },
@@ -637,6 +644,7 @@ export const portalRuntimeService = {
     await guestPortalApi.post("/guest/session/disconnect", {
       guest_id: params.guestId,
       session_id: params.sessionId,
+      session_token: sessionTokenFor(params.sessionId),
       reason: params.reason,
     });
   },
@@ -678,6 +686,7 @@ export const portalRuntimeService = {
     await guestPortalApi.post("/guest/profile", {
       guest_id: params.guestId,
       session_id: params.sessionId,
+      session_token: sessionTokenFor(params.sessionId),
       display_name: params.displayName || undefined,
       email: params.email || undefined,
       declined: params.declined || undefined,
@@ -703,6 +712,7 @@ export const portalRuntimeService = {
     }>("/guest/sign-in-name", {
       guest_id: params.guestId,
       session_id: params.sessionId,
+      session_token: sessionTokenFor(params.sessionId),
       display_name: params.displayName,
     });
     return { displayName: data.display_name, hasProfile: data.has_profile };
@@ -724,6 +734,7 @@ export const portalRuntimeService = {
     }>("/guest/marketing-consent", {
       guest_id: params.guestId,
       session_id: params.sessionId,
+      session_token: sessionTokenFor(params.sessionId),
       opt_in: true,
       consent_text_version: params.consentTextVersion,
     });
@@ -746,6 +757,7 @@ export const portalRuntimeService = {
     await guestPortalApi.post("/guest/review-link-opened", {
       guest_id: params.guestId,
       session_id: params.sessionId,
+      session_token: sessionTokenFor(params.sessionId),
     });
   },
 
@@ -756,6 +768,7 @@ export const portalRuntimeService = {
     await guestPortalApi.post("/guest/review-prompt-shown", {
       guest_id: params.guestId,
       session_id: params.sessionId,
+      session_token: sessionTokenFor(params.sessionId),
     });
   },
 
