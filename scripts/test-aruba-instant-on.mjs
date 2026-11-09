@@ -386,7 +386,6 @@ check(
     CC.NAS_ONLY_SPEED,
     CC.NAS_ONLY_DISCONNECT,
     CC.NAS_ONLY_BLOCK_SIGNIN,
-    CC.NAS_ONLY_SESSION_TIMEOUT,
   ].every((s) => !/RADIUS|\bNAS\b|tunnel|WireGuard|secret/i.test(s)),
 );
 
@@ -435,32 +434,25 @@ check(
     instantOnCloudControl: true,
   });
   check(
-    "Block on the network, cloud control on: qualified, with the Instant On caveat",
-    on.availability === "qualified" && on.reason === CC.NAS_ONLY_BLOCK_DEVICE_CLOUD,
+    "Block on the network, cloud control on: available, with no note",
+    on.availability === "available" && on.reason === null,
     JSON.stringify(on),
   );
 }
 eq("Block sign-in: qualified (our own record)", v("block-signin").availability, "qualified");
 eq("Block sign-in reason is U2's block sentence", v("block-signin").reason, U2_BLOCK);
-eq(
-  "Session timeout: a neutral note (enforced, V1 measured)",
-  v("session-timeout").availability,
-  "qualified",
-);
-check(
-  "session-timeout note says the access point ends the session (V1 measured 2026-10-03)",
-  /^Enforced\./.test(v("session-timeout").reason ?? "") &&
-    /end the session when the time is up/.test(v("session-timeout").reason ?? "") &&
-    !/hasn't been confirmed/.test(v("session-timeout").reason ?? ""),
-);
+eq("Session timeout: available with no note", v("session-timeout").availability, "available");
+eq("Session timeout carries no reason", v("session-timeout").reason, null);
 check(
   "speed says not supported through sign-in, and never promises a future fix",
   /aren't supported through sign-in/.test(CC.NAS_ONLY_SPEED) &&
     !/soon|coming|future|yet\b/i.test(CC.NAS_ONLY_SPEED),
 );
 check(
-  "no control at an Aruba venue is plain `available`",
-  CC.CLIENT_CONTROL_IDS.every((c) => v(c).availability !== "available" && !!v(c).reason),
+  "only session timeout is plain `available` at an Aruba venue",
+  CC.CLIENT_CONTROL_IDS.filter((c) => c !== "session-timeout").every(
+    (c) => v(c).availability !== "available" && !!v(c).reason,
+  ),
 );
 check(
   "the verdict does not depend on a capabilities read (none is ever made)",
@@ -485,8 +477,8 @@ for (const a of ["block", "unblock", "speed", "speed-clear"]) {
   const cloud = { ...ARUBA_VENUE, instantOnCloudControl: true };
   const d = (a, venue = cloud) => CC.deviceActionVerdict(a, venue);
   check(
-    "per-device block, cloud control on: qualified with the Instant On caveat",
-    d("block").availability === "qualified" && d("block").reason === CC.NAS_ONLY_BLOCK_DEVICE_CLOUD,
+    "per-device block, cloud control on: available, with no note",
+    d("block").availability === "available" && d("block").reason === null,
   );
   check(
     "per-device unblock, cloud control on: available",

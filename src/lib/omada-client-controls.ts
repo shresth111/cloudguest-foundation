@@ -783,18 +783,6 @@ export const NAS_ONLY_DEVICE_SPEED_GATEWAY =
   "Each guest's speed comes from your venue's speed setting, applied by your Wyfy gateway " +
   "router when they come online. Change it under Usage Limits.";
 /**
- * Block device at an Aruba Instant On venue with Instant On cloud control ON.
- * Says what happens (a block on the venue's Instant On site, only reported
- * once Instant On lists it) and its limits (MAC randomisation, site-wide).
- * Does not claim the drop of a live device as measured: that is hardware
- * test step 6 in the PR.
- */
-export const NAS_ONLY_BLOCK_DEVICE_CLOUD =
-  "Blocks this device on your Instant On site, so it can't use any of the venue's WiFi until " +
-  "you allow it again. We only say it's blocked once Instant On lists it. A phone can come " +
-  "back under a new random Wi-Fi address, so treat it as a deterrent rather than a lock. To " +
-  "stop the person signing in again on any device, block them under Blocked Guests.";
-/**
  * Block device at an Aruba Instant On venue with Instant On cloud control OFF.
  * What works (the sign-in block, our own record) and what is needed for the
  * device half. Never the "can't disconnect" sentence: that answered a
@@ -818,17 +806,6 @@ export const NAS_ONLY_BLOCK_SIGNIN_CLOUD_UNCONFIRMED =
   "Blocking stops this person signing in again. We couldn't confirm their device left the " +
   "WiFi, so they may stay online until their session ends.";
 /**
- * Session timeout is PM_SPEC V1, MEASURED 2026-10-03 on an AP21: the access
- * point ends the session at the Session-Timeout Wyfy sends
- * (Acct-Terminate-Cause=Session-Timeout). Still `qualified` rather than plain
- * `available` because the note is the one place that tells an owner how it
- * works at this venue -- it renders as a neutral note, not a warning.
- */
-export const NAS_ONLY_SESSION_TIMEOUT =
-  "Enforced. Aruba Instant On access points end the session when the time is up, and the " +
-  "guest has to sign in again.";
-
-/**
  * What a NAS-only venue gets for each control. No capabilities read: there
  * is no controller connection to ask, and the answers do not depend on one.
  *
@@ -837,8 +814,7 @@ export const NAS_ONLY_SESSION_TIMEOUT =
  *    Instant On block, read back); unavailable without it, saying what is
  *    needed and that the sign-in block already works.
  *  - block-signin: qualified. A row in our own database, read by our portal.
- *  - session-timeout: qualified -- enforced by the AP (V1 measured), with a
- *    neutral note saying so.
+ *  - session-timeout: available; the access point enforces it (V1 measured).
  */
 function nasOnlyControlVerdict(
   control: ClientControlId,
@@ -860,7 +836,7 @@ function nasOnlyControlVerdict(
     case "block-device":
       // Only `true` counts: an unanswered read is not cloud control.
       return cloudControl === true
-        ? { control, availability: "qualified", reason: NAS_ONLY_BLOCK_DEVICE_CLOUD }
+        ? { control, availability: "available", reason: null }
         : { control, availability: "unavailable", reason: NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD };
     case "speed-limit":
     case "speed-profile":
@@ -872,7 +848,7 @@ function nasOnlyControlVerdict(
     case "venue-speed-limit":
       return { control, availability: "unavailable", reason: VENUE_SPEED_UNAVAILABLE };
     case "session-timeout":
-      return { control, availability: "qualified", reason: NAS_ONLY_SESSION_TIMEOUT };
+      return { control, availability: "available", reason: null };
   }
 }
 
@@ -936,9 +912,7 @@ export function deviceActionVerdict(
         reason: NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD,
       };
     }
-    return action === "block"
-      ? { control: action, availability: "qualified", reason: NAS_ONLY_BLOCK_DEVICE_CLOUD }
-      : { control: action, availability: "available", reason: null };
+    return { control: action, availability: "available", reason: null };
   }
   const { vendor } = venue;
   // The same normalization as the ladder above, and it must be here too: all

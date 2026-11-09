@@ -119,8 +119,8 @@ check(
     at("data-limit").reason !== U3A_RETIRED,
 );
 eq("Aruba: devices per user is plainly supported", at("devices").availability, "available");
-eq("Aruba: idle timeout is live with a caveat", at("idle-timeout").availability, "qualified");
-eq("Aruba: daily limit is live with a note", at("daily-limit").availability, "qualified");
+eq("Aruba: idle timeout is live with no note", at("idle-timeout").availability, "available");
+eq("Aruba: daily limit is live with no note", at("daily-limit").availability, "available");
 eq("Aruba: open hours is live with a note", at("open-hours").availability, "qualified");
 eq("Aruba: allow-list is live with a caveat", at("allow-list").availability, "qualified");
 eq(
@@ -140,8 +140,6 @@ eq(
 );
 const copy = [
   R.NAS_ONLY_DATA_LIMIT,
-  R.NAS_ONLY_IDLE_TIMEOUT,
-  R.NAS_ONLY_DAILY_LIMIT,
   R.NAS_ONLY_OPEN_HOURS,
   R.NAS_ONLY_ALLOW_LIST,
   R.NAS_ONLY_LIMITS_FOOTER,
@@ -152,14 +150,7 @@ check(
 );
 check(
   "customer copy names the product",
-  // Idle timeout is the one exception: since the 2026-11-07 QA follow-up it
-  // says "Your access points" and is pinned verbatim below.
-  copy.filter((s) => s !== R.NAS_ONLY_IDLE_TIMEOUT).every((s) => s.includes("Aruba Instant On")),
-);
-eq(
-  "idle timeout: the plain caveat, no 'not yet confirmed on hardware'",
-  R.NAS_ONLY_IDLE_TIMEOUT,
-  "Your access points may not apply this; sessions still end at the session timeout.",
+  copy.every((s) => s.includes("Aruba Instant On")),
 );
 // Every NAS-only reason has an accessRules.nasOnly.* key whose en value is the
 // constant byte-for-byte, and a non-empty hi twin (ControllerControlNotice and
@@ -173,7 +164,7 @@ eq(
   );
   const at = (o, k) => k.split(".").reduce((x, p) => (x == null ? x : x[p]), o);
   const pairs = Object.entries(R.NAS_ONLY_REASON_KEYS);
-  check("ten NAS-only reasons have i18n keys", pairs.length === 10, String(pairs.length));
+  check("seven NAS-only reasons have i18n keys", pairs.length === 7, String(pairs.length));
   check(
     "each en value is its constant byte-for-byte",
     pairs.every(([text, key]) => at(en, key) === text),
@@ -214,13 +205,6 @@ eq(
       /reasonKey \? t\(reasonKey, verdict\.reason\) : verdict\.reason/.test(notice),
   );
 }
-check(
-  "the daily limit is enforced mid-session now (V1 measured 2026-10-03)",
-  /^Enforced\./.test(R.NAS_ONLY_DAILY_LIMIT) &&
-    /end\s+their session/.test(R.NAS_ONLY_DAILY_LIMIT) &&
-    /can't sign in again/.test(R.NAS_ONLY_DAILY_LIMIT) &&
-    !/hasn't been confirmed/.test(R.NAS_ONLY_DAILY_LIMIT),
-);
 check(
   "open hours: online at closing time is signed out then",
   /signed out then/.test(R.NAS_ONLY_OPEN_HOURS) &&
@@ -930,27 +914,17 @@ console.log("\n2a-hybrid. Aruba venue WITH a Wyfy MikroTik gateway: speed is liv
     ),
   );
   check("idle timeout stays live", !(await page.locator("#it").isDisabled()));
-  eq(
-    "idle timeout carries its caveat",
-    await noticeText(page, "idle-timeout"),
-    R.NAS_ONLY_IDLE_TIMEOUT,
-  );
+  check("idle timeout has no notice", (await notice(page, "idle-timeout").count()) === 0);
   check("daily limit stays live", !(await page.locator("#dl").isDisabled()));
-  eq(
-    "daily limit carries its caveat",
-    await noticeText(page, "daily-limit"),
-    R.NAS_ONLY_DAILY_LIMIT,
-  );
-  check(
-    "session timeout says it is enforced (V1 measured)",
-    /^Enforced\./.test((await noticeText(page, "session-timeout")) ?? ""),
-  );
+  check("daily limit has no notice", (await notice(page, "daily-limit").count()) === 0);
+  check("session timeout has no notice", (await notice(page, "session-timeout").count()) === 0);
   check("devices per user has no notice", (await notice(page, "devices").count()) === 0);
   check("devices per user stays live", !(await page.locator("#dp").isDisabled()));
   check("the footer is the NAS-only sentence", (await root()).includes(R.NAS_ONLY_LIMITS_FOOTER));
   check(
-    "total venue speed names Aruba, not the venue's hardware",
-    (await root()).includes(R.NAS_ONLY_VENUE_SPEED) &&
+    "total venue speed carries no note at an Aruba venue",
+    !(await root()).includes("The most all guests together") &&
+      !(await root()).includes("Wyfy can't set a total") &&
       !(await root()).includes("Not available on this venue's hardware"),
   );
   check(
@@ -1005,8 +979,8 @@ console.log("\n2a-cloud. Aruba venue WITH Instant On cloud control: guest networ
 {
   const page = await open(ARUBA, { cloud: true });
   check(
-    "with cloud control the footer says a data limit can act on guests online",
-    (await page.locator("#root").innerText()).includes(R.NAS_ONLY_LIMITS_FOOTER_CLOUD),
+    "with cloud control the limits footer is not shown",
+    !(await page.locator("#root").innerText()).includes("apply the next time each guest signs in"),
   );
   await page.getByRole("button", { name: "Apply guest speed" }).waitFor({ timeout: 10_000 });
   eq(
@@ -1178,7 +1152,7 @@ console.log("\n2b. The same screen at a MikroTik venue: unchanged");
     "the pre-existing footer",
     (await root()).includes("can sign someone out within minutes") &&
       !(await root()).includes(R.NAS_ONLY_LIMITS_FOOTER) &&
-      !(await root()).includes(R.NAS_ONLY_VENUE_SPEED),
+      !(await root()).includes("Wyfy can't set a total"),
   );
   check("the table shows the cap", (await root()).includes("2 GB / Daily"));
   const calls = await editAndSave(page);

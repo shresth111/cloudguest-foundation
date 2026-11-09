@@ -773,8 +773,8 @@ console.log("\nC2. Aruba drawer 'This device': Block/Allow follow Instant On clo
   const block = panel.getByRole("button", { name: "Block device" });
   check("on: Block device is live", await block.isEnabled());
   check(
-    "on: the Instant On caveat is shown before the click",
-    (await panel.innerText()).includes(CC.NAS_ONLY_BLOCK_DEVICE_CLOUD),
+    "on: no Instant On note is shown before the click",
+    !(await panel.innerText()).includes("Blocks this device on your Instant On site"),
   );
   await block.click();
   await r.page.getByText(/Aruba Instant On lists it as blocked/).waitFor({ timeout: 5_000 });

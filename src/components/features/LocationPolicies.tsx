@@ -70,11 +70,7 @@ import { useClientControls } from "@/hooks/useClientControls";
 import { ControllerControlNotice } from "@/components/customer/ControllerControlNotice";
 import { ArubaGuestSpeedControl } from "@/components/customer/ArubaGuestSpeedControl";
 import { isNasOnlyVendor } from "@/lib/router-vendors";
-import {
-  NAS_ONLY_LIMITS_FOOTER,
-  NAS_ONLY_LIMITS_FOOTER_CLOUD,
-  nasOnlyLimitVerdict,
-} from "@/lib/nas-only-access-rules";
+import { NAS_ONLY_LIMITS_FOOTER, nasOnlyLimitVerdict } from "@/lib/nas-only-access-rules";
 import { resolveOrgId } from "@/services/customer.service";
 import {
   createPolicyWithRules,
@@ -1349,20 +1345,19 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     value={f.venueSpeed}
                     onChange={(v) => setField("venueSpeed", v)}
                     options={venueSpeedOptions(savedVenueRates[f.businessUnit])}
-                    caption={t(
-                      "venueSpeed.caption",
-                      "The most all guests together can use at this venue.",
-                    )}
+                    caption={
+                      nasOnlyVenue
+                        ? undefined
+                        : t(
+                            "venueSpeed.caption",
+                            "The most all guests together can use at this venue.",
+                          )
+                    }
                     err={errs.venueSpeed}
                   />
-                  {!speedAsking && !venueSpeedUsable && (
+                  {!speedAsking && !venueSpeedUsable && !nasOnlyVenue && (
                     <p className="mt-1 text-xs text-[var(--wy-text-muted)]">
-                      {nasOnlyVenue
-                        ? t(
-                            "venueSpeed.unavailableAruba",
-                            "Wyfy can't set a total for the whole venue at Aruba Instant On venues yet. A network-wide limit applies to one guest network, not the whole venue, and a network uses either that or the per-device speed, not both.",
-                          )
-                        : t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
+                      {t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
                     </p>
                   )}
                 </div>
@@ -1610,9 +1605,10 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
             the wrong one: this screen has spent three releases removing
             sentences that were true of most of the form. */}
           <div className="flex flex-col items-center gap-3">
-            <p className="flex items-center gap-1.5 text-xs text-[var(--wy-text-muted)]">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--wy-warn)]" />
-              {/* SPEED LEFT THE "NEXT CONNECT" LIST. Publishing a speed
+            {!(nasOnlyVenue && clientControls.instantOnCloudControl === true) && (
+              <p className="flex items-center gap-1.5 text-xs text-[var(--wy-text-muted)]">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--wy-warn)]" />
+                {/* SPEED LEFT THE "NEXT CONNECT" LIST. Publishing a speed
                   re-applies it to the guests who are online -- the per-guest
                   speed and the venue total alike -- so the old opening,
                   "Speed, timeouts and device count apply the next time each
@@ -1621,19 +1617,18 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                   count are still resolved at sign-in and stay where they
                   were. "usually within a minute" and not "immediately": the
                   write goes to the venue's hardware and is not instant. */}
-              {nasOnlyVenue
-                ? clientControls.instantOnCloudControl === true
-                  ? t("nasOnly.limitsFooterCloud", NAS_ONLY_LIMITS_FOOTER_CLOUD)
-                  : t("nasOnly.limitsFooter", NAS_ONLY_LIMITS_FOOTER)
-                : t(
-                    "limitsApplyNote",
-                    "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",
-                  )}
-              <Tooltip
-                id="save-immediate-effect"
-                text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com."
-              />
-            </p>
+                {nasOnlyVenue
+                  ? t("nasOnly.limitsFooter", NAS_ONLY_LIMITS_FOOTER)
+                  : t(
+                      "limitsApplyNote",
+                      "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",
+                    )}
+                <Tooltip
+                  id="save-immediate-effect"
+                  text="Double-check the limits above before saving. Need help? Contact support@wyfyguest.com."
+                />
+              </p>
+            )}
             <button
               onClick={handleSave}
               disabled={saving}
