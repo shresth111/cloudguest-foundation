@@ -178,6 +178,8 @@ interface BackendGuestSession {
 interface BackendGuestLoginResponse {
   guest_id: string;
   identifier: string;
+  /** Only from `/guest/session/active`: posted to the hotspot instead of `identifier`. */
+  hotspot_username?: string | null;
   is_new_guest: boolean;
   has_password: boolean;
   /** Optional until the backend adds them alongside `has_password` -- see
@@ -363,6 +365,7 @@ function toRuntimeSession(data: BackendGuestLoginResponse): RuntimeSession {
   return {
     guestId: data.guest_id,
     identifier: data.identifier,
+    hotspotUsername: data.hotspot_username ?? null,
     sessionId: s.id,
     deviceId: s.device_id,
     routerId: s.router_id,

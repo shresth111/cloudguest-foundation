@@ -610,6 +610,8 @@ export interface RuntimeSession {
    * value -- RadiusService.authorize looks up sessions by identifier, not
    * by guestId. */
   identifier: string;
+  /** What to post as the hotspot username on a resumed session. */
+  hotspotUsername?: string | null;
   sessionId: string;
   deviceId: string | null;
   routerId: string;

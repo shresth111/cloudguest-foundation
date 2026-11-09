@@ -12,6 +12,7 @@ import { usePortalRuntime } from "@/context/PortalRuntimeContext";
 import { portalRuntimeService } from "@/services/portal-runtime.service";
 import { friendlyGuestAuthError } from "@/lib/portal-guest-errors";
 import type { AppError } from "@/services/api";
+import { realGuestIdentifier } from "@/lib/portal-resume-username";
 
 export const Route = createFileRoute("/portal/team")({
   errorComponent: PortalErrorScreen,
@@ -63,7 +64,9 @@ export const Route = createFileRoute("/portal/team")({
  * worth a backend migration for a card a guest with no code can just skip.
  */
 function TeamJoinPage() {
-  const { session, guestIdentifier, deviceMac, t } = usePortalRuntime();
+  const { session, guestIdentifier: heldIdentifier, deviceMac, t } = usePortalRuntime();
+  // A resume alias opens the hotspot but is not an identity to join a team as.
+  const guestIdentifier = realGuestIdentifier(heldIdentifier);
   const navigate = useNavigate({ from: "/portal/team" });
 
   useEffect(() => {

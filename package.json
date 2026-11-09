@@ -33,6 +33,7 @@
     "test:signin-fields": "node scripts/test-portal-signin-fields.mjs",
     "test:portal-identifier-case": "node scripts/test-portal-guest-identifier-case.mjs",
     "test:portal-guest-name": "node scripts/test-portal-guest-name.mjs",
+    "test:portal-resume-username": "node --experimental-strip-types --no-warnings scripts/test-portal-resume-username.mjs",
     "test:portal-venue-logo": "node scripts/test-portal-venue-logo-size.mjs",
     "test:post-login-roundtrip": "node scripts/test-post-login-html-roundtrip.mjs",
     "test:consent-roundtrip": "node scripts/test-portal-consent-roundtrip.mjs",

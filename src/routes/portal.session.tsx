@@ -302,7 +302,7 @@ function SessionPage() {
     // Both, not just the session: portal.success.tsx's hotspot POST is
     // gated on `guestIdentifier` too, and setting only one of them is the
     // bug that once silently no-op'd for an entire class of guest.
-    setGuestIdentifier(liveSession.identifier);
+    setGuestIdentifier(liveSession.hotspotUsername ?? liveSession.identifier);
   }, [liveSession, setSession, setGuestIdentifier]);
   const navigate = useNavigate({ from: "/portal/session" });
   const portalSearch = usePortalLinkSearch();
