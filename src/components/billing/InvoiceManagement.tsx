@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { Download, FileText, Loader2, Mail, Plus, Printer, Trash2 } from "lucide-react";
+import { BadgeCheck, Download, FileText, Loader2, Mail, Plus, Printer, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import {
   useCreateManualInvoice,
   useDownloadInvoice,
   useOrganizationsList,
+  useRecordInvoicePayment,
 } from "@/hooks/useBilling";
 import type { Subscription } from "@/types/billing";
 import type { AppError } from "@/services/api";
@@ -63,10 +64,26 @@ interface Props {
   isLoading?: boolean;
   isError?: boolean;
   onRetry?: () => void;
+  /** Master only. This component is also mounted on the customer billing
+   * page, where a customer must never be offered "Mark as paid". */
+  canRecordPayment?: boolean;
 }
 
-export function InvoiceManagement({ data, subscriptions, isLoading, isError, onRetry }: Props) {
+const todayLocal = () => new Date().toLocaleDateString("en-CA");
+
+export function InvoiceManagement({
+  data,
+  subscriptions,
+  isLoading,
+  isError,
+  onRetry,
+  canRecordPayment = false,
+}: Props) {
   const [previewing, setPreviewing] = useState<Invoice | null>(null);
+  const recordPayment = useRecordInvoicePayment();
+  const [recording, setRecording] = useState<Invoice | null>(null);
+  const [receivedOn, setReceivedOn] = useState(todayLocal);
+  const [reference, setReference] = useState("");
   const download = useDownloadInvoice();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -136,6 +153,27 @@ export function InvoiceManagement({ data, subscriptions, isLoading, isError, onR
             (err as unknown as AppError).message ||
               "Could not generate the invoice -- check the organization has a billing profile on file.",
           ),
+      },
+    );
+  }
+
+  function openRecordPayment(inv: Invoice) {
+    setReceivedOn(todayLocal());
+    setReference("");
+    setRecording(inv);
+  }
+
+  function handleRecordPayment() {
+    if (!recording || recordPayment.isPending) return;
+    recordPayment.mutate(
+      { id: recording.id, receivedOn, reference },
+      {
+        onSuccess: () => {
+          toast.success(`${recording.invoiceNumber} marked as paid.`);
+          setRecording(null);
+        },
+        onError: (err) =>
+          toast.error((err as unknown as AppError).message || "Could not record the payment."),
       },
     );
   }
@@ -223,6 +261,20 @@ export function InvoiceManagement({ data, subscriptions, isLoading, isError, onR
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
+                          {canRecordPayment &&
+                            i.type === "tax_invoice" &&
+                            i.status === "pending" && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => openRecordPayment(i)}
+                                title="Mark as paid"
+                                aria-label={`Mark ${i.invoiceNumber} as paid`}
+                              >
+                                <BadgeCheck className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           <Button
                             size="icon"
                             variant="ghost"
@@ -256,6 +308,49 @@ export function InvoiceManagement({ data, subscriptions, isLoading, isError, onR
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!recording} onOpenChange={(o) => !o && setRecording(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark as paid</DialogTitle>
+            <DialogDescription>
+              {recording
+                ? `Record ${money2.format(recording.total)} received for ${recording.invoiceNumber} (${recording.organizationName}). This cannot be undone; a mistake is corrected with a credit note.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="payment-received-on">Date received</Label>
+              <Input
+                id="payment-received-on"
+                type="date"
+                max={todayLocal()}
+                value={receivedOn}
+                onChange={(e) => setReceivedOn(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="payment-reference">UTR or reference (optional)</Label>
+              <Input
+                id="payment-reference"
+                maxLength={255}
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecording(null)}>
+              Cancel
+            </Button>
+            <Button disabled={!receivedOn || recordPayment.isPending} onClick={handleRecordPayment}>
+              {recordPayment.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Mark as paid
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!previewing} onOpenChange={(o) => !o && setPreviewing(null)}>
         <DialogContent className="max-w-2xl">

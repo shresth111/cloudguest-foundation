@@ -167,7 +167,7 @@ export function PaymentTable({ data, isLoading, isError, onRetry }: Props) {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
                               className="text-destructive"
-                              disabled={p.status === "refunded"}
+                              disabled={p.status === "refunded" || p.gateway === "manual"}
                               onSelect={() => setRefunding(p)}
                             >
                               <RotateCcw className="mr-2 h-4 w-4" /> Refund
