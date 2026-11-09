@@ -173,7 +173,7 @@ eq(
   );
   const at = (o, k) => k.split(".").reduce((x, p) => (x == null ? x : x[p]), o);
   const pairs = Object.entries(R.NAS_ONLY_REASON_KEYS);
-  check("ten NAS-only reasons have i18n keys", pairs.length === 10, String(pairs.length));
+  check("nine NAS-only reasons have i18n keys", pairs.length === 10, String(pairs.length));
   check(
     "each en value is its constant byte-for-byte",
     pairs.every(([text, key]) => at(en, key) === text),
@@ -1005,8 +1005,8 @@ console.log("\n2a-cloud. Aruba venue WITH Instant On cloud control: guest networ
 {
   const page = await open(ARUBA, { cloud: true });
   check(
-    "with cloud control the footer says a data limit can act on guests online",
-    (await page.locator("#root").innerText()).includes(R.NAS_ONLY_LIMITS_FOOTER_CLOUD),
+    "with cloud control the limits footer is not shown",
+    !(await page.locator("#root").innerText()).includes("apply the next time each guest signs in"),
   );
   await page.getByRole("button", { name: "Apply guest speed" }).waitFor({ timeout: 10_000 });
   eq(

@@ -140,7 +140,6 @@
     "allowList": "ये नियम guest के sign in करते समय लागू होते हैं। Wyfy, Aruba Instant On access points से किसी device को disconnect नहीं कर सकता, इसलिए किसी को हटाने से, या \"सिर्फ़ इस list के लोग\" चालू करने से, अभी online कोई offline नहीं होता। वे अपना session खत्म होने तक जुड़े रहते हैं।",
     "allowListCloud": "ये नियम guest के sign in करते समय लागू होते हैं। \"सिर्फ़ इस list के लोग\" चालू होने पर, list में न होने वाला कोई भी online guest कुछ ही मिनटों में Instant On के ज़रिए WiFi से हटाया जा सकता है। वरना, किसी को हटाने से वह अपना session खत्म होने तक offline नहीं होता।",
     "trustedDevices": "Aruba Instant On access points पर trusted device फिर भी कुछ पल के लिए WiFi sign-in page खोलता है, फिर बिना code के अपने-आप जुड़ जाता है। किसी device को हटाना उसका मौजूदा session खत्म होने पर लागू होता है।",
-    "limitsFooter": "बदलाव हर guest के अगली बार sign in करने पर लागू होते हैं। Aruba Instant On access points हर session उसका समय पूरा होने पर खत्म करते हैं, इसलिए अभी online हर कोई तब तक वही limits रखता है जिनके साथ उसने sign in किया था।",
-    "limitsFooterCloud": "समय की limits और device count हर guest के अगली बार sign in करने पर लागू होते हैं: Aruba Instant On access points हर session उसका समय पूरा होने पर खत्म करते हैं, इसलिए अभी online हर कोई तब तक वही समय रखता है जिसके साथ उसने sign in किया था। Data limit अलग है: वह guests के पहले से खर्च किए usage को गिनती है, इसलिए उसे जोड़ने या घटाने से कोई कुछ ही मिनटों में offline हो सकता है।"
+    "limitsFooter": "बदलाव हर guest के अगली बार sign in करने पर लागू होते हैं। Aruba Instant On access points हर session उसका समय पूरा होने पर खत्म करते हैं, इसलिए अभी online हर कोई तब तक वही limits रखता है जिनके साथ उसने sign in किया था।"
   }
 }

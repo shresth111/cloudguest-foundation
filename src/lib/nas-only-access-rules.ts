@@ -130,14 +130,6 @@ export const NAS_ONLY_LIMITS_FOOTER =
   "each session when its time is up, so anyone online right now keeps the limits they " +
   "signed in with until then.";
 
-/** The same footer with Instant On cloud control ON: a data limit is counted
- * against guests already online, so it is not one of the "next sign-in" ones. */
-export const NAS_ONLY_LIMITS_FOOTER_CLOUD =
-  "Time limits and device count apply the next time each guest signs in: Aruba Instant On " +
-  "access points end each session when its time is up, so anyone online right now keeps the " +
-  "time they signed in with until then. A data limit is different: it counts usage guests " +
-  "have already spent, so adding or lowering one can take someone offline within minutes.";
-
 /** Total venue speed at an Aruba venue. Instant On's own network-wide limit is
  * per SSID, so a venue with two guest networks has no single total, and Wyfy
  * sends no write for that mode (its body is unverified). */
@@ -161,7 +153,6 @@ export const NAS_ONLY_REASON_KEYS: Readonly<Record<string, string>> = {
   [NAS_ONLY_ALLOW_LIST_CLOUD]: "nasOnly.allowListCloud",
   [NAS_ONLY_TRUSTED_DEVICES]: "nasOnly.trustedDevices",
   [NAS_ONLY_LIMITS_FOOTER]: "nasOnly.limitsFooter",
-  [NAS_ONLY_LIMITS_FOOTER_CLOUD]: "nasOnly.limitsFooterCloud",
 };
 
 const AVAILABLE = (control: NasOnlyLimitId): NasOnlyLimitVerdict => ({
