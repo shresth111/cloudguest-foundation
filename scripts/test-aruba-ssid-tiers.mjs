@@ -358,9 +358,8 @@ console.log("\n3. wiring");
 
   const hub = src("src/components/features/PoliciesHub.tsx");
   check(
-    "Access Rules mounts the section only at a NAS-only venue",
-    /const nasOnlyVenue = isNasOnlyVendor\(vendor\)/.test(hub) &&
-      /nasOnlyVenue && tiersLocationId/.test(hub),
+    "Access Rules no longer shows the section (owner, 2026-11-09)",
+    !/SsidSpeedTiers/.test(hub),
   );
 
   const ui = src("src/components/features/SsidSpeedTiers.tsx");

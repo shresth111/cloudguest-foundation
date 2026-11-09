@@ -181,12 +181,6 @@ export const SAME_FOR_EVERY_DEVICE =
   "guest a different speed from another, so this applies to everyone on it alike. It's the " +
   "most a device can use, not a guaranteed speed.";
 
-/** The per-network tiers below (Speed tiers by WiFi network) write the same
- * Instant On setting, so the two must not be read as independent. */
-export const SAME_SETTING_AS_SSID_TIERS =
-  "Speed tiers by WiFi network (below) set this same Instant On speed for their networks: " +
-  "whichever is applied last is the one Instant On holds.";
-
 /** Cloud control off: what is needed, and who does it. Never a save. */
 export const GUEST_SPEED_NEEDS_CLOUD =
   "Setting the guest WiFi speed from Wyfy needs Instant On cloud control, which isn't switched " +
