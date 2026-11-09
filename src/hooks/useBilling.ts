@@ -211,6 +211,22 @@ export function useGenerateAndSendInvoice() {
   });
 }
 
+export function useRecordInvoicePayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      receivedOn,
+      reference,
+    }: {
+      id: string;
+      receivedOn: string;
+      reference: string;
+    }) => billingService.recordInvoicePayment(id, { receivedOn, reference }),
+    onSuccess: () => invalidate(qc),
+  });
+}
+
 export function useCreateManualInvoice() {
   const qc = useQueryClient();
   return useMutation({

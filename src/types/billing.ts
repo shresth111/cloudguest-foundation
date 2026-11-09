@@ -33,7 +33,9 @@ export type SubscriptionStatus =
   | "paused";
 
 export type PaymentStatus = "paid" | "pending" | "failed" | "refunded";
-export type PaymentGateway = "stripe" | "razorpay" | "paypal";
+export type ConfigurableGateway = "stripe" | "razorpay" | "paypal";
+/** `manual` is money recorded by an operator; it has no gateway to configure. */
+export type PaymentGateway = ConfigurableGateway | "manual";
 export type InvoiceType = "tax_invoice" | "credit_note" | "debit_note";
 export type DiscountType = "percentage" | "fixed";
 export type CouponStatus = "active" | "expired" | "disabled";
@@ -142,7 +144,7 @@ export interface UsageRow {
 }
 
 export interface PaymentGatewayConfig {
-  id: PaymentGateway;
+  id: ConfigurableGateway;
   name: string;
   connected: boolean;
   lastTransactionAt?: string;

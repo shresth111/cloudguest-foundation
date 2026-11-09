@@ -191,6 +191,7 @@ function BillingScreen() {
               <InvoiceManagement
                 data={snap.data?.invoices}
                 subscriptions={snap.data?.subscriptions}
+                canRecordPayment
                 {...state}
               />
             )}

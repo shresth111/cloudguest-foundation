@@ -23,7 +23,12 @@ import type {
   TaxType,
   UsageRow,
 } from "@/types/billing";
-import type { BillingReportFormat, PaymentGateway, ReportFrequency } from "@/types/billing";
+import type {
+  BillingReportFormat,
+  ConfigurableGateway,
+  PaymentGateway,
+  ReportFrequency,
+} from "@/types/billing";
 
 // The Master Console's demo sign-in (master-login.tsx's "admin@example.com
 // / test") issues a local-only token the real backend never accepts --
@@ -999,21 +1004,21 @@ async function fetchAllCoupons(): Promise<BackendCoupon[]> {
 
 let gatewaysStore = [
   {
-    id: "stripe" as PaymentGateway,
+    id: "stripe" as ConfigurableGateway,
     name: "Stripe",
     connected: true,
     lastTransactionAt: undefined as string | undefined,
     mode: "live" as const,
   },
   {
-    id: "razorpay" as PaymentGateway,
+    id: "razorpay" as ConfigurableGateway,
     name: "Razorpay",
     connected: true,
     lastTransactionAt: undefined as string | undefined,
     mode: "live" as const,
   },
   {
-    id: "paypal" as PaymentGateway,
+    id: "paypal" as ConfigurableGateway,
     name: "PayPal",
     connected: false,
     lastTransactionAt: undefined as string | undefined,
@@ -1805,6 +1810,15 @@ export const billingService = {
       emailRecipient: data.email_recipient,
       emailError: data.email_error,
     };
+  },
+
+  /** POST /invoices/{id}/record-payment -- Master only. Records money that
+   * reached the bank outside any gateway, for the invoice's full total. */
+  async recordInvoicePayment(id: string, input: { receivedOn: string; reference: string }) {
+    await api.post(`/invoices/${id}/record-payment`, {
+      received_on: input.receivedOn,
+      reference: input.reference.trim() || null,
+    });
   },
 
   /** POST /invoices/manual -- the operator-typed-line-items counterpart to

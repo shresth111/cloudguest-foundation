@@ -7,11 +7,11 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/common/ErrorState";
 import { useToggleGateway } from "@/hooks/useBilling";
-import type { PaymentGateway, PaymentGatewayConfig } from "@/types/billing";
+import type { ConfigurableGateway, PaymentGatewayConfig } from "@/types/billing";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-const ICONS: Record<PaymentGateway, typeof CreditCard> = {
+const ICONS: Record<ConfigurableGateway, typeof CreditCard> = {
   stripe: CreditCard,
   razorpay: Zap,
   paypal: Wallet,
