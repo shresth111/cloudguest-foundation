@@ -281,7 +281,7 @@ console.log("\n4. An open network has no guest list");
 console.log("\n5. Only at a NAS-only venue");
 {
   const hub = src("src/components/features/PoliciesHub.tsx");
-  check("the section mounts only at a NAS-only venue", /nasOnlyVenue && tiersLocationId/.test(hub));
+  check("Access Rules no longer shows the section", !/SsidSpeedTiers/.test(hub));
   const importers = ["CreateGroup", "LocationPolicies", "CustomerFeaturePage"].filter((f) =>
     /SsidTierGuests/.test(
       src(

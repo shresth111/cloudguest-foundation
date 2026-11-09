@@ -39,7 +39,6 @@ import {
   GUEST_SPEED_NEEDS_CLOUD,
   NO_LIMIT,
   SAME_FOR_EVERY_DEVICE,
-  SAME_SETTING_AS_SSID_TIERS,
   applyOutcomeMessage,
   currentSpeedSentence,
   fromSelectValue,
@@ -281,9 +280,6 @@ export function ArubaGuestSpeedControl({
                   {currentSpeedSentence(network)}
                 </p>
               )}
-              <p className="mt-1 text-xs text-slate-400">
-                {t("guestSpeed.sameSettingAsTiers", SAME_SETTING_AS_SSID_TIERS)}
-              </p>
               <div className="mt-3 flex justify-end">
                 <Button
                   type="button"

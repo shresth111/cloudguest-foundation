@@ -36,7 +36,6 @@
     "cancel": "रद्द करें",
     "confirmApply": "लागू करें",
     "sameForEveryDevice": "इस guest WiFi network के हर device के लिए एक ही speed। Aruba Instant On एक guest को दूसरे से अलग speed नहीं दे सकता, इसलिए यह सब पर बराबर लागू होती है। यह एक device की अधिकतम speed है, गारंटी नहीं।",
-    "sameSettingAsTiers": "नीचे दिए WiFi network के speed tiers अपने networks पर यही Instant On speed set करते हैं: जो आखिर में लागू हो, Instant On वही रखता है।",
     "needsCloud": "Wyfy से guest WiFi की speed set करने के लिए Instant On cloud control चाहिए, जो इस venue पर अभी चालू नहीं है। इसे चालू करवाने के लिए अपने Wyfy Guest contact से कहें।"
   },
   "limitsTable": {

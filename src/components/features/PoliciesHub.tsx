@@ -6,10 +6,8 @@ import i18n from "@/lib/i18n";
 import { PageHeader, SubTabs, type PageScope } from "@/components/customer/console";
 import LocationPolicies from "./LocationPolicies";
 import CreateGroup from "./CreateGroup";
-import SsidSpeedTiers from "./SsidSpeedTiers";
 import { useClientControls } from "@/hooks/useClientControls";
 import { isNasOnlyVendor } from "@/lib/router-vendors";
-import { useCustomerStore } from "@/stores/customerStore";
 
 // Renamed from generic/technical "Location Policies"/"User Policies"/
 // "Group Policies" -- none of those said what they actually configure. Each
@@ -89,12 +87,10 @@ export default function PoliciesHub({
   const { t } = useTranslation("accessRules", { i18n });
   const { vendor } = useClientControls();
   const nasOnlyVenue = isNasOnlyVendor(vendor);
-  const activeLocationId = useCustomerStore((s) => s.activeLocationId);
-  const tiersLocationId = locationId ?? activeLocationId ?? null;
   // Aruba Instant On: no Access Tiers tab (owner, 2026-10-05: "access tier
   // hata do aruba se"). A tier is a different speed per group of guests, and
   // Instant On has no per-guest speed on any path -- one speed per WiFi
-  // network, set in the section below Guest WiFi Limits. Every other venue
+  // network, set under Guest WiFi Limits. Every other venue
   // keeps both tabs.
   const tabs = nasOnlyVenue ? ACCESS_TABS.filter((item) => item.id !== "group") : ACCESS_TABS;
   const activeTab: AccessTabId = nasOnlyVenue && tab === "group" ? "location" : tab;
@@ -157,12 +153,6 @@ export default function PoliciesHub({
         className="space-y-5"
       >
         {activeTab === "location" && <LocationPolicies locationId={locationId} />}
-        {/* Aruba Instant On only: one speed per WiFi network is the only speed
-            control that venue has, so the per-network tiers live here, under
-            Guest WiFi Limits. Every other vendor renders nothing new. */}
-        {activeTab === "location" && nasOnlyVenue && tiersLocationId && (
-          <SsidSpeedTiers locationId={tiersLocationId} />
-        )}
         {activeTab === "group" && <CreateGroup locationId={locationId} />}
       </div>
     </div>
