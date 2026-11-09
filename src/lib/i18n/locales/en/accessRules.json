@@ -134,8 +134,6 @@
   "nasOnly": {
     "dataLimit": "Usage is counted. When a guest reaches the limit they can't sign in again, but Wyfy can't disconnect a device from Aruba Instant On access points, so they stay online until their session ends.",
     "dataLimitCloud": "Usage is counted. When a guest reaches the limit, Wyfy takes their device off the WiFi through Instant On, within about 5 minutes of crossing it (usage arrives every ~5 minutes), and they can't sign in again until the limit resets. If Instant On doesn't confirm the block, the guest is refused at their next sign-in instead.",
-    "idleTimeout": "Your access points may not apply this; sessions still end at the session timeout.",
-    "dailyLimit": "Enforced. When a guest's time for today runs out, Aruba Instant On access points end their session, and they can't sign in again until the allowance resets.",
     "openHours": "Enforced at Aruba Instant On access points too: a guest who is online at closing time is signed out then, and nobody can sign in until you open again.",
     "allowList": "These rules apply when a guest signs in. Wyfy can't disconnect a device from Aruba Instant On access points, so removing someone, or switching on \"only people on this list\", doesn't take anyone offline who is online right now. They stay on until their session ends.",
     "allowListCloud": "These rules apply when a guest signs in. With \"only people on this list\" switched on, anyone online who isn't on the list can be taken off the WiFi through Instant On within minutes. Otherwise, removing someone doesn't take them offline until their session ends.",

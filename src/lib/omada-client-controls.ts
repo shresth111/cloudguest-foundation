@@ -806,17 +806,6 @@ export const NAS_ONLY_BLOCK_SIGNIN_CLOUD_UNCONFIRMED =
   "Blocking stops this person signing in again. We couldn't confirm their device left the " +
   "WiFi, so they may stay online until their session ends.";
 /**
- * Session timeout is PM_SPEC V1, MEASURED 2026-10-03 on an AP21: the access
- * point ends the session at the Session-Timeout Wyfy sends
- * (Acct-Terminate-Cause=Session-Timeout). Still `qualified` rather than plain
- * `available` because the note is the one place that tells an owner how it
- * works at this venue -- it renders as a neutral note, not a warning.
- */
-export const NAS_ONLY_SESSION_TIMEOUT =
-  "Enforced. Aruba Instant On access points end the session when the time is up, and the " +
-  "guest has to sign in again.";
-
-/**
  * What a NAS-only venue gets for each control. No capabilities read: there
  * is no controller connection to ask, and the answers do not depend on one.
  *
@@ -825,8 +814,7 @@ export const NAS_ONLY_SESSION_TIMEOUT =
  *    Instant On block, read back); unavailable without it, saying what is
  *    needed and that the sign-in block already works.
  *  - block-signin: qualified. A row in our own database, read by our portal.
- *  - session-timeout: qualified -- enforced by the AP (V1 measured), with a
- *    neutral note saying so.
+ *  - session-timeout: available; the access point enforces it (V1 measured).
  */
 function nasOnlyControlVerdict(
   control: ClientControlId,
@@ -860,7 +848,7 @@ function nasOnlyControlVerdict(
     case "venue-speed-limit":
       return { control, availability: "unavailable", reason: VENUE_SPEED_UNAVAILABLE };
     case "session-timeout":
-      return { control, availability: "qualified", reason: NAS_ONLY_SESSION_TIMEOUT };
+      return { control, availability: "available", reason: null };
   }
 }
 

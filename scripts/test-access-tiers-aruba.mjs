@@ -97,7 +97,7 @@ eq(
   L.arubaTierVerdict("tier-data-limit").availability,
   "qualified",
 );
-check("daily limit reuses the measured sentence", /^Enforced\./.test(L.ARUBA_TIER_DAILY_LIMIT));
+eq("daily limit has no note", L.arubaTierVerdict("tier-daily-limit").reason, null);
 eq(
   "login hours are live with a note (backend contract)",
   L.arubaTierVerdict("tier-login-hours").availability,
@@ -190,7 +190,6 @@ eq(
 const allCopy = [
   L.ARUBA_TIER_SPEED,
   L.ARUBA_TIER_DATA_LIMIT,
-  L.ARUBA_TIER_DAILY_LIMIT,
   L.ARUBA_TIER_LOGIN_HOURS,
   L.ARUBA_TIER_SAVED,
   L.ARUBA_TIER_MAP_HINT,

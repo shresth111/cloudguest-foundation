@@ -22,8 +22,8 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { Panel, StatusBadge } from "@/components/customer/console";
 import { useCustomerDashboard } from "@/hooks/useCustomerDashboard";
-import { CONTROLLER_STATE_COPY, CONTROLLER_STATE_NEXT_STEP } from "@/lib/router-vendors";
-import { ARUBA_VENUE_IN_INSTANT_ON, ARUBA_VENUE_IN_WYFY, arubaVenueStats } from "@/lib/aruba-venue";
+import { CONTROLLER_STATE_COPY } from "@/lib/router-vendors";
+import { arubaVenueStats } from "@/lib/aruba-venue";
 
 function Stat({ label, value, testId }: { label: string; value: string; testId: string }) {
   return (
@@ -80,31 +80,6 @@ export function ArubaInstantOnVenueCard({ locationId }: { locationId: string }) 
             testId="aruba-last"
           />
         </div>
-        <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
-          <div>
-            <p className="mb-1 font-medium text-[var(--wy-text)]">
-              {t("aruba.managedHere", "Managed here, in Wyfy")}
-            </p>
-            <ul className="list-disc space-y-0.5 pl-4 text-[var(--wy-text-muted)]">
-              {ARUBA_VENUE_IN_WYFY.map((x, i) => (
-                <li key={x}>{t(`aruba.inWyfy${i + 1}`, x)}</li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <p className="mb-1 font-medium text-[var(--wy-text)]">
-              {t("aruba.notSetFromWyfy", "Not set from Wyfy")}
-            </p>
-            <ul className="list-disc space-y-0.5 pl-4 text-[var(--wy-text-muted)]">
-              {ARUBA_VENUE_IN_INSTANT_ON.map((x, i) => (
-                <li key={x}>{t(`aruba.inApp${i + 1}`, x)}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-        <p className="text-xs text-[var(--wy-text-muted)]">
-          {CONTROLLER_STATE_NEXT_STEP.no_controller_api}
-        </p>
       </Panel>
     </div>
   );

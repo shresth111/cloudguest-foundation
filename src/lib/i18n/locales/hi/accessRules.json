@@ -134,8 +134,6 @@
   "nasOnly": {
     "dataLimit": "Usage गिना जाता है। Limit पूरी होने पर guest फिर से sign in नहीं कर सकता, लेकिन Wyfy, Aruba Instant On access points से किसी device को disconnect नहीं कर सकता, इसलिए वे अपना session खत्म होने तक online रहते हैं।",
     "dataLimitCloud": "Usage गिना जाता है। Limit पूरी होने पर Wyfy, Instant On के ज़रिए उनका device WiFi से हटा देता है, limit पार होने के लगभग 5 मिनट के अंदर (usage हर ~5 मिनट में आता है), और limit reset होने तक वे फिर से sign in नहीं कर सकते। अगर Instant On block की पुष्टि नहीं करता, तो guest को उसके अगले sign in पर मना कर दिया जाता है।",
-    "idleTimeout": "हो सकता है आपके access points इसे लागू न करें; sessions फिर भी session timeout पर खत्म होते हैं।",
-    "dailyLimit": "लागू है। जब किसी guest का आज का समय खत्म होता है, Aruba Instant On access points उसका session खत्म कर देते हैं, और allowance reset होने तक वह फिर से sign in नहीं कर सकता।",
     "openHours": "Aruba Instant On access points पर भी लागू है: बंद होने के समय जो guest online है, वह तभी sign out हो जाता है, और आपके फिर से खुलने तक कोई sign in नहीं कर सकता।",
     "allowList": "ये नियम guest के sign in करते समय लागू होते हैं। Wyfy, Aruba Instant On access points से किसी device को disconnect नहीं कर सकता, इसलिए किसी को हटाने से, या \"सिर्फ़ इस list के लोग\" चालू करने से, अभी online कोई offline नहीं होता। वे अपना session खत्म होने तक जुड़े रहते हैं।",
     "allowListCloud": "ये नियम guest के sign in करते समय लागू होते हैं। \"सिर्फ़ इस list के लोग\" चालू होने पर, list में न होने वाला कोई भी online guest कुछ ही मिनटों में Instant On के ज़रिए WiFi से हटाया जा सकता है। वरना, किसी को हटाने से वह अपना session खत्म होने तक offline नहीं होता।",

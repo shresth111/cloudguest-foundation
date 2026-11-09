@@ -45,7 +45,7 @@
  *    measured). Copy lives in `omada-client-controls.ts` (`NAS_ONLY_SPEED`).
  *
  * Session timeout, speed and blocking keep their verdicts in
- * `omada-client-controls.ts` (`NAS_ONLY_SESSION_TIMEOUT`, `NAS_ONLY_SPEED`,
+ * `omada-client-controls.ts` (`NAS_ONLY_SPEED`,
  * `NAS_ONLY_BLOCK_SIGNIN`); this module does not restate them.
  */
 import type { ControlVerdict } from "@/lib/omada-client-controls";
@@ -79,17 +79,6 @@ export const NAS_ONLY_DATA_LIMIT_CLOUD =
   "through Instant On, within about 5 minutes of crossing it (usage arrives every ~5 " +
   "minutes), and they can't sign in again until the limit resets. If Instant On doesn't " +
   "confirm the block, the guest is refused at their next sign-in instead.";
-
-/** Idle timeout before hardware check V2. Says what happens either way,
- * without the "not yet confirmed on hardware" engineering caveat. */
-export const NAS_ONLY_IDLE_TIMEOUT =
-  "Your access points may not apply this; sessions still end at the session timeout.";
-
-/** Max daily session after V1 was measured on the AP21 (2026-10-03): the
- * remaining allowance caps the session time the access point enforces. */
-export const NAS_ONLY_DAILY_LIMIT =
-  "Enforced. When a guest's time for today runs out, Aruba Instant On access points end " +
-  "their session, and they can't sign in again until the allowance resets.";
 
 /** Open Hours after V1: the time until closing caps the session time. */
 export const NAS_ONLY_OPEN_HOURS =
@@ -146,8 +135,6 @@ export const NAS_ONLY_VENUE_SPEED =
 export const NAS_ONLY_REASON_KEYS: Readonly<Record<string, string>> = {
   [NAS_ONLY_DATA_LIMIT]: "nasOnly.dataLimit",
   [NAS_ONLY_DATA_LIMIT_CLOUD]: "nasOnly.dataLimitCloud",
-  [NAS_ONLY_IDLE_TIMEOUT]: "nasOnly.idleTimeout",
-  [NAS_ONLY_DAILY_LIMIT]: "nasOnly.dailyLimit",
   [NAS_ONLY_OPEN_HOURS]: "nasOnly.openHours",
   [NAS_ONLY_ALLOW_LIST]: "nasOnly.allowList",
   [NAS_ONLY_ALLOW_LIST_CLOUD]: "nasOnly.allowListCloud",
@@ -184,9 +171,9 @@ export function nasOnlyLimitVerdict(
         reason: opts.cloudControl === true ? NAS_ONLY_DATA_LIMIT_CLOUD : NAS_ONLY_DATA_LIMIT,
       };
     case "idle-timeout":
-      return { control, availability: "qualified", reason: NAS_ONLY_IDLE_TIMEOUT };
+      return AVAILABLE(control);
     case "daily-limit":
-      return { control, availability: "qualified", reason: NAS_ONLY_DAILY_LIMIT };
+      return AVAILABLE(control);
     case "open-hours":
       return { control, availability: "qualified", reason: NAS_ONLY_OPEN_HOURS };
     case "allow-list":

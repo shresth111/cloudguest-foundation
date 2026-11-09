@@ -30,7 +30,6 @@
  *    end cap the Session-Timeout, which the AP obeys (V1 MEASURED), and a
  *    sign-in outside them is refused.
  */
-import { NAS_ONLY_DAILY_LIMIT } from "@/lib/nas-only-access-rules";
 import type { ControlVerdict } from "@/lib/omada-client-controls";
 
 export type ArubaTierControl =
@@ -55,9 +54,6 @@ export const ARUBA_TIER_DATA_LIMIT =
   "Usage is counted. A guest who runs out stays online until their session ends, and a " +
   "daily, weekly or monthly limit blocks sign-in until it resets. Cutting them off " +
   "mid-session needs Instant On cloud control.";
-
-/** Max daily session: the measured, shared sentence. */
-export const ARUBA_TIER_DAILY_LIMIT = NAS_ONLY_DAILY_LIMIT;
 
 /** Login hours, per the tier contract (ACCESS_TIERS.md §0 b): sign-in refused
  * outside the window, Session-Timeout capped at the window end. */
@@ -158,7 +154,7 @@ export function arubaTierVerdict(
     case "tier-data-limit":
       return { control, availability: "qualified", reason: ARUBA_TIER_DATA_LIMIT };
     case "tier-daily-limit":
-      return { control, availability: "qualified", reason: ARUBA_TIER_DAILY_LIMIT };
+      return { control, availability: "available", reason: null };
     case "tier-login-hours":
       return { control, availability: "qualified", reason: ARUBA_TIER_LOGIN_HOURS };
   }
