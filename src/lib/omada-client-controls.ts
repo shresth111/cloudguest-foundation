@@ -783,18 +783,6 @@ export const NAS_ONLY_DEVICE_SPEED_GATEWAY =
   "Each guest's speed comes from your venue's speed setting, applied by your Wyfy gateway " +
   "router when they come online. Change it under Usage Limits.";
 /**
- * Block device at an Aruba Instant On venue with Instant On cloud control ON.
- * Says what happens (a block on the venue's Instant On site, only reported
- * once Instant On lists it) and its limits (MAC randomisation, site-wide).
- * Does not claim the drop of a live device as measured: that is hardware
- * test step 6 in the PR.
- */
-export const NAS_ONLY_BLOCK_DEVICE_CLOUD =
-  "Blocks this device on your Instant On site, so it can't use any of the venue's WiFi until " +
-  "you allow it again. We only say it's blocked once Instant On lists it. A phone can come " +
-  "back under a new random Wi-Fi address, so treat it as a deterrent rather than a lock. To " +
-  "stop the person signing in again on any device, block them under Blocked Guests.";
-/**
  * Block device at an Aruba Instant On venue with Instant On cloud control OFF.
  * What works (the sign-in block, our own record) and what is needed for the
  * device half. Never the "can't disconnect" sentence: that answered a
@@ -860,7 +848,7 @@ function nasOnlyControlVerdict(
     case "block-device":
       // Only `true` counts: an unanswered read is not cloud control.
       return cloudControl === true
-        ? { control, availability: "qualified", reason: NAS_ONLY_BLOCK_DEVICE_CLOUD }
+        ? { control, availability: "available", reason: null }
         : { control, availability: "unavailable", reason: NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD };
     case "speed-limit":
     case "speed-profile":
@@ -936,9 +924,7 @@ export function deviceActionVerdict(
         reason: NAS_ONLY_BLOCK_DEVICE_NEEDS_CLOUD,
       };
     }
-    return action === "block"
-      ? { control: action, availability: "qualified", reason: NAS_ONLY_BLOCK_DEVICE_CLOUD }
-      : { control: action, availability: "available", reason: null };
+    return { control: action, availability: "available", reason: null };
   }
   const { vendor } = venue;
   // The same normalization as the ladder above, and it must be here too: all

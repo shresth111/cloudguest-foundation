@@ -435,8 +435,8 @@ check(
     instantOnCloudControl: true,
   });
   check(
-    "Block on the network, cloud control on: qualified, with the Instant On caveat",
-    on.availability === "qualified" && on.reason === CC.NAS_ONLY_BLOCK_DEVICE_CLOUD,
+    "Block on the network, cloud control on: available, with no note",
+    on.availability === "available" && on.reason === null,
     JSON.stringify(on),
   );
 }
@@ -485,8 +485,8 @@ for (const a of ["block", "unblock", "speed", "speed-clear"]) {
   const cloud = { ...ARUBA_VENUE, instantOnCloudControl: true };
   const d = (a, venue = cloud) => CC.deviceActionVerdict(a, venue);
   check(
-    "per-device block, cloud control on: qualified with the Instant On caveat",
-    d("block").availability === "qualified" && d("block").reason === CC.NAS_ONLY_BLOCK_DEVICE_CLOUD,
+    "per-device block, cloud control on: available, with no note",
+    d("block").availability === "available" && d("block").reason === null,
   );
   check(
     "per-device unblock, cloud control on: available",
