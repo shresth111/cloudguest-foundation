@@ -401,6 +401,12 @@ jobs:
             "portal-guest-name" 34 "portal guest name: all checks passed" \
             bun run test:portal-guest-name
 
+      - name: resume alias is never a guest identity
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "portal-resume-username" 11 "portal resume username: all checks passed" \
+            bun run test:portal-resume-username
+
       # The venue logo on the guest sign-in card. It used to paint every
       # upload inside a fixed 30x30px box on a phone (a 4:1 wordmark came out
       # 30x7px). Pins, at 390px DPR 3 with the real component and the real

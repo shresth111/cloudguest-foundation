@@ -178,7 +178,7 @@ function PortalLoading() {
     // /portal/success, but that page's gate silently no-op'd forever --
     // a guest stuck on a spinner with zero evidence the router ever saw
     // a login attempt, because the POST was never actually attempted.
-    setGuestIdentifier(liveSession.identifier);
+    setGuestIdentifier(liveSession.hotspotUsername ?? liveSession.identifier);
   }, [liveSession, setSession, setGuestIdentifier]);
 
   // A first-time guest device is, by definition, on a fresh, sometimes-flaky

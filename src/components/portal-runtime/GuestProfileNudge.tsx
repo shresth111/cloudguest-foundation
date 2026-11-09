@@ -148,7 +148,9 @@ export function GuestProfileNudge({
   // than a guarantee about the value. A blank pre-fill is the correct
   // outcome in that case, and it costs one character.
   const [email, setEmail] = useState(() =>
-    session.authMethod === "otp_email" && session.identifier?.includes("@")
+    session.authMethod === "otp_email" &&
+    !session.hotspotUsername &&
+    session.identifier?.includes("@")
       ? session.identifier
       : "",
   );

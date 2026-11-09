@@ -73,7 +73,7 @@ function ReviewRoute() {
   useEffect(() => {
     if (!liveSession) return;
     setSession(liveSession);
-    setGuestIdentifier(liveSession.identifier);
+    setGuestIdentifier(liveSession.hotspotUsername ?? liveSession.identifier);
   }, [liveSession, setSession, setGuestIdentifier]);
 
   const effectiveSession = session ?? liveSession ?? undefined;

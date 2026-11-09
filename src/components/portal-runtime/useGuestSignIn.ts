@@ -22,6 +22,7 @@ import type { RuntimeAuthMethod, RuntimeSession } from "@/types/portal-runtime";
 import type { AppError } from "@/services/api";
 import type { OpenGuestTeam } from "@/services/portal-runtime.service";
 import { usePortalLinkSearch } from "@/components/portal-runtime/usePortalLinkSearch";
+import { realGuestIdentifier } from "@/lib/portal-resume-username";
 
 type OtpChannel = "sms" | "email" | "whatsapp";
 
@@ -418,7 +419,7 @@ export function useGuestSignIn() {
   // prefix above. So a remembered phone runs through the same
   // normalization the field's own onChange applies, stripping the venue's
   // dial code and the trunk prefix back off.
-  const rememberedIdentifier = guestIdentifier?.trim() ?? "";
+  const rememberedIdentifier = realGuestIdentifier(guestIdentifier)?.trim() ?? "";
   const rememberedIsEmail = rememberedIdentifier.includes("@");
   const [phone, setPhone] = useState(() => {
     if (otpDraftRef.current?.phone) return otpDraftRef.current.phone;
