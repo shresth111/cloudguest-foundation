@@ -1,4 +1,5 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { MASTER_CONSOLE_HOSTNAME, masterConsoleAccess } from "@/lib/console-hosts";
 import { MasterLoginPage } from "@/components/auth/MasterLoginPage";
 import { captivePortalRedirect } from "@/lib/captive-portal-redirect";
 
@@ -12,6 +13,14 @@ export const Route = createFileRoute("/master-login")({
   beforeLoad: ({ location }) => {
     const target = captivePortalRedirect(location.search as Record<string, unknown>);
     if (target) throw redirect(target);
+    if (typeof window === "undefined") return;
+    const access = masterConsoleAccess(window.location.hostname);
+    if (access === "not-found") throw notFound();
+    if (access === "bounce") {
+      window.location.href = `https://${MASTER_CONSOLE_HOSTNAME}${location.href}`;
+      // Do not let this navigation resolve against a page being left.
+      throw redirect({ to: "/login" });
+    }
   },
   component: MasterLoginRouteComponent,
 });

@@ -1,5 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 import type { RouterAuthContext } from "@/context/AuthContext";
+import { masterConsoleAccess } from "@/lib/console-hosts";
 import { isHonouredDemoToken } from "@/lib/demo-host";
 import { TOKEN_STORAGE_KEY } from "@/services/api";
 import { isImpersonationSessionActive } from "@/lib/impersonation-host";
@@ -141,7 +142,7 @@ export function requireCustomerSession(
       // redirects in-app, so local dev and previews (localhost, *.pages.dev),
       // where both consoles share one origin, behave exactly as before.
       const host = typeof window === "undefined" ? null : window.location.hostname;
-      if (host === CUSTOMER_APP_HOSTNAME) {
+      if (masterConsoleAccess(host) !== "allow") {
         window.location.href = `https://${MASTER_CONSOLE_HOSTNAME}/master`;
         // Stop this navigation resolving against a page we are leaving.
         throw redirect({ to: "/login" });

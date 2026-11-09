@@ -1,4 +1,5 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound, Outlet, redirect } from "@tanstack/react-router";
+import { masterConsoleAccess } from "@/lib/console-hosts";
 import { isImpersonationSessionActive } from "@/lib/impersonation-host";
 
 /** The customer dashboard's production hostname. */
@@ -48,6 +49,15 @@ export const Route = createFileRoute("/master")({
       window.location.href = `https://${MASTER_CONSOLE_HOSTNAME}${location.href}`;
       // Do not let this navigation resolve against a page being left.
       throw redirect({ to: "/master-login" });
+    }
+    // Every other production host (demo., auth., portal., wifi.) has no
+    // Master Console at all. On demo. this matters most: its browser-only
+    // demo session is global-scope, so the role check below would pass.
+    if (
+      typeof window !== "undefined" &&
+      masterConsoleAccess(window.location.hostname) === "not-found"
+    ) {
+      throw notFound();
     }
     // Never carry a redirect target that's already /master-login itself
     // forward as the ?redirect= value (see authGuards.ts's
