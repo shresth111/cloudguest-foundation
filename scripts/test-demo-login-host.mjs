@@ -21,8 +21,9 @@
 //      guard's demo exemption and the api.ts interceptor all refuse it.
 //   3. The demo works on the demo host. localStorage is per-origin, so any
 //      guard that sends the session to app./master. arrives signed out. The
-//      demo session must reach the customer dashboard AND the master console
-//      without ever leaving demo.wyfyguest.com.
+//      demo session must reach the customer dashboard without ever leaving
+//      demo.wyfyguest.com. The Master Console is not served there at all:
+//      /master is a 404 on demo.wyfyguest.com.
 //
 // WHAT THIS CHECKS. Real behaviour, not source text, wherever that is
 // possible without a DOM: the real AuthProvider is driven through a
@@ -166,6 +167,7 @@ export const jsxDEV = jsx;
 const TANSTACK_ROUTER = `
 export function createFileRoute() { return (options) => ({ options }); }
 export function redirect(opts) { return { __redirect: true, ...opts }; }
+export function notFound() { return { __notFound: true }; }
 export function Outlet() { return null; }
 export function useNavigate() { return (opts) => globalThis.__navigations.push(opts); }
 export function useRouterState({ select }) { return select({ location: { pathname: globalThis.window.location.pathname } }); }
@@ -268,7 +270,12 @@ async function bundle(name, entrySource, { fixed = {}, autoStubRoutes = false, d
             if (
               autoStubRoutes &&
               args.importer.startsWith(join(ROOT, "src", "routes")) &&
-              !["@/lib/authGuards", "@/lib/demo-host", "@/services/api"].includes(args.path)
+              ![
+                "@/lib/authGuards",
+                "@/lib/console-hosts",
+                "@/lib/demo-host",
+                "@/services/api",
+              ].includes(args.path)
             ) {
               return {
                 path: args.path,
@@ -526,6 +533,7 @@ function runGuard(fn) {
     return { redirect: null };
   } catch (e) {
     if (e && e.__redirect) return { redirect: e };
+    if (e && e.__notFound) return { redirect: null, notFound: true };
     throw e;
   }
 }
@@ -575,11 +583,14 @@ for (const host of DEMO_HOSTS) {
     onHost(host, path);
     store.clear();
     store.set(TOKEN_KEY, DEMO_TOKEN);
-    const { redirect } = runGuard(fn);
+    const { redirect, notFound } = runGuard(fn);
+    const refused = host === "demo.wyfyguest.com" && label === "/master beforeLoad";
     check(
-      `${host}: ${label} lets the demo session through, on this host`,
-      redirect === null && hardNavigations.length === 0,
-      `redirect=${JSON.stringify(redirect)} hard=${JSON.stringify(hardNavigations)}`,
+      refused
+        ? `${host}: ${label} is a 404, the Master Console is not on the demo host`
+        : `${host}: ${label} lets the demo session through, on this host`,
+      redirect === null && hardNavigations.length === 0 && Boolean(notFound) === refused,
+      `redirect=${JSON.stringify(redirect)} notFound=${notFound} hard=${JSON.stringify(hardNavigations)}`,
     );
   }
 }
