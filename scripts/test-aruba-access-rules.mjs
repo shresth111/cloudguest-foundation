@@ -173,7 +173,7 @@ eq(
   );
   const at = (o, k) => k.split(".").reduce((x, p) => (x == null ? x : x[p]), o);
   const pairs = Object.entries(R.NAS_ONLY_REASON_KEYS);
-  check("nine NAS-only reasons have i18n keys", pairs.length === 10, String(pairs.length));
+  check("nine NAS-only reasons have i18n keys", pairs.length === 9, String(pairs.length));
   check(
     "each en value is its constant byte-for-byte",
     pairs.every(([text, key]) => at(en, key) === text),
