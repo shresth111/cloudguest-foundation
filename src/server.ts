@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { refuseMasterConsoleRequest, withSecurityHeaders } from "./lib/console-hosts";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -85,10 +86,13 @@ function withNoStoreForUncachedResponses(response: Response): Response {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const refused = refuseMasterConsoleRequest(request);
+      if (refused) return withSecurityHeaders(refused, request);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return withNoStoreForUncachedResponses(
-        await normalizeCatastrophicSsrResponse(response, request),
+      return withSecurityHeaders(
+        withNoStoreForUncachedResponses(await normalizeCatastrophicSsrResponse(response, request)),
+        request,
       );
     } catch (error) {
       console.error(error);

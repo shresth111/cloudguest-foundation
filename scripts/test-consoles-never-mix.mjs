@@ -70,6 +70,23 @@ const GUARDS = [
     decides: /hostname\s*===\s*CUSTOMER_APP_HOSTNAME/,
     andSends: /window\.location\.href\s*=\s*`https:\/\/\$\{MASTER_CONSOLE_HOSTNAME\}/,
   },
+  {
+    file: "src/server.ts",
+    host: "master.wyfyguest.com",
+    decides: /refuseMasterConsoleRequest\(request\)/,
+  },
+  {
+    file: "src/routes/master.tsx",
+    host: "demo.wyfyguest.com",
+    decides: /masterConsoleAccess\(window\.location\.hostname\)\s*===\s*"not-found"/,
+    andSends: /throw notFound\(\)/,
+  },
+  {
+    file: "src/routes/master-login.tsx",
+    host: "demo.wyfyguest.com",
+    decides: /masterConsoleAccess\(window\.location\.hostname\)/,
+    andSends: /throw notFound\(\)/,
+  },
 ];
 
 const failures = [];
