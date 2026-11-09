@@ -119,12 +119,6 @@ export const NAS_ONLY_LIMITS_FOOTER =
   "each session when its time is up, so anyone online right now keeps the limits they " +
   "signed in with until then.";
 
-/** Total venue speed at an Aruba venue. Instant On's own network-wide limit is
- * per SSID, so a venue with two guest networks has no single total, and Wyfy
- * sends no write for that mode (its body is unverified). */
-export const NAS_ONLY_VENUE_SPEED =
-  "Wyfy can't set a total for the whole venue at Aruba Instant On venues yet. A network-wide limit applies to one guest network, not the whole venue, and a network uses either that or the per-device speed, not both.";
-
 /**
  * accessRules.json key for each sentence above. `ControllerControlNotice` and
  * the Usage Limits footer render `t(key, sentence)`, so Hindi readers get the

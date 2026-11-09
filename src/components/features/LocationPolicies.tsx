@@ -1345,20 +1345,19 @@ export default function LocationPolicies({ locationId }: { locationId?: string }
                     value={f.venueSpeed}
                     onChange={(v) => setField("venueSpeed", v)}
                     options={venueSpeedOptions(savedVenueRates[f.businessUnit])}
-                    caption={t(
-                      "venueSpeed.caption",
-                      "The most all guests together can use at this venue.",
-                    )}
+                    caption={
+                      nasOnlyVenue
+                        ? undefined
+                        : t(
+                            "venueSpeed.caption",
+                            "The most all guests together can use at this venue.",
+                          )
+                    }
                     err={errs.venueSpeed}
                   />
-                  {!speedAsking && !venueSpeedUsable && (
+                  {!speedAsking && !venueSpeedUsable && !nasOnlyVenue && (
                     <p className="mt-1 text-xs text-[var(--wy-text-muted)]">
-                      {nasOnlyVenue
-                        ? t(
-                            "venueSpeed.unavailableAruba",
-                            "Wyfy can't set a total for the whole venue at Aruba Instant On venues yet. A network-wide limit applies to one guest network, not the whole venue, and a network uses either that or the per-device speed, not both.",
-                          )
-                        : t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
+                      {t("venueSpeed.unavailable", "Not available on this venue's hardware.")}
                     </p>
                   )}
                 </div>

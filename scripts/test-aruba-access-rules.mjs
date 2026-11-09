@@ -922,8 +922,9 @@ console.log("\n2a-hybrid. Aruba venue WITH a Wyfy MikroTik gateway: speed is liv
   check("devices per user stays live", !(await page.locator("#dp").isDisabled()));
   check("the footer is the NAS-only sentence", (await root()).includes(R.NAS_ONLY_LIMITS_FOOTER));
   check(
-    "total venue speed names Aruba, not the venue's hardware",
-    (await root()).includes(R.NAS_ONLY_VENUE_SPEED) &&
+    "total venue speed carries no note at an Aruba venue",
+    !(await root()).includes("The most all guests together") &&
+      !(await root()).includes("Wyfy can't set a total") &&
       !(await root()).includes("Not available on this venue's hardware"),
   );
   check(
@@ -1151,7 +1152,7 @@ console.log("\n2b. The same screen at a MikroTik venue: unchanged");
     "the pre-existing footer",
     (await root()).includes("can sign someone out within minutes") &&
       !(await root()).includes(R.NAS_ONLY_LIMITS_FOOTER) &&
-      !(await root()).includes(R.NAS_ONLY_VENUE_SPEED),
+      !(await root()).includes("Wyfy can't set a total"),
   );
   check("the table shows the cap", (await root()).includes("2 GB / Daily"));
   const calls = await editAndSave(page);
