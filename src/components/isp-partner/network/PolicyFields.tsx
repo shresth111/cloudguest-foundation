@@ -132,7 +132,7 @@ export function PolicyFields({
             onChange={(v) => set("fup_limit_mb", v)}
             disabled={readOnly}
             error={errors.fup_limit_mb}
-            hint={gb ? "Empty: no limit. For example 3000 GB." : "Empty: no limit. 1024 MB = 1 GB."}
+            hint={gb ? "Empty: no limit. For example 3000 GB." : "Empty: no limit. 1000 MB = 1 GB."}
           />
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-muted-foreground">Counter resets</span>

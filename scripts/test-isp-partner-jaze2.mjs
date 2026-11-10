@@ -75,7 +75,7 @@ eq(
 // round trip of a full policy (units: idle minutes <-> seconds, hard hours <-> seconds)
 const full = {
   ...DEFAULTS,
-  fup_limit_mb: 102400,
+  fup_limit_mb: 100000, // DECISIONS-1: 100 GB = 100000 MB
   fup_reset: "month",
   fup_fallback_speed_group_id: "g-2m",
   fup_exclude_upload: true,
@@ -129,8 +129,12 @@ eq("hard 0.5 h -> 1800 s", half.ok && half.body.hard_timeout_s, 1800);
 eq("used % with carry + topup", m.fupUsedPercent(1536, 1024, 512, 512), 75);
 eq("used % capped", m.fupUsedPercent(5000, 1024), 100);
 eq("no FUP -> null", m.fupUsedPercent(10, null), null);
-eq("1024 MB -> 1 GB", m.formatMb(1024), "1 GB");
-eq("1536 MB -> 1.5 GB", m.formatMb(1536), "1.5 GB");
+// DECISIONS-1: 1 GB = 1000 MB in the ISP console
+eq("1000 MB -> 1 GB", m.formatMb(1000), "1 GB");
+eq("1500 MB -> 1.5 GB", m.formatMb(1500), "1.5 GB");
+eq("1024 MB -> 1.02 GB", m.formatMb(1024), "1.02 GB");
+eq("500 MB stays MB", m.formatMb(500), "500 MB");
+eq("3,000,000 MB -> 3 TB", m.formatMb(3_000_000), "3 TB");
 eq("12.3 Mbps", m.formatBps(12_300_000), "12.3 Mbps");
 eq("null bps", m.formatBps(null), "–");
 eq("optical good tone", m.opticalTone("good"), "online");

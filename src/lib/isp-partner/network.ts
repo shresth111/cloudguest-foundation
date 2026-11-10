@@ -5,7 +5,7 @@
  * display labels. No React, no requests: `scripts/test-isp-partner-jaze2.mjs`
  * pins them.
  */
-import { mbToGbText, parseGbToMb } from "./data-units";
+import { formatMbUnits, mbToGbText, parseGbToMb } from "./data-units";
 import type {
   EnforcementEvent,
   FupReset,
@@ -202,14 +202,10 @@ export function policySummary(p: PackagePolicy | null | undefined): string[] {
   return out;
 }
 
-/** 1024 -> "1 GB", 1536 -> "1.5 GB", 500 -> "500 MB". */
+/** DECISIONS-1: 1000 -> "1 GB", 1500 -> "1.5 GB", 500 -> "500 MB" (1 GB = 1000 MB). */
 export function formatMb(mb: number): string {
-  if (mb >= 1024 * 1024) return `${trim(mb / (1024 * 1024))} TB`;
-  if (mb >= 1024) return `${trim(mb / 1024)} GB`;
-  return `${mb} MB`;
+  return formatMbUnits(mb);
 }
-
-const trim = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 /** Share of the allowance used, 0..100, or null when there is no FUP. */
 export function fupUsedPercent(
