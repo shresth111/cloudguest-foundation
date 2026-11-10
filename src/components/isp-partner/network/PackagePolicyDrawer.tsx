@@ -18,6 +18,7 @@ import { usePackagePolicy, useSavePackagePolicy } from "@/hooks/isp-partner/useN
 import { ispErrorMessage } from "@/lib/isp-partner/errors";
 import { ispFormErrors } from "@/lib/isp-partner/form-errors";
 import { formToPolicyBody, policyToForm, type PolicyForm } from "@/lib/isp-partner/network";
+import { useGbDataLimits } from "@/hooks/isp-partner/useWorkflow";
 import type { IspPackage } from "@/services/isp-partner/plans-types";
 
 export function PackagePolicyDrawer({
@@ -32,6 +33,7 @@ export function PackagePolicyDrawer({
   const q = usePackagePolicy(pkg?.id ?? null);
   const groups = useSpeedGroups({ status: "active", page_size: 100 }, !!pkg);
   const save = useSavePackagePolicy(pkg?.id ?? "");
+  const gb = useGbDataLimits(); // RAKESH-FS: FUP limit in GB (flag on)
   const [form, setForm] = useState<PolicyForm>(() => policyToForm(null));
   const [errors, setErrors] = useState<Partial<Record<keyof PolicyForm, string>>>({});
   const [error, setError] = useState<string | null>(null);
@@ -40,10 +42,10 @@ export function PackagePolicyDrawer({
   >(null);
 
   useEffect(() => {
-    if (q.data) setForm(policyToForm(q.data));
+    if (q.data) setForm(policyToForm(q.data, { gb }));
     setErrors({});
     setError(null);
-  }, [q.data]);
+  }, [q.data, gb]);
 
   if (!pkg) return null;
   const set = <K extends keyof PolicyForm>(k: K, v: PolicyForm[K]) =>
@@ -53,7 +55,7 @@ export function PackagePolicyDrawer({
   const p = q.data;
 
   const submit = async () => {
-    const res = formToPolicyBody(form);
+    const res = formToPolicyBody(form, { gb });
     if (!res.ok) {
       setErrors(res.errors);
       return;
@@ -117,6 +119,7 @@ export function PackagePolicyDrawer({
           )}
 
           <PolicyFields
+            gb={gb}
             form={form}
             set={set}
             errors={errors}

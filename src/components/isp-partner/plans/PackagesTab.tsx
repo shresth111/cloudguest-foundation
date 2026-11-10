@@ -38,6 +38,8 @@ import {
 import { plansService } from "@/services/isp-partner/plans";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
 import { formatRupees, paiseToInput, parseRupeesToPaise } from "@/lib/isp-partner/money";
+import { formatMbAsGb, mbToGbText, parseGbToMb } from "@/lib/isp-partner/data-units";
+import { useGbDataLimits } from "@/hooks/isp-partner/useWorkflow";
 import { DEFAULT_VALIDITY_DAYS, formatKbps, previewPackageName } from "@/lib/isp-partner/plans";
 import type { IspPackage, PackageBody, PackageType } from "@/services/isp-partner/plans-types";
 import { PackagePolicyDrawer } from "@/components/isp-partner/network/PackagePolicyDrawer";
@@ -102,6 +104,7 @@ function PackageDrawer({
   );
   const qc = useQueryClient();
   const meta = usePackageMetaMap();
+  const gb = useGbDataLimits(); // RAKESH-FS: data cap in GB (flag on)
   const [rules, setRules] = useState<PolicyForm>(() => policyToForm(null));
   const [ruleErrors, setRuleErrors] = useState<PolicyErrors>({});
   const [newGroupFor, setNewGroupFor] = useState<NewGroupTarget | null>(null);
@@ -120,7 +123,7 @@ function PackageDrawer({
     setValidity(String(pkg?.validity_days ?? defaultValidity));
     setPrice(pkg ? paiseToInput(pkg.price_paise) : "");
     setGstIncl(pkg?.price_includes_gst ?? true);
-    setCap(pkg?.data_cap_mb ? String(pkg.data_cap_mb) : "");
+    setCap(pkg?.data_cap_mb ? (gb ? mbToGbText(pkg.data_cap_mb) : String(pkg.data_cap_mb)) : "");
     setDevices(String(pkg?.max_devices ?? 1));
     setName(pkg?.name ?? "");
     setNameTouched(!!pkg);
@@ -133,7 +136,7 @@ function PackageDrawer({
     setKind(m?.package_type ?? "");
     setConn(m?.connection_type ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open only
-  }, [open, pkg, presetGroupId, defaultValidity]);
+  }, [open, pkg, presetGroupId, defaultValidity, gb]);
 
   /** Steps after the package itself exists. Never re-creates the package. */
   const runFollowUps = async (
@@ -144,7 +147,7 @@ function PackageDrawer({
     for (const step of steps) {
       try {
         if (step === "rules") {
-          const res = formToPolicyBody(rules);
+          const res = formToPolicyBody(rules, { gb });
           if (!res.ok) throw new Error("Fix the highlighted network rules.");
           const policy = await networkService.putPolicy(saved.id, res.body);
           qc.setQueryData(networkKeys.policy(saved.id), policy);
@@ -202,19 +205,21 @@ function PackageDrawer({
     const v = Number(validity);
     const p = parseRupeesToPaise(price || "0");
     const d = Number(devices);
-    const c = cap.trim() ? Number(cap) : null;
+    const capGb = gb ? parseGbToMb(cap) : null;
+    const c = capGb ? (capGb.ok ? capGb.mb : NaN) : cap.trim() ? Number(cap) : null;
     if (!groupId) errs.speed_group_id = "Pick a speed group.";
     if (!Number.isInteger(v) || v < 1 || v > 3650) errs.validity_days = "1 to 3650 days.";
     if (p === null) errs.price_paise = "A rupee amount, like 499.";
     if (!Number.isInteger(d) || d < 1 || d > 50) errs.max_devices = "1 to 50.";
-    if (c !== null && (!Number.isInteger(c) || c <= 0))
+    if (capGb && !capGb.ok) errs.data_cap_mb = `${capGb.error} Empty for no cap.`;
+    else if (c !== null && (!Number.isInteger(c) || c <= 0))
       errs.data_cap_mb = "Whole MB, or empty for no cap.";
     setFieldErrors(errs);
     // Rules are checked before the package is created, so a typo in them
     // never leaves a half-configured package behind.
     let rulesOk = true;
     if (rulesTouched) {
-      const res = formToPolicyBody(rules);
+      const res = formToPolicyBody(rules, { gb });
       setRuleErrors(res.ok ? {} : res.errors);
       rulesOk = res.ok;
     }
@@ -376,7 +381,7 @@ function PackageDrawer({
         </label>
         <div className="grid grid-cols-2 gap-3">
           <TextField
-            label="Data cap (MB, optional)"
+            label={gb ? "Data cap (GB, optional)" : "Data cap (MB, optional)"}
             value={cap}
             onChange={setCap}
             error={fieldErrors.data_cap_mb}
@@ -450,6 +455,7 @@ function PackageDrawer({
             </p>
             <div className="mt-3 space-y-3">
               <PolicyFields
+                gb={gb}
                 form={rules}
                 set={setRule}
                 errors={ruleErrors}
@@ -580,6 +586,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
   // the first 100 packages and filter all of them, so a filter never hides
   // a match that sits on another page.
   const meta = usePackageMetaMap();
+  const gb = useGbDataLimits();
   const [kindFilter, setKindFilter] = useState<PackageKind | "">("");
   const [connFilter, setConnFilter] = useState<ConnectionKind | "">("");
   const labelFilter = meta.available && !!(kindFilter || connFilter);
@@ -748,7 +755,13 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
                     {p.price_includes_gst ? "incl. GST" : "+ GST"}
                   </p>
                 </MTd>
-                <MTd className="text-xs">{p.data_cap_mb ? `${p.data_cap_mb} MB` : "None"}</MTd>
+                <MTd className="text-xs">
+                  {gb
+                    ? formatMbAsGb(p.data_cap_mb)
+                    : p.data_cap_mb
+                      ? `${p.data_cap_mb} MB`
+                      : "None"}
+                </MTd>
                 <MTd className="text-right tabular-nums">
                   {p.coupons.unused} / {p.coupons.active}
                 </MTd>

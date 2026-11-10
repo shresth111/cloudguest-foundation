@@ -2805,6 +2805,9 @@ jobs:
       - name: ISP partner network rules (JAZE-2)
         if: hashFiles('scripts/test-isp-partner-jaze2.mjs') != ''
         run: bun run test:isp-partner-jaze2
+      - name: ISP partner data limits in GB (RAKESH-FS)
+        if: hashFiles('scripts/test-isp-partner-data-units.mjs') != ''
+        run: bun run test:isp-partner-data-units
       - name: ISP partner NETMON-2
         if: hashFiles('scripts/test-isp-partner-netmon.mjs') != ''
         run: bun run test:isp-partner-netmon
