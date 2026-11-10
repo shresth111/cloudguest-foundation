@@ -30,6 +30,7 @@ import {
   mbpsToKbps,
 } from "@/lib/isp-partner/plans";
 import type { PackageType, SpeedGroup, SpeedGroupBody } from "@/services/isp-partner/plans-types";
+import { TemplateDeviceRulesButton } from "@/components/isp-partner/plans/TemplateDeviceRulesDialog"; // RAKESH-P1
 
 type Unit = "mbps" | "kbps";
 
@@ -565,6 +566,7 @@ export function SpeedGroupsTab({
                       <Pencil />
                     </MButton>
                   )}
+                  <TemplateDeviceRulesButton group={g} /> {/* RAKESH-P1 */}
                   {can("isp_subscribers.read") && (
                     <MButton
                       variant="ghost"
