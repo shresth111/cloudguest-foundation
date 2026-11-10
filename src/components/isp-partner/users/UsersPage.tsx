@@ -47,6 +47,7 @@ import { ROLE_LABEL, formatAgo, roleLabel, formatIst } from "@/lib/isp-partner/f
 import type { IspRoleSlug, IspUser } from "@/services/isp-partner/types";
 import { customerLabels } from "@/lib/isp-partner/customer-label";
 import { FranchiseesPanel } from "@/components/isp-partner/workflow/FranchiseesPanel";
+import { ZonePackagesCard } from "@/components/isp-partner/workflow/ZonePackagesCard";
 
 const CONFINABLE: IspRoleSlug[] = ["isp-noc", "isp-technician", "isp-viewer", "isp-billing"];
 const ROLE_HELP: Record<IspRoleSlug, string> = {
@@ -624,6 +625,7 @@ export function UsersPage() {
         password={tempPassword?.password ?? ""}
       />
       <FranchiseesPanel />
+      <ZonePackagesCard />
     </>
   );
 }

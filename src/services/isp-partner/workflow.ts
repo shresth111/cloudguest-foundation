@@ -34,6 +34,13 @@ export interface WfPlacement {
   suggested: WfRouter | null;
 }
 
+export interface WfZonePackages {
+  zone: WfZone;
+  /** true = no allowlist, every package may be sold in this zone */
+  all_packages: boolean;
+  items: { id: string; name: string; data_cap_mb: number | null }[];
+}
+
 export interface WfFranchisee {
   user_id: string;
   email: string | null;
@@ -73,6 +80,16 @@ export const workflowService = {
       `/isp/workflow/subscribers/${subscriberId}/router`,
       { isp_router_id: ispRouterId },
     );
+    return data;
+  },
+  async zonePackages(zoneId: string): Promise<WfZonePackages> {
+    const { data } = await api.get<WfZonePackages>(`/isp/workflow/zones/${zoneId}/packages`);
+    return data;
+  },
+  async setZonePackages(zoneId: string, packageIds: string[]): Promise<WfZonePackages> {
+    const { data } = await api.put<WfZonePackages>(`/isp/workflow/zones/${zoneId}/packages`, {
+      package_ids: packageIds,
+    });
     return data;
   },
   async franchisees(): Promise<{ items: WfFranchisee[]; enabled: boolean }> {

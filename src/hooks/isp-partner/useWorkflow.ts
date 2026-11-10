@@ -9,6 +9,7 @@ export const workflowKeys = {
   routerZones: (id: string) => ["isp", "workflow", "router-zones", id] as const,
   placement: (zoneId: string) => ["isp", "workflow", "placement", zoneId] as const,
   franchisees: ["isp", "workflow", "franchisees"] as const,
+  zonePackages: (id: string) => ["isp", "workflow", "zone-packages", id] as const,
 };
 
 export function useWorkflowFeatures() {
@@ -70,5 +71,22 @@ export function useSetFranchiseeZones() {
     mutationFn: (v: { userId: string; zoneIds: string[] }) =>
       workflowService.setFranchiseeZones(v.userId, v.zoneIds),
     onSuccess: () => qc.invalidateQueries({ queryKey: workflowKeys.franchisees }),
+  });
+}
+
+export function useZonePackages(zoneId: string, enabled = true) {
+  return useQuery({
+    queryKey: workflowKeys.zonePackages(zoneId),
+    queryFn: () => workflowService.zonePackages(zoneId),
+    retry: retryUnless4xx,
+    enabled: enabled && !!zoneId,
+  });
+}
+
+export function useSetZonePackages(zoneId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => workflowService.setZonePackages(zoneId, ids),
+    onSuccess: (data) => qc.setQueryData(workflowKeys.zonePackages(zoneId), data),
   });
 }
