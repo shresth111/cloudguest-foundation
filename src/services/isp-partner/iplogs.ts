@@ -15,7 +15,9 @@ export type IpLogsState =
   | "offline"
   | "silent"
   | "needs_link"
-  | "not_supported";
+  | "not_supported"
+  /** [POSTFIX-1] D12: some pipes arrive, a set-up pipe stopped or never started. */
+  | "partial";
 
 export interface IpLogsPipe {
   state: IpLogsPipeState;

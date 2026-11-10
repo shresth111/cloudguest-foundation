@@ -23,6 +23,7 @@ export const IP_LOGS_STATE_SHORT: Record<IpLogsState, string> = {
   silent: "stopped",
   needs_link: "setup script not done",
   not_supported: "not supported",
+  partial: "partly arriving",
 };
 
 export function ipLogsPipeTone(state: IpLogsPipeState): string {
@@ -47,6 +48,7 @@ export function ipLogsStateTone(state: IpLogsState): string {
     case "offline":
       return "offline";
     case "silent":
+    case "partial":
       return "warning";
     case "needs_link":
       return "info";
@@ -58,6 +60,7 @@ export function ipLogsStateTone(state: IpLogsState): string {
 /** Order for the summary strip: problems first. */
 export const IP_LOGS_SUMMARY_ORDER: IpLogsState[] = [
   "logs_arriving",
+  "partial",
   "silent",
   "offline",
   "waiting",

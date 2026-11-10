@@ -8,6 +8,17 @@ export interface ProvFixFeatures {
   in_app_choices: boolean;
   heartbeat_reports_version: boolean;
   monitoring_self_serve: boolean;
+  /** [POSTFIX-1]; absent on older builds. */
+  package_policy_summaries?: boolean;
+}
+
+/** [POSTFIX-1] `GET /isp/package-policy-summaries`: FUP + validity start per
+ * package that has a policy. Packages not listed use the defaults. */
+export interface PackagePolicySummary {
+  package_id: string;
+  fup_limit_mb: number | null;
+  fup_reset: string;
+  validity_starts: "activation" | "first_login" | string;
 }
 
 export interface MonitoringStatus {
@@ -22,6 +33,12 @@ export interface MonitoringStatus {
 export const provFixService = {
   async features(): Promise<ProvFixFeatures> {
     const { data } = await api.get<ProvFixFeatures>("/isp/setup-fixes");
+    return data;
+  },
+  async packagePolicySummaries(): Promise<{ items: PackagePolicySummary[] }> {
+    const { data } = await api.get<{ items: PackagePolicySummary[] }>(
+      "/isp/package-policy-summaries",
+    );
     return data;
   },
   async monitoring(ispRouterId: string): Promise<MonitoringStatus> {

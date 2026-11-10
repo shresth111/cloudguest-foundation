@@ -44,6 +44,7 @@ const STATES = [
   "silent",
   "needs_link",
   "not_supported",
+  "partial", // [POSTFIX-1] D12
 ];
 const PIPES = ["receiving", "silent", "awaiting_first", "not_set_up", "collector_off"];
 eq(
@@ -59,6 +60,7 @@ eq(
 );
 eq("arriving is green", m.ipLogsStateTone("logs_arriving"), "online");
 eq("offline is red", m.ipLogsStateTone("offline"), "offline");
+eq("partial is not green (D12)", m.ipLogsStateTone("partial"), "warning");
 eq("receiving pipe is green", m.ipLogsPipeTone("receiving"), "online");
 eq("silent pipe warns", m.ipLogsPipeTone("silent"), "warning");
 

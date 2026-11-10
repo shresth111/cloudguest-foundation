@@ -51,6 +51,7 @@ import { networkService } from "@/services/isp-partner/network";
 import { networkKeys } from "@/hooks/isp-partner/useNetwork";
 import { formToPolicyBody, policyToForm, type PolicyForm } from "@/lib/isp-partner/network";
 import { packageMetaKeys, usePackageMetaMap } from "@/hooks/isp-partner/usePackageMeta";
+import { provFixKeys, usePackagePolicySummaries } from "@/hooks/isp-partner/useProvFix";
 import {
   CONNECTION_KIND_LABEL,
   PACKAGE_KIND_LABEL,
@@ -152,6 +153,7 @@ function PackageDrawer({
           if (!res.ok) throw new Error("Fix the highlighted network rules.");
           const policy = await networkService.putPolicy(saved.id, res.body);
           qc.setQueryData(networkKeys.policy(saved.id), policy);
+          void qc.invalidateQueries({ queryKey: provFixKeys.packagePolicies });
         } else {
           await packageMetaService.put(saved.id, {
             package_type: kind || null,
@@ -587,6 +589,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
   // the first 100 packages and filter all of them, so a filter never hides
   // a match that sits on another page.
   const meta = usePackageMetaMap();
+  const policies = usePackagePolicySummaries();
   const gb = useGbDataLimits();
   const [kindFilter, setKindFilter] = useState<PackageKind | "">("");
   const [connFilter, setConnFilter] = useState<ConnectionKind | "">("");
@@ -750,7 +753,17 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
                     ) : null;
                   })()}
                 </MTd>
-                <MTd className="text-right tabular-nums">{p.validity_days} d</MTd>
+                <MTd className="text-right tabular-nums">
+                  {p.validity_days} d
+                  {/* [POSTFIX-1] P3: when validity starts (policy, flag-gated). */}
+                  {policies.available && (
+                    <p className="text-xs text-muted-foreground">
+                      {policies.map.get(p.id)?.validity_starts === "first_login"
+                        ? "from first login"
+                        : "from activation"}
+                    </p>
+                  )}
+                </MTd>
                 <MTd className="text-right tabular-nums">
                   {formatRupees(p.price_paise)}
                   <p className="text-xs text-muted-foreground">
@@ -763,6 +776,16 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
                     : p.data_cap_mb
                       ? `${p.data_cap_mb} MB`
                       : "None"}
+                  {/* [POSTFIX-1] P3: the FUP lives in the policy, not the cap. */}
+                  {(() => {
+                    const fup = policies.map.get(p.id)?.fup_limit_mb;
+                    if (!fup) return null;
+                    return (
+                      <p className="text-xs text-muted-foreground">
+                        FUP {gb ? formatMbAsGb(fup) : `${fup} MB`}
+                      </p>
+                    );
+                  })()}
                 </MTd>
                 <MTd className="text-right tabular-nums">
                   {p.coupons.unused} / {p.coupons.active}

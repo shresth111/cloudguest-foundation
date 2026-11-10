@@ -110,10 +110,13 @@ function RegeneratedNotice({
   generationCount,
   lastGeneration,
   priorScriptLikely,
+  partnerSetup = false,
 }: {
   generationCount: number;
   lastGeneration: { at: Date; rotated: RotatingSecret[] } | null;
   priorScriptLikely: boolean;
+  /** [POSTFIX-1] P3 copy: partner wording, no RouterOS error strings. */
+  partnerSetup?: boolean;
 }) {
   if (!lastGeneration) {
     if (!priorScriptLikely) return null;
@@ -150,15 +153,23 @@ function RegeneratedNotice({
           ? `Secrets were rotated at ${stamp}. Every earlier copy of this script is now dead.`
           : `This script is valid as of ${stamp}. Clicking Generate again will kill it.`}
       </p>
-      <p className="text-muted-foreground">
-        Generate rotates secrets on the server, not just in this browser. The moment it runs, any
-        script already copied to a clipboard, pasted into a notes file, or half-pasted into a WinBox
-        terminal stops working — its agent credential 401s (
-        <code className="rounded bg-background px-1 py-0.5">
-          401 should contain www-authenticate header
-        </code>
-        ) and its RADIUS secret mismatches. Nothing on the router says why.
-      </p>
+      {partnerSetup ? (
+        <p className="text-muted-foreground">
+          Generate changes this router&rsquo;s passwords on our side, not just in this browser. Any
+          copy of the script made before that (in a clipboard, a notes file, or half-pasted into
+          WinBox) stops working, and the router will not say why. Always paste the newest script.
+        </p>
+      ) : (
+        <p className="text-muted-foreground">
+          Generate rotates secrets on the server, not just in this browser. The moment it runs, any
+          script already copied to a clipboard, pasted into a notes file, or half-pasted into a
+          WinBox terminal stops working — its agent credential 401s (
+          <code className="rounded bg-background px-1 py-0.5">
+            401 should contain www-authenticate header
+          </code>
+          ) and its RADIUS secret mismatches. Nothing on the router says why.
+        </p>
+      )}
       <p className="text-muted-foreground">
         Rotated by the last Generate:{" "}
         {lastGeneration.rotated.map((s) => SECRET_REPAIR[s].label).join(", ")}.
@@ -1633,7 +1644,9 @@ function RouterSetupScriptPanel({
             }}
             className="h-3.5 w-3.5 rounded border-input"
           />
-          Also create a WireGuard tunnel (for remote reachability from the platform)
+          {partnerSetup
+            ? "Also set up the management connection (so Wyfy Guest can reach this router)"
+            : "Also create a WireGuard tunnel (for remote reachability from the platform)"}
         </label>
         {enableWireguard && (
           // Stated up front because the chunk can legitimately decide to
@@ -1659,17 +1672,29 @@ function RouterSetupScriptPanel({
               onChange={(e) => setRotateWireguard(e.target.checked)}
               className="mt-0.5 h-3.5 w-3.5 rounded border-input"
             />
-            <span>
-              Rotate the WireGuard tunnel (allocate a brand-new peer)
-              <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                Leave this OFF. Without it the platform reuses this router&rsquo;s existing tunnel
-                and allocates nothing. Rotating is <strong>irreversible</strong>: the hub agent has
-                no delete or update command, so the peer it replaces stays on the hub forever,
-                holding a tunnel IP that can never be reissued. One router already accumulated four
-                orphans this way. Tick it only if the device has genuinely lost its WireGuard config
-                &mdash; a reflash, or straight after Guided Setup&rsquo;s recovery phase.
+            {partnerSetup ? (
+              <span>
+                Make a new management connection
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  Leave this OFF. Without it the router keeps its current management connection.
+                  Making a new one cannot be undone and uses up one connection address for good.
+                  Tick it only if the router was reset or reflashed and has lost its connection
+                  settings.
+                </span>
               </span>
-            </span>
+            ) : (
+              <span>
+                Rotate the WireGuard tunnel (allocate a brand-new peer)
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  Leave this OFF. Without it the platform reuses this router&rsquo;s existing tunnel
+                  and allocates nothing. Rotating is <strong>irreversible</strong>: the hub agent
+                  has no delete or update command, so the peer it replaces stays on the hub forever,
+                  holding a tunnel IP that can never be reissued. One router already accumulated
+                  four orphans this way. Tick it only if the device has genuinely lost its WireGuard
+                  config &mdash; a reflash, or straight after Guided Setup&rsquo;s recovery phase.
+                </span>
+              </span>
+            )}
           </label>
         )}
         <label className="flex items-center gap-2 text-xs text-foreground">
@@ -1690,8 +1715,9 @@ function RouterSetupScriptPanel({
             }}
             className="h-3.5 w-3.5 rounded border-input"
           />
-          Also enable RADIUS (needs a WireGuard tunnel IP for a unique NAS identity — WireGuard will
-          turn on automatically)
+          {partnerSetup
+            ? "Also set up guest login (RADIUS). This needs the management connection, which turns on automatically"
+            : "Also enable RADIUS (needs a WireGuard tunnel IP for a unique NAS identity — WireGuard will turn on automatically)"}
         </label>
         {/* Only meaningful once this router already HAS an API password.
          * On a first provision there is nothing to rotate -- one is minted
@@ -1705,17 +1731,28 @@ function RouterSetupScriptPanel({
               onChange={(e) => setRotateApiSecret(e.target.checked)}
               className="mt-0.5 h-3.5 w-3.5 rounded border-input"
             />
-            <span>
-              Rotate the RouterOS API password
-              <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                Leave this OFF. This router already has an API password and the device already has
-                the matching user — rotating it without re-pasting the “API Access” chunk is what
-                breaks Device Console (<code>login failure for user cloudguest-api</code>). Tick it
-                only if you have just removed the <code>cloudguest-api</code> user from the device,
-                i.e. straight after Guided Setup’s recovery phase — and then re-paste the “API
-                Access” chunk.
+            {partnerSetup ? (
+              <span>
+                Make a new router access password
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  Leave this OFF. The router already has the access login Wyfy Guest uses for Read
+                  now and monitoring. Tick it only if that login was removed from the router, and
+                  then paste the &ldquo;API Access&rdquo; part of the new script.
+                </span>
               </span>
-            </span>
+            ) : (
+              <span>
+                Rotate the RouterOS API password
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                  Leave this OFF. This router already has an API password and the device already has
+                  the matching user — rotating it without re-pasting the “API Access” chunk is what
+                  breaks Device Console (<code>login failure for user cloudguest-api</code>). Tick
+                  it only if you have just removed the <code>cloudguest-api</code> user from the
+                  device, i.e. straight after Guided Setup’s recovery phase — and then re-paste the
+                  “API Access” chunk.
+                </span>
+              </span>
+            )}
           </label>
         )}
       </div>
@@ -1727,6 +1764,7 @@ function RouterSetupScriptPanel({
         generationCount={generationCount}
         lastGeneration={lastGeneration}
         priorScriptLikely={router.hasApiCredentials}
+        partnerSetup={partnerSetup}
       />
 
       {/* WHAT THIS CLICK WILL LEAVE OUT, BEFORE IT IS CLICKED.

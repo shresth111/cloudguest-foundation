@@ -8,6 +8,7 @@ import { ispErrorStatus } from "@/lib/isp-partner/errors";
 export const provFixKeys = {
   features: ["isp", "setup-fixes"] as const,
   monitoring: (id: string) => ["isp", "monitoring", id] as const,
+  packagePolicies: ["isp", "package-policy-summaries"] as const,
 };
 
 async function orNull<T>(p: Promise<T>): Promise<T | null> {
@@ -26,6 +27,20 @@ export function useProvFixFeatures() {
     retry: retryUnless4xx,
     staleTime: 5 * 60_000,
   });
+}
+
+/** [POSTFIX-1] FUP + validity start for the package list, keyed by package
+ * id. `available` is false while the flag is off (404): the list then shows
+ * exactly what it showed before. */
+export function usePackagePolicySummaries() {
+  const q = useQuery({
+    queryKey: provFixKeys.packagePolicies,
+    queryFn: () => orNull(provFixService.packagePolicySummaries()),
+    retry: retryUnless4xx,
+    staleTime: 60_000,
+  });
+  const map = new Map((q.data?.items ?? []).map((i) => [i.package_id, i]));
+  return { available: !!q.data, map };
 }
 
 export function useRouterMonitoring(routerId: string, enabled: boolean) {
