@@ -45,6 +45,7 @@ import type { IspPackage, PackageBody, PackageType } from "@/services/isp-partne
 import { PackagePolicyDrawer } from "@/components/isp-partner/network/PackagePolicyDrawer";
 import { PolicyFields, type PolicyErrors } from "@/components/isp-partner/network/PolicyFields";
 import { GroupDrawer } from "@/components/isp-partner/plans/SpeedGroupsTab";
+import { IspPlanDrawer } from "@/components/isp-partner/plans/IspPlanDrawer"; // RAKESH-P1
 import { PlanSettingsButton } from "@/components/isp-partner/plans/PlanSettingsButton";
 import { networkService } from "@/services/isp-partner/network";
 import { networkKeys } from "@/hooks/isp-partner/useNetwork";
@@ -597,6 +598,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
     page_size: labelFilter ? 100 : 25,
   });
   const [editing, setEditing] = useState<IspPackage | null | "new">(null);
+  const [planOpen, setPlanOpen] = useState(false); // RAKESH-P1: short ISP form (workflow flag)
   const [duplicating, setDuplicating] = useState<IspPackage | null>(null);
   const [rules, setRules] = useState<IspPackage | null>(null);
   const [deleting, setDeleting] = useState<IspPackage | null>(null);
@@ -690,7 +692,7 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
           <PlanSettingsButton />
         </div>
         {can("isp_plans.create") && (
-          <MButton onClick={() => setEditing("new")}>
+          <MButton onClick={() => (gb ? setPlanOpen(true) : setEditing("new"))}>
             <Plus /> Add package
           </MButton>
         )}
@@ -863,6 +865,11 @@ export function PackagesTab({ groupFilter }: { groupFilter?: string }) {
         onClose={() => setEditing(null)}
         pkg={editing === "new" ? null : editing}
         presetGroupId={groupId || undefined}
+      />
+      <IspPlanDrawer
+        open={planOpen}
+        onClose={() => setPlanOpen(false)}
+        onFullForm={() => (setPlanOpen(false), setEditing("new"))}
       />
       <PlanSyncDialog target={syncing} onClose={() => setSyncing(null)} />
       <DuplicateDialog pkg={duplicating} onClose={() => setDuplicating(null)} />

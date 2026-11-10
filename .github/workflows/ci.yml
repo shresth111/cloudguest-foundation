@@ -2808,6 +2808,9 @@ jobs:
       - name: ISP partner data limits in GB (RAKESH-FS)
         if: hashFiles('scripts/test-isp-partner-data-units.mjs') != ''
         run: bun run test:isp-partner-data-units
+      - name: ISP partner short plan form + template device rules (RAKESH-P1)
+        if: hashFiles('scripts/test-isp-partner-p1.mjs') != ''
+        run: bun run test:isp-partner-p1
       - name: ISP partner NETMON-2
         if: hashFiles('scripts/test-isp-partner-netmon.mjs') != ''
         run: bun run test:isp-partner-netmon
