@@ -21,7 +21,18 @@ const HSTS_HOSTNAMES = new Set([
   MASTER_CONSOLE_HOSTNAME,
   CUSTOMER_APP_HOSTNAME,
   "demo.wyfyguest.com",
+  "auth.wyfyguest.com",
 ]);
+/** 30 days. No includeSubDomains: that would pin portal./wifi. too. */
+export const HSTS_VALUE = "max-age=2592000";
+/**
+ * Directives that cannot break a script, style, font, image or API call, so
+ * they are enforced everywhere. A full script/style policy needs the inline
+ * theme and font scripts hashed first and is a later step.
+ */
+const CSP_BASE = "object-src 'none'; base-uri 'self'";
+/** Same rule as X-Frame-Options SAMEORIGIN, for browsers that read only CSP. */
+const CSP_NOT_FRAMEABLE = `${CSP_BASE}; frame-ancestors 'self'`;
 
 export type MasterConsoleAccess = "allow" | "bounce" | "not-found";
 
@@ -81,9 +92,11 @@ export function withSecurityHeaders(response: Response, request: Request): Respo
   setIfMissing("referrer-policy", "strict-origin-when-cross-origin");
   // Guest portal pages stay frameable as before; everything else is not
   // embeddable by another site, which is what stops clickjacking.
-  if (!/^\/portal(\/|$)/.test(url.pathname)) setIfMissing("x-frame-options", "SAMEORIGIN");
+  const isPortalPage = /^\/portal(\/|$)/.test(url.pathname);
+  if (!isPortalPage) setIfMissing("x-frame-options", "SAMEORIGIN");
+  setIfMissing("content-security-policy", isPortalPage ? CSP_BASE : CSP_NOT_FRAMEABLE);
   if (HSTS_HOSTNAMES.has(normalizeHostname(request.headers.get("host") ?? url.hostname))) {
-    setIfMissing("strict-transport-security", "max-age=86400");
+    setIfMissing("strict-transport-security", HSTS_VALUE);
   }
   return next;
 }
