@@ -5,6 +5,7 @@
  * display labels. No React, no requests: `scripts/test-isp-partner-jaze2.mjs`
  * pins them.
  */
+import { mbToGbText, parseGbToMb } from "./data-units";
 import type {
   EnforcementEvent,
   FupReset,
@@ -61,9 +62,14 @@ export interface PolicyForm {
 
 const numText = (v: number | null | undefined) => (v === null || v === undefined ? "" : String(v));
 
-export function policyToForm(p: PackagePolicy | PackagePolicyBody | null | undefined): PolicyForm {
+/** `opts.gb` (RAKESH-FS, ISP_WORKFLOW_ENABLED): the form's data limit is in
+ * GB; the wire value stays MB. Without it the form is MB, exactly as before. */
+export function policyToForm(
+  p: PackagePolicy | PackagePolicyBody | null | undefined,
+  opts: { gb?: boolean } = {},
+): PolicyForm {
   return {
-    fup_limit_mb: numText(p?.fup_limit_mb),
+    fup_limit_mb: opts.gb ? mbToGbText(p?.fup_limit_mb) : numText(p?.fup_limit_mb),
     fup_reset: (p?.fup_reset as FupReset) ?? "cycle",
     fup_fallback_speed_group_id: p?.fup_fallback_speed_group_id ?? "",
     fup_exclude_upload: !!p?.fup_exclude_upload,
@@ -104,10 +110,17 @@ export type PolicyResult =
   | { ok: false; errors: Partial<Record<keyof PolicyForm, string>> };
 
 /** Validate the form with the backend's bounds; on success, the PUT body. */
-export function formToPolicyBody(f: PolicyForm): PolicyResult {
+export function formToPolicyBody(f: PolicyForm, opts: { gb?: boolean } = {}): PolicyResult {
   const errors: Partial<Record<keyof PolicyForm, string>> = {};
-  const fup = optInt(f.fup_limit_mb, 1, 1_000_000_000);
-  if (!fup.ok) errors.fup_limit_mb = "Whole MB, at least 1, or empty for no FUP.";
+  let fup: IntResult;
+  if (opts.gb) {
+    const g = parseGbToMb(f.fup_limit_mb);
+    fup = g.ok ? { ok: true, value: g.mb } : { ok: false };
+    if (!g.ok) errors.fup_limit_mb = `${g.error} Empty for no FUP.`;
+  } else {
+    fup = optInt(f.fup_limit_mb, 1, 1_000_000_000);
+    if (!fup.ok) errors.fup_limit_mb = "Whole MB, at least 1, or empty for no FUP.";
+  }
   const fupMb = fup.ok ? fup.value : null;
   if (f.fup_fallback_speed_group_id && fup.ok && fupMb === null)
     errors.fup_fallback_speed_group_id = "A fallback speed needs an FUP limit.";

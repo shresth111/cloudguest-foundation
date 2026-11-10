@@ -110,6 +110,7 @@ export function PolicyFields({
   groups,
   readOnly = false,
   onNewGroup,
+  gb = false,
 }: {
   form: PolicyForm;
   set: <K extends keyof PolicyForm>(k: K, v: PolicyForm[K]) => void;
@@ -118,18 +119,20 @@ export function PolicyFields({
   readOnly?: boolean;
   /** Opens "New speed template"; the callback receives which select asked. */
   onNewGroup?: (field: "fup_fallback_speed_group_id" | "boost_speed_group_id") => void;
+  /** RAKESH-FS: the data limit field is in GB (the form text holds GB). */
+  gb?: boolean;
 }) {
   return (
     <>
       <PolicySection title="Fair usage (FUP)">
         <div className="grid grid-cols-2 gap-3">
           <TextField
-            label="Data limit (MB)"
+            label={gb ? "Data limit (GB)" : "Data limit (MB)"}
             value={form.fup_limit_mb}
             onChange={(v) => set("fup_limit_mb", v)}
             disabled={readOnly}
             error={errors.fup_limit_mb}
-            hint="Empty: no limit. 1024 MB = 1 GB."
+            hint={gb ? "Empty: no limit. For example 3000 GB." : "Empty: no limit. 1024 MB = 1 GB."}
           />
           <label className="block space-y-1.5">
             <span className="text-xs font-medium text-muted-foreground">Counter resets</span>

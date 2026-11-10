@@ -6,6 +6,8 @@
  * JAZE-1's Subscriber 360 page (`<SubscriberNetworkPanel subscriber={s} />`)
  * without either owning the other's code.
  */
+import { parseGbToMb } from "@/lib/isp-partner/data-units";
+import { useGbDataLimits } from "@/hooks/isp-partner/useWorkflow";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, RotateCcw, Trash2 } from "lucide-react";
@@ -65,6 +67,7 @@ export function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canE
   const add = useSubscriberNetworkMutation(subscriberId, (mb: number) =>
     networkService.topupFup(subscriberId, mb),
   );
+  const gb = useGbDataLimits(); // RAKESH-FS: top-up in GB (flag on)
   if (q.isLoading) return <Spinner />;
   if (q.error || !q.data)
     return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="data usage" />;
@@ -182,8 +185,13 @@ export function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canE
             <MButton
               disabled={add.isPending}
               onClick={async () => {
-                const mb = Number(topup);
-                if (!Number.isInteger(mb) || mb < 1 || mb > 100_000_000)
+                let mb = Number(topup);
+                if (gb) {
+                  const g = parseGbToMb(topup ?? "", { max: 97_656 });
+                  if (!g.ok || g.mb === null)
+                    return setError(g.ok ? "Enter the GB to add." : g.error);
+                  mb = g.mb;
+                } else if (!Number.isInteger(mb) || mb < 1 || mb > 100_000_000)
                   return setError("Whole MB, at least 1.");
                 setError(null);
                 try {
@@ -201,10 +209,14 @@ export function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canE
         }
       >
         <TextField
-          label="MB to add"
+          label={gb ? "GB to add" : "MB to add"}
           value={topup ?? ""}
           onChange={setTopup}
-          hint="1024 MB = 1 GB. Only this period; it does not carry forward."
+          hint={
+            gb
+              ? "For example 50 GB. Only this period; it does not carry forward."
+              : "1024 MB = 1 GB. Only this period; it does not carry forward."
+          }
         />
         <FormError message={error} />
       </MDialog>
