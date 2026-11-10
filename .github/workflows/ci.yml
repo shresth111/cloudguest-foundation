@@ -2808,6 +2808,9 @@ jobs:
       - name: ISP partner NETMON-2
         if: hashFiles('scripts/test-isp-partner-netmon.mjs') != ''
         run: bun run test:isp-partner-netmon
+      - name: ISP partner IPLOGS-SELFSERVE
+        if: hashFiles('scripts/test-isp-partner-iplogs.mjs') != ''
+        run: bun run test:isp-partner-iplogs
       - name: ISP partner ONBOARD-1
         if: hashFiles('scripts/test-isp-partner-onboard.mjs') != ''
         run: bun run test:isp-partner-onboard

@@ -1,6 +1,7 @@
 /** `/partner/logs` page wrapper: binds the filters to the URL. */
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { MSectionHeader } from "@/components/master/MasterKit";
+import { IpLogsStatusStrip } from "@/components/isp-partner/log-views/IpLogsStatusStrip";
 import { LogsView } from "@/components/isp-partner/log-views/LogsView";
 import {
   filtersFromSearch,
@@ -18,6 +19,7 @@ export function LogsPage() {
         title="Logs"
         description="Router logs, IPDR connection records and guest sign-ins across your customers."
       />
+      <IpLogsStatusStrip />
       <LogsView
         filters={filters}
         onChange={(next) =>
