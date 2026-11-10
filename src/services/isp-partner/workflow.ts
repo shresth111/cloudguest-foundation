@@ -10,9 +10,82 @@ export interface WorkflowFeatures {
   is_franchisee: boolean;
 }
 
+export interface WfZone {
+  id: string;
+  name: string;
+  city: string | null;
+}
+
+export interface WfRouter {
+  isp_router_id: string;
+  name: string;
+  status: string | null;
+  isp_customer_id: string;
+  customer_name: string;
+  isp_location_id: string;
+  location_name: string;
+  match?: "linked" | "customer_zone";
+  distance?: number;
+}
+
+export interface WfPlacement {
+  zone: WfZone;
+  items: WfRouter[];
+  suggested: WfRouter | null;
+}
+
+export interface WfFranchisee {
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  zones: WfZone[];
+}
+
 export const workflowService = {
   async features(): Promise<WorkflowFeatures> {
     const { data } = await api.get<WorkflowFeatures>("/isp/workflow/features");
+    return data;
+  },
+  async routerZones(ispRouterId: string): Promise<{ zones: WfZone[] }> {
+    const { data } = await api.get<{ zones: WfZone[] }>(
+      `/isp/workflow/routers/${ispRouterId}/zones`,
+    );
+    return data;
+  },
+  async setRouterZones(ispRouterId: string, zoneIds: string[]): Promise<{ zones: WfZone[] }> {
+    const { data } = await api.put<{ zones: WfZone[] }>(
+      `/isp/workflow/routers/${ispRouterId}/zones`,
+      { zone_ids: zoneIds },
+    );
+    return data;
+  },
+  async placement(zoneId: string): Promise<WfPlacement> {
+    const { data } = await api.get<WfPlacement>("/isp/workflow/placement", {
+      params: { zone_ref: zoneId },
+    });
+    return data;
+  },
+  async setSubscriberRouter(
+    subscriberId: string,
+    ispRouterId: string | null,
+  ): Promise<{ router: WfRouter | null }> {
+    const { data } = await api.put<{ router: WfRouter | null }>(
+      `/isp/workflow/subscribers/${subscriberId}/router`,
+      { isp_router_id: ispRouterId },
+    );
+    return data;
+  },
+  async franchisees(): Promise<{ items: WfFranchisee[]; enabled: boolean }> {
+    const { data } = await api.get<{ items: WfFranchisee[]; enabled: boolean }>(
+      "/isp/workflow/franchisees",
+    );
+    return data;
+  },
+  async setFranchiseeZones(userId: string, zoneIds: string[]): Promise<{ zones: WfZone[] }> {
+    const { data } = await api.put<{ zones: WfZone[] }>(
+      `/isp/workflow/franchisees/${userId}/zones`,
+      { zone_ids: zoneIds },
+    );
     return data;
   },
 };

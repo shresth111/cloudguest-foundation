@@ -10,7 +10,8 @@
  * step 2, after the subscriber exists (see OnboardResult).
  */
 import { DiscountCodeField } from "@/components/isp-partner/discounts/DiscountCodeField";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Paperclip, Trash2, UserPlus } from "lucide-react";
@@ -27,6 +28,8 @@ import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { OnboardResult } from "@/components/isp-partner/onboarding/OnboardResult";
 import { OnboardStaticIps } from "@/components/isp-partner/onboarding/OnboardStaticIps";
 import { useZones } from "@/hooks/isp-partner/useInvoices";
+import { PlacementPicker } from "@/components/isp-partner/workflow/PlacementPicker";
+import { workflowService } from "@/services/isp-partner/workflow";
 import { useIspCustomerOptions } from "@/hooks/isp-partner/useIsp";
 import { usePackages } from "@/hooks/isp-partner/usePlans";
 import {
@@ -241,6 +244,16 @@ function OnboardFormView({
   const packages = usePackages({ status: "active", page_size: 100 });
   const zones = useZones(can("isp_zones.read"));
   const [f, setF] = useState<OnboardForm>(emptyOnboardForm);
+  // RAKESH-FS: router the subscriber is placed on (workflow flag; else unused).
+  const [routerId, setRouterId] = useState("");
+  const onPlace = useCallback((v: { customerId: string; routerId: string }) => {
+    setRouterId(v.routerId);
+    setF((x) =>
+      x.isp_customer_id === v.customerId
+        ? x
+        : { ...x, isp_customer_id: v.customerId, static_ips: [] },
+    );
+  }, []);
   const [docs, setDocs] = useState<PendingDocument[]>([]);
   const [docKind, setDocKind] = useState("id_proof");
   const [errors, setErrors] = useState<Partial<Record<FormSection, string>>>({});
@@ -299,6 +312,12 @@ function OnboardFormView({
     setBusy(true);
     try {
       const r = await onboardingService.create(built.body);
+      if (routerId) {
+        // A record only; the subscriber exists either way.
+        await workflowService
+          .setSubscriberRouter(r.subscriber.id, routerId)
+          .catch(() => toast.error("Subscriber saved, but the router could not be recorded."));
+      }
       onDone(r, canKyc && f.kyc_on ? docs : []);
     } catch (e) {
       // One transaction: nothing was created. The backend names the step.
@@ -357,7 +376,10 @@ function OnboardFormView({
             </span>
             <CustomerSelect
               value={f.isp_customer_id}
-              onChange={(v) => setF((x) => ({ ...x, isp_customer_id: v, static_ips: [] }))}
+              onChange={(v) => {
+                setF((x) => ({ ...x, isp_customer_id: v, static_ips: [] }));
+                setRouterId("");
+              }}
               customers={customers.data}
               allLabel={null}
             />
@@ -392,7 +414,10 @@ function OnboardFormView({
               <select
                 className={M_INPUT}
                 value={f.zone_id}
-                onChange={(e) => set("zone_id")(e.target.value)}
+                onChange={(e) => {
+                  set("zone_id")(e.target.value);
+                  setRouterId("");
+                }}
               >
                 <option value="">No zone</option>
                 {(zones.data ?? []).map((z) => (
@@ -403,6 +428,12 @@ function OnboardFormView({
               </select>
             </label>
           )}
+          <PlacementPicker
+            zoneId={f.zone_id}
+            customerId={f.isp_customer_id}
+            routerId={routerId}
+            onPick={onPlace}
+          />
           <Select
             label="Subscriber type"
             value={f.user_type}
