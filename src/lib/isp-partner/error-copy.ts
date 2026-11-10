@@ -126,6 +126,8 @@ export const ISP_ERROR_COPY_EN: Record<string, string> = {
   "code.ISP_COUPON_NOT_FOUND":
     "That coupon code does not exist. Check the code with the subscriber.",
   "code.ISP_COUPON_BATCH_NOT_FOUND": GONE("coupon batch"),
+  "code.ISP_COUPONS_NOT_PERMITTED":
+    "Your ISP has not allowed coupon generation in this zone. Ask them to switch it on.",
   "code.ISP_NAME_TAKEN": "This name is already used. Pick a different name.",
   "code.ISP_GROUP_IN_USE":
     "This speed group still has packages or subscribers. Move them to another group first.",
