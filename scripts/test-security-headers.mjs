@@ -34,12 +34,22 @@ const check = (name, ok, detail = "") => {
   if (!ok) failed += 1;
 };
 const headersFor = (host, path, initial = {}) =>
-  withSecurityHeaders(new Response("x", { headers: initial }), new Request(`https://${host}${path}`, { headers: { host } }))
-    .headers;
+  withSecurityHeaders(
+    new Response("x", { headers: initial }),
+    new Request(`https://${host}${path}`, { headers: { host } }),
+  ).headers;
 
-for (const host of ["app.wyfyguest.com", "master.wyfyguest.com", "demo.wyfyguest.com", "auth.wyfyguest.com"]) {
-  check(`HSTS 30 days on ${host}`, headersFor(host, "/").get("strict-transport-security") === "max-age=2592000",
-    headersFor(host, "/").get("strict-transport-security"));
+for (const host of [
+  "app.wyfyguest.com",
+  "master.wyfyguest.com",
+  "demo.wyfyguest.com",
+  "auth.wyfyguest.com",
+]) {
+  check(
+    `HSTS 30 days on ${host}`,
+    headersFor(host, "/").get("strict-transport-security") === "max-age=2592000",
+    headersFor(host, "/").get("strict-transport-security"),
+  );
 }
 for (const host of ["portal.wyfyguest.com", "wifi.wyfyguest.com", "localhost"]) {
   check(`no HSTS on ${host}`, !headersFor(host, "/portal/x").has("strict-transport-security"));
@@ -48,9 +58,17 @@ const hsts = headersFor("app.wyfyguest.com", "/").get("strict-transport-security
 check("HSTS never includeSubDomains", !/includesubdomains/i.test(hsts ?? ""), hsts);
 
 const appCsp = headersFor("app.wyfyguest.com", "/dashboard").get("content-security-policy") ?? "";
-check("CSP blocks plugins and base hijack", appCsp.includes("object-src 'none'") && appCsp.includes("base-uri 'self'"), appCsp);
+check(
+  "CSP blocks plugins and base hijack",
+  appCsp.includes("object-src 'none'") && appCsp.includes("base-uri 'self'"),
+  appCsp,
+);
 check("CSP not frameable off portal", appCsp.includes("frame-ancestors 'self'"), appCsp);
-check("CSP leaves scripts/styles alone", !/(script|style|default|connect|img|font)-src/.test(appCsp), appCsp);
+check(
+  "CSP leaves scripts/styles alone",
+  !/(script|style|default|connect|img|font)-src/.test(appCsp),
+  appCsp,
+);
 
 const portal = headersFor("portal.wyfyguest.com", "/portal/abc");
 const portalCsp = portal.get("content-security-policy") ?? "";
@@ -58,8 +76,13 @@ check("portal CSP has no frame-ancestors", !portalCsp.includes("frame-ancestors"
 check("portal has no X-Frame-Options", !portal.has("x-frame-options"));
 check("portal still gets object-src none", portalCsp.includes("object-src 'none'"), portalCsp);
 
-const own = headersFor("app.wyfyguest.com", "/", { "content-security-policy": "default-src 'self'" });
-check("existing CSP is never overridden", own.get("content-security-policy") === "default-src 'self'");
+const own = headersFor("app.wyfyguest.com", "/", {
+  "content-security-policy": "default-src 'self'",
+});
+check(
+  "existing CSP is never overridden",
+  own.get("content-security-policy") === "default-src 'self'",
+);
 
 if (failed) {
   console.error(`${failed} check(s) failed`);
