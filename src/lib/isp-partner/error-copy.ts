@@ -65,6 +65,7 @@ export const ISP_ERROR_COPY_EN: Record<string, string> = {
   "code.ISP_FRANCHISE_DISABLED": FEATURE_OFF,
   "code.ISP_INCIDENTS_DISABLED": FEATURE_OFF,
   "code.ISP_IPDR_LEA_DISABLED": FEATURE_OFF,
+  "code.ISP_IPLOGS_DISABLED": FEATURE_OFF,
   "code.ISP_NETMON_DISABLED": FEATURE_OFF,
   "code.ISP_QUEUED_RENEWAL_DISABLED": FEATURE_OFF,
   "code.ISP_REFERRALS_DISABLED": FEATURE_OFF,
@@ -109,6 +110,9 @@ export const ISP_ERROR_COPY_EN: Record<string, string> = {
     "A suspend or resume for this customer is already running. Wait a minute, refresh, and try again.",
   "code.ISP_SUSPEND_REASON_INVALID": "Pick one of the listed reasons.",
   "code.ISP_VENDOR_NOT_SUPPORTED": "Only MikroTik routers can be added for now.",
+  "code.ISP_IPLOGS_NEEDS_LINK":
+    "Paste this router's setup script first. IP logs need its cloud link, which is not set up yet.",
+  "code.ISP_IPLOGS_NOT_SUPPORTED": "IP logs can be turned on for MikroTik routers only.",
   "code.ISP_PPPOE_ROUTER_NOT_READY":
     "Finish this router's main setup first, then generate the PPPoE script.",
   "code.ISP_MOVE_SAME_CUSTOMER":
