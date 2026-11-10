@@ -407,6 +407,14 @@ jobs:
             "portal-resume-username" 11 "portal resume username: all checks passed" \
             bun run test:portal-resume-username
 
+      # HSTS only on sign-in hosts (never portal./wifi.), and a CSP that never
+      # restricts scripts or styles, so it cannot break the app.
+      - name: security headers
+        run: |
+          ./scripts/ci-gated-test.sh \
+            "security-headers" 15 "security headers: all checks passed" \
+            bun run test:security-headers
+
       # The venue logo on the guest sign-in card. It used to paint every
       # upload inside a fixed 30x30px box on a phone (a 4:1 wordmark came out
       # 30x7px). Pins, at 390px DPR 3 with the real component and the real
