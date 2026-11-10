@@ -198,7 +198,12 @@ console.log("request shim (API_CONTRACT §7)");
     "GET /routers/:id": "/as-router-device",
   };
   // Token-authenticated, called unchanged (API_CONTRACT §4.6).
-  const PASSTHROUGH = new Set(["POST /routers/provisioning/check-in"]);
+  // PROV-FIX: the partner-only check-in twin is already an /isp path (the shim
+  // passes /isp/ through), called only when `partnerSetup` is on.
+  const PASSTHROUGH = new Set([
+    "POST /routers/provisioning/check-in",
+    "POST /isp/routers/:id/setup/check-in",
+  ]);
   for (const target of Object.values(MAPPED)) {
     check(
       `shim maps to /isp/routers/{id}${target}`,
