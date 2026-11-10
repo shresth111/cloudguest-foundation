@@ -1,5 +1,6 @@
 /** RAKESH-FS: `/isp/workflow/*` (BE flag ISP_WORKFLOW_ENABLED; 404 while off). */
 import api from "@/services/api";
+import type { IspRouter, IspRouterCreate } from "@/services/isp-partner/types";
 
 export interface WorkflowFeatures {
   data_limit_unit: "GB";
@@ -46,6 +47,16 @@ export interface WfFranchisee {
   email: string | null;
   full_name: string | null;
   zones: WfZone[];
+}
+
+/** DECISIONS-1: a site a franchisee may add a router to (inside its zones). */
+export interface WfRouterSite {
+  isp_customer_id: string;
+  customer_name: string;
+  isp_location_id: string;
+  location_name: string;
+  /** the zone the new router is linked to */
+  zone: { id: string; name: string | null };
 }
 
 export const workflowService = {
@@ -102,6 +113,21 @@ export const workflowService = {
     const { data } = await api.put<{ zones: WfZone[] }>(
       `/isp/workflow/franchisees/${userId}/zones`,
       { zone_ids: zoneIds },
+    );
+    return data;
+  },
+  /** DECISIONS-1: franchisee only (403 for other roles). */
+  async franchiseeRouterSites(): Promise<{ items: WfRouterSite[] }> {
+    const { data } = await api.get<{ items: WfRouterSite[] }>(
+      "/isp/workflow/franchisee/router-sites",
+    );
+    return data;
+  },
+  /** DECISIONS-1: add a router at a site inside the franchisee's zones. */
+  async franchiseeAddRouter(siteId: string, body: IspRouterCreate): Promise<IspRouter> {
+    const { data } = await api.post<IspRouter>(
+      `/isp/workflow/franchisee/sites/${siteId}/routers`,
+      body,
     );
     return data;
   },

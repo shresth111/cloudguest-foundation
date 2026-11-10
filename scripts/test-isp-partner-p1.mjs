@@ -144,7 +144,7 @@ const fup = m.planToBodies(
   { gb: true },
 );
 eq("FUP ok", fup.ok, true);
-eq("FUP 100 GB -> MB", fup.ok && fup.policy.fup_limit_mb, 102_400);
+eq("FUP 100 GB -> MB (DECISIONS-1: 1 GB = 1000 MB)", fup.ok && fup.policy.fup_limit_mb, 100_000);
 eq("FUP daily", fup.ok && fup.policy.fup_reset, "day");
 eq(
   "FUP download only + carry forward",
@@ -183,7 +183,7 @@ eq(
 eq("Unlimited summary", m.planKindSummary(null), "Unlimited");
 eq(
   "FUP summary",
-  m.planKindSummary({ fup_limit_mb: 102_400, fup_reset: "month" }, "2 Mbps"),
+  m.planKindSummary({ fup_limit_mb: 100_000, fup_reset: "month" }, "2 Mbps"),
   "FUP 100 GB a month, then 2 Mbps",
 );
 eq("validity summary", m.validitySummary(30, true), "30 days · from first login");

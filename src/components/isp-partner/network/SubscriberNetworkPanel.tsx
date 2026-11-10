@@ -150,7 +150,7 @@ export function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canE
           )}
           {canEdit && (
             <div className="flex flex-wrap gap-2">
-              <MButton variant="outline" onClick={() => setTopup("1024")}>
+              <MButton variant="outline" onClick={() => setTopup(gb ? "1" : "1000")}>
                 <Plus /> Top up
               </MButton>
               <MButton
@@ -187,7 +187,7 @@ export function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canE
               onClick={async () => {
                 let mb = Number(topup);
                 if (gb) {
-                  const g = parseGbToMb(topup ?? "", { max: 97_656 });
+                  const g = parseGbToMb(topup ?? "", { max: 100_000 });
                   if (!g.ok || g.mb === null)
                     return setError(g.ok ? "Enter the GB to add." : g.error);
                   mb = g.mb;
@@ -215,7 +215,7 @@ export function FupBlock({ subscriberId, canEdit }: { subscriberId: string; canE
           hint={
             gb
               ? "For example 50 GB. Only this period; it does not carry forward."
-              : "1024 MB = 1 GB. Only this period; it does not carry forward."
+              : "1000 MB = 1 GB. Only this period; it does not carry forward."
           }
         />
         <FormError message={error} />
