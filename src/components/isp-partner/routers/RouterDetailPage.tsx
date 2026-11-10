@@ -20,6 +20,7 @@ import { PartnerTr069SetupStep } from "@/components/isp-partner/routers/PartnerT
 import { PartnerWordingScope } from "@/components/isp-partner/routers/PartnerWordingScope";
 import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDrawer";
 import { RouterNetworkPanel } from "@/components/isp-partner/network/RouterNetworkPanel";
+import { RouterZonesCard } from "@/components/isp-partner/workflow/RouterZonesCard";
 import { Tr069ScriptPanel } from "@/components/isp-partner/tr069/Tr069ScriptPanel";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspRouter, useIspRouterAsDevice } from "@/hooks/isp-partner/useIsp";
@@ -165,6 +166,8 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
           </dl>
         </Card>
       </div>
+
+      <RouterZonesCard routerId={routerId} />
 
       <RouterNetworkPanel routerId={routerId} />
 
