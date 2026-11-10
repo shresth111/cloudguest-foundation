@@ -226,7 +226,7 @@ export function useIspRouterAsDevice(id: string) {
   });
 }
 
-function useInvalidateRouters() {
+export function useInvalidateRouters() {
   const qc = useQueryClient();
   return () =>
     Promise.all([

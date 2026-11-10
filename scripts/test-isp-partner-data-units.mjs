@@ -76,7 +76,11 @@ eq("display 3000000 MB", m.formatMbAsGb(3_000_000), "3,000 GB");
 eq("display null", m.formatMbAsGb(null), "None");
 eq("display 1500", m.formatMbAsGb(1500), "1.5 GB");
 // byte counters (FUP meter, sessions, reports) on the same scale as limits
-eq("bytes: 3000 GB allowance reads 3.0 TB (decimal, same as formatMb)", m.formatDataBytes(3_000_000 * m.BYTES_PER_MB), "3.0 TB");
+eq(
+  "bytes: 3000 GB allowance reads 3.0 TB (decimal, same as formatMb)",
+  m.formatDataBytes(3_000_000 * m.BYTES_PER_MB),
+  "3.0 TB",
+);
 eq("bytes: 300 GB allowance", m.formatDataBytes(300_000 * m.BYTES_PER_MB), "300 GB");
 eq("bytes: 1.5 GB", m.formatDataBytes(1500 * m.BYTES_PER_MB), "1.5 GB");
 eq("bytes: 999 MB stays MB", m.formatDataBytes(999 * m.BYTES_PER_MB), "999 MB");
