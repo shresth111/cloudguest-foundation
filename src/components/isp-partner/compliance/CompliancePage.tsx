@@ -1,6 +1,7 @@
 /** `/partner/compliance` (lane JAZE-3): NAT feed, IP trace + session dump,
  * KYC/CAF, filings (TRAI PMR, AGR, schedules), reports, settings. */
 import { useEffect, useState } from "react";
+import { IpLogsStatusStrip } from "@/components/isp-partner/log-views/IpLogsStatusStrip";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { MButton, MSectionHeader, MSeg, M_INPUT } from "@/components/master/MasterKit";
 import { Card, ErrorBlock, FormError } from "@/components/isp-partner/kit";
@@ -64,6 +65,7 @@ export function CompliancePage() {
         options={tabs.map(({ value, label }) => ({ value, label }))}
       />
       <div className="mt-4">
+        {["nat", "trace", "lea", "retention"].includes(tab) && <IpLogsStatusStrip />}
         {tab === "nat" && <NatFeedView />}
         {tab === "trace" && <CgnatLookupView />}
         {tab === "lea" && <LeaTraceView />}

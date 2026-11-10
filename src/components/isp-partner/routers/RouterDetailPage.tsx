@@ -15,6 +15,7 @@ import { MButton, MSectionHeader, MTag } from "@/components/master/MasterKit";
 import { RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
 import { Card, ErrorBlock, LoadingBlock } from "@/components/isp-partner/kit";
 import { PartnerAccountingSetupStep } from "@/components/isp-partner/routers/PartnerAccountingSetupStep";
+import { PartnerIpLogsStep } from "@/components/isp-partner/routers/PartnerIpLogsStep";
 import { PartnerTr069SetupStep } from "@/components/isp-partner/routers/PartnerTr069SetupStep";
 import { PartnerWordingScope } from "@/components/isp-partner/routers/PartnerWordingScope";
 import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDrawer";
@@ -179,6 +180,8 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
           </p>
         </Card>
       )}
+
+      <PartnerIpLogsStep routerId={routerId} />
 
       {can("tr069.manage") && (
         <Tr069ScriptPanel routerId={routerId} locationName={r.location_name} />
