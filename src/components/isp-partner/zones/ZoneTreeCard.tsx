@@ -25,6 +25,7 @@ import {
   type ZoneTreeItem,
 } from "@/lib/isp-partner/zones";
 import type { ZoneNode } from "@/services/isp-partner/zones-types";
+import { ZoneCouponRightControl } from "@/components/isp-partner/zones/ZoneCouponRightControl"; // RAKESH-P1
 
 type Action =
   | { kind: "add"; parent: ZoneNode | null }
@@ -54,6 +55,8 @@ function Rows({
               {node.children > 0 &&
                 ` (with sub-zones: ${node.subtree_customers} · ${node.subtree_subscribers})`}
             </span>
+            <ZoneCouponRightControl zoneId={node.id} zoneName={node.name} manage={manage} />{" "}
+            {/* RAKESH-P1 */}
             {manage && (
               <span className="ml-auto flex gap-0.5">
                 <MButton

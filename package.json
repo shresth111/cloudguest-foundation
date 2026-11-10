@@ -35,6 +35,7 @@
     "test:isp-partner-iplogs": "node scripts/test-isp-partner-iplogs.mjs",
     "test:isp-partner-jaze2": "node scripts/test-isp-partner-jaze2.mjs",
     "test:isp-partner-data-units": "node scripts/test-isp-partner-data-units.mjs",
+    "test:isp-partner-p1": "node scripts/test-isp-partner-p1.mjs",
     "test:isp-partner-netmon": "node scripts/test-isp-partner-netmon.mjs",
     "test:isp-partner-onboard": "node scripts/test-isp-partner-onboard.mjs",
     "test:isp-partner-pppoe": "node scripts/test-isp-partner-pppoe.mjs",
