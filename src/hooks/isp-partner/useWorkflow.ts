@@ -1,7 +1,8 @@
 /** RAKESH-FS: workflow features. `on` is false while the BE flag is off
  * (404), and then every form keeps its old behaviour (MB, no router zones). */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { retryUnless4xx } from "@/hooks/isp-partner/useIsp";
+import { retryUnless4xx, useInvalidateRouters } from "@/hooks/isp-partner/useIsp";
+import type { IspRouterCreate } from "@/services/isp-partner/types";
 import { workflowService } from "@/services/isp-partner/workflow";
 
 export const workflowKeys = {
@@ -10,6 +11,7 @@ export const workflowKeys = {
   placement: (zoneId: string) => ["isp", "workflow", "placement", zoneId] as const,
   franchisees: ["isp", "workflow", "franchisees"] as const,
   zonePackages: (id: string) => ["isp", "workflow", "zone-packages", id] as const,
+  routerSites: ["isp", "workflow", "franchisee-router-sites"] as const,
 };
 
 export function useWorkflowFeatures() {
@@ -88,5 +90,28 @@ export function useSetZonePackages(zoneId: string) {
   return useMutation({
     mutationFn: (ids: string[]) => workflowService.setZonePackages(zoneId, ids),
     onSuccess: (data) => qc.setQueryData(workflowKeys.zonePackages(zoneId), data),
+  });
+}
+
+/** DECISIONS-1: sites inside the franchisee's zones (Add router picker). */
+export function useFranchiseeRouterSites(enabled = true) {
+  return useQuery({
+    queryKey: workflowKeys.routerSites,
+    queryFn: () => workflowService.franchiseeRouterSites(),
+    retry: retryUnless4xx,
+    enabled,
+  });
+}
+
+/** DECISIONS-1: franchisee adds a router at one of those sites. */
+export function useFranchiseeAddRouter(siteId: string) {
+  const invalidate = useInvalidateRouters();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: IspRouterCreate) => workflowService.franchiseeAddRouter(siteId, body),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["isp", "workflow"] });
+    },
   });
 }

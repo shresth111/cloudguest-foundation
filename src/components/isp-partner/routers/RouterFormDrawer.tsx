@@ -6,7 +6,7 @@ import { MButton, MDrawer } from "@/components/master/MasterKit";
 import { FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { useCreateIspRouter, useUpdateIspRouter } from "@/hooks/isp-partner/useIsp";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
-import type { IspRouter } from "@/services/isp-partner/types";
+import type { IspRouter, IspRouterCreate } from "@/services/isp-partner/types";
 
 const MAC_RE = /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/;
 
@@ -16,6 +16,8 @@ export function RouterFormDrawer({
   locationId,
   router,
   onSaved,
+  onCreate,
+  creating,
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,6 +25,9 @@ export function RouterFormDrawer({
   /** null = add. Editing changes name and model only (API_CONTRACT §4.5). */
   router: IspRouter | null;
   onSaved?: (r: IspRouter) => void;
+  /** DECISIONS-1: replaces the owner's create call (franchisee route). */
+  onCreate?: (body: IspRouterCreate) => Promise<IspRouter>;
+  creating?: boolean;
 }) {
   const [name, setName] = useState("");
   const [serial, setSerial] = useState("");
@@ -32,7 +37,7 @@ export function RouterFormDrawer({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const create = useCreateIspRouter(locationId);
   const update = useUpdateIspRouter(router?.id ?? "");
-  const busy = create.isPending || update.isPending;
+  const busy = create.isPending || update.isPending || !!creating;
 
   useEffect(() => {
     if (open) {
@@ -59,7 +64,7 @@ export function RouterFormDrawer({
     try {
       const saved = router
         ? await update.mutateAsync({ name: name.trim(), model: model.trim() })
-        : await create.mutateAsync({
+        : await (onCreate ?? create.mutateAsync)({
             name: name.trim(),
             serial_number: serial.trim(),
             mac_address: mac.trim().toUpperCase().replace(/-/g, ":"),
