@@ -16,6 +16,7 @@ import { RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdva
 import { Card, ErrorBlock, LoadingBlock } from "@/components/isp-partner/kit";
 import { PartnerAccountingSetupStep } from "@/components/isp-partner/routers/PartnerAccountingSetupStep";
 import { PartnerIpLogsStep } from "@/components/isp-partner/routers/PartnerIpLogsStep";
+import { PartnerMonitoringCard } from "@/components/isp-partner/routers/PartnerMonitoringCard";
 import { PartnerTr069SetupStep } from "@/components/isp-partner/routers/PartnerTr069SetupStep";
 import { PartnerWordingScope } from "@/components/isp-partner/routers/PartnerWordingScope";
 import { RouterFormDrawer } from "@/components/isp-partner/routers/RouterFormDrawer";
@@ -24,6 +25,7 @@ import { RouterZonesCard } from "@/components/isp-partner/workflow/RouterZonesCa
 import { Tr069ScriptPanel } from "@/components/isp-partner/tr069/Tr069ScriptPanel";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspRouter, useIspRouterAsDevice } from "@/hooks/isp-partner/useIsp";
+import { useProvFixFeatures } from "@/hooks/isp-partner/useProvFix";
 import {
   CLOUD_LINK_LABEL,
   ROUTER_STATUS_LABEL,
@@ -34,7 +36,10 @@ import {
 
 function SetupScript({ routerId }: { routerId: string }) {
   const device = useIspRouterAsDevice(routerId);
-  if (device.isLoading) return <LoadingBlock label="Loading the router for setup…" />;
+  // PROV-FIX: null (flag off) keeps the drilldown exactly as before.
+  const fixes = useProvFixFeatures();
+  if (device.isLoading || fixes.isLoading)
+    return <LoadingBlock label="Loading the router for setup…" />;
   if (device.error || !device.data)
     return (
       <ErrorBlock error={device.error} onRetry={() => device.refetch()} what="the setup script" />
@@ -66,6 +71,7 @@ function SetupScript({ routerId }: { routerId: string }) {
           router={{ ...device.data, managementIpAddress: null }}
           demo={false}
           vendorSaving={false}
+          partnerSetup={!!fixes.data?.check_in_fallback}
           onVendorChange={(v) => {
             if (v !== "mikrotik")
               toast.error("Only MikroTik routers are supported in the partner console for now.");
@@ -79,6 +85,7 @@ function SetupScript({ routerId }: { routerId: string }) {
 export function RouterDetailPage({ routerId }: { routerId: string }) {
   const { can } = usePartner();
   const q = useIspRouter(routerId);
+  const fixes = useProvFixFeatures();
   const [editing, setEditing] = useState(false);
 
   if (q.isLoading) return <LoadingBlock />;
@@ -185,6 +192,7 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
       )}
 
       <PartnerIpLogsStep routerId={routerId} />
+      <PartnerMonitoringCard routerId={routerId} enabled={!!fixes.data?.monitoring_self_serve} />
 
       {can("tr069.manage") && (
         <Tr069ScriptPanel routerId={routerId} locationName={r.location_name} />

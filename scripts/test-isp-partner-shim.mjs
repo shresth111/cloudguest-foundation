@@ -269,7 +269,12 @@ if (provisioningToken) calls.push(["post", provisioningToken]);
 check("found the component's calls", calls.length >= 6, String(calls.length));
 for (const [method, raw] of calls) {
   const url = raw.replace(/\$\{router\.id\}|\$\{routerId\}/g, R);
-  const ok = rewriteIspPath(method, url) !== null || url === "/routers/provisioning/check-in";
+  // PROV-FIX: a partner-only branch may call an /isp route directly (it
+  // passes through the shim untouched and is ISP-scoped by the backend).
+  const ok =
+    rewriteIspPath(method, url) !== null ||
+    url === "/routers/provisioning/check-in" ||
+    url.startsWith("/isp/");
   check(`component call ${method.toUpperCase()} ${raw} is twinned or allowed`, ok);
 }
 

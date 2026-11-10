@@ -113,6 +113,17 @@ export const ISP_ERROR_COPY_EN: Record<string, string> = {
   "code.ISP_IPLOGS_NEEDS_LINK":
     "Paste this router's setup script first. IP logs need its cloud link, which is not set up yet.",
   "code.ISP_IPLOGS_NOT_SUPPORTED": "IP logs can be turned on for MikroTik routers only.",
+  // -- PROV-FIX: router setup + traffic monitoring ------------------------------
+  "code.ISP_PROV_FIX_DISABLED": FEATURE_OFF,
+  "code.ISP_MANAGEMENT_CONNECTION_NOT_READY":
+    "We could not prepare the management connection for this router, so no setup script was made. Nothing was changed. Try Generate again in a minute; if it keeps happening, contact Wyfy Guest support.",
+  "code.ISP_SETUP_TOKEN_MISMATCH":
+    "This setup code belongs to a different router. Close the page and press Generate again on the router you are setting up.",
+  "code.ISP_MONITORING_NOT_ALLOWED": "Only an ISP owner or admin can switch monitoring on or off.",
+  "code.ISP_MONITORING_UNAVAILABLE":
+    "Traffic monitoring is not available for this router yet. Contact Wyfy Guest support.",
+  "code.ISP_MONITORING_ROUTER_UNREACHABLE":
+    "We could not reach the router. Check it is online and that Read now works on its page, then try again. If Read now fails, generate the setup script again and paste all of it.",
   "code.ISP_PPPOE_ROUTER_NOT_READY":
     "Finish this router's main setup first, then generate the PPPoE script.",
   "code.ISP_MOVE_SAME_CUSTOMER":

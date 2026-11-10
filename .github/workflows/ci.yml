@@ -2817,6 +2817,9 @@ jobs:
       - name: ISP partner IPLOGS-SELFSERVE
         if: hashFiles('scripts/test-isp-partner-iplogs.mjs') != ''
         run: bun run test:isp-partner-iplogs
+      - name: ISP partner PROV-FIX guards
+        if: hashFiles('scripts/test-isp-partner-iplogs.mjs') != ''
+        run: bun run test:isp-partner-provfix
       - name: ISP partner ONBOARD-1
         if: hashFiles('scripts/test-isp-partner-onboard.mjs') != ''
         run: bun run test:isp-partner-onboard

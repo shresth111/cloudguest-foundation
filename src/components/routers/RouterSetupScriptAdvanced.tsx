@@ -320,7 +320,65 @@ function confirmDeselect(which: "radius" | "wireguard"): string | null {
   );
 }
 
-function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
+/** PROV-FIX: one in-app question with plain partner wording, replacing a
+ * `window.confirm`/engineering dialog. Only the partner console ever asks
+ * one (see `partnerSetup`). */
+interface PartnerChoice {
+  title: string;
+  body: string[];
+  options: { value: string; label: string; primary?: boolean }[];
+  resolve: (value: string) => void;
+}
+
+function PartnerChoiceCard({
+  choice,
+  onPick,
+}: {
+  choice: PartnerChoice;
+  onPick: (v: string) => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={choice.title}
+      className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+    >
+      <p className="font-semibold">{choice.title}</p>
+      {choice.body.map((line) => (
+        <p key={line}>{line}</p>
+      ))}
+      <div className="flex flex-wrap gap-2">
+        {choice.options.map((o) => (
+          <MButton
+            key={o.value}
+            variant={o.primary ? "primary" : "outline"}
+            onClick={() => onPick(o.value)}
+          >
+            {o.label}
+          </MButton>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Wraps an allocate call so a management connection the partner check-in
+ * already allocated (PROV-FIX D1) is used instead of allocating again. */
+async function reuseOr<T>(pre: unknown, call: () => Promise<{ data: T }>): Promise<{ data: T }> {
+  return pre ? { data: pre as T } : call();
+}
+
+function RouterSetupScriptPanel({
+  router,
+  partnerSetup = false,
+}: {
+  router: RouterDevice;
+  /** PROV-FIX: true only in the partner console, and only once its backend
+   * answers `/isp/setup-fixes`. Master never sets it, so every Master path
+   * below is unchanged. */
+  partnerSetup?: boolean;
+}) {
   // EVERY server call in `onGenerate` below is a raw `api.post`/`api.put`,
   // not a react-query mutation -- so nothing invalidated the caches those
   // writes invalidate, and the rest of the console kept rendering
@@ -343,6 +401,9 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
   const queryClient = useQueryClient();
   const generate = useGenerateProvisioningToken();
   const [busy, setBusy] = useState(false);
+  const [partnerChoice, setPartnerChoice] = useState<PartnerChoice | null>(null);
+  const askPartner = (q: Omit<PartnerChoice, "resolve">) =>
+    new Promise<string>((resolve) => setPartnerChoice({ ...q, resolve }));
   const [chunks, setChunks] = useState<
     import("@/components/routers/RouterDetailTabs").RouterSetupScriptChunk[] | null
   >(null);
@@ -592,23 +653,35 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         mintApiSecret: !router.hasApiCredentials || rotateApiSecret,
       });
       const unrepairable = rotating.filter((s) => !SECRET_REPAIR[s].repairableByRepaste);
-      const proceed = window.confirm(
-        [
-          `Generating again ROTATES this router's secrets on the server, right now.`,
-          ``,
-          `Any script you have already copied or pasted STOPS WORKING the moment you click OK -- including the one on screen. Its agent credential will 401 ("should contain www-authenticate header") and its RADIUS secret will mismatch.`,
-          ``,
-          `Rotating: ${rotating.map((s) => SECRET_REPAIR[s].label).join(", ")}.`,
-          ``,
-          unrepairable.length > 0
-            ? `AND RE-PASTING THE NEW SCRIPT WILL NOT REPAIR A ROUTER THAT ALREADY HAS THE OLD ONES:\n${unrepairable
-                .map((s) => `  - ${SECRET_REPAIR[s].label}: ${SECRET_REPAIR[s].why}`)
-                .join("\n")}\n\nYou would have to remove those on the device first, by hand.`
-            : `Every secret rotating here does have a re-paste repair path, so re-pasting the whole new script on the device is enough.`,
-          ``,
-          `Generate a new script anyway?`,
-        ].join("\n"),
-      );
+      const proceed = partnerSetup
+        ? (await askPartner({
+            title: "Make a new setup script?",
+            body: [
+              "A new script replaces the one made before. The earlier script stops working as soon as you continue.",
+              "If you already pasted an earlier script on this router, paste the whole new script on it too.",
+            ],
+            options: [
+              { value: "go", label: "Make a new script", primary: true },
+              { value: "keep", label: "Keep the current script" },
+            ],
+          })) === "go"
+        : window.confirm(
+            [
+              `Generating again ROTATES this router's secrets on the server, right now.`,
+              ``,
+              `Any script you have already copied or pasted STOPS WORKING the moment you click OK -- including the one on screen. Its agent credential will 401 ("should contain www-authenticate header") and its RADIUS secret will mismatch.`,
+              ``,
+              `Rotating: ${rotating.map((s) => SECRET_REPAIR[s].label).join(", ")}.`,
+              ``,
+              unrepairable.length > 0
+                ? `AND RE-PASTING THE NEW SCRIPT WILL NOT REPAIR A ROUTER THAT ALREADY HAS THE OLD ONES:\n${unrepairable
+                    .map((s) => `  - ${SECRET_REPAIR[s].label}: ${SECRET_REPAIR[s].why}`)
+                    .join("\n")}\n\nYou would have to remove those on the device first, by hand.`
+                : `Every secret rotating here does have a re-paste repair path, so re-pasting the whole new script on the device is enough.`,
+              ``,
+              `Generate a new script anyway?`,
+            ].join("\n"),
+          );
       if (!proceed) {
         toast.info("Nothing was rotated -- the script already on screen is still valid.");
         return;
@@ -632,13 +705,26 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // why this is a real, separate, purpose-built endpoint rather than
       // relaxing generate_provisioning_token's own status gate.
       let agentCredential: string | undefined;
+      let preallocated: Record<string, unknown> | null = null;
       if (router.status === "pending_provisioning" || router.status === "provisioning") {
         const { token } = await generate.mutateAsync(router.id);
-        const checkinResp = await api.post<{ agent_credential?: string }>(
-          "/routers/provisioning/check-in",
-          { token },
-        );
-        agentCredential = checkinResp.data.agent_credential;
+        if (partnerSetup) {
+          // PROV-FIX D1: the partner twin allocates the management
+          // connection through the hub first when this router has none (the
+          // hub cannot learn a key the platform generates), then checks in.
+          const checkinResp = await api.post<{
+            agent_credential?: string;
+            management_connection?: Record<string, unknown> | null;
+          }>(`/isp/routers/${router.id}/setup/check-in`, { token });
+          agentCredential = checkinResp.data.agent_credential;
+          preallocated = checkinResp.data.management_connection ?? null;
+        } else {
+          const checkinResp = await api.post<{ agent_credential?: string }>(
+            "/routers/provisioning/check-in",
+            { token },
+          );
+          agentCredential = checkinResp.data.agent_credential;
+        }
       } else {
         const regenResp = await api.post<{ agent_credential?: string }>(
           `/routers/${router.id}/agent-credential/regenerate`,
@@ -714,73 +800,75 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         // tunnel, so this degrades to "no WireGuard in this script" with a
         // clear toast instead of aborting generation entirely.
         try {
-          let wg = await api.post<{
-            /** Null when `reused` is true -- the backend deliberately did
-             * NOT allocate a new peer. See the generator's
-             * `routerPrivateKey` docstring and the backend's
-             * `allocate_external_wireguard_peer`. */
-            peer_private_key: string | null;
-            /** The peer's own public key, as the PLATFORM has it recorded.
-             * Already on the wire -- `WireGuardPeerResponse` (the base of
-             * `WireGuardTunnelCreateResponse`) has carried it all along, and
-             * both the allocate path and the reuse path populate it; this
-             * type simply never declared it. Feeds
-             * `buildTunnelIdentityCheckChunk`, which is the only thing on the
-             * router able to notice that the device and the platform hold two
-             * different identities. No backend change was needed. */
-            public_key: string;
-            reused?: boolean;
-            hub_public_key: string;
-            tunnel_ip_address: string;
-            hub_endpoint_host: string;
-            /** OPTIONAL, and as of 2026-08-23 THE BACKEND DOES NOT SEND
-             * IT. Declared here anyway so the WireGuard chunk's DNS
-             * fallback lights up the moment it does, with no further
-             * frontend change.
-             *
-             * Verified against `/Users/shresth/cloud-guest-repo/backend`:
-             * `WireGuardTunnelCreateResponse`
-             * (`app/domains/wireguard/schemas.py`) carries
-             * `hub_endpoint_host`/`hub_endpoint_port` and no address
-             * field; the `wireguard_servers` table has `endpoint_host`
-             * (String(255), "public hostname or IP address") and no
-             * companion address column; and on this endpoint specifically
-             * the value is not read from the DB at all -- `router.py`
-             * copies it from the hub bridge, where it is the hardcoded
-             * constant `SERVER_ENDPOINT_HOST = "hub.wyfyguest.com"` in
-             * `ops/hub-agents/wg_agent.py`. There is no DNS helper and no
-             * cached resolution anywhere in `app/`.
-             *
-             * WHAT THE BACKEND WOULD NEED, in order of preference:
-             *  1. an `endpoint_address` column on `wireguard_servers`,
-             *     set operationally alongside `endpoint_host` and served
-             *     as `hub_endpoint_address` on this response and on
-             *     `WireGuardTunnelRotateResponse` /
-             *     `AgentWireGuardConfigResponse`; or
-             *  2. failing a stored value, resolve `endpoint_host`
-             *     server-side at allocate time and send the result --
-             *     the backend resolving it once is strictly better than
-             *     64 routers each resolving it never.
-             * Either way the value must be OWNED BY THE BACKEND. It must
-             * never become a literal in this repo: `20.219.72.235` was
-             * exactly that, it got baked into `endpoint-address=` on 64
-             * field routers, and when the hub's subscription died those
-             * routers became unreachable and now need physical visits.
-             * The backend already carries a regression test asserting
-             * that literal never reappears in its own source. */
-            hub_endpoint_address?: string;
-            hub_endpoint_port: number;
-            tunnel_network_cidr: string;
-            hub_tunnel_ip_address: string;
-          }>(
-            `/routers/${router.id}/wireguard-peer/allocate-external` +
-              // Reuse by default. `ops/hub-agents/wg_agent.py` exposes only
-              // POST (always allocates) and GET -- no delete, no update --
-              // so every allocation is PERMANENT and unreclaimable, and
-              // clicking Generate used to burn one each time. Router
-              // 01c9171e reached 10.20.0.5 while its device was still on
-              // .3, and the orphans outlived the router's own DB rows.
-              (rotateWireguard ? "?rotate=true" : ""),
+          let wg = await reuseOr(preallocated, () =>
+            api.post<{
+              /** Null when `reused` is true -- the backend deliberately did
+               * NOT allocate a new peer. See the generator's
+               * `routerPrivateKey` docstring and the backend's
+               * `allocate_external_wireguard_peer`. */
+              peer_private_key: string | null;
+              /** The peer's own public key, as the PLATFORM has it recorded.
+               * Already on the wire -- `WireGuardPeerResponse` (the base of
+               * `WireGuardTunnelCreateResponse`) has carried it all along, and
+               * both the allocate path and the reuse path populate it; this
+               * type simply never declared it. Feeds
+               * `buildTunnelIdentityCheckChunk`, which is the only thing on the
+               * router able to notice that the device and the platform hold two
+               * different identities. No backend change was needed. */
+              public_key: string;
+              reused?: boolean;
+              hub_public_key: string;
+              tunnel_ip_address: string;
+              hub_endpoint_host: string;
+              /** OPTIONAL, and as of 2026-08-23 THE BACKEND DOES NOT SEND
+               * IT. Declared here anyway so the WireGuard chunk's DNS
+               * fallback lights up the moment it does, with no further
+               * frontend change.
+               *
+               * Verified against `/Users/shresth/cloud-guest-repo/backend`:
+               * `WireGuardTunnelCreateResponse`
+               * (`app/domains/wireguard/schemas.py`) carries
+               * `hub_endpoint_host`/`hub_endpoint_port` and no address
+               * field; the `wireguard_servers` table has `endpoint_host`
+               * (String(255), "public hostname or IP address") and no
+               * companion address column; and on this endpoint specifically
+               * the value is not read from the DB at all -- `router.py`
+               * copies it from the hub bridge, where it is the hardcoded
+               * constant `SERVER_ENDPOINT_HOST = "hub.wyfyguest.com"` in
+               * `ops/hub-agents/wg_agent.py`. There is no DNS helper and no
+               * cached resolution anywhere in `app/`.
+               *
+               * WHAT THE BACKEND WOULD NEED, in order of preference:
+               *  1. an `endpoint_address` column on `wireguard_servers`,
+               *     set operationally alongside `endpoint_host` and served
+               *     as `hub_endpoint_address` on this response and on
+               *     `WireGuardTunnelRotateResponse` /
+               *     `AgentWireGuardConfigResponse`; or
+               *  2. failing a stored value, resolve `endpoint_host`
+               *     server-side at allocate time and send the result --
+               *     the backend resolving it once is strictly better than
+               *     64 routers each resolving it never.
+               * Either way the value must be OWNED BY THE BACKEND. It must
+               * never become a literal in this repo: `20.219.72.235` was
+               * exactly that, it got baked into `endpoint-address=` on 64
+               * field routers, and when the hub's subscription died those
+               * routers became unreachable and now need physical visits.
+               * The backend already carries a regression test asserting
+               * that literal never reappears in its own source. */
+              hub_endpoint_address?: string;
+              hub_endpoint_port: number;
+              tunnel_network_cidr: string;
+              hub_tunnel_ip_address: string;
+            }>(
+              `/routers/${router.id}/wireguard-peer/allocate-external` +
+                // Reuse by default. `ops/hub-agents/wg_agent.py` exposes only
+                // POST (always allocates) and GET -- no delete, no update --
+                // so every allocation is PERMANENT and unreclaimable, and
+                // clicking Generate used to burn one each time. Router
+                // 01c9171e reached 10.20.0.5 while its device was still on
+                // .3, and the orphans outlived the router's own DB rows.
+                (rotateWireguard ? "?rotate=true" : ""),
+            ),
           );
           // A REUSED PEER ON A ROUTER THAT HAS NEVER CONNECTED IS A SCRIPT
           // THAT CANNOT WORK ON A FRESH DEVICE.
@@ -806,16 +894,34 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
             !wg.data.peer_private_key &&
             !rotateWireguard &&
             (router.status === "pending_provisioning" || router.status === "provisioning") &&
-            window.confirm(
-              [
-                `This router has never connected, and the platform reused a WireGuard tunnel (${wg.data.tunnel_ip_address}) whose private key it does not have -- typically one allocated when the customer was created.`,
-                ``,
-                `A script without that key cannot build the tunnel on a fresh router, and without the tunnel RADIUS cannot be configured -- every guest login would fail.`,
-                ``,
-                `OK: allocate a new tunnel now (uses one hub address; the old one cannot be reclaimed).`,
-                `Cancel: keep the reused tunnel -- only correct if this device already has it from an earlier script.`,
-              ].join("\n"),
-            )
+            (partnerSetup
+              ? (await askPartner({
+                  title: "Has this router been set up from this page before?",
+                  body: [
+                    "This router has never connected. Wyfy Guest already has a management connection on file for it, but it cannot be put into a new script.",
+                  ],
+                  options: [
+                    {
+                      value: "new",
+                      label: "No, it is new or was reset: make a new management connection",
+                      primary: true,
+                    },
+                    {
+                      value: "keep",
+                      label: "Yes, an earlier script from this page is on it: keep it",
+                    },
+                  ],
+                })) === "new"
+              : window.confirm(
+                  [
+                    `This router has never connected, and the platform reused a WireGuard tunnel (${wg.data.tunnel_ip_address}) whose private key it does not have -- typically one allocated when the customer was created.`,
+                    ``,
+                    `A script without that key cannot build the tunnel on a fresh router, and without the tunnel RADIUS cannot be configured -- every guest login would fail.`,
+                    ``,
+                    `OK: allocate a new tunnel now (uses one hub address; the old one cannot be reclaimed).`,
+                    `Cancel: keep the reused tunnel -- only correct if this device already has it from an earlier script.`,
+                  ].join("\n"),
+                ))
           ) {
             wg = await api.post<typeof wg.data>(
               `/routers/${router.id}/wireguard-peer/allocate-external?rotate=true`,
@@ -953,7 +1059,16 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
       // `rotateApiSecret` checkbox is for. Rotating then is safe because
       // the chunk's `else={ /user set ... password=NEW }` branch really
       // does repair an existing user.
-      const mintApiSecret = !router.hasApiCredentials || rotateApiSecret;
+      // PROV-FIX D3 (partner only): a router that has never connected cannot
+      // hold the API user yet, even when an earlier Generate stored a
+      // password for it -- that script may never have been pasted. So the
+      // "API Access" chunk is always in its script, with a fresh password.
+      // Safe: that chunk's `else={ /user set ... }` branch repairs a user
+      // that does exist.
+      const neverConnected =
+        router.status === "pending_provisioning" || router.status === "provisioning";
+      const mintApiSecret =
+        !router.hasApiCredentials || rotateApiSecret || (partnerSetup && neverConnected);
       let apiAccess: { username: string; secret: string } | undefined;
       if (mintApiSecret) {
         const apiSecret = generateApiSecret();
@@ -1035,6 +1150,7 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           // must be the real, stable, guest-facing portal domain
           // regardless of whatever URL Master console itself happens to be
           // served from.
+          heartbeatReportsVersion: partnerSetup || undefined,
           portalUrl: {
             frontendBase: GUEST_PORTAL_PUBLIC_BASE,
             organizationId: router.organizationId,
@@ -1678,10 +1794,20 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
         </div>
       )}
 
-      <MButton variant="primary" onClick={onGenerate} disabled={busy}>
+      <MButton variant="primary" onClick={onGenerate} disabled={busy || !!partnerChoice}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode2 className="h-4 w-4" />}
         {busy ? "Generating..." : generationCount > 0 ? "Generate a new script" : "Generate script"}
       </MButton>
+
+      {partnerChoice && (
+        <PartnerChoiceCard
+          choice={partnerChoice}
+          onPick={(v) => {
+            partnerChoice.resolve(v);
+            setPartnerChoice(null);
+          }}
+        />
+      )}
 
       {chunks && (
         <div className="space-y-2.5">
@@ -2026,11 +2152,14 @@ export function RouterSetupDrilldown({
   demo,
   vendorSaving,
   onVendorChange,
+  partnerSetup,
 }: {
   router: RouterDevice;
   demo: boolean;
   vendorSaving: boolean;
   onVendorChange: (vendor: string) => void;
+  /** PROV-FIX: partner console only. See `RouterSetupScriptPanel`. */
+  partnerSetup?: boolean;
 }) {
   const vendor = router.vendor || "mikrotik";
   return (
@@ -2113,7 +2242,7 @@ export function RouterSetupDrilldown({
             </select>
           </div>
           {vendor === "mikrotik" ? (
-            <RouterSetupScriptPanel router={router} />
+            <RouterSetupScriptPanel router={router} partnerSetup={partnerSetup} />
           ) : vendor === "tplink_omada" ? (
             <OmadaGuidedSetupPanel router={router} />
           ) : vendor === ARUBA_INSTANT_ON_VENDOR ? (

@@ -33,6 +33,7 @@
     "test:isp-partner-invoices": "node scripts/test-isp-partner-invoices.mjs",
     "test:isp-partner-ipdr-lea": "node scripts/test-isp-partner-ipdr-lea.mjs",
     "test:isp-partner-iplogs": "node scripts/test-isp-partner-iplogs.mjs",
+    "test:isp-partner-provfix": "node scripts/test-isp-partner-provfix.mjs",
     "test:isp-partner-jaze2": "node scripts/test-isp-partner-jaze2.mjs",
     "test:isp-partner-data-units": "node scripts/test-isp-partner-data-units.mjs",
     "test:isp-partner-p1": "node scripts/test-isp-partner-p1.mjs",

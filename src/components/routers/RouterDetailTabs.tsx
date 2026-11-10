@@ -4974,6 +4974,15 @@ export function buildRouterSetupScriptChunks(opts: {
    * warnings were -- all of them true, none of them evidence that anybody
    * read one. */
   notProvisioned?: SetupScriptGap[];
+  /** PROV-FIX D5, partner console only (unset everywhere else, so every
+   * other script is byte-identical). Adds a "Version Report" chunk right
+   * after the heartbeat scheduler: one `POST /agent/heartbeat` carrying only
+   * `routeros_version` (the endpoint already accepts and stores it), now and
+   * once a day. Not folded into the heartbeat itself: that scheduler line
+   * would pass the 3300-char paste cap. The IP-logs and connection-log
+   * renderers pick RouterOS 6 vs 7 lines from the stored version, and it
+   * stayed empty because no script ever sent it. */
+  heartbeatReportsVersion?: boolean;
 }): RouterSetupScriptChunk[] {
   const {
     apiBase,
@@ -4996,6 +5005,7 @@ export function buildRouterSetupScriptChunks(opts: {
     basicConfigOnly = false,
     blockMacWinbox = false,
     notProvisioned = [],
+    heartbeatReportsVersion = false,
   } = opts;
   // Escaped once up front -- `lanBridge` is an operator-editable free-text
   // field (see master.routers.tsx's own input for it) interpolated into
@@ -8495,6 +8505,21 @@ export function buildRouterSetupScriptChunks(opts: {
       label: "Heartbeat Scheduler (re-checks the live uplink every 5 minutes)",
       script: lines.join("\n"),
     });
+    if (heartbeatReportsVersion) {
+      // PROV-FIX D5 (partner console only; see the option's docstring).
+      const vr = [
+        `:local vrJson ("{\\"routeros_version\\":\\"" . [/system resource get version] . "\\"}")`,
+        `:do { /tool fetch url="${apiBase}/agent/heartbeat" http-method=post http-header-field="Content-Type: application/json,X-Agent-Credential: ${agentCredential}" http-data=$vrJson output=none } on-error={ :log warning "cloudguest-ver: RouterOS version report failed" }`,
+      ].join("; ");
+      chunks.push({
+        label: "Version Report (tells Wyfy Guest which RouterOS this router runs, now and daily)",
+        script: [
+          `:local existingVerSched [/system scheduler find name="cloudguest-version-sched"]; :if ([:len $existingVerSched] > 0) do={ /system scheduler remove $existingVerSched }`,
+          `/system scheduler add name="cloudguest-version-sched" interval=1d start-time=startup on-event="${escapeForRouterOsString(vr)}"`,
+          vr,
+        ].join("\n"),
+      });
+    }
     // Its own scheduler, on its own line, for the reasons in
     // `buildAuthorizedMacStatements`' docstring. Removed-and-re-added like
     // the heartbeat's so a re-paste replaces a stale agent credential

@@ -10430,6 +10430,80 @@ console.log("\n-- 21. leftover factory LAN detected by address, reported not rem
   );
 }
 
+// ---------------------------------------------------------------------
+// PROV-FIX D5: `heartbeatReportsVersion` (partner console only).
+// ---------------------------------------------------------------------
+{
+  for (const [variant, opts] of VARIANTS) {
+    const plain = buildRouterSetupScriptChunks({ ...opts, wireguard: WG });
+    const unset = buildRouterSetupScriptChunks({
+      ...opts,
+      wireguard: WG,
+      heartbeatReportsVersion: false,
+    });
+    check(
+      `PROV-FIX ${variant}: option off is byte-identical to option absent`,
+      JSON.stringify(plain) === JSON.stringify(unset),
+    );
+    const on = buildRouterSetupScriptChunks({
+      ...opts,
+      wireguard: WG,
+      heartbeatReportsVersion: true,
+    });
+    const vr = on.filter((c) => c.label.startsWith("Version Report"));
+    const rest = on.filter((c) => !c.label.startsWith("Version Report"));
+    check(
+      `PROV-FIX ${variant}: one Version Report chunk, every other chunk byte-identical`,
+      vr.length === 1 && JSON.stringify(rest) === JSON.stringify(plain),
+    );
+    const idx = on.findIndex((c) => c.label.startsWith("Version Report"));
+    check(
+      `PROV-FIX ${variant}: it sits right after the heartbeat scheduler`,
+      idx > 0 && on[idx - 1].label.startsWith("Heartbeat Scheduler"),
+    );
+    const text = vr.map((c) => c.script).join("\n");
+    check(
+      `PROV-FIX ${variant}: reports the version, now and on a daily scheduler`,
+      text.includes("/system resource get version") &&
+        text.includes('\\"routeros_version\\"') &&
+        /scheduler add name="cloudguest-version-sched" interval=1d start-time=startup/.test(text) &&
+        text.includes("/agent/heartbeat"),
+    );
+    const longest = Math.max(...text.split("\n").map((l) => l.length));
+    check(
+      `PROV-FIX ${variant}: under the ${MAX_LINE}-char paste cap (${longest})`,
+      longest <= MAX_LINE,
+    );
+    check(
+      `PROV-FIX ${variant}: one statement per do={} / on-error={}`,
+      text
+        .split("\n")
+        .every((l) => !/(do|on-error|else)=\{[^}]*;[^}]*\}/.test(l.replace(/"[^"]*"/g, '""'))),
+    );
+  }
+  const v = validateSetupScriptChunks(
+    buildRouterSetupScriptChunks({
+      ...BASE,
+      wans: [DHCP_WAN],
+      wireguard: WG,
+      heartbeatReportsVersion: true,
+    }),
+  );
+  const baseline = validateSetupScriptChunks(
+    buildRouterSetupScriptChunks({ ...BASE, wans: [DHCP_WAN], wireguard: WG }),
+  );
+  const errs = (rs) =>
+    rs.flatMap((r) =>
+      r.issues.filter((i) => i.severity === "error").map((i) => `${r.label}: ${i.message}`),
+    );
+  const bad = errs(v).filter((e) => !errs(baseline).includes(e));
+  check(
+    "PROV-FIX: the validator passes the version-reporting script",
+    bad.length === 0,
+    JSON.stringify(bad).slice(0, 400),
+  );
+}
+
 console.log("");
 if (failures.length) {
   console.error(`\n${failures.length} failure(s):\n  - ${failures.join("\n  - ")}`);
