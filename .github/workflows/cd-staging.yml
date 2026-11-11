@@ -48,6 +48,7 @@ jobs:
     needs: ci
     if: always() && (needs.ci.result == 'success' || github.event.inputs.image_tag != '')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       image: ${{ steps.meta.outputs.image }}
     steps:
@@ -124,6 +125,7 @@ jobs:
     name: Deploy to staging server
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: staging
       url: https://staging.wyfyguest.com
@@ -238,6 +240,7 @@ jobs:
     needs: [ci, build, deploy]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     continue-on-error: true
     # Deliberately does not inherit the workflow's `id-token: write`: this job
     # has no business minting an OIDC token for the deploy role.
