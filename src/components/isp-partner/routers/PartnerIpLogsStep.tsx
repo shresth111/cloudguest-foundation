@@ -125,7 +125,7 @@ export function PartnerIpLogsStep({
         {s.blocker !== "not_mikrotik" && canRun && (
           <div className="flex flex-wrap items-center gap-2">
             <IpLogsSwitch status={s} />
-            {!s.blocker && s.set_up && (
+            {!s.blocker && s.set_up && s.can_change !== false && (
               <MButton variant="outline" onClick={() => setShown(!shown)}>
                 <FileCode2 /> {shown ? "Hide script" : "Show IP logs script"}
               </MButton>
@@ -147,7 +147,9 @@ export function PartnerIpLogsStep({
           </p>
         )}
 
-        {shown && !s.blocker && canRun && <ScriptBlock routerId={routerId} mode="enable" />}
+        {shown && !s.blocker && canRun && s.can_change !== false && (
+          <ScriptBlock routerId={routerId} mode="enable" />
+        )}
       </div>
     </Card>
   );

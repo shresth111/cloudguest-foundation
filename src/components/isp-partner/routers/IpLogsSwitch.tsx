@@ -72,6 +72,10 @@ export function ScriptBlock({ routerId, mode }: { routerId: string; mode: "enabl
   );
 }
 
+/** FR-IPLOGS-ZONE: why a franchisee's switch is read-only. */
+const IP_LOGS_OUTSIDE_ZONES =
+  "This router is not in your zones, so you cannot change its IP logs. Ask the ISP owner or admin.";
+
 export function IpLogsSwitch({
   status,
   size = "md",
@@ -89,7 +93,9 @@ export function IpLogsSwitch({
   const [result, setResult] = useState<{ on: boolean; needsLink: boolean } | null>(null);
   const on = ipLogsSwitchOn(status);
   const unsupported = status.blocker === "not_mikrotik";
-  const canChange = can("isp_partner.execute") && !unsupported;
+  // FR-IPLOGS-ZONE: the backend says a franchisee may not change this router.
+  const outsideZones = status.can_change === false;
+  const canChange = can("isp_partner.execute") && !unsupported && !outsideZones;
   const needsLink = status.blocker === "needs_link";
 
   const confirm = (turnOn: boolean) =>
@@ -120,7 +126,9 @@ export function IpLogsSwitch({
               : "Turn IP logs on"
             : unsupported
               ? "IP logs can be turned on for MikroTik routers only."
-              : "A Technician, Admin or Owner can change IP logs."
+              : outsideZones
+                ? IP_LOGS_OUTSIDE_ZONES
+                : "A Technician, Admin or Owner can change IP logs."
         }
         onClick={() => setAsking(!on)}
         className={cn(
@@ -149,6 +157,11 @@ export function IpLogsSwitch({
         </span>
         {toggle.isPending ? <Spinner /> : label}
       </button>
+      {outsideZones && size === "md" && (
+        <span className="ml-2 self-center text-xs text-muted-foreground">
+          {IP_LOGS_OUTSIDE_ZONES}
+        </span>
+      )}
 
       <MDialog
         open={asking !== null}

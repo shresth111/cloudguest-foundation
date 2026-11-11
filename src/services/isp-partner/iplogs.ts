@@ -44,6 +44,9 @@ export interface IpLogsStatus {
   state_label: string;
   blocker: "needs_link" | "not_mikrotik" | null;
   blocker_hint?: string | null;
+  /** FR-IPLOGS-ZONE: sent to a franchisee only. false = the router is outside
+   * its zones (e.g. a shared site), so the switch is read-only. */
+  can_change?: boolean;
   set_up: boolean;
   set_up_at: string | null;
   /** DEFAULT-LOGS: the ISP's recorded choice; null = router added before it

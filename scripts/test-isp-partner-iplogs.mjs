@@ -199,6 +199,14 @@ eq(
   true,
 );
 eq("service: features probe", svc.includes('"/isp/ip-logs/features"'), true);
+// FR-IPLOGS-ZONE: a franchisee's switch is read-only outside its zones.
+eq(
+  "switch: read-only when the backend says can_change false",
+  sw.includes("status.can_change === false") && sw.includes("!outsideZones"),
+  true,
+);
+eq("switch: plain note outside zones", sw.includes("This router is not in your zones"), true);
+eq("service: can_change typed", svc.includes("can_change?: boolean"), true);
 
 console.log(`\n${checks - failures}/${checks} checks passed`);
 process.exit(failures ? 1 : 0);
