@@ -32,6 +32,7 @@ import {
   Radar,
   ShieldAlert,
   Send,
+  UserX,
 } from "lucide-react";
 
 export interface FeatureDef {
@@ -65,6 +66,11 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     group: "Guests",
     items: [
       { id: "users", label: "Guests", icon: Users },
+      // Moved from Security -> Blocking's "Guests & devices" tab
+      // (2026-11-12, customerNav.ts). Grantable with the same caveat as
+      // "blocking": the nav row is owner-only, so granting it to an agent has
+      // no effect until that restriction is relaxed.
+      { id: "blocked-guests", label: "Guests & devices", icon: UserX },
       { id: "vouchers", label: "Vouchers", icon: Ticket },
       { id: "teams", label: "Guest Groups", icon: UsersRound },
       // The Marketing add-on (wyfy-specs/guest-marketing-campaigns.md §3.5),
@@ -121,8 +127,8 @@ export const FEATURE_GROUPS: { group: string; items: Omit<FeatureDef, "group">[]
     // no effect until that separate restriction is ever relaxed. It is listed
     // anyway so the Staff Access screen enumerates a complete feature set
     // rather than one with a silent hole in it.
-    // "blocking" moved here from the Network group (was "website-blocking")
-    // together with the Blocked Guests tab of Access Rules -- see
+    // "blocking" moved here from the Network group (was "website-blocking").
+    // Its Guests & devices tab is "blocked-guests" in Guests now -- see
     // lib/blocking.ts.
     items: [
       { id: "security", label: "Security Score", icon: ShieldAlert },

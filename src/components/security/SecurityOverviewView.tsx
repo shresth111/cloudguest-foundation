@@ -117,7 +117,8 @@ const PLAIN_COPY: Record<string, string> = {
  *    (cloud-guest#307/#308).
  *  - `ip_and_cidr_blocking`: Block Websites -> "Advanced", the only place an
  *    internet address is blocked; `#advanced` unfolds it.
- *  - `device_isolation`: the Guests & devices tab, whose Device mode writes a
+ *  - `device_isolation`: Guests -> Guests & devices (`/blocked-guests`,
+ *    formerly a tab of Blocking), whose Device mode writes a
  *    blocked binding to the router (and whose number/email modes refuse the
  *    next sign-in and end the session they are in);
  *  - `connection_flood_protection`: Security -> Firewall's "Limit connection
@@ -145,11 +146,12 @@ const PLAIN_COPY: Record<string, string> = {
 type ManagedAt =
   | {
       to: "/blocking";
-      tab: "websites" | "guests";
+      tab: "websites";
       hash?: string;
       labelKey: string;
       label: string;
     }
+  | { to: "/blocked-guests"; labelKey: string; label: string }
   | { to: "/firewall"; labelKey: string; label: string };
 
 const MANAGED_AT: Record<string, ManagedAt> = {
@@ -188,8 +190,7 @@ const MANAGED_AT: Record<string, ManagedAt> = {
     label: "Block an internet address",
   },
   device_isolation: {
-    to: "/blocking",
-    tab: "guests",
+    to: "/blocked-guests",
     labelKey: "securityScore.link.guest",
     label: "Block a guest",
   },
@@ -267,6 +268,10 @@ function ManagedAtLink({ at }: { at: ManagedAt }) {
   );
   return at.to === "/blocking" ? (
     <Link to="/blocking" search={{ tab: at.tab }} hash={at.hash} className={cls}>
+      {body}
+    </Link>
+  ) : at.to === "/blocked-guests" ? (
+    <Link to="/blocked-guests" className={cls}>
       {body}
     </Link>
   ) : (

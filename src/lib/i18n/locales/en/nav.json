@@ -97,6 +97,7 @@
   "customerItem": {
     "dashboard": "Dashboard",
     "users": "Guests",
+    "blocked-guests": "Guests & devices",
     "reports": "Reports",
     "alerts": "Alerts",
     "campaigns": "Login Page Offers",
@@ -145,13 +146,16 @@
     "trigger": "Search"
   },
   "blockingTab": {
-    "websites": "Websites",
-    "guests": "Guests & devices"
+    "websites": "Websites"
   },
   "blockingPage": {
-    "intro": "Stop a website, an internet address or a guest from using your guest WiFi.",
+    "intro": "Stop a website or an internet address from opening on your guest WiFi.",
     "onlyAllowedPrefix": "To let in only people you have listed, use",
-    "introNasOnly": "Stop a guest or device from using your guest WiFi. Website blocking isn't available on Aruba Instant On access points."
+    "introNasOnly": "Website blocking isn't available on Aruba Instant On access points.",
+    "guestsMovedPrefix": "To block a guest or device, use"
+  },
+  "blockedGuestsPage": {
+    "intro": "Stop a guest or device from using your guest WiFi, and let them back on."
   },
   "firewallPage": {
     "addRule": "Add a rule",
@@ -288,7 +292,7 @@
     "deviceOffline": "Not connected now",
     "keepStopsMatching": "If this device's address changes, this rule will stop matching it.",
     "guestWhoNote": "This is a guest's device. Guests' addresses change and are handed to the next guest, so this rule may soon match someone else. To keep one guest device off your WiFi, use",
-    "guestWhoLink": "Blocking → Guests & devices",
+    "guestWhoLink": "Guests → Guests & devices",
     "guestWhoTail": "— it blocks the device itself, not its address.",
     "keepChecking": "Checking whether this device keeps its address…",
     "keepAddress": "Keep this device on the same address",
@@ -400,7 +404,7 @@
     "retriedToast": "{{router}} now uses this venue's list"
   },
   "blockWebsites": {
-    "intro": "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
+    "intro": "Stop websites from opening on your guest WiFi.",
     "specificTitle": "Specific websites",
     "specificHint": "Type a website's name and press Block. It stops opening on your guest WiFi, along with every page under it.",
     "categoriesTitle": "Categories",

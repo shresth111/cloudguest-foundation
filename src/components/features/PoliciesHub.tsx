@@ -53,9 +53,9 @@ import { isNasOnlyVendor } from "@/lib/router-vendors";
 //     the tab. See PortalPage.tsx's AUTH_OPTIONS.
 //
 // And "Blocked Guests" left for the same reason, in the other direction: it
-// is now the "Guests & devices" tab of Security -> Blocking, next to website
-// and address blocking, so everything a venue can block is in one place
-// (see lib/blocking.ts). The same `BlockUsers` component, moved rather than
+// became the "Guests & devices" tab of Security -> Blocking, and on
+// 2026-11-12 moved again to Guests -> Guests & devices (`/blocked-guests`,
+// see lib/blocking.ts). The same `BlockUsers` component, moved rather than
 // mounted twice. The line under the tabs below points there, because an
 // owner who blocked guests here last week will look here first.
 const ACCESS_TABS = [
@@ -134,14 +134,13 @@ export default function PoliciesHub({
       <p className="text-[13px] text-[var(--wy-text-muted)]">
         {t("blockedMovedPrefix", "Looking for blocked guests? They are now under")}{" "}
         <Link
-          to="/blocking"
-          search={{ tab: "guests" }}
+          to="/blocked-guests"
           className="rounded-sm font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wy-accent)]"
         >
-          {t("nav:customerGroup.security", "Security")} &rarr;{" "}
-          {t("nav:customerItem.blocking", "Blocking")}
+          {t("nav:customerGroup.guests", "Guests")} &rarr;{" "}
+          {t("nav:customerItem.blocked-guests", "Guests & devices")}
         </Link>
-        {t("blockedMovedSuffix", ", together with blocked websites.")}
+        {t("blockedMovedSuffix", ".")}
       </p>
 
       {/* Content -- each section draws its own section heading (h2) under

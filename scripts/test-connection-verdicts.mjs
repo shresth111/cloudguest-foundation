@@ -286,7 +286,9 @@ eq("...with certainty", blocked.confidence, "certain");
 check("...quoting the recorded reason", /abuse — manager/.test(blocked.meaning));
 check(
   "...and sends the owner to where blocked guests now live",
-  /Security › Blocking/.test(blocked.action) && !/Access Rules/.test(blocked.action),
+  /Guests › Guests & devices/.test(blocked.action) &&
+    !/Access Rules/.test(blocked.action) &&
+    !/Security › Blocking/.test(blocked.action),
   blocked.action,
 );
 check(

@@ -155,6 +155,12 @@ const SecurityOverviewView = lazyView(SECURITY, "SecurityOverviewView");
 // Same reasoning: its own module, and it mounts the Website Blocking screen
 // straight from components/network rather than through the ops barrel.
 const BlockingView = lazyView(() => import("@/components/security/BlockingView"), "BlockingView");
+// Guests -> Guests & devices (moved out of Blocking, 2026-11-12). Its own
+// module for the same reason: only that page needs BlockUsers.
+const BlockedGuestsView = lazyView(
+  () => import("@/components/features/BlockedGuestsView"),
+  "BlockedGuestsView",
+);
 // The Marketing add-on. Its own module, lazily fetched, for the same reason
 // as Security and Blocking above: nothing on the way to first paint needs
 // it (wyfy-specs/guest-marketing-campaigns.md §8.1).
@@ -494,6 +500,11 @@ export function CustomerFeaturePage({ feature }: { feature: string }) {
               {feature === "security" && <SecurityOverviewView scope={pageScope} />}
               {feature === "blocking" && (
                 <BlockingView locationId={locationId} syncWithUrl scope={pageScope} />
+              )}
+              {/* Not behind the controller gate: blocking a guest works at a
+                  controller venue too (see BlockedGuestsView). */}
+              {feature === "blocked-guests" && (
+                <BlockedGuestsView locationId={locationId} scope={pageScope} />
               )}
               {feature === "marketing" && (
                 <MarketingView locationId={locationId} syncWithUrl scope={pageScope} />
