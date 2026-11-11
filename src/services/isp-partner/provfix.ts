@@ -30,7 +30,20 @@ export interface MonitoringStatus {
   can_change: boolean;
 }
 
+/** FR-GENERATE: `GET /isp/routers/{id}/setup/access`. Whether this caller's
+ * role may Generate on this router (a franchisee: only inside its zones).
+ * 404 on an older build; callers then keep the old behaviour. */
+export interface SetupAccess {
+  isp_router_id: string;
+  can_generate: boolean;
+  reason: "outside_zones" | "role" | null;
+}
+
 export const provFixService = {
+  async setupAccess(ispRouterId: string): Promise<SetupAccess> {
+    const { data } = await api.get<SetupAccess>(`/isp/routers/${ispRouterId}/setup/access`);
+    return data;
+  },
   async features(): Promise<ProvFixFeatures> {
     const { data } = await api.get<ProvFixFeatures>("/isp/setup-fixes");
     return data;

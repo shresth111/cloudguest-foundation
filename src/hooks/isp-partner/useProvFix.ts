@@ -9,6 +9,7 @@ export const provFixKeys = {
   features: ["isp", "setup-fixes"] as const,
   monitoring: (id: string) => ["isp", "monitoring", id] as const,
   packagePolicies: ["isp", "package-policy-summaries"] as const,
+  setupAccess: (id: string) => ["isp", "setup-access", id] as const,
 };
 
 async function orNull<T>(p: Promise<T>): Promise<T | null> {
@@ -26,6 +27,17 @@ export function useProvFixFeatures() {
     queryFn: () => orNull(provFixService.features()),
     retry: retryUnless4xx,
     staleTime: 5 * 60_000,
+  });
+}
+
+/** FR-GENERATE: may this caller Generate on this router? `null` = the
+ * backend has no probe (older build): keep showing Generate as before. */
+export function useSetupAccess(ispRouterId: string) {
+  return useQuery({
+    queryKey: provFixKeys.setupAccess(ispRouterId),
+    queryFn: () => orNull(provFixService.setupAccess(ispRouterId)),
+    retry: retryUnless4xx,
+    staleTime: 60_000,
   });
 }
 

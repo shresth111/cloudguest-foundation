@@ -27,7 +27,7 @@ import { RouterZonesCard } from "@/components/isp-partner/workflow/RouterZonesCa
 import { Tr069ScriptPanel } from "@/components/isp-partner/tr069/Tr069ScriptPanel";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspRouter, useIspRouterAsDevice } from "@/hooks/isp-partner/useIsp";
-import { useProvFixFeatures } from "@/hooks/isp-partner/useProvFix";
+import { useProvFixFeatures, useSetupAccess } from "@/hooks/isp-partner/useProvFix";
 import { ipLogsKeys, useIpLogsFeatures, useIpLogsStatus } from "@/hooks/isp-partner/useIpLogs";
 import { ispToastError } from "@/lib/isp-partner/error-toast";
 import { ipLogsSwitchOn } from "@/lib/isp-partner/iplogs";
@@ -131,6 +131,11 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
   const q = useIspRouter(routerId);
   const fixes = useProvFixFeatures();
   const ipLogsFeatures = useIpLogsFeatures();
+  // FR-GENERATE: the backend says whether this role may Generate on THIS
+  // router (a franchisee: only inside its zones). `null` (older build) or an
+  // error keeps the old rule; the backend stays the authority either way.
+  const setupAccess = useSetupAccess(routerId);
+  const outsideZones = setupAccess.data?.reason === "outside_zones";
   const [editing, setEditing] = useState(false);
 
   if (q.isLoading) return <LoadingBlock />;
@@ -226,7 +231,9 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
 
       <RouterNetworkPanel routerId={routerId} />
 
-      {can("isp_partner.execute") ? (
+      {can("isp_partner.execute") && setupAccess.isLoading ? (
+        <LoadingBlock label="Checking setup access…" />
+      ) : can("isp_partner.execute") && setupAccess.data?.can_generate !== false ? (
         <section className="space-y-3">
           <h2 className="text-base font-semibold">MikroTik setup script</h2>
           <SetupScript routerId={routerId} />
@@ -234,17 +241,21 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
       ) : (
         <Card title="MikroTik setup script">
           <p className="text-sm text-muted-foreground">
-            Your role cannot generate setup scripts. A Technician, Admin or Owner can.
+            {outsideZones
+              ? "This router is not in your zones, so you cannot generate its setup script. Ask the ISP owner or admin."
+              : "Your role cannot generate setup scripts. A Technician, Admin or Owner can."}
           </p>
         </Card>
       )}
 
-      <PartnerIpLogsStep
-        routerId={routerId}
-        foldedIntoSetup={
-          !!fixes.data?.check_in_fallback && !!ipLogsFeatures.data?.setup_script_lines
-        }
-      />
+      {!outsideZones && (
+        <PartnerIpLogsStep
+          routerId={routerId}
+          foldedIntoSetup={
+            !!fixes.data?.check_in_fallback && !!ipLogsFeatures.data?.setup_script_lines
+          }
+        />
+      )}
       <PartnerMonitoringCard routerId={routerId} enabled={!!fixes.data?.monitoring_self_serve} />
 
       {can("tr069.manage") && (
