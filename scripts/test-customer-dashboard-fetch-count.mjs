@@ -179,6 +179,20 @@ function body(url) {
   if (url === "/analytics/venue-insights/locations") {
     return { organization_id: ORG, ...W, liveness_note: "", locations: [] };
   }
+  // Router CPU card: a real-shaped body (one MikroTik with two buckets), so
+  // a count of 2 is a duplicate rather than react-query retrying a read
+  // the hook's shape check refused.
+  if (url === "/analytics/venue-insights/router-cpu") {
+    return { location_id: LOC, ...W, bucket_seconds: 1800, stale_after_seconds: 1800,
+             high_cpu_percent: 80,
+             routers: [{ router_id: "r1", router_name: "Lobby hEX", status: "online",
+                         latest: { recorded_at: new Date().toISOString(), cpu_usage_percent: 23,
+                                   memory_usage_percent: 41, is_stale: false },
+                         points: [
+                           { bucket_start: "2026-01-01T00:00:00+00:00", cpu_avg: 20, cpu_max: 31, memory_avg: 40 },
+                           { bucket_start: "2026-01-01T00:30:00+00:00", cpu_avg: 23, cpu_max: 28, memory_avg: 41 },
+                         ] }] };
+  }
   if (/^\\/users\\/[^/]+$/.test(url)) {
     return { id: "u1", email: "owner@example.com", full_name: "Owner",
              data_masking_enabled: true, is_active: true, roles: [] };
@@ -527,6 +541,24 @@ for (const kind of ["peak-hours", "guest-mix", "login-funnel", "locations"]) {
     `GET ${url} issued ${countOf(dash, url)} time(s), expected 1 -- ${listOf(dash, url)}`,
   );
 }
+
+// The Router CPU card: one read for the whole card (every MikroTik at the
+// venue comes back in the same body, already downsampled), scoped by the
+// active location in both the query and the headers.
+const cpuUrl = "/analytics/venue-insights/router-cpu";
+const cpuCalls = dash.filter((c) => c.url === cpuUrl);
+check(
+  "router-cpu-once",
+  cpuCalls.length === 1,
+  `GET ${cpuUrl} issued ${cpuCalls.length} time(s), expected 1 -- ${listOf(dash, cpuUrl)}`,
+);
+check(
+  "router-cpu-scoped-to-venue",
+  cpuCalls.every(
+    (c) => c.params?.location_id === LOC && c.locationHeader === LOC && c.orgHeader === ORG,
+  ),
+  `router-cpu must carry location_id + X-Location-Id = ${LOC} and X-Organization-Id = ${ORG} -- ${JSON.stringify(cpuCalls)}`,
+);
 
 console.log(`  info total requests on one dashboard load: ${dash.length}`);
 console.log(`  info timeline: ${JSON.stringify(dash.map((c) => [c.at, c.url]))}`);

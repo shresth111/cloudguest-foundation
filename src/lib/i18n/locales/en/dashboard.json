@@ -258,5 +258,24 @@
     "devicesConnected": "Devices connected",
     "wifiNetworks": "WiFi networks",
     "noneListed": "None listed"
+  },
+  "routerCpu": {
+    "title": "Router CPU",
+    "subtitle": "Processor use, {{range}}",
+    "openDevices": "Devices →",
+    "error": "Couldn't load router CPU.",
+    "gaps": "Gaps mean no reading was taken, not zero usage.",
+    "high": "High load",
+    "memory": "Memory {{value}}%",
+    "memoryNotReported": "Memory not reported",
+    "updated": "Updated {{when}}",
+    "notReported": "Not reported",
+    "lastReading": "Last reading {{when}}",
+    "noReadingYet": "No reading from this router yet",
+    "noPoints": "No readings in this period.",
+    "chartLabel": "Processor use over time for {{name}}",
+    "noReading": "No reading",
+    "peak": "Peak",
+    "average": "Average"
   }
 }
