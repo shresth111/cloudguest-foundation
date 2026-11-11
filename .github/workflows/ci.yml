@@ -96,9 +96,14 @@ on:
 # discriminator a push to main starts both, they land in the same group, and
 # cancel-in-progress makes them cancel each other -- which looks exactly like
 # a flaky CI failure and is not one.
+#
+# Only a DIRECT CI run cancels its predecessor. The copy cd.yml / cd-staging.yml
+# call must never cancel: cancelling the CI a deploy is waiting on cancels the
+# deploy (17 of the last 100 CD runs ended "cancelled"). Deploys already
+# serialise on their own concurrency group.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.workflow == 'CI' }}
 
 permissions:
   contents: read
@@ -108,9 +113,9 @@ jobs:
     name: Types and lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.3.14" # matches local dev; the Dockerfile floats `npm i -g bun`
 
@@ -156,9 +161,9 @@ jobs:
     name: Production build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.3.14" # matches local dev; the Dockerfile floats `npm i -g bun`
 
@@ -191,9 +196,9 @@ jobs:
     name: Portal regression suites
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.3.14" # matches local dev; the Dockerfile floats `npm i -g bun`
 
@@ -214,7 +219,7 @@ jobs:
       # The `static` and `build` jobs deliberately do not get this step:
       # they run entirely through bun (`bunx tsc`, `bunx eslint`,
       # `bun run build`), so a Node they never invoke would be noise.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
 
@@ -3064,7 +3069,7 @@ jobs:
       # can be used. Sparse-checked-out: this job wants one action.yml, not a
       # backend, a node_modules-sized frontend, or a vendored gateway.
       - name: Check out the composite action
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           sparse-checkout: .github/actions
           sparse-checkout-cone-mode: false
