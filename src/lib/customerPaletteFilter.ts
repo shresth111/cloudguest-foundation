@@ -60,5 +60,9 @@ export function customerPaletteFloor(
     0,
     ...entries.map((e) => rankCustomerPaletteMatch(e.value, search, e.keywords)),
   );
-  return best >= 0.8 ? 0.8 : best >= 0.6 ? 0.6 : Number.MIN_VALUE;
+  // A screen whose own text STARTS with the query hides the ones where it is
+  // only a later word: "Devices" must open Network -> Devices, not Guests ->
+  // Guests & devices, which sits earlier in menu order and would otherwise
+  // be the first hit (and so the one Enter opens).
+  return best >= 1 ? 1 : best >= 0.8 ? 0.8 : best >= 0.6 ? 0.6 : Number.MIN_VALUE;
 }

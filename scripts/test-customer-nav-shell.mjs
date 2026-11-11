@@ -135,7 +135,7 @@ const {
 // 1. The menu is the 26 again.
 // ---------------------------------------------------------------------------
 
-console.log("\nthe customer menu is 30 features in eight sidebar groups plus Account");
+console.log("\nthe customer menu is 31 features in eight sidebar groups plus Account");
 
 // Nine since the Marketing add-on arrived as its own group, directly after
 // Engagement (wyfy-specs/guest-marketing-campaigns.md §3.5): outbound guest
@@ -186,7 +186,9 @@ check(
 // scripts/test-netlogs.mjs pins where it sits and what gates it.
 // Still 30 after the task-based regroup: Staff Access left the sidebar for
 // the avatar menu but stays a feature (route, palette, permission gate).
-check("there are 30 features", CUSTOMER_NAVS.length === 30, `${CUSTOMER_NAVS.length}`);
+// Then Guests -> Guests & devices (31): Security -> Blocking's Guests tab,
+// moved into the Guests section as a tab of its own (2026-11-12).
+check("there are 31 features", CUSTOMER_NAVS.length === 31, `${CUSTOMER_NAVS.length}`);
 // Nine until Operations went: its only row, Fix a Problem, moved up into
 // Overview (section 7 pins where), and a group of nothing is not kept.
 check(
@@ -378,7 +380,7 @@ console.log("\nthe sidebar is grouped by task");
     rows(customerSidebarGroupsForRole("owner")) ===
       [
         "overview=dashboard,alerts,debugging",
-        "guests=users,teams,vouchers,reports",
+        "guests=users,blocked-guests,teams,vouchers,reports",
         "marketing=campaigns,marketing",
         "login-page=portal,business-hours",
         "network=devices,isp-details,traffic-lens,policies,dhcp,vlans,port-forwarding,voip",
@@ -537,16 +539,28 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       .join(",") === "dashboard:Dashboard,alerts:Alerts,debugging:Fix a Problem",
   );
   const blocking = CUSTOMER_NAVS.find((n) => n.id === "blocking");
-  // "Blocking", not "Block Websites": the page blocks guests and devices too
-  // (lib/blocking.ts's two tabs). Same id, same URL.
+  // "Blocking": websites, apps, categories and addresses. Its Guests &
+  // devices tab moved to the Guests section on 2026-11-12 (owner's call).
+  // Same id, same URL.
   check("Blocking is labelled for the job", blocking && blocking.label === "Blocking");
   check(
-    "the Blocking page really does cover guests (the rename's premise)",
-    /id: "guests"/.test(readFileSync(join(ROOT, "src/lib/blocking.ts"), "utf8")),
+    "the Blocking page no longer has a Guests tab (moved to Guests, not copied)",
+    !/id: "guests"/.test(strip(readFileSync(join(ROOT, "src/lib/blocking.ts"), "utf8"))),
+  );
+  check("Blocking is owner-only", blocking && blocking.roles.join(",") === "owner");
+  const blockedGuests = CUSTOMER_NAVS.find((n) => n.id === "blocked-guests");
+  check(
+    "Guests & devices is a tab of the Guests section, owner-only as it was under Blocking",
+    blockedGuests &&
+      blockedGuests.label === "Guests & devices" &&
+      blockedGuests.roles.join(",") === "owner" &&
+      (CUSTOMER_NAV_GROUPS.find((g) => g.id === "guests")?.items ?? []).some(
+        (i) => i.id === "blocked-guests",
+      ),
   );
   check(
-    "Blocking is owner-only, like Access Rules its guests tab came from",
-    blocking && blocking.roles.join(",") === "owner",
+    "Guests & devices lives at /blocked-guests",
+    customerFeatureHref("blocked-guests") === "/blocked-guests",
   );
   check("Blocking lives at /blocking", customerFeatureHref("blocking") === "/blocking");
   check(
@@ -624,7 +638,30 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
     "Firewall no longer blocks websites, and points owners at Block Websites",
     !/WebsiteBlockBox/.test(firewallView) && /<Link to="\/blocking"/.test(firewallView),
   );
-  check("the Guests tab is the existing Blocked Guests screen", /<BlockUsers\b/.test(view));
+  check("Blocking no longer mounts the Blocked Guests screen", !/<BlockUsers\b/.test(view));
+  const blockedGuestsView = strip(
+    readFileSync(join(ROOT, "src/components/features/BlockedGuestsView.tsx"), "utf8"),
+  );
+  check(
+    "Guests & devices is the existing Blocked Guests screen, under its own page header",
+    /<BlockUsers\b/.test(blockedGuestsView) && /<PageHeader\b/.test(blockedGuestsView),
+  );
+  check("and Blocking points owners at where it went", /to="\/blocked-guests"/.test(view));
+  const blockedGuestsRoute = strip(
+    readFileSync(join(ROOT, "src/routes/blocked-guests.tsx"), "utf8"),
+  );
+  check(
+    "/blocked-guests mounts the shared shell behind the session and venue guards",
+    /<CustomerFeaturePage feature="blocked-guests" \/>/.test(blockedGuestsRoute) &&
+      /requireCustomerSession/.test(blockedGuestsRoute) &&
+      /requireActiveLocationId/.test(blockedGuestsRoute),
+  );
+  check(
+    "/blocking?tab=guests redirects to /blocked-guests, after the session check",
+    /search\.tab === "guests"\)\s*throw redirect\(\{\s*to:\s*"\/blocked-guests"/.test(routeSrc) &&
+      routeSrc.indexOf("requireCustomerSession") > -1 &&
+      routeSrc.indexOf("requireCustomerSession") < routeSrc.indexOf("redirect({"),
+  );
   check(
     "the page gates the Websites tab with the existing controller notice",
     /<ControllerManagedFeatureNotice\b/.test(view) &&
@@ -637,7 +674,7 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
   );
   check(
     "and points owners at where it went",
-    /to="\/blocking"/.test(hub) && /tab:\s*"guests"/.test(hub),
+    /to="\/blocked-guests"/.test(hub) && !/tab:\s*"guests"/.test(hub),
   );
   // The overview links each enforced capability that has a control to it --
   // and only those.
@@ -652,9 +689,9 @@ console.log("\nSecurity -> Blocking replaced Network -> Website Blocking");
       .map((mm) => mm[1]);
   const linkedKeys = linkedTo("/blocking");
   check(
-    "the Security Score links website, app, harmful-site, category, address and device blocking to it",
+    "the Security Score links website, app, harmful-site, category and address blocking to it",
     linkedKeys.sort().join(",") ===
-      "application_control,device_isolation,domain_blocking_dns,ip_and_cidr_blocking,threat_intelligence,web_category_filtering",
+      "application_control,domain_blocking_dns,ip_and_cidr_blocking,threat_intelligence,web_category_filtering",
     linkedKeys.join(","),
   );
   check(
@@ -827,8 +864,8 @@ for (const loc of ["en", "hi"]) {
   );
   // The Blocking page's own tab names and sentences, in the same namespace.
   check(
-    `${loc}: both Blocking tabs are named`,
-    !!nav.blockingTab?.websites && !!nav.blockingTab?.guests,
+    `${loc}: the Blocking tab is named, and the moved Guests tab's name is gone`,
+    !!nav.blockingTab?.websites && !nav.blockingTab?.guests,
   );
   check(
     `${loc}: the Blocking page's sentences are translated`,
@@ -958,8 +995,8 @@ console.log(
     );
   }
   check(
-    "the palette still holds all 30 screens for an owner (Staff Access included)",
-    customerNavGroupsForRole("owner").flatMap((g) => g.items).length === 30,
+    "the palette still holds all 31 screens for an owner (Staff Access included)",
+    customerNavGroupsForRole("owner").flatMap((g) => g.items).length === 31,
   );
 
   // Section rows open the first tab the caller can see -- per tab, by the
@@ -1018,9 +1055,9 @@ console.log(
   {
     const m = resolveSectionTabs("vouchers", CUSTOMER_NAV_GROUPS, owner, null, customerFeatureHref);
     check(
-      "Guests › Vouchers: the four Guests tabs, no redirect, while grants are unknown",
+      "Guests › Vouchers: the five Guests tabs, no redirect, while grants are unknown",
       m.section?.id === "guests" &&
-        m.tabs.map((i) => i.id).join(",") === "users,teams,vouchers,reports" &&
+        m.tabs.map((i) => i.id).join(",") === "users,blocked-guests,teams,vouchers,reports" &&
         m.redirectTo === null,
     );
   }
@@ -1177,6 +1214,7 @@ console.log(
       // batch 3: Security
       security: ["SecurityOverviewView", "src/components/security/SecurityOverviewView.tsx"],
       blocking: ["BlockingView", "src/components/security/BlockingView.tsx"],
+      "blocked-guests": ["BlockedGuestsView", "src/components/features/BlockedGuestsView.tsx"],
       firewall: ["FirewallView", "src/components/security/FirewallView.tsx"],
       policies: ["PoliciesHub", "src/components/features/PoliciesHub.tsx"],
       whitelist: ["WhiteList", "src/components/features/WhiteList.tsx"],
@@ -1487,8 +1525,10 @@ console.log("\nOffers first, one Advanced dropdown, and unblock is findable");
   const kwOf = (id) => CUSTOMER_NAVS.find((n) => n.id === id)?.keywords ?? [];
   for (const word of ["unblock", "blocked guest", "अनब्लॉक"]) {
     check(
-      `palette keyword '${word}' is on Guests and on Blocking`,
-      kwOf("users").includes(word) && kwOf("blocking").includes(word),
+      `palette keyword '${word}' is on Guests and on Guests & devices, not on Blocking`,
+      kwOf("users").includes(word) &&
+        kwOf("blocked-guests").includes(word) &&
+        !kwOf("blocking").includes(word),
     );
   }
   {
@@ -1521,8 +1561,8 @@ console.log("\nOffers first, one Advanced dropdown, and unblock is findable");
       hits("agent", "blocked guest").join(",") === "users",
     );
     check(
-      "an owner typing 'unblock' gets Guests and Security › Blocking",
-      hits("owner", "unblock").join(",") === "users,blocking",
+      "an owner typing 'unblock' gets Guests and Guests › Guests & devices",
+      hits("owner", "unblock").join(",") === "users,blocked-guests",
       hits("owner", "unblock").join(","),
     );
   }

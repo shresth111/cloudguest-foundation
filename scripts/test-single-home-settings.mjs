@@ -133,16 +133,20 @@ check(
 );
 
 // ---------------------------------------------------------------------------
-// 1b. BLOCKED GUESTS and WEBSITE BLOCKING -- one home, Security -> Blocking
+// 1b. BLOCKED GUESTS -- one home, Guests -> Guests & devices; WEBSITE
+// BLOCKING -- one home, Security -> Blocking
 //
-// Both moved into the same page so that everything a venue can block is in
-// one place. Moved, not copied: the page mounts the same two components, and
-// the places they came from stop mounting them.
+// Blocked Guests moved Access Rules -> Blocking -> Guests (2026-11-12).
+// Moved, not copied: each place it left stops mounting it.
 // ---------------------------------------------------------------------------
 console.log("\nBlocked Guests and Website Blocking");
 
 const blockingView = readCode("src/components/security/BlockingView.tsx");
-check("Security -> Blocking mounts BlockUsers", /<BlockUsers\b/.test(blockingView));
+const blockedGuestsView = readCode("src/components/features/BlockedGuestsView.tsx");
+check(
+  "Guests -> Guests & devices mounts BlockUsers, and Security -> Blocking no longer does",
+  /<BlockUsers\b/.test(blockedGuestsView) && !/<BlockUsers\b/.test(blockingView),
+);
 check(
   "Security -> Blocking mounts the content-filter screen",
   /<ContentFilterManagement\b/.test(blockingView),
@@ -173,10 +177,16 @@ check(
   /case "blocking":\s*return <BlockingView\b/.test(customerFeatures),
 );
 check(
+  "both shells mount Guests & devices through the one view",
+  /feature === "blocked-guests" && \(?\s*<BlockedGuestsView\b/.test(customerShell) &&
+    /case "blocked-guests":\s*return <BlockedGuestsView\b/.test(customerFeatures),
+);
+check(
   "nothing else mounts BlockUsers",
   [
     "src/config/customerFeatures.tsx",
     "src/components/customer/CustomerFeaturePage.tsx",
+    "src/components/security/BlockingView.tsx",
     POLICIES_HUB,
   ].every((rel) => !/<BlockUsers\b/.test(readCode(rel))),
 );

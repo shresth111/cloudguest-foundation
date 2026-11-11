@@ -495,9 +495,10 @@ for (const feature of ["port-forwarding", "dhcp", "vlans", "voip"]) {
 }
 
 // ---------------------------------------------------------------------------
-// Security -> Blocking. The gate moved with Website Blocking: it now applies
-// to that one TAB, and the page around it -- whose Guests tab works at an
-// Omada venue -- stays a live, unmuted row.
+// Security -> Blocking. The gate moved with Website Blocking: it applies to
+// that one TAB, and the page around it stays a live, unmuted row. Its old
+// Guests & devices tab is Guests -> Guests & devices (`blocked-guests`)
+// since 2026-11-12, and works at an Omada venue.
 // ---------------------------------------------------------------------------
 
 /** BlockUsers' own "Block User" card title -- positive evidence the real
@@ -514,21 +515,23 @@ console.log("\nSecurity -> Blocking at a controller venue");
   check(
     "omada-blocking-row-is-not-muted",
     row && !row.muted && row.title === null,
-    "its Guests tab works here; greying the row would hide a working screen",
+    "its header points at Guests & devices, which works here; greying the row would hide that",
   );
   check(
-    "omada-blocking-opens-on-guests",
-    r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
-    "the first screen at an Omada venue should be the one that does something",
+    "omada-blocking-no-longer-mounts-blocked-guests",
+    !r.text.includes(GUESTS_VIEW_CTA),
+    "Guests & devices moved to the Guests section -- one home",
   );
   check(
-    "omada-blocking-offers-both-tabs",
-    (await r.page.getByRole("tab", { name: "Websites" }).count()) === 1 &&
-      (await r.page.getByRole("tab", { name: "Guests & devices" }).count()) === 1,
+    "omada-blocking-has-no-tab-bar-left",
+    (await r.page.getByRole("tab", { name: "Websites" }).count()) === 0 &&
+      (await r.page.getByRole("tab", { name: "Guests & devices" }).count()) === 0,
   );
-  await r.page.getByRole("tab", { name: "Websites" }).click();
-  await r.page.waitForTimeout(300);
-  const websites = (await r.page.locator("body").innerText()).replace(/\u2019/g, "'");
+  check(
+    "omada-blocking-points-at-guests-and-devices",
+    (await r.page.locator('a[href="/blocked-guests"]').count()) >= 1,
+  );
+  const websites = r.text;
   check(
     "omada-websites-tab-mounts-no-form",
     !websites.includes(WEBSITES_VIEW_CTA) &&
@@ -541,6 +544,21 @@ console.log("\nSecurity -> Blocking at a controller venue");
     /Configured in Omada, not here\./.test(websites) &&
       /Website blocking for this venue is set in Omada's own interface/.test(websites) &&
       /Your Wyfy Guest contact manages this venue/.test(websites),
+  );
+  await r.page.close();
+}
+{
+  const r = await openFeature("blocked-guests", [OMADA]);
+  const row = r.rows.find((x) => x.label === "Guests & devices");
+  check(
+    "omada-guests-and-devices-is-a-live-guests-tab",
+    !!row && !row.muted && row.title === null,
+    JSON.stringify(row),
+  );
+  check(
+    "omada-guests-and-devices-mounts-blocked-guests",
+    r.text.includes(GUESTS_VIEW_CTA) && !CONTROLLER_COPY.test(r.text),
+    "BlockUsers already reaches the controller with its own client block",
   );
   await r.page.close();
 }
@@ -589,10 +607,15 @@ console.log("\nSecurity -> Blocking at a MikroTik venue");
   await r.page.close();
 }
 {
-  const r = await openFeature("blocking", [MIKROTIK], { tab: "guests" });
+  const r = await openFeature("blocked-guests", [MIKROTIK]);
   check(
-    "mikrotik-deep-link-to-guests-mounts-blocked-guests",
+    "mikrotik-guests-and-devices-mounts-blocked-guests",
     r.text.includes(GUESTS_VIEW_CTA) && !r.text.includes(WEBSITES_VIEW_CTA),
+  );
+  check(
+    "mikrotik-guests-and-devices-is-a-tab-of-guests",
+    r.rows.some((row) => row.kind === "tab" && row.label === "Guests & devices") &&
+      r.rows.some((row) => row.kind === "tab" && row.label === "Guest Groups"),
   );
   await r.page.close();
 }
