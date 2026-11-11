@@ -68,3 +68,59 @@ export const IP_LOGS_SUMMARY_ORDER: IpLogsState[] = [
   "not_set_up",
   "not_supported",
 ];
+
+// -- DEFAULT-LOGS: the "IP logs: ON / OFF" switch ----------------------------
+
+/** What the switch shows. An older backend has no `switch_on`: `set_up`. */
+export function ipLogsSwitchOn(s: { set_up: boolean; switch_on?: boolean }): boolean {
+  return s.switch_on ?? s.set_up;
+}
+
+/** `null` (never asked) on a router that is not on: the "Turn on IP logs"
+ * prompt for routers added before logging was on by default. */
+export function ipLogsNeedsPrompt(s: {
+  set_up: boolean;
+  switch_on?: boolean;
+  wanted?: boolean | null;
+  blocker: string | null;
+}): boolean {
+  return s.blocker !== "not_mikrotik" && !ipLogsSwitchOn(s) && s.wanted == null;
+}
+
+export interface IpLogsSwitchCopy {
+  title: string;
+  body: string;
+  confirm: string;
+}
+
+/** The in-app confirm step, both directions. `needsLink` = the router has no
+ * management connection yet (its setup script has not been generated). */
+export function ipLogsConfirmCopy(turnOn: boolean, needsLink: boolean): IpLogsSwitchCopy {
+  if (turnOn) {
+    return {
+      title: "Turn IP logs ON?",
+      body: needsLink
+        ? "IP logs will be part of this router's setup script. Press Generate on the router's page and paste the script once; logs start arriving within minutes."
+        : "Wyfy Guest starts storing this router's connection logs. Next you paste a short script into the router terminal (WinBox > New Terminal).",
+      confirm: "Turn ON",
+    };
+  }
+  return {
+    title: "Turn IP logs OFF?",
+    body: needsLink
+      ? "IP logs will be left out of this router's setup script. You can turn them on again at any time."
+      : "Connection logs stop being stored for this router. Logs already stored are kept. Next you paste a short removal script into the router terminal.",
+    confirm: "Turn OFF",
+  };
+}
+
+/** What the result step says after the switch moved. */
+export function ipLogsResultCopy(turnedOn: boolean, needsLink: boolean): string {
+  if (turnedOn)
+    return needsLink
+      ? "IP logs are ON. They are already in this router's setup script: press Generate on the router's page and paste it."
+      : "IP logs are ON. Paste this script into the router terminal.";
+  return needsLink
+    ? "IP logs are OFF. They are left out of this router's setup script."
+    : "IP logs are OFF. Paste this script into the router terminal to stop sending.";
+}

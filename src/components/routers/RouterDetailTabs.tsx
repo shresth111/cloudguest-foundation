@@ -4983,6 +4983,18 @@ export function buildRouterSetupScriptChunks(opts: {
    * renderers pick RouterOS 6 vs 7 lines from the stored version, and it
    * stayed empty because no script ever sent it. */
   heartbeatReportsVersion?: boolean;
+  /** DEFAULT-LOGS, partner console only (unset everywhere else, so every
+   * other script is byte-identical). The router's IP-logs lines, rendered by
+   * the backend (`GET /isp/routers/{id}/ip-logs/script` -> `setup_lines`,
+   * from `isp_partner/iplogs_script.render_setup_lines`) once Generate has
+   * allocated the management connection, so they carry this router's own
+   * source address. Becomes one "IP Logs" chunk right after the heartbeat
+   * (and Version Report) chunks: the logs leave over the management
+   * connection the chunks above just built. Lines are used verbatim; each is
+   * one console line, under the 3300-char paste cap, one statement per
+   * `do={}` body, and none calls `:error` (a refused IP-logs command must not
+   * stop the rest of the setup script). Empty / absent = no chunk. */
+  ipLogsLines?: string[];
 }): RouterSetupScriptChunk[] {
   const {
     apiBase,
@@ -5006,6 +5018,7 @@ export function buildRouterSetupScriptChunks(opts: {
     blockMacWinbox = false,
     notProvisioned = [],
     heartbeatReportsVersion = false,
+    ipLogsLines,
   } = opts;
   // Escaped once up front -- `lanBridge` is an operator-editable free-text
   // field (see master.routers.tsx's own input for it) interpolated into
@@ -8518,6 +8531,13 @@ export function buildRouterSetupScriptChunks(opts: {
           `/system scheduler add name="cloudguest-version-sched" interval=1d start-time=startup on-event="${escapeForRouterOsString(vr)}"`,
           vr,
         ].join("\n"),
+      });
+    }
+    if (ipLogsLines && ipLogsLines.length > 0) {
+      // DEFAULT-LOGS (partner console only; see the option's docstring).
+      chunks.push({
+        label: "IP Logs (system logs and connection logs to Wyfy Guest; on by default)",
+        script: ipLogsLines.join("\n"),
       });
     }
     // Its own scheduler, on its own line, for the reasons in

@@ -5,6 +5,9 @@ import { Router as RouterIcon } from "lucide-react";
 import { MEmptyState, MTable, MTag, MTd, MTh, MTr } from "@/components/master/MasterKit";
 import { ErrorBlock, Pager } from "@/components/isp-partner/kit";
 import { useIspRouters } from "@/hooks/isp-partner/useIsp";
+import { useIpLogsFleet } from "@/hooks/isp-partner/useIpLogs";
+import { IpLogsSwitch } from "@/components/isp-partner/routers/IpLogsSwitch";
+import type { IpLogsStatus } from "@/services/isp-partner/iplogs";
 import {
   CLOUD_LINK_LABEL,
   ROUTER_STATUS_LABEL,
@@ -12,6 +15,11 @@ import {
   routerStatusTone,
   formatIst,
 } from "@/lib/isp-partner/format";
+
+function IpLogsCell({ status }: { status: IpLogsStatus | undefined }) {
+  if (!status) return <span className="text-xs text-muted-foreground">–</span>;
+  return <IpLogsSwitch status={status} size="sm" showRouterLink />;
+}
 
 export function RoutersTable({
   customerId,
@@ -34,6 +42,12 @@ export function RoutersTable({
     page_size: 25,
   });
   const data = q.data;
+  // DEFAULT-LOGS: "IP logs" column with the ON / OFF switch. null (flag off)
+  // = no column, the table is exactly as before.
+  const fleet = useIpLogsFleet(customerId);
+  const ipLogs = fleet.data
+    ? new Map(fleet.data.items.map((i) => [i.isp_router_id, i] as const))
+    : null;
 
   if (q.error && !data)
     return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="routers" />;
@@ -59,6 +73,7 @@ export function RoutersTable({
             <MTh>Cloud link</MTh>
             <MTh>Last seen</MTh>
             <MTh>TR-069</MTh>
+            {ipLogs && <MTh>IP logs</MTh>}
           </>
         }
       >
@@ -101,6 +116,11 @@ export function RoutersTable({
               <span title={formatIst(r.last_seen_at)}>{formatAgo(r.last_seen_at)}</span>
             </MTd>
             <MTd className="text-xs">{r.tr069.enabled ? "On" : "Off"}</MTd>
+            {ipLogs && (
+              <MTd>
+                <IpLogsCell status={ipLogs.get(r.id)} />
+              </MTd>
+            )}
           </MTr>
         ))}
       </MTable>

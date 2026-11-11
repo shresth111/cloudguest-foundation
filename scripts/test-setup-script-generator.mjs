@@ -10504,6 +10504,156 @@ console.log("\n-- 21. leftover factory LAN detected by address, reported not rem
   );
 }
 
+// ---------------------------------------------------------------------
+// DEFAULT-LOGS: `ipLogsLines` (partner console only).
+//
+// IPLOGS_FIXTURE is the backend's own output: `render_setup_lines` in
+// backend/app/domains/isp_partner/iplogs_script.py for router 12345678...,
+// name "Hotel Blue Main", source 10.66.0.13, collectors 10.66.0.1:5514 /
+// :2055 (rendered 2026-11-11 from feat/isp-default-logs). The generator
+// uses the lines verbatim, so the console's own validator is run on them.
+// ---------------------------------------------------------------------
+const IPLOGS_FIXTURE = [
+  "# Wyfy Guest IP logs (on by default; turn them off on this router's page in Wyfy)",
+  ':put "=== Wyfy IP logs ==="',
+  ':if ([:typeof [:find [/system identity get name] " "]] != "nil") do={ :put "  Router name had spaces, now: Hotel-Blue-Main" }',
+  ':if ([:typeof [:find [/system identity get name] " "]] != "nil") do={ /system identity set name="Hotel-Blue-Main" }',
+  "# System logs to 10.66.0.1:5514",
+  ":do { /system logging remove [find action=wyfysyslog] } on-error={}",
+  ":do { /system logging action remove [find name=wyfysyslog] } on-error={}",
+  ':do { [[:parse "/system logging action add name=wyfysyslog target=remote remote=10.66.0.1 remote-port=5514 src-address=10.66.0.13 syslog-facility=local5 syslog-severity=auto remote-log-format=syslog syslog-time-format=bsd-syslog"]] } on-error={ :do { [[:parse "/system logging action add name=wyfysyslog target=remote remote=10.66.0.1 remote-port=5514 src-address=10.66.0.13 bsd-syslog=yes syslog-facility=local5 syslog-severity=auto"]] } on-error={ :put "  FAILED: the router refused the remote logging action" } }',
+  ':if ([:len [/system logging action find name=wyfysyslog]] > 0) do={ :put "  System logs: remote logging action added" }',
+  ':do { [[:parse "/system logging action set [find name=wyfysyslog] add-topics-string=yes"]] } on-error={}',
+  ':do { /system logging add action=wyfysyslog topics=critical prefix=wyfy-12345678 } on-error={ :put "  FAILED: log rule critical" }',
+  ':do { /system logging add action=wyfysyslog topics=error prefix=wyfy-12345678 } on-error={ :put "  FAILED: log rule error" }',
+  ':do { /system logging add action=wyfysyslog topics=warning prefix=wyfy-12345678 } on-error={ :put "  FAILED: log rule warning" }',
+  ':do { /system logging add action=wyfysyslog topics=info prefix=wyfy-12345678 } on-error={ :put "  FAILED: log rule info" }',
+  "# Connection logs (IPFIX + NAT) to 10.66.0.1:2055, RouterOS 7 only",
+  ':if ([:pick [/system resource get version] 0 2] != "7.") do={ :put "  SKIPPED connection logs: RouterOS 7 is needed (System > Packages > Check For Updates)" }',
+  ':if ([:pick [/system resource get version] 0 2] = "7.") do={ :do { [[:parse ":if ([:len [/ip traffic-flow target find where dst-address=10.66.0.1 and port=2055]] = 0) do={ /ip traffic-flow target add dst-address=10.66.0.1 port=2055 version=ipfix src-address=10.66.0.13 }"]] } on-error={ :put "  WARNING: connection logs could not be set up on this router" } }',
+  ':if ([:pick [/system resource get version] 0 2] = "7.") do={ :do { [[:parse "/ip traffic-flow target set [find where dst-address=10.66.0.1 and port=2055] dst-address=10.66.0.1 port=2055 version=ipfix src-address=10.66.0.13"]] } on-error={ :put "  WARNING: connection logs could not be set up on this router" } }',
+  ':if ([:pick [/system resource get version] 0 2] = "7.") do={ :do { [[:parse "/ip traffic-flow ipfix set nat-src-address=yes nat-src-port=yes"]] } on-error={ :put "  WARNING: connection logs could not be set up on this router" } }',
+  ':if ([:pick [/system resource get version] 0 2] = "7.") do={ :do { [[:parse "/ip traffic-flow ipfix set nat-dst-address=yes nat-dst-port=yes nat-events=yes"]] } on-error={ :put "  WARNING: this RouterOS cannot send NAT events. Upgrade RouterOS for exact translated ports." } }',
+  ':if ([:pick [/system resource get version] 0 2] = "7.") do={ :do { [[:parse "/ip traffic-flow set enabled=yes interfaces=all cache-entries=16k active-flow-timeout=1m inactive-flow-timeout=15s packet-sampling=no"]] } on-error={ :put "  WARNING: connection logs could not be set up on this router" } }',
+  ':put ("  System log rules: " . [:len [/system logging find action=wyfysyslog]] . " (expected 4)")',
+  ':if ([:pick [/system resource get version] 0 2] = "7.") do={ [[:parse ":put (\\"  Connection log targets: \\" . [:len [/ip traffic-flow target find where dst-address=10.66.0.1 and port=2055]] . \\" (expected 1)\\")"]] }',
+  ':log info "wyfy: IP logs set up"',
+];
+{
+  for (const [variant, opts] of VARIANTS) {
+    const plain = buildRouterSetupScriptChunks({ ...opts, wireguard: WG });
+    for (const [what, v] of [
+      ["absent", undefined],
+      ["empty", []],
+    ]) {
+      check(
+        `DEFAULT-LOGS ${variant}: ipLogsLines ${what} is byte-identical to Master`,
+        JSON.stringify(buildRouterSetupScriptChunks({ ...opts, wireguard: WG, ipLogsLines: v })) ===
+          JSON.stringify(plain),
+      );
+    }
+    // partner shape: Version Report on, IP logs on
+    const partnerPlain = buildRouterSetupScriptChunks({
+      ...opts,
+      wireguard: WG,
+      heartbeatReportsVersion: true,
+    });
+    const on = buildRouterSetupScriptChunks({
+      ...opts,
+      wireguard: WG,
+      heartbeatReportsVersion: true,
+      ipLogsLines: IPLOGS_FIXTURE,
+    });
+    const ip = on.filter((c) => c.label.startsWith("IP Logs"));
+    const rest = on.filter((c) => !c.label.startsWith("IP Logs"));
+    check(
+      `DEFAULT-LOGS ${variant}: one IP Logs chunk, every other chunk byte-identical`,
+      ip.length === 1 && JSON.stringify(rest) === JSON.stringify(partnerPlain),
+    );
+    const idx = on.findIndex((c) => c.label.startsWith("IP Logs"));
+    check(
+      `DEFAULT-LOGS ${variant}: it sits right after the Version Report (after enrolment)`,
+      idx > 0 && on[idx - 1].label.startsWith("Version Report"),
+    );
+    check(
+      `DEFAULT-LOGS ${variant}: the lines are used verbatim`,
+      ip[0]?.script === IPLOGS_FIXTURE.join("\n"),
+    );
+    // without Version Report the chunk still follows the heartbeat scheduler
+    const noVr = buildRouterSetupScriptChunks({
+      ...opts,
+      wireguard: WG,
+      ipLogsLines: IPLOGS_FIXTURE,
+    });
+    const j = noVr.findIndex((c) => c.label.startsWith("IP Logs"));
+    check(
+      `DEFAULT-LOGS ${variant}: without Version Report it follows the heartbeat scheduler`,
+      j > 0 && noVr[j - 1].label.startsWith("Heartbeat Scheduler"),
+    );
+  }
+  const text = IPLOGS_FIXTURE.join("\n");
+  const longest = Math.max(...IPLOGS_FIXTURE.map((l) => l.length));
+  check(
+    `DEFAULT-LOGS: every line under the ${MAX_LINE}-char paste cap (${longest})`,
+    longest <= MAX_LINE,
+  );
+  check(
+    "DEFAULT-LOGS: no line calls :error (never stops the setup script)",
+    !text.includes(":error"),
+  );
+  check(
+    "DEFAULT-LOGS: both syslog dialects parse-deferred, 7.18+ first",
+    /\[\[:parse "\/system logging action add [^"]*remote-log-format=syslog/.test(text) &&
+      /\[\[:parse "\/system logging action add [^"]*bsd-syslog=yes/.test(text) &&
+      text.indexOf("remote-log-format=syslog") < text.indexOf("bsd-syslog=yes"),
+  );
+  check(
+    "DEFAULT-LOGS: add-topics-string line kept (PROV-FIX D6)",
+    text.includes(
+      ':do { [[:parse "/system logging action set [find name=wyfysyslog] add-topics-string=yes"]] } on-error={}',
+    ),
+  );
+  check(
+    "DEFAULT-LOGS: traffic-flow + NAT events behind the RouterOS 7 check",
+    text.includes("nat-events=yes") &&
+      text.includes('[:pick [/system resource get version] 0 2] = "7."'),
+  );
+  check("DEFAULT-LOGS: no tunnel wording", !/wireguard|tunnel/i.test(text));
+  const errs = (rs) =>
+    rs.flatMap((r) =>
+      r.issues.filter((i) => i.severity === "error").map((i) => `${r.label}: ${i.message}`),
+    );
+  const withLogs = validateSetupScriptChunks(
+    buildRouterSetupScriptChunks({
+      ...BASE,
+      wans: [DHCP_WAN],
+      wireguard: WG,
+      heartbeatReportsVersion: true,
+      ipLogsLines: IPLOGS_FIXTURE,
+    }),
+  );
+  const baseline = validateSetupScriptChunks(
+    buildRouterSetupScriptChunks({
+      ...BASE,
+      wans: [DHCP_WAN],
+      wireguard: WG,
+      heartbeatReportsVersion: true,
+    }),
+  );
+  const ipIssues = withLogs
+    .filter((r) => r.label.startsWith("IP Logs"))
+    .flatMap((r) => r.issues.map((i) => `${i.severity}: ${i.message}`));
+  check(
+    "DEFAULT-LOGS: the validator finds nothing (errors or warnings) in the IP Logs chunk",
+    ipIssues.length === 0,
+    JSON.stringify(ipIssues).slice(0, 600),
+  );
+  check(
+    "DEFAULT-LOGS: and nothing new anywhere else",
+    errs(withLogs).filter((e) => !errs(baseline).includes(e)).length === 0,
+  );
+}
+
 console.log("");
 if (failures.length) {
   console.error(`\n${failures.length} failure(s):\n  - ${failures.join("\n  - ")}`);

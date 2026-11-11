@@ -10,7 +10,21 @@ export const ipLogsKeys = {
   status: (id: string) => ["isp", "ip-logs", "status", id] as const,
   script: (id: string) => ["isp", "ip-logs", "script", id] as const,
   fleet: (customer?: string) => ["isp", "ip-logs", "fleet", customer ?? "all"] as const,
+  features: ["isp", "ip-logs", "features"] as const,
 };
+
+/** DEFAULT-LOGS probe. `null` = flag off or an older backend: the Add router
+ * switch is hidden, the `ip_logs` field is never sent and the setup script
+ * gets no IP-logs chunk. */
+export function useIpLogsFeatures(enabled = true) {
+  return useQuery({
+    queryKey: ipLogsKeys.features,
+    queryFn: () => orNull(ipLogsService.features()),
+    retry: retryUnless4xx,
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
 
 async function orNull<T>(p: Promise<T>): Promise<T | null> {
   try {

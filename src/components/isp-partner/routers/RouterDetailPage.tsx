@@ -7,7 +7,8 @@
  * (installed by the partner layout). Its `router` prop comes from
  * `/isp/routers/{id}/as-router-device`, the same shape as Master's.
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Info, Pencil } from "lucide-react";
@@ -15,6 +16,7 @@ import { MButton, MSectionHeader, MTag } from "@/components/master/MasterKit";
 import { RouterSetupDrilldown } from "@/components/routers/RouterSetupScriptAdvanced";
 import { Card, ErrorBlock, LoadingBlock } from "@/components/isp-partner/kit";
 import { PartnerAccountingSetupStep } from "@/components/isp-partner/routers/PartnerAccountingSetupStep";
+import { IpLogsSwitch } from "@/components/isp-partner/routers/IpLogsSwitch";
 import { PartnerIpLogsStep } from "@/components/isp-partner/routers/PartnerIpLogsStep";
 import { PartnerMonitoringCard } from "@/components/isp-partner/routers/PartnerMonitoringCard";
 import { PartnerTr069SetupStep } from "@/components/isp-partner/routers/PartnerTr069SetupStep";
@@ -26,6 +28,10 @@ import { Tr069ScriptPanel } from "@/components/isp-partner/tr069/Tr069ScriptPane
 import { usePartner } from "@/components/isp-partner/PartnerContext";
 import { useIspRouter, useIspRouterAsDevice } from "@/hooks/isp-partner/useIsp";
 import { useProvFixFeatures } from "@/hooks/isp-partner/useProvFix";
+import { ipLogsKeys, useIpLogsFeatures, useIpLogsStatus } from "@/hooks/isp-partner/useIpLogs";
+import { ispToastError } from "@/lib/isp-partner/error-toast";
+import { ipLogsSwitchOn } from "@/lib/isp-partner/iplogs";
+import { ipLogsService } from "@/services/isp-partner/iplogs";
 import {
   CLOUD_LINK_LABEL,
   ROUTER_STATUS_LABEL,
@@ -34,10 +40,39 @@ import {
   formatIst,
 } from "@/lib/isp-partner/format";
 
+/** DEFAULT-LOGS: called by Generate once the management connection exists.
+ * When this router's IP logs switch is ON it does what "Turn on" does (the
+ * same enable route, now with the router's address) and returns the lines
+ * the setup script embeds; OFF returns nothing and the script has no
+ * IP-logs chunk. A failure never blocks the setup script. */
+function usePartnerIpLogsLines(routerId: string) {
+  const qc = useQueryClient();
+  return useCallback(async (): Promise<string[] | undefined> => {
+    try {
+      const status = await ipLogsService.status(routerId);
+      if (!ipLogsSwitchOn(status) || status.blocker) return undefined;
+      await ipLogsService.enable(routerId);
+      const script = await ipLogsService.script(routerId);
+      return script.setup_lines ?? undefined;
+    } catch (err) {
+      ispToastError(
+        err,
+        "IP logs were left out of this setup script. Turn them on with the IP logs switch.",
+      );
+      return undefined;
+    } finally {
+      void qc.invalidateQueries({ queryKey: ipLogsKeys.all });
+    }
+  }, [qc, routerId]);
+}
+
 function SetupScript({ routerId }: { routerId: string }) {
   const device = useIspRouterAsDevice(routerId);
   // PROV-FIX: null (flag off) keeps the drilldown exactly as before.
   const fixes = useProvFixFeatures();
+  // DEFAULT-LOGS: null (flag off / older backend) = no IP-logs chunk.
+  const ipLogsFeatures = useIpLogsFeatures();
+  const ipLogsLines = usePartnerIpLogsLines(routerId);
   if (device.isLoading || fixes.isLoading)
     return <LoadingBlock label="Loading the router for setup…" />;
   if (device.error || !device.data)
@@ -72,6 +107,7 @@ function SetupScript({ routerId }: { routerId: string }) {
           demo={false}
           vendorSaving={false}
           partnerSetup={!!fixes.data?.check_in_fallback}
+          partnerIpLogsLines={ipLogsFeatures.data?.setup_script_lines ? ipLogsLines : undefined}
           onVendorChange={(v) => {
             if (v !== "mikrotik")
               toast.error("Only MikroTik routers are supported in the partner console for now.");
@@ -82,10 +118,19 @@ function SetupScript({ routerId }: { routerId: string }) {
   );
 }
 
+/** DEFAULT-LOGS: the "IP logs: ON / OFF" switch at the top of the page.
+ * Renders nothing while the IP-logs flag is off (status resolves to null). */
+function HeaderIpLogsSwitch({ routerId }: { routerId: string }) {
+  const q = useIpLogsStatus(routerId);
+  if (!q.data) return null;
+  return <IpLogsSwitch status={q.data} />;
+}
+
 export function RouterDetailPage({ routerId }: { routerId: string }) {
   const { can } = usePartner();
   const q = useIspRouter(routerId);
   const fixes = useProvFixFeatures();
+  const ipLogsFeatures = useIpLogsFeatures();
   const [editing, setEditing] = useState(false);
 
   if (q.isLoading) return <LoadingBlock />;
@@ -100,11 +145,14 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
         title={r.name}
         description={`${r.model} · serial ${r.serial_number} · ${r.mac_address}`}
         actions={
-          can("isp_partner.update") && (
-            <MButton variant="outline" onClick={() => setEditing(true)}>
-              <Pencil /> Edit
-            </MButton>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            <HeaderIpLogsSwitch routerId={routerId} />
+            {can("isp_partner.update") && (
+              <MButton variant="outline" onClick={() => setEditing(true)}>
+                <Pencil /> Edit
+              </MButton>
+            )}
+          </div>
         }
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -191,7 +239,12 @@ export function RouterDetailPage({ routerId }: { routerId: string }) {
         </Card>
       )}
 
-      <PartnerIpLogsStep routerId={routerId} />
+      <PartnerIpLogsStep
+        routerId={routerId}
+        foldedIntoSetup={
+          !!fixes.data?.check_in_fallback && !!ipLogsFeatures.data?.setup_script_lines
+        }
+      />
       <PartnerMonitoringCard routerId={routerId} enabled={!!fixes.data?.monitoring_self_serve} />
 
       {can("tr069.manage") && (

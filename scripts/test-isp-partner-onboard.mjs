@@ -171,6 +171,35 @@ const sec = (f, ctx = all) => {
   return "section" in r ? r.section : "ok";
 };
 eq("no customer -> plan", sec({ isp_customer_id: "" }), "plan");
+// DEFAULT-LOGS / partner ask: first + last name, mobile required where sensible
+eq("no first name -> contact", sec({ first_name: "  " }), "contact");
+eq(
+  "login id not a mobile and no mobile -> contact",
+  sec({ identifier: "rahul.k", phone: "" }),
+  "contact",
+);
+eq("bad mobile -> contact", sec({ phone: "12345" }), "contact");
+eq("mobile with +91 ok", sec({ phone: "+91 98765-43210" }), "ok");
+eq("last name optional", sec({ last_name: "" }), "ok");
+{
+  const r = m.buildOnboarding({ ...base, first_name: " Asha ", last_name: " Rao " }, all);
+  eq(
+    "first / last stored apart, combined name kept as display_name, blank mobile = login id",
+    [
+      r.body.subscriber.first_name,
+      r.body.subscriber.last_name,
+      r.body.subscriber.display_name,
+      r.body.subscriber.phone,
+    ],
+    ["Asha", "Rao", "Asha Rao", "9876500000"],
+  );
+  const one = m.buildOnboarding({ ...base, first_name: "Asha", phone: "9123456789" }, all);
+  eq(
+    "single name: last_name null, display_name = first, typed mobile wins",
+    [one.body.subscriber.last_name, one.body.subscriber.display_name, one.body.subscriber.phone],
+    [null, "Asha", "9123456789"],
+  );
+}
 eq("short login -> plan", sec({ identifier: "ab" }), "plan");
 eq("bad GSTIN -> contact", sec({ gstin: "27AAPFU0939F1ZW" }), "contact");
 eq(

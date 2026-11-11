@@ -383,12 +383,18 @@ async function reuseOr<T>(pre: unknown, call: () => Promise<{ data: T }>): Promi
 function RouterSetupScriptPanel({
   router,
   partnerSetup = false,
+  partnerIpLogsLines,
 }: {
   router: RouterDevice;
   /** PROV-FIX: true only in the partner console, and only once its backend
    * answers `/isp/setup-fixes`. Master never sets it, so every Master path
    * below is unchanged. */
   partnerSetup?: boolean;
+  /** DEFAULT-LOGS, partner console only: called once per Generate, after the
+   * management connection is allocated. Resolves to the router's IP-logs
+   * lines (folded into the script as one chunk) or `undefined` (no chunk).
+   * Master never passes it. */
+  partnerIpLogsLines?: () => Promise<string[] | undefined>;
 }) {
   // EVERY server call in `onGenerate` below is a raw `api.post`/`api.put`,
   // not a react-query mutation -- so nothing invalidated the caches those
@@ -1137,6 +1143,10 @@ function RouterSetupScriptPanel({
         queryClient.invalidateQueries({ queryKey: nasKeys.all }),
       ]);
 
+      // DEFAULT-LOGS (partner only): after every allocation above, so the
+      // lines carry this router's final source address.
+      const ipLogsLines =
+        partnerSetup && partnerIpLogsLines ? await partnerIpLogsLines() : undefined;
       setChunks(
         buildRouterSetupScriptChunks({
           // Absolute, not `api.defaults.baseURL` directly -- see
@@ -1162,6 +1172,7 @@ function RouterSetupScriptPanel({
           // regardless of whatever URL Master console itself happens to be
           // served from.
           heartbeatReportsVersion: partnerSetup || undefined,
+          ipLogsLines,
           portalUrl: {
             frontendBase: GUEST_PORTAL_PUBLIC_BASE,
             organizationId: router.organizationId,
@@ -2191,6 +2202,7 @@ export function RouterSetupDrilldown({
   vendorSaving,
   onVendorChange,
   partnerSetup,
+  partnerIpLogsLines,
 }: {
   router: RouterDevice;
   demo: boolean;
@@ -2198,6 +2210,8 @@ export function RouterSetupDrilldown({
   onVendorChange: (vendor: string) => void;
   /** PROV-FIX: partner console only. See `RouterSetupScriptPanel`. */
   partnerSetup?: boolean;
+  /** DEFAULT-LOGS: partner console only. See `RouterSetupScriptPanel`. */
+  partnerIpLogsLines?: () => Promise<string[] | undefined>;
 }) {
   const vendor = router.vendor || "mikrotik";
   return (
@@ -2280,7 +2294,11 @@ export function RouterSetupDrilldown({
             </select>
           </div>
           {vendor === "mikrotik" ? (
-            <RouterSetupScriptPanel router={router} partnerSetup={partnerSetup} />
+            <RouterSetupScriptPanel
+              router={router}
+              partnerSetup={partnerSetup}
+              partnerIpLogsLines={partnerIpLogsLines}
+            />
           ) : vendor === "tplink_omada" ? (
             <OmadaGuidedSetupPanel router={router} />
           ) : vendor === ARUBA_INSTANT_ON_VENDOR ? (

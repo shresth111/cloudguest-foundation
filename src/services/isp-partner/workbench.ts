@@ -27,7 +27,13 @@ export const workbenchService = {
   /** Contact fields on the subscriber (PATCH semantics on the backend). */
   async patchContact(
     subscriberId: string,
-    body: { phone?: string | null; email?: string | null },
+    body: {
+      phone?: string | null;
+      email?: string | null;
+      first_name?: string | null;
+      last_name?: string | null;
+      display_name?: string | null;
+    },
   ): Promise<void> {
     await api.patch(`/isp/subscribers/${subscriberId}`, body);
   },

@@ -61,7 +61,10 @@ function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const packages = usePackages({ status: "active", page_size: 100 }, open);
   const [customerId, setCustomerId] = useState("");
   const [identifier, setIdentifier] = useState("");
-  const [name, setName] = useState("");
+  // DEFAULT-LOGS / partner ask: first and last name, not one "Name" box.
+  // The combined name still goes to `display_name` (the Plans list reads it).
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
   const [packageId, setPackageId] = useState("");
   const [from, setFrom] = useState(isoDay(new Date()));
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,8 @@ function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void })
     if (open) {
       setCustomerId("");
       setIdentifier("");
-      setName("");
+      setFirst("");
+      setLast("");
       setPackageId("");
       setFrom(isoDay(new Date()));
       setError(null);
@@ -96,7 +100,9 @@ function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void })
                 await create.mutateAsync({
                   isp_customer_id: customerId,
                   identifier: identifier.trim(),
-                  display_name: name.trim() || null,
+                  first_name: first.trim() || null,
+                  last_name: last.trim() || null,
+                  display_name: [first.trim(), last.trim()].filter(Boolean).join(" ") || null,
                   package_id: packageId,
                   valid_from: new Date(`${from}T00:00:00`).toISOString(),
                 });
@@ -129,7 +135,10 @@ function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void })
           onChange={setIdentifier}
           hint="The same identity the guest signs in with at the portal."
         />
-        <TextField label="Name (optional)" value={name} onChange={setName} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextField label="First name (optional)" value={first} onChange={setFirst} />
+          <TextField label="Last name (optional)" value={last} onChange={setLast} />
+        </div>
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-muted-foreground">Package</span>
           <select

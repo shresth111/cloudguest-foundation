@@ -103,8 +103,8 @@ for (const [name, src] of [
 // mount points (one line each) ---------------------------------------------
 eq(
   "router page mounts the card",
-  read("src/components/isp-partner/routers/RouterDetailPage.tsx").includes(
-    "<PartnerIpLogsStep routerId={routerId} />",
+  /<PartnerIpLogsStep\s+routerId=\{routerId\}/.test(
+    read("src/components/isp-partner/routers/RouterDetailPage.tsx"),
   ),
   true,
 );
@@ -120,6 +120,85 @@ eq(
   ),
   true,
 );
+
+// DEFAULT-LOGS: the "IP logs: ON / OFF" switch ------------------------------
+eq("switch: set_up counts as on", m.ipLogsSwitchOn({ set_up: true }), true);
+eq(
+  "switch: wanted (no rows yet) is on",
+  m.ipLogsSwitchOn({ set_up: false, switch_on: true }),
+  true,
+);
+eq("switch: off", m.ipLogsSwitchOn({ set_up: false, switch_on: false }), false);
+const st = (o) => ({ set_up: false, switch_on: false, wanted: null, blocker: null, ...o });
+eq("prompt for a router added before the default (never asked)", m.ipLogsNeedsPrompt(st({})), true);
+eq("no prompt once the ISP chose off", m.ipLogsNeedsPrompt(st({ wanted: false })), false);
+eq("no prompt when on", m.ipLogsNeedsPrompt(st({ switch_on: true, wanted: true })), false);
+eq("no prompt for a non-MikroTik", m.ipLogsNeedsPrompt(st({ blocker: "not_mikrotik" })), false);
+for (const on of [true, false])
+  for (const link of [true, false]) {
+    const c = m.ipLogsConfirmCopy(on, link);
+    eq(
+      `confirm copy ${on ? "ON" : "OFF"}/${link ? "no link" : "link"} is complete`,
+      [!!c.title, !!c.body, c.confirm],
+      [true, true, on ? "Turn ON" : "Turn OFF"],
+    );
+    eq(
+      `result copy ${on ? "ON" : "OFF"}/${link ? "no link" : "link"}`,
+      /setup script/.test(m.ipLogsResultCopy(on, link)),
+      link,
+    );
+  }
+const sw = read("src/components/isp-partner/routers/IpLogsSwitch.tsx");
+const routerPage = read("src/components/isp-partner/routers/RouterDetailPage.tsx");
+const table = read("src/components/isp-partner/routers/RoutersTable.tsx");
+const drawer = read("src/components/isp-partner/routers/RouterFormDrawer.tsx");
+for (const [name, src] of [
+  ["IpLogsSwitch", sw],
+  ["PartnerIpLogsStep", step],
+]) {
+  const text = src.replace(/^\s*(\*|\/\/|\/\*\*).*$/gm, "");
+  eq(`${name}: no browser confirm()`, /window\.confirm/.test(text), false);
+  eq(`${name}: no WireGuard / tunnel wording`, /wireguard|tunnel/i.test(text), false);
+}
+eq(
+  "switch is a real switch",
+  sw.includes('role="switch"') && sw.includes("aria-checked={on}"),
+  true,
+);
+eq("switch label IP logs: ON / OFF", sw.includes('`IP logs: ${on ? "ON" : "OFF"}`'), true);
+eq("switch asks first (in-app dialog)", (sw.match(/<MDialog/g) ?? []).length, 2);
+eq("switch uses the same enable/disable routes", sw.includes("useIpLogsToggle(routerId)"), true);
+eq("switch needs isp_partner.execute", sw.includes('can("isp_partner.execute")'), true);
+eq("switch never bubbles to a row click", sw.includes("e.stopPropagation()"), true);
+eq("OFF shows the removal script", sw.includes('mode={result.on ? "enable" : "disable"}'), true);
+eq(
+  "router page: switch at the top",
+  routerPage.includes("<HeaderIpLogsSwitch routerId={routerId} />"),
+  true,
+);
+eq(
+  "router page: Generate folds IP logs only when the probe answers",
+  routerPage.includes(
+    "partnerIpLogsLines={ipLogsFeatures.data?.setup_script_lines ? ipLogsLines : undefined}",
+  ),
+  true,
+);
+eq(
+  "routers list: IP logs column only with fleet data",
+  table.includes("{ipLogs && <MTh>IP logs</MTh>}"),
+  true,
+);
+eq(
+  "Add router: switch on by default",
+  drawer.includes("useState(true)") && drawer.includes("IP logs (recommended)"),
+  true,
+);
+eq(
+  "Add router: ip_logs sent only when offered",
+  drawer.includes("...(ipLogsOffered ? { ip_logs: ipLogs } : {})"),
+  true,
+);
+eq("service: features probe", svc.includes('"/isp/ip-logs/features"'), true);
 
 console.log(`\n${checks - failures}/${checks} checks passed`);
 process.exit(failures ? 1 : 0);

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { MButton, MDrawer } from "@/components/master/MasterKit";
 import { FormError, Spinner, TextField } from "@/components/isp-partner/kit";
 import { useCreateIspRouter, useUpdateIspRouter } from "@/hooks/isp-partner/useIsp";
+import { useIpLogsFeatures } from "@/hooks/isp-partner/useIpLogs";
 import { ispErrorMessage, ispFieldErrors } from "@/lib/isp-partner/errors";
 import type { IspRouter, IspRouterCreate } from "@/services/isp-partner/types";
 
@@ -33,6 +34,12 @@ export function RouterFormDrawer({
   const [serial, setSerial] = useState("");
   const [mac, setMac] = useState("");
   const [model, setModel] = useState("");
+  // DEFAULT-LOGS: "IP logs (recommended)", on by default. Shown, and sent as
+  // `ip_logs`, only when the backend probe answers; otherwise the body is
+  // exactly what it was.
+  const ipLogsFeatures = useIpLogsFeatures(open && !router);
+  const ipLogsOffered = !router && !!ipLogsFeatures.data?.default_on_add_router;
+  const [ipLogs, setIpLogs] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const create = useCreateIspRouter(locationId);
@@ -45,6 +52,7 @@ export function RouterFormDrawer({
       setSerial(router?.serial_number ?? "");
       setMac(router?.mac_address ?? "");
       setModel(router?.model ?? "");
+      setIpLogs(true);
       setError(null);
       setFieldErrors({});
     }
@@ -70,9 +78,14 @@ export function RouterFormDrawer({
             mac_address: mac.trim().toUpperCase().replace(/-/g, ":"),
             model: model.trim(),
             vendor: "mikrotik",
+            ...(ipLogsOffered ? { ip_logs: ipLogs } : {}),
           });
       toast.success(
-        router ? "Router saved." : `${saved.name} added. Next: generate its setup script.`,
+        router
+          ? "Router saved."
+          : ipLogsOffered && ipLogs
+            ? `${saved.name} added with IP logs ON. Next: generate its setup script (IP logs are in it).`
+            : `${saved.name} added. Next: generate its setup script.`,
       );
       onSaved?.(saved);
       onClose();
@@ -132,6 +145,24 @@ export function RouterFormDrawer({
               error={fieldErrors.mac_address}
             />
           </>
+        )}
+        {ipLogsOffered && (
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-border p-3">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-primary"
+              checked={ipLogs}
+              onChange={(e) => setIpLogs(e.target.checked)}
+            />
+            <span className="space-y-0.5">
+              <span className="block text-sm font-medium">IP logs (recommended)</span>
+              <span className="block text-xs text-muted-foreground">
+                Sends this router&apos;s system logs and connection logs to Wyfy Guest for NetLogs,
+                IPDR and CGNAT lookup. They go into the setup script, so you paste only once. You
+                can turn them off later on the router&apos;s page.
+              </span>
+            </span>
+          </label>
         )}
         <FormError message={error} />
       </div>

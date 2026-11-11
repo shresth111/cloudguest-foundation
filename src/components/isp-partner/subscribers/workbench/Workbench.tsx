@@ -539,15 +539,36 @@ function InlineField({
 export function ContactCard({ s }: S) {
   const { can } = usePartner();
   const wb = useWorkbench(s.id);
-  const patch = useSub360Mutation((b: { phone?: string | null; email?: string | null }) =>
+  const patch = useSub360Mutation((b: Parameters<typeof workbenchService.patchContact>[1]) =>
     workbenchService.patchContact(s.id, b),
   );
+  // DEFAULT-LOGS / partner ask: first and last name shown and edited apart.
+  // The combined name is written to `display_name` too, so readers of the
+  // single name keep showing it.
+  const full = (first?: string | null, last?: string | null) =>
+    [first, last].filter(Boolean).join(" ") || null;
   const alt = useSub360Mutation((v: string | null) => workbenchService.putAltEmail(s.id, v));
   if (!wb.data) return null;
   const ro = !can("isp_subscribers.update");
   return (
     <Card title="Contact and service">
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+        <InlineField
+          label="First name"
+          value={s.first_name}
+          disabled={ro}
+          onSave={async (v) => {
+            await patch.mutateAsync({ first_name: v, display_name: full(v, s.last_name) });
+          }}
+        />
+        <InlineField
+          label="Last name"
+          value={s.last_name}
+          disabled={ro}
+          onSave={async (v) => {
+            await patch.mutateAsync({ last_name: v, display_name: full(s.first_name, v) });
+          }}
+        />
         <InlineField
           label="Mobile"
           value={s.phone}

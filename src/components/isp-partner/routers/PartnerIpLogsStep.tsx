@@ -9,21 +9,27 @@
  *
  * While the backend flag is off every endpoint answers 404, the status
  * resolves to `null` and this card renders nothing.
+ *
+ * DEFAULT-LOGS: the Turn on / Turn off buttons are now the one
+ * "IP logs: ON / OFF" switch (`IpLogsSwitch`, in-app confirm both ways). A
+ * router added before logging was on by default gets a "Turn on IP logs"
+ * prompt; nothing is switched on for it silently.
  */
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { toast } from "sonner";
-import { AlertTriangle, Download, FileCode2, Power, PowerOff } from "lucide-react";
+import { AlertTriangle, FileCode2 } from "lucide-react";
 import { MButton, MTag } from "@/components/master/MasterKit";
-import { Card, CopyField, ErrorBlock, Spinner } from "@/components/isp-partner/kit";
+import { Card, ErrorBlock } from "@/components/isp-partner/kit";
 import { usePartner } from "@/components/isp-partner/PartnerContext";
-import { useIpLogsScript, useIpLogsStatus, useIpLogsToggle } from "@/hooks/isp-partner/useIpLogs";
-import { saveBlob } from "@/lib/isp-partner/download";
+import { IpLogsSwitch, ScriptBlock } from "@/components/isp-partner/routers/IpLogsSwitch";
+import { useIpLogsStatus } from "@/hooks/isp-partner/useIpLogs";
 import {
   IP_LOGS_PIPE_LABEL,
   IP_LOGS_PIPE_STATE_LABEL,
+  ipLogsNeedsPrompt,
   ipLogsPipeTone,
   ipLogsStateTone,
+  ipLogsSwitchOn,
 } from "@/lib/isp-partner/iplogs";
 import type { IpLogsPipe, IpLogsStatus } from "@/services/isp-partner/iplogs";
 
@@ -42,58 +48,18 @@ function PipeRow({ name, pipe }: { name: keyof IpLogsStatus["pipes"]; pipe: IpLo
   );
 }
 
-function ScriptBlock({ routerId, mode }: { routerId: string; mode: "enable" | "disable" }) {
-  const q = useIpLogsScript(routerId, true);
-  if (q.isLoading)
-    return (
-      <p className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Spinner /> Generating…
-      </p>
-    );
-  if (q.error || !q.data)
-    return <ErrorBlock error={q.error} onRetry={() => q.refetch()} what="the IP logs script" />;
-  const lines = mode === "enable" ? q.data.enable_script : q.data.disable_script;
-  if (!q.data.available || !lines) return null;
-  const text = lines.join("\n") + "\n";
-  const filename =
-    mode === "enable"
-      ? (q.data.filename ?? "wyfy-ip-logs.rsc")
-      : (q.data.filename ?? "wyfy-ip-logs.rsc").replace(/\.rsc$/, "-off.rsc");
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium">
-          {mode === "enable"
-            ? "Paste this into the router terminal (WinBox > New Terminal), after the setup script."
-            : "Paste this into the router terminal to stop sending IP logs."}
-        </p>
-        <MButton
-          variant="outline"
-          onClick={() => saveBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), filename)}
-        >
-          <Download /> Download .rsc
-        </MButton>
-      </div>
-      <CopyField label="Script" value={text} />
-      <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-2.5 text-[11px] leading-snug">
-        <code>{text}</code>
-      </pre>
-      {mode === "enable" && (
-        <p className="text-xs text-muted-foreground">
-          Safe to paste again. The router name becomes <code>{q.data.router_name_on_device}</code>{" "}
-          only if the current one has spaces. This card refreshes by itself; the first system log
-          line shows up within a minute, connection logs within about 10 minutes.
-        </p>
-      )}
-    </div>
-  );
-}
-
-export function PartnerIpLogsStep({ routerId }: { routerId: string }) {
+export function PartnerIpLogsStep({
+  routerId,
+  foldedIntoSetup = false,
+}: {
+  routerId: string;
+  /** DEFAULT-LOGS: true when this page's Generate folds IP logs into the
+   * setup script (both backend probes answered). */
+  foldedIntoSetup?: boolean;
+}) {
   const { can } = usePartner();
   const q = useIpLogsStatus(routerId);
-  const toggle = useIpLogsToggle(routerId);
-  const [shown, setShown] = useState<"enable" | "disable" | null>(null);
+  const [shown, setShown] = useState(false);
 
   if (q.isLoading || q.data === null) return null;
   if (q.error || !q.data)
@@ -101,15 +67,7 @@ export function PartnerIpLogsStep({ routerId }: { routerId: string }) {
   const s = q.data;
   const canRun = can("isp_partner.execute");
   const warnings = s.warnings ?? [];
-
-  const turn = (on: boolean) =>
-    toggle.mutate(on, {
-      onSuccess: () => {
-        setShown(on ? "enable" : "disable");
-        toast.success(on ? "IP logs turned on. Now paste the script." : "IP logs turned off.");
-      },
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update IP logs"),
-    });
+  const on = ipLogsSwitchOn(s);
 
   return (
     <Card title="IP logs" actions={<MTag label={s.state_label} tone={ipLogsStateTone(s.state)} />}>
@@ -119,7 +77,25 @@ export function PartnerIpLogsStep({ routerId }: { routerId: string }) {
           Wyfy Guest. They fill NetLogs, IPDR, CGNAT lookup and LEA trace for this router.
         </p>
 
-        {s.blocker ? (
+        {ipLogsNeedsPrompt(s) && canRun && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+            <p>
+              IP logs are off for this router. It was added before they were on by default. Turn
+              them on to fill NetLogs, IPDR and CGNAT lookup.
+            </p>
+            <IpLogsSwitch status={s} />
+          </div>
+        )}
+
+        {s.blocker === "needs_link" && on && foldedIntoSetup ? (
+          <div className="flex gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 text-xs">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+            <p>
+              IP logs are ON and already part of this router&apos;s setup script. Press Generate
+              above and paste the script once; nothing else to paste.
+            </p>
+          </div>
+        ) : s.blocker ? (
           <div className="flex gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 text-xs">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
             <p>{s.blocker_hint}</p>
@@ -146,35 +122,13 @@ export function PartnerIpLogsStep({ routerId }: { routerId: string }) {
           </ul>
         )}
 
-        {!s.blocker && canRun && (
-          <div className="flex flex-wrap gap-2">
-            {!s.set_up ? (
-              <MButton onClick={() => turn(true)} disabled={toggle.isPending}>
-                <Power /> Turn on IP logs
+        {s.blocker !== "not_mikrotik" && canRun && (
+          <div className="flex flex-wrap items-center gap-2">
+            <IpLogsSwitch status={s} />
+            {!s.blocker && s.set_up && (
+              <MButton variant="outline" onClick={() => setShown(!shown)}>
+                <FileCode2 /> {shown ? "Hide script" : "Show IP logs script"}
               </MButton>
-            ) : (
-              <>
-                <MButton
-                  variant="outline"
-                  onClick={() => setShown(shown === "enable" ? null : "enable")}
-                >
-                  <FileCode2 /> {shown === "enable" ? "Hide script" : "Show setup script"}
-                </MButton>
-                <MButton
-                  variant="outline"
-                  disabled={toggle.isPending}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Turn off IP logs for this router? Connection records stop being stored. Logs already stored are kept.",
-                      )
-                    )
-                      turn(false);
-                  }}
-                >
-                  <PowerOff /> Turn off
-                </MButton>
-              </>
             )}
             <Link to="/partner/logs" className="self-center text-xs text-primary hover:underline">
               Open NetLogs
@@ -187,13 +141,13 @@ export function PartnerIpLogsStep({ routerId }: { routerId: string }) {
             </Link>
           </div>
         )}
-        {!s.blocker && !canRun && !s.set_up && (
+        {!canRun && (
           <p className="text-xs text-muted-foreground">
-            A Technician, Admin or Owner can turn on IP logs.
+            IP logs are {on ? "ON" : "OFF"}. A Technician, Admin or Owner can change them.
           </p>
         )}
 
-        {shown && !s.blocker && canRun && <ScriptBlock routerId={routerId} mode={shown} />}
+        {shown && !s.blocker && canRun && <ScriptBlock routerId={routerId} mode="enable" />}
       </div>
     </Card>
   );

@@ -169,6 +169,9 @@ export interface SubscriberCreate {
   isp_customer_id: string;
   identifier: string;
   display_name?: string | null;
+  /** The backend has always taken these (ADDENDUM_03 Part B contact fields). */
+  first_name?: string | null;
+  last_name?: string | null;
   package_id: string;
   valid_from?: string;
 }

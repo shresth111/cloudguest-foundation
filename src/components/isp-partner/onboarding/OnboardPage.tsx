@@ -480,9 +480,20 @@ function OnboardFormView({
 
       <Section id="contact" title="Contact and billing address" error={errors.contact}>
         <div className="grid gap-3 sm:grid-cols-2">
-          <TextField label="First name" value={f.first_name} onChange={set("first_name")} />
+          <TextField
+            label="First name"
+            required
+            value={f.first_name}
+            onChange={set("first_name")}
+          />
           <TextField label="Last name" value={f.last_name} onChange={set("last_name")} />
-          <TextField label="Mobile" value={f.phone} onChange={set("phone")} />
+          <TextField
+            label="Mobile"
+            required
+            value={f.phone}
+            onChange={set("phone")}
+            hint="Leave blank to use the login id, when that is a mobile number."
+          />
           <TextField label="Email" value={f.email} onChange={set("email")} />
           <TextField
             label="Alternate email"

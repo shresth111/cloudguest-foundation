@@ -246,6 +246,9 @@ export interface IspRouterCreate {
   model: string;
   /** P1 accepts `mikrotik` only. */
   vendor: "mikrotik";
+  /** DEFAULT-LOGS: the Add router "IP logs" switch. Sent only when
+   * `GET /isp/ip-logs/features` answers (older backends reject the field). */
+  ip_logs?: boolean;
 }
 
 export interface IspRouterUpdate {

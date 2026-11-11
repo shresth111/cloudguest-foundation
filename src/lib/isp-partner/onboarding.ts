@@ -258,6 +258,44 @@ export interface BuildContext {
 
 type Built = { body: OnboardingBody } | { error: string; section: FormSection };
 
+/** DEFAULT-LOGS / partner ask (2026-11-11): first name, last name, mobile,
+ * email, username (login id) and password on subscriber creation.
+ *
+ * First name and mobile are required on the manual forms; last name and
+ * email stay optional (many subscribers have one name or no email). A blank
+ * mobile falls back to the login id when that is a mobile number, which is
+ * how most ISPs set the login id. The combined full name is also sent as
+ * `display_name`, so every reader that uses the single name (Plans list,
+ * search, invoices that fall back to it) keeps showing it. */
+export function subscriberIdentity(f: {
+  first_name: string;
+  last_name: string;
+  phone: string;
+  identifier: string;
+}):
+  | { error: string }
+  | { first_name: string; last_name: string | null; phone: string; display_name: string } {
+  const first = f.first_name.trim();
+  const last = f.last_name.trim();
+  if (!first) return { error: "First name is required." };
+  const raw = f.phone.trim() || (isMobile(f.identifier) ? f.identifier.trim() : "");
+  if (!raw) return { error: "Mobile is required." };
+  if (!isMobile(raw))
+    return { error: "The mobile number looks wrong: 10 digits, e.g. 9876543210." };
+  return {
+    first_name: first,
+    last_name: last || null,
+    phone: raw,
+    display_name: [first, last].filter(Boolean).join(" "),
+  };
+}
+
+/** 10 digits, optionally with +91 / 91 / 0 in front and spaces or dashes. */
+export function isMobile(v: string): boolean {
+  const d = v.replace(/[\s-]/g, "");
+  return /^(\+?91|0)?[6-9]\d{9}$/.test(d);
+}
+
 const nz = (v: string) => (v.trim() ? v.trim() : null);
 
 /** Form -> `POST /isp/onboarding` body, or the first problem and where. */
@@ -277,6 +315,8 @@ export function buildOnboarding(f: OnboardForm, ctx: BuildContext): Built {
     return fail("contact", "State code is the 2-digit GST state code, e.g. 07.");
   if (gstin && state && gstin.slice(0, 2) !== state)
     return fail("contact", "The state code does not match the GSTIN's first two digits.");
+  const who = subscriberIdentity(f);
+  if ("error" in who) return fail("contact", who.error);
   const email = nz(f.email);
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
     return fail("contact", "The email looks wrong.");
@@ -326,9 +366,10 @@ export function buildOnboarding(f: OnboardForm, ctx: BuildContext): Built {
       isp_customer_id: f.isp_customer_id,
       package_id: f.package_id,
       identifier,
-      first_name: nz(f.first_name),
-      last_name: nz(f.last_name),
-      phone: nz(f.phone),
+      first_name: who.first_name,
+      last_name: who.last_name,
+      display_name: who.display_name,
+      phone: who.phone,
       email,
       gstin: gstin || null,
       address: nz(f.address),

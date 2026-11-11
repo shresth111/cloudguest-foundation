@@ -46,6 +46,11 @@ export interface IpLogsStatus {
   blocker_hint?: string | null;
   set_up: boolean;
   set_up_at: string | null;
+  /** DEFAULT-LOGS: the ISP's recorded choice; null = router added before it
+   * (nothing switched on silently). Absent on an older backend. */
+  wanted?: boolean | null;
+  /** DEFAULT-LOGS: what the "IP logs: ON / OFF" switch shows. */
+  switch_on?: boolean;
   collectors: { syslog: boolean; flows: boolean };
   pipes: { syslog: IpLogsPipe; flows: IpLogsPipe; nat: IpLogsPipe };
   warnings?: IpLogsWarning[];
@@ -58,6 +63,8 @@ export interface IpLogsScript {
   blocker: "needs_link" | "not_mikrotik" | null;
   enable_script: string[] | null;
   disable_script: string[] | null;
+  /** DEFAULT-LOGS: the same lines in the form the setup script embeds. */
+  setup_lines?: string[] | null;
   filename: string | null;
   router_name_on_device: string;
   tag: string;
@@ -69,7 +76,18 @@ export interface IpLogsFleet {
   collectors: { syslog: boolean; flows: boolean };
 }
 
+/** DEFAULT-LOGS probe (`GET /isp/ip-logs/features`). */
+export interface IpLogsFeatures {
+  default_on_add_router: boolean;
+  setup_script_lines: boolean;
+  switch: boolean;
+}
+
 export const ipLogsService = {
+  async features(): Promise<IpLogsFeatures> {
+    const { data } = await api.get<IpLogsFeatures>("/isp/ip-logs/features");
+    return data;
+  },
   async status(ispRouterId: string): Promise<IpLogsStatus> {
     const { data } = await api.get<IpLogsStatus>(`/isp/routers/${ispRouterId}/ip-logs`);
     return data;
