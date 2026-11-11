@@ -70,9 +70,17 @@ name: CI
 #                         let test:portal-cna rot on origin/main)
 
 on:
-  push:
-    branches: [main]
+  # No `push: main` trigger: cd.yml runs this exact workflow (workflow_call)
+  # on every main push it deploys, so a direct push run tested the same
+  # commit a second time. Docs-only pushes to main, which cd.yml skips,
+  # have nothing for these gates to check either.
   pull_request:
+    # Markdown/docs-only PRs cannot change the bundle, the types or a test.
+    # No branch protection on this repo, so a skipped check cannot leave a
+    # PR waiting on a required status.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   workflow_dispatch:
   # cd.yml calls this instead of restating tsc, eslint and the eleven
   # ci-gated-test.sh suites. The gates stay defined once, here, and a deploy
@@ -107,6 +115,7 @@ jobs:
   static:
     name: Types and lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -155,6 +164,7 @@ jobs:
   build:
     name: Production build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -190,6 +200,7 @@ jobs:
   tests:
     name: Portal regression suites
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -3050,6 +3061,7 @@ jobs:
     # would be nearly right; this says what it means.
     if: ${{ always() && contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # Belt and braces. The action is written never to exit non-zero, but this
     # workflow is also called by cd.yml via workflow_call, where a failing job
     # here would mean a notification breaking a deploy.
