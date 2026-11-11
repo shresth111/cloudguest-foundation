@@ -113,6 +113,10 @@ export const ISP_ERROR_COPY_EN: Record<string, string> = {
   "code.ISP_IPLOGS_NEEDS_LINK":
     "Paste this router's setup script first. IP logs need its cloud link, which is not set up yet.",
   "code.ISP_IPLOGS_NOT_SUPPORTED": "IP logs can be turned on for MikroTik routers only.",
+  // -- DEFAULT-LOGS follow-up: subscriber first name + mobile ------------------
+  "code.ISP_SUBSCRIBER_FIRST_NAME_REQUIRED": "Enter the subscriber's first name.",
+  "code.ISP_SUBSCRIBER_MOBILE_REQUIRED":
+    "Enter the subscriber's mobile number: 10 digits, e.g. 9876543210.",
   // -- PROV-FIX: router setup + traffic monitoring ------------------------------
   "code.ISP_PROV_FIX_DISABLED": FEATURE_OFF,
   "code.ISP_MANAGEMENT_CONNECTION_NOT_READY":

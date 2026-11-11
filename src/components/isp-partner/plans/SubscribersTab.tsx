@@ -52,6 +52,7 @@ import {
   formatIst,
 } from "@/lib/isp-partner/format";
 import { relativeValidity } from "@/lib/isp-partner/plans";
+import { subscriberIdentity } from "@/lib/isp-partner/onboarding";
 import type { Subscriber } from "@/services/isp-partner/plans-types";
 import { SubscriberNetworkPanel } from "@/components/isp-partner/network/SubscriberNetworkPanel";
 import { M_FILTER } from "@/components/isp-partner/ui/classes";
@@ -65,6 +66,7 @@ function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void })
   // The combined name still goes to `display_name` (the Plans list reads it).
   const [first, setFirst] = useState("");
   const [last, setLast] = useState("");
+  const [phone, setPhone] = useState("");
   const [packageId, setPackageId] = useState("");
   const [from, setFrom] = useState(isoDay(new Date()));
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +77,7 @@ function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void })
       setIdentifier("");
       setFirst("");
       setLast("");
+      setPhone("");
       setPackageId("");
       setFrom(isoDay(new Date()));
       setError(null);
@@ -95,14 +98,22 @@ function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void })
             onClick={async () => {
               if (!customerId || !identifier.trim() || !packageId)
                 return setError("Customer, identifier and package are required.");
+              const who = subscriberIdentity({
+                first_name: first,
+                last_name: last,
+                phone,
+                identifier,
+              });
+              if ("error" in who) return setError(who.error);
               setError(null);
               try {
                 await create.mutateAsync({
                   isp_customer_id: customerId,
                   identifier: identifier.trim(),
-                  first_name: first.trim() || null,
-                  last_name: last.trim() || null,
-                  display_name: [first.trim(), last.trim()].filter(Boolean).join(" ") || null,
+                  first_name: who.first_name,
+                  last_name: who.last_name,
+                  display_name: who.display_name,
+                  phone: who.phone,
                   package_id: packageId,
                   valid_from: new Date(`${from}T00:00:00`).toISOString(),
                 });
@@ -136,9 +147,16 @@ function AssignDialog({ open, onClose }: { open: boolean; onClose: () => void })
           hint="The same identity the guest signs in with at the portal."
         />
         <div className="grid gap-3 sm:grid-cols-2">
-          <TextField label="First name (optional)" value={first} onChange={setFirst} />
-          <TextField label="Last name (optional)" value={last} onChange={setLast} />
+          <TextField label="First name" required value={first} onChange={setFirst} />
+          <TextField label="Last name" value={last} onChange={setLast} />
         </div>
+        <TextField
+          label="Mobile"
+          required
+          value={phone}
+          onChange={setPhone}
+          hint="Leave blank to use the identifier, when that is a mobile number."
+        />
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-muted-foreground">Package</span>
           <select
