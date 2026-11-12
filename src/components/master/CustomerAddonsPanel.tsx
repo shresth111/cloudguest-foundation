@@ -16,6 +16,7 @@ import { marketingErrorCode } from "@/services/marketing.service";
 import { requestErrorOf } from "@/services/api";
 import type { OrganizationAddon } from "@/types/marketing";
 import { providerLabel } from "@/lib/marketing-providers";
+import { LoginMessagingCard } from "@/components/login-messaging/LoginMessagingCard";
 
 /**
  * Master console -> Customers drawer -> "Add-ons".
@@ -222,6 +223,15 @@ export function CustomerAddonsPanel({
 
       <CustomerProvidersList organizationId={organizationId} />
 
+      {/* Login codes, set up for the customer by the Wyfy team without
+          logging in as them. Same registry form as the customer's own card;
+          every write is audited with the operator and this organization. */}
+      <LoginMessagingCard
+        target={{ kind: "platform", organizationId }}
+        canManage={caps.has("login-messaging")}
+        compact
+      />
+
       {/* Radix primitive directly rather than ui/alert-dialog: the Customers
           drawer is an inline `z-[60]` layer, and the shared AlertDialog's
           overlay/content are `z-50`, which would open *behind* it. */}
@@ -241,12 +251,16 @@ export function CustomerAddonsPanel({
             </AlertDialogPrimitive.Title>
             <AlertDialogPrimitive.Description className="text-sm text-muted-foreground">
               {pending?.enable
-                ? "The customer's dashboard unlocks immediately. Nothing is sent until they build a campaign themselves."
-                : pending?.addon.key === "guest_marketing_byo"
-                  ? `Campaigns scheduled or sending through the customer's own provider will be cancelled (${pending.addon.active_campaign_count} active). Their provider settings are kept, and new campaigns send through Wyfy.`
-                  : `${pending?.addon.active_campaign_count ?? 0} scheduled or sending campaign${
-                      pending?.addon.active_campaign_count === 1 ? "" : "s"
-                    } will be cancelled. Their templates, consents and logs are kept and come back on unlock.`}
+                ? pending.addon.key === "guest_login_byo"
+                  ? "The customer (or you, below) can connect their own WhatsApp or SMS API for login codes. Wyfy Guest keeps sending until one is verified."
+                  : "The customer's dashboard unlocks immediately. Nothing is sent until they build a campaign themselves."
+                : pending?.addon.key === "guest_login_byo"
+                  ? "Guest login codes go back to Wyfy Guest's own WhatsApp and SMS accounts straight away. The customer's provider settings are kept and come back on unlock."
+                  : pending?.addon.key === "guest_marketing_byo"
+                    ? `Campaigns scheduled or sending through the customer's own provider will be cancelled (${pending.addon.active_campaign_count} active). Their provider settings are kept, and new campaigns send through Wyfy.`
+                    : `${pending?.addon.active_campaign_count ?? 0} scheduled or sending campaign${
+                        pending?.addon.active_campaign_count === 1 ? "" : "s"
+                      } will be cancelled. Their templates, consents and logs are kept and come back on unlock.`}
             </AlertDialogPrimitive.Description>
             <div>
               <label
