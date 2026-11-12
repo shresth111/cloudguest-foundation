@@ -9,8 +9,13 @@
  *      carries `sharedSecret`.
  *   3. HONEST COPY: every gap code has a sentence; the rotate confirm says it
  *      is platform-wide and that port-1812 venues are unaffected.
- *   4. WIRING: three service calls on the right routes; no customer or portal
+ *   4. WIRING: four service calls on the right routes; no customer or portal
  *      surface imports any of it.
+ *   5. RECORDING THE AP MAC: the normaliser accepts colon, dash and bare-hex
+ *      forms and refuses malformed input and every placeholder MAC the
+ *      backend treats as "no AP MAC"; a 409 duplicate says another device
+ *      holds it; the panel offers the field on `no_ap_mac`, behind
+ *      routers.update, and sends only `mac_address`.
  *
  * Run: node scripts/test-aruba-shared-listener.mjs
  */
@@ -88,6 +93,7 @@ eq("mapped", m, {
   accountingPort: 1913,
   nasIdentifier: "cg-aruba-9e6069de",
   apMac: "54:F0:B1:C8:A9:0A",
+  apMacPlaceholder: false,
   secretConfigured: true,
   secretFingerprint: "64e065037cf0",
   secretLength: 32,
@@ -137,6 +143,10 @@ const svc = readFileSync(join(ROOT, "src/services/aruba-instant-on.service.ts"),
 check("register-shared route", svc.includes("/platform/radius/nas/register-shared/${routerId}"));
 check("shared secret read route", svc.includes('"/platform/radius/aruba-shared"'));
 check("shared secret rotate route", svc.includes('"/platform/radius/aruba-shared/rotate"'));
+check(
+  "AP MAC write: PUT /routers/{id} with mac_address only",
+  svc.includes("await api.put(`/routers/${routerId}`, { mac_address: mac });"),
+);
 const panel = readFileSync(
   join(ROOT, "src/components/routers/ArubaInstantOnSetupPanel.tsx"),
   "utf8",
@@ -169,6 +179,111 @@ eq(
   leaks.map((p) => relative(ROOT, p)),
   [],
 );
+
+console.log("5. recording the AP MAC");
+eq(
+  "placeholder flag mapped",
+  SL.toArubaSharedListener({ nas_identifier: "x", ap_mac: null, ap_mac_placeholder: true })
+    .apMacPlaceholder,
+  true,
+);
+eq(
+  "placeholder flag absent on an older backend -> false",
+  SL.toArubaSharedListener({ nas_identifier: "x" }).apMacPlaceholder,
+  false,
+);
+for (const [input, want] of [
+  ["54:F0:B1:C8:A9:0A", "54:F0:B1:C8:A9:0A"],
+  ["54:f0:b1:c8:a9:0a", "54:F0:B1:C8:A9:0A"],
+  ["54-f0-b1-c8-a9-0a", "54:F0:B1:C8:A9:0A"],
+  ["54f0b1c8a90a", "54:F0:B1:C8:A9:0A"],
+  ["  54F0B1C8A90A  ", "54:F0:B1:C8:A9:0A"],
+]) {
+  eq(`accepts ${JSON.stringify(input)}`, SL.normaliseApMac(input), { ok: true, mac: want });
+}
+for (const [input, problem] of [
+  ["", "empty"],
+  ["   ", "empty"],
+  ["54:F0:B1:C8:A9", "malformed"],
+  ["54:F0:B1:C8:A9:0A:11", "malformed"],
+  ["54:F0-B1:C8:A9:0A", "malformed"],
+  ["54:F0:B1:C8:A9:0G", "malformed"],
+  ["54F0B1C8A90", "malformed"],
+  ["54f0.b1c8.a90a", "malformed"],
+  ["00:00:00:00:00:00", "placeholder"],
+  ["FF:FF:FF:FF:FF:FF", "placeholder"],
+  // Locally administered (bit 1): what the backend mints for a site added
+  // without its AP's MAC. Saving it would leave the gap where it was.
+  ["02:5A:11:22:33:44", "placeholder"],
+  ["DA:11:22:33:44:55", "placeholder"],
+  // Multicast (bit 0).
+  ["01:00:5E:00:00:01", "placeholder"],
+]) {
+  eq(`refuses ${JSON.stringify(input)} (${problem})`, SL.normaliseApMac(input), {
+    ok: false,
+    problem,
+  });
+}
+for (const problem of ["empty", "malformed", "placeholder"]) {
+  check(`problem ${problem} has a sentence`, (SL.AP_MAC_PROBLEM_COPY[problem] ?? "").length > 20);
+}
+check(
+  "the label warning is the exact sentence",
+  SL.AP_MAC_LABEL_WARNING ===
+    "Copy it from the label on the access point. One wrong character and every guest sign-in is rejected.",
+);
+const dup = {
+  status: 409,
+  message: "A router with MAC address '54:F0:B1:C8:A9:0A' already exists",
+  data: {},
+};
+eq(
+  "409 duplicate -> another device",
+  SL.apMacSaveErrorMessage(dup),
+  "This MAC is already on another device.",
+);
+eq(
+  "409 duplicate with a holder name -> named",
+  SL.apMacSaveErrorMessage({ ...dup, data: { router_name: "Lobby AP" } }),
+  "This MAC is already on another device: Lobby AP.",
+);
+eq(
+  "409 decommissioned -> the backend's words",
+  SL.apMacSaveErrorMessage({
+    status: 409,
+    message: "Router r is decommissioned and cannot be modified",
+  }),
+  "Router r is decommissioned and cannot be modified",
+);
+check(
+  "403 names the permission",
+  /routers\.update/.test(SL.apMacSaveErrorMessage({ status: 403 })),
+);
+eq(
+  "422 -> verbatim",
+  SL.apMacSaveErrorMessage({ status: 422, message: "String should have at least 17 characters" }),
+  "String should have at least 17 characters",
+);
+check(
+  "no error object -> fallback",
+  SL.apMacSaveErrorMessage(null).includes("Nothing was changed"),
+);
+check(
+  "the gap sentence points at the field",
+  SL.describeSharedListenerGap("no_ap_mac").includes("record it below"),
+);
+check(
+  "panel: the field is open by default on no_ap_mac",
+  panel.includes('const missing = shared.gaps.includes("no_ap_mac");') &&
+    panel.includes("if (!missing && !open) {"),
+);
+check("panel: gated on routers.update", panel.includes('if (!can("routers.update")) {'));
+check(
+  "panel: save sends the normalised MAC, then refetches the status read",
+  panel.includes("arubaInstantOnService.setApMac(routerId, parsed.mac)") &&
+    panel.includes("qc.invalidateQueries({ queryKey: arubaSetupQueryKey(routerId) })"),
+);
+check("panel: the label warning is rendered", panel.includes("{AP_MAC_LABEL_WARNING}"));
 
 console.log(`\n${ran} checks ran`);
 console.log(
