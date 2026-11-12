@@ -558,9 +558,9 @@ export function guestVerdict(signals: GuestSignals): GuestVerdict {
       meaning: guest.blockedReason
         ? `The reason recorded was "${guest.blockedReason}".`
         : "No reason was recorded when they were blocked.",
-      // Blocked guests are listed (and unblocked) in Security › Blocking;
-      // Access Rules no longer holds them.
-      action: "If that was a mistake, unblock them in Security › Blocking.",
+      // Blocked guests are listed (and unblocked) in Guests › Guests &
+      // devices; neither Access Rules nor Security › Blocking holds them.
+      action: "If that was a mistake, unblock them in Guests › Guests & devices.",
       checked: ["Whether they're blocked here"],
       notChecked: [],
     };

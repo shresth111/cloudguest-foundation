@@ -279,6 +279,7 @@ for (const id of [
   "admin-logs",
   "network-activity",
   "blocking",
+  "blocked-guests",
   "firewall",
   "web-filtering",
   "campaigns",
@@ -307,16 +308,19 @@ check(
   navItemAllowed("admin-logs", new Set(["audit_logs.read"])) &&
     !navItemAllowed("admin-logs", new Set(["admin_logs.read"])),
 );
-// Website Blocking moved into Security -> Blocking with the Blocked Guests
-// screen. The row is offered on EITHER domain's read key -- each tab is a
-// page worth opening alone -- and on neither key it is not offered at all.
+// Website Blocking moved into Security -> Blocking. Its Guests & devices
+// tab moved on to the Guests section as `blocked-guests` (2026-11-12), and
+// took `guest_access.read` with it: Blocking alone no longer reads
+// /guest-access/*, so that key no longer offers it.
 check(
   "blocking is offered on content_filtering.read (the Websites tab)",
   navItemAllowed("blocking", new Set(["content_filtering.read"])),
 );
 check(
-  "blocking is offered on guest_access.read (the Guests tab)",
-  navItemAllowed("blocking", new Set(["guest_access.read"])),
+  "Guests & devices is offered on guest_access.read, and Blocking no longer is",
+  navItemAllowed("blocked-guests", new Set(["guest_access.read"])) &&
+    !navItemAllowed("blocked-guests", new Set(["content_filtering.read"])) &&
+    !navItemAllowed("blocking", new Set(["guest_access.read"])),
 );
 check(
   "blocking is not offered on an unrelated key",

@@ -3,7 +3,7 @@
  *
  * Owner decision, 2026-10-31: front-desk staff may UNBLOCK a guest at their
  * own venue (not block, not edit rules). Blocked guests otherwise live only
- * under Security -> Blocking -> Guests & devices, which is owner-only.
+ * under Guests -> Guests & devices (`/blocked-guests`), which is owner-only.
  *
  * WHAT THE BACKEND ALREADY ENFORCES (cloud-guest, guest_access)
  * -------------------------------------------------------------
@@ -18,7 +18,7 @@
  *     cannot be lifted by a venue-scoped caller. So this file never offers
  *     that Unblock to one -- it says who can instead.
  *   - The release from the router / controller is the same service path the
- *     owner's Unblock on Blocking takes; nothing here talks to a device.
+ *     owner's Unblock on Guests & devices takes; nothing here talks to a device.
  *
  * Pure and dependency-free so scripts/test-guest-unblock.mjs can execute it.
  */

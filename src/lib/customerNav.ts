@@ -31,6 +31,7 @@ import {
   Waypoints,
   Gauge,
   Logs,
+  UserX,
 } from "lucide-react";
 
 export type CustomerLoginRole = "owner" | "agent";
@@ -186,10 +187,10 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         label: "Guests",
         icon: Users,
         roles: ["owner", "agent"],
-        // "unblock" lands here as well as on Security -> Blocking: a blocked
+        // "unblock" lands here as well as on Guests & devices: a blocked
         // guest's row carries an Unblock action, and this is the screen the
-        // front desk can see (Blocking is owner-only). Hindi beside English
-        // because the palette matches keywords as typed.
+        // front desk can see (Guests & devices is owner-only). Hindi beside
+        // English because the palette matches keywords as typed.
         keywords: [
           "visitors",
           "users",
@@ -199,6 +200,30 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
           "online",
           "unblock",
           "blocked guest",
+          "अनब्लॉक",
+          "ब्लॉक हटाएं",
+          "ब्लॉक मेहमान",
+        ],
+      },
+      // The guests, numbers, emails and devices this venue has blocked
+      // (`BlockUsers`). It was the "Guests & devices" tab of Security ->
+      // Blocking; moved here on the owner's call (2026-11-12) because
+      // blocking a guest is about the people on the WiFi. Moved, not copied:
+      // Blocking no longer has the tab, and `/blocking?tab=guests` redirects
+      // to `/blocked-guests`. Owner-only, as it was there. `UserX`: unused
+      // by any other row, and it is what the screen does.
+      {
+        id: "blocked-guests",
+        label: "Guests & devices",
+        icon: UserX,
+        roles: ["owner"],
+        keywords: [
+          "block guest",
+          "block device",
+          "blocked guest",
+          "blocked guests",
+          "ban",
+          "unblock",
           "अनब्लॉक",
           "ब्लॉक हटाएं",
           "ब्लॉक मेहमान",
@@ -415,8 +440,8 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
     // Three rows, and each opens a screen that does something. The posture
     // page is the only security surface whose numbers this platform can
     // actually produce (see SecurityOverviewView's own note), and Block
-    // Websites is the one place to stop a website (by name or by category),
-    // an address or a guest -- built entirely from screens that already
+    // Websites is the one place to stop a website (by name or by category)
+    // or an address -- built entirely from screens that already
     // worked elsewhere (lib/blocking.ts). "Web filtering" was a fourth row;
     // its categories are a section of Block Websites now and /web-filtering
     // redirects there, because two rows for "block a website" sent owners
@@ -449,10 +474,11 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
         roles: ["owner"],
         keywords: ["security", "posture", "protection"],
       },
-      // "Blocking", not "Block Websites": the page has two tabs, Websites
-      // AND Guests & devices (lib/blocking.ts), and an owner looking for a
-      // blocked guest did not think to open a screen named for websites.
-      // Same id, same /blocking URL.
+      // "Blocking": the one place to block a website, an app, a category or
+      // an internet address (lib/blocking.ts). It also had a Guests &
+      // devices tab until 2026-11-12; that is Guests -> Guests & devices
+      // now, so the guest keywords moved with it. Same id, same /blocking
+      // URL.
       {
         id: "blocking",
         label: "Blocking",
@@ -464,12 +490,8 @@ export const CUSTOMER_NAV_GROUPS: CustomerNavGroup[] = [
           "web filter",
           "block site",
           "content filter",
-          "block guest",
-          "unblock",
-          "blocked guest",
-          "अनब्लॉक",
-          "ब्लॉक हटाएं",
-          "ब्लॉक मेहमान",
+          "block app",
+          "block ip",
         ],
       },
       // Owner-only, like every other screen that writes the venue's router.

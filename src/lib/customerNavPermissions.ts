@@ -139,13 +139,16 @@ export const NAV_PERMISSION_KEYS: Record<string, readonly string[]> = {
   // exactly what `scripts/test-customer-nav-permissions.mjs` is there to
   // catch, since a key nobody seeds hides the row from everyone.
   security: ["security.read"],
-  // Blocking is two screens that moved here (lib/blocking.ts), each guarded
-  // by its own domain: `/content-filter/rules` by `content_filtering.read`,
-  // `/guest-access/rules` by `guest_access.read`. Either one is a page worth
-  // opening, so either one offers the row -- requiring both would hide a
-  // working tab from a role that only holds the other. The page narrows its
-  // own tabs by the same keys (`blockingTabsFor`).
-  blocking: ["content_filtering.read", "guest_access.read"],
+  // Blocking reads `/content-filter/rules` (`content_filtering.read`). It
+  // also offered the row on `guest_access.read` while it had a Guests &
+  // devices tab; that tab is "blocked-guests" now (Guests group), so the key
+  // went with it. The page narrows its own tabs by the same keys
+  // (`blockingTabsFor`).
+  blocking: ["content_filtering.read"],
+  // Guests -> Guests & devices reads `/guest-access/rules` and
+  // `/guest-access/device-rules`, both guarded by `guest_access.read` -- the
+  // same key Guest Allow-list is guarded by.
+  "blocked-guests": ["guest_access.read"],
   // Security -> Firewall reads `/firewall-rules` (`firewall.read`); Apply is
   // `firewall.execute`, which the backend checks on the push itself. Same
   // module Port Forwarding is guarded by -- there is one FIREWALL module.

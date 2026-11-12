@@ -20,8 +20,12 @@
  *    internet address (IP) is blocked. `/website-blocking` and
  *    `/web-filtering` redirect here, so an old bookmark lands on the same
  *    rules.
- *  - "Guests & devices" is `BlockUsers` -- the screen that was the "Blocked
- *    Guests" tab of Access Rules. That tab is gone from Access Rules.
+ *
+ * "Guests & devices" (`BlockUsers`) was a second tab here until 2026-11-12.
+ * It moved to the Guests section (`/blocked-guests`, owner's call: blocking
+ * a guest is about the people on the WiFi, and owners looked for it under
+ * Guests). Moved, not copied: it is no longer a tab here, and
+ * `/blocking?tab=guests` redirects there (routes/blocking.tsx).
  *
  * Two homes for one setting is how two people end up looking at different
  * screens and believing different things (see PoliciesHub's note on why
@@ -34,7 +38,7 @@
  * second copy.
  */
 
-export type BlockingTabId = "websites" | "guests";
+export type BlockingTabId = "websites";
 
 export interface BlockingTab {
   id: BlockingTabId;
@@ -42,16 +46,15 @@ export interface BlockingTab {
   label: string;
   /** Backend keys the tab's own reads are guarded by -- the same keys the
    * endpoints it calls check (`content_filtering.read` on
-   * `/content-filter/rules`, `guest_access.read` on `/guest-access/rules`).
+   * `/content-filter/rules`).
    * Any one is enough, the same OR shape as `NAV_PERMISSION_KEYS`. */
   permissionKeys: readonly string[];
   /** The id `CONTROLLER_UNSUPPORTED_FEATURE_IDS` knows this tab's screen by,
    * when a controller-managed venue cannot use it. The Websites tab writes
    * RouterOS DNS and address-list entries and switches the router's DNS onto
    * Cloudflare; there is no RouterOS at an
-   * Omada-only venue. `null` for a tab that works on both -- blocking a
-   * guest is enforced at sign-in on our side and, at a controller venue,
-   * reaches the controller through its own client-block call. */
+   * Omada-only venue. `null` for a tab that works on both (none today;
+   * Guests & devices was one, before it moved to the Guests section). */
   controllerGatedAs: string | null;
 }
 
@@ -61,12 +64,6 @@ export const BLOCKING_TABS: readonly BlockingTab[] = [
     label: "Websites",
     permissionKeys: ["content_filtering.read"],
     controllerGatedAs: "website-blocking",
-  },
-  {
-    id: "guests",
-    label: "Guests & devices",
-    permissionKeys: ["guest_access.read"],
-    controllerGatedAs: null,
   },
 ];
 

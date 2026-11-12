@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Globe2, Loader2, Router as RouterIcon, UserX } from "lucide-react";
+import { ChevronDown, Globe2, Loader2, Router as RouterIcon } from "lucide-react";
 import i18n from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { PageHeader, SubTabs, type PageScope } from "@/components/customer/console";
+import { PageHeader, type PageScope } from "@/components/customer/console";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ContentFilterManagement } from "@/components/network/ContentFilterManagement";
 import { ControllerRoutersNote } from "@/components/network/RouterPickerItems";
-import BlockUsers from "@/components/features/BlockUsers";
 import { ControllerManagedFeatureNotice } from "@/components/customer/ControllerManagedFeatureNotice";
 import { WebsiteBlockBox } from "@/components/security/WebsiteBlockBox";
 import { AppBlockBox, AppBlockLimits } from "@/components/security/AppBlockBox";
@@ -29,17 +28,7 @@ import {
   featureAppliesToControllerVenue,
   partitionRoutersByDeviceWrite,
 } from "@/lib/router-vendors";
-import {
-  blockingTabsFor,
-  initialBlockingTab,
-  isBlockingTabId,
-  type BlockingTabId,
-} from "@/lib/blocking";
-
-const TAB_ICON: Record<BlockingTabId, typeof Globe2> = {
-  websites: Globe2,
-  guests: UserX,
-};
+import { blockingTabsFor, initialBlockingTab, type BlockingTabId } from "@/lib/blocking";
 
 /** In-page anchors on the Websites tab. `/web-filtering` redirects to
  * `#categories`; the Security Score's "Block an internet address" link opens
@@ -52,8 +41,12 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
 } as const;
 
 /**
- * Security -> Block Websites. The one place to block a website, plus the
- * guests & devices tab that has always lived beside it.
+ * Security -> Blocking. The one place to block a website.
+ *
+ * "Guests & devices" used to be a second tab here. It is Guests -> Guests &
+ * devices now (`BlockedGuestsView`, `/blocked-guests`), and the page header
+ * links there, because an owner who blocked a guest here last week will look
+ * here first.
  *
  * A shell and nothing else: every section mounts the screen that already did
  * the job (see `lib/blocking.ts` for which, and why each one moved rather than
@@ -86,9 +79,8 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
  * Everything on "Websites" writes to a MikroTik; at a venue whose only router
  * is an Omada controller there is nothing for it to write to, so that tab
  * shows the existing `ControllerManagedFeatureNotice` and none of the three
- * sections is mounted. "Guests & devices" keeps working there exactly as it
- * did under Access Rules -- `BlockUsers` already reports what the controller
- * did with each block. The page therefore opens on that tab at such a venue.
+ * sections is mounted. Blocking a guest works at such a venue, and the
+ * header's link to Guests & devices is the way there.
  *
  * Reads the venue from the store rather than taking it as props, so the
  * owner's `/blocking` route and the staff `/agent` shell mount it the same
@@ -96,9 +88,10 @@ export const BLOCK_WEBSITES_SECTION_IDS = {
  *
  * ## The URL carries the tab
  *
- * With `syncWithUrl`, `?tab=websites|guests` picks the tab and switching tabs
- * rewrites it. That is what lets the Security Score and old
- * `/website-blocking` and `/web-filtering` bookmarks land on the right tab.
+ * With `syncWithUrl`, `?tab=websites` picks the tab. That is what lets the
+ * Security Score and old `/website-blocking` and `/web-filtering` bookmarks
+ * land on the right tab (`?tab=guests` never reaches this view: the route
+ * redirects it to `/blocked-guests`).
  * The `/agent` shell has one URL for every feature, so it leaves this off and
  * keeps the tab local.
  */
@@ -114,7 +107,6 @@ export function BlockingView({
 }) {
   const { t } = useTranslation("nav", { i18n });
   const nasOnlyVenue = locationIsNasOnly(useCustomerStore((st) => st.activeLocation)?.liveness);
-  const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { tab?: unknown };
   const activeLocation = useCustomerStore((s) => s.activeLocation);
   const { data: permissions } = useMyPermissions();
@@ -123,25 +115,14 @@ export function BlockingView({
   const controllerVendor = locationControllerVendor(activeLocation?.liveness);
   const offered = blockingTabsFor(permissions);
 
-  const [localTab, setLocalTab] = useState<BlockingTabId>(() =>
-    initialBlockingTab(syncWithUrl ? search.tab : undefined, offered, controllerManaged),
+  // One tab today (Websites), so there is no tab bar to switch; the URL's
+  // `?tab=` is still read, so a deep link keeps landing where it says if a
+  // second tab is ever added back. Recomputed each render.
+  const tab: BlockingTabId = initialBlockingTab(
+    syncWithUrl ? search.tab : undefined,
+    offered,
+    controllerManaged,
   );
-  // From the URL when it carries a tab we offer; otherwise the local choice.
-  // Recomputed each render, so the browser's back button moves the tab too.
-  const tab: BlockingTabId =
-    syncWithUrl && isBlockingTabId(search.tab) && offered.some((o) => o.id === search.tab)
-      ? search.tab
-      : offered.some((o) => o.id === localTab)
-        ? localTab
-        : initialBlockingTab(undefined, offered, controllerManaged);
-
-  const selectTab = (next: string) => {
-    if (!isBlockingTabId(next)) return;
-    setLocalTab(next);
-    if (syncWithUrl) {
-      void navigate({ to: "/blocking", search: { tab: next }, replace: true });
-    }
-  };
 
   const current = offered.find((o) => o.id === tab);
   const gated =
@@ -160,13 +141,18 @@ export function BlockingView({
             {nasOnlyVenue
               ? t(
                   "blockingPage.introNasOnly",
-                  "Stop a guest or device from using your guest WiFi. Website blocking isn't available on Aruba Instant On access points.",
+                  "Website blocking isn't available on Aruba Instant On access points.",
                 )
-              : t(
-                  "blockWebsites.intro",
-                  "Stop websites from opening on your guest WiFi, or stop a guest or device from using it.",
-                )}{" "}
-            {t("blockingPage.onlyAllowedPrefix", "To let in only people you have listed, use")}{" "}
+              : t("blockWebsites.intro", "Stop websites from opening on your guest WiFi.")}{" "}
+            {t("blockingPage.guestsMovedPrefix", "To block a guest or device, use")}{" "}
+            <Link
+              to="/blocked-guests"
+              className="rounded-sm font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wy-accent)]"
+            >
+              {t("customerGroup.guests", "Guests")} {"→"}{" "}
+              {t("customerItem.blocked-guests", "Guests & devices")}
+            </Link>
+            . {t("blockingPage.onlyAllowedPrefix", "To let in only people you have listed, use")}{" "}
             <Link
               to="/whitelist"
               className="rounded-sm font-medium text-[var(--wy-accent)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--wy-accent)]"
@@ -178,33 +164,8 @@ export function BlockingView({
         }
       />
 
-      {offered.length > 1 && (
-        <SubTabs
-          idPrefix="blocking"
-          ariaLabel={t("customerItem.blocking", "Blocking")}
-          value={tab}
-          onChange={selectTab}
-          options={offered.map((o) => {
-            const Icon = TAB_ICON[o.id];
-            return {
-              value: o.id,
-              label: (
-                <>
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                  {t(`blockingTab.${o.id}`, o.label)}
-                </>
-              ),
-            };
-          })}
-        />
-      )}
-
       {current && (
-        <div
-          id="blocking-panel"
-          role={offered.length > 1 ? "tabpanel" : undefined}
-          aria-labelledby={offered.length > 1 ? `blocking-tab-${current.id}` : undefined}
-        >
+        <div id="blocking-panel">
           {gated && current.controllerGatedAs ? (
             <ControllerManagedFeatureNotice
               featureId={current.controllerGatedAs}
@@ -212,10 +173,8 @@ export function BlockingView({
               venueName={activeLocation?.name ?? null}
               vendor={controllerVendor}
             />
-          ) : current.id === "websites" ? (
-            <WebsitesTab locationId={locationId} />
           ) : (
-            <BlockUsers locationId={locationId} />
+            <WebsitesTab locationId={locationId} />
           )}
         </div>
       )}

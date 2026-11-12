@@ -16,6 +16,7 @@ import { Route as AgentRouteImport } from './routes/agent'
 import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as AlertsRouteImport } from './routes/alerts'
 import { Route as BackgroundImageRouteImport } from './routes/background-image'
+import { Route as BlockedGuestsRouteImport } from './routes/blocked-guests'
 import { Route as BlockingRouteImport } from './routes/blocking'
 import { Route as BusinessHoursRouteImport } from './routes/business-hours'
 import { Route as DebuggingRouteImport } from './routes/debugging'
@@ -236,6 +237,11 @@ const AlertsRoute = AlertsRouteImport.update({
 const BackgroundImageRoute = BackgroundImageRouteImport.update({
   id: '/background-image',
   path: '/background-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlockedGuestsRoute = BlockedGuestsRouteImport.update({
+  id: '/blocked-guests',
+  path: '/blocked-guests',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlockingRoute = BlockingRouteImport.update({
@@ -1265,6 +1271,7 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AgentsRoute
   '/alerts': typeof AlertsRoute
   '/background-image': typeof BackgroundImageRoute
+  '/blocked-guests': typeof BlockedGuestsRoute
   '/blocking': typeof BlockingRoute
   '/business-hours': typeof BusinessHoursRoute
   '/debugging': typeof DebuggingRoute
@@ -1459,6 +1466,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AgentsRoute
   '/alerts': typeof AlertsRoute
   '/background-image': typeof BackgroundImageRoute
+  '/blocked-guests': typeof BlockedGuestsRoute
   '/blocking': typeof BlockingRoute
   '/business-hours': typeof BusinessHoursRoute
   '/debugging': typeof DebuggingRoute
@@ -1651,6 +1659,7 @@ export interface FileRoutesById {
   '/agents': typeof AgentsRoute
   '/alerts': typeof AlertsRoute
   '/background-image': typeof BackgroundImageRoute
+  '/blocked-guests': typeof BlockedGuestsRoute
   '/blocking': typeof BlockingRoute
   '/business-hours': typeof BusinessHoursRoute
   '/debugging': typeof DebuggingRoute
@@ -1848,6 +1857,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/alerts'
     | '/background-image'
+    | '/blocked-guests'
     | '/blocking'
     | '/business-hours'
     | '/debugging'
@@ -2042,6 +2052,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/alerts'
     | '/background-image'
+    | '/blocked-guests'
     | '/blocking'
     | '/business-hours'
     | '/debugging'
@@ -2233,6 +2244,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/alerts'
     | '/background-image'
+    | '/blocked-guests'
     | '/blocking'
     | '/business-hours'
     | '/debugging'
@@ -2430,6 +2442,7 @@ export interface RootRouteChildren {
   AgentsRoute: typeof AgentsRoute
   AlertsRoute: typeof AlertsRoute
   BackgroundImageRoute: typeof BackgroundImageRoute
+  BlockedGuestsRoute: typeof BlockedGuestsRoute
   BlockingRoute: typeof BlockingRoute
   BusinessHoursRoute: typeof BusinessHoursRoute
   DebuggingRoute: typeof DebuggingRoute
@@ -2532,6 +2545,13 @@ declare module '@tanstack/react-router' {
       path: '/background-image'
       fullPath: '/background-image'
       preLoaderRoute: typeof BackgroundImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blocked-guests': {
+      id: '/blocked-guests'
+      path: '/blocked-guests'
+      fullPath: '/blocked-guests'
+      preLoaderRoute: typeof BlockedGuestsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blocking': {
@@ -4232,6 +4252,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentsRoute: AgentsRoute,
   AlertsRoute: AlertsRoute,
   BackgroundImageRoute: BackgroundImageRoute,
+  BlockedGuestsRoute: BlockedGuestsRoute,
   BlockingRoute: BlockingRoute,
   BusinessHoursRoute: BusinessHoursRoute,
   DebuggingRoute: DebuggingRoute,

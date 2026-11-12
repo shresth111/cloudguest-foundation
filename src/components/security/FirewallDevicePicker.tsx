@@ -186,12 +186,8 @@ export function DeviceAddressNote({
             "firewallPage.guestWhoNote",
             "This is a guest's device. Guests' addresses change and are handed to the next guest, so this rule may soon match someone else. To keep one guest device off your WiFi, use",
           )}{" "}
-          <Link
-            to="/blocking"
-            search={{ tab: "guests" }}
-            className="font-medium underline underline-offset-2"
-          >
-            {t("firewallPage.guestWhoLink", "Blocking → Guests & devices")}
+          <Link to="/blocked-guests" className="font-medium underline underline-offset-2">
+            {t("firewallPage.guestWhoLink", "Guests → Guests & devices")}
           </Link>{" "}
           {t("firewallPage.guestWhoTail", "— it blocks the device itself, not its address.")}
         </span>

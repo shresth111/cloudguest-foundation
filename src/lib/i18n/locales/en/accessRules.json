@@ -3,7 +3,7 @@
   "tabLimits": "Guest WiFi Limits",
   "tabTiers": "Access Tiers",
   "blockedMovedPrefix": "Looking for blocked guests? They are now under",
-  "blockedMovedSuffix": ", together with blocked websites.",
+  "blockedMovedSuffix": ".",
   "limitsApplyNote": "A speed change reaches guests who are already online, usually within a minute. Timeouts and device count apply the next time each guest connects — anyone online right now keeps those until then. A data limit is different: it counts usage guests have already spent this period, so adding or lowering one can sign someone out within minutes.",
   "venueSpeed": {
     "label": "Total venue speed",

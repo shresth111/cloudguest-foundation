@@ -85,6 +85,7 @@ const MIGRATED = [
   "src/components/security/FirewallView.tsx",
   "src/components/security/FirewallDevicePicker.tsx",
   "src/components/features/BlockUsers.tsx",
+  "src/components/features/BlockedGuestsView.tsx",
   "src/components/features/PoliciesHub.tsx",
   "src/components/features/LocationPolicies.tsx",
   "src/components/features/CreateGroup.tsx",

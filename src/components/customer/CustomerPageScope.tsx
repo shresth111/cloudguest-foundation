@@ -22,6 +22,7 @@ export const OWN_PAGE_HEADER_FEATURES: ReadonlySet<string> = new Set([
   // batch 2 (Guests' own route, /users, draws its PageHeader directly)
   "debugging",
   "teams",
+  "blocked-guests",
   "vouchers",
   "reports",
   "business-hours",
