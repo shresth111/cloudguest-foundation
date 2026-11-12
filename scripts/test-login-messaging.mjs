@@ -242,6 +242,111 @@ check(
 );
 eq("verify sends the typed number", globalThis.__calls[2][2], { to: "+919876543210" });
 
+console.log("backup (fallback) setting");
+globalThis.__calls = [];
+await svc.put(plat, "sms", {
+  provider_type: null,
+  config: {},
+  fallback_to_platform_default: false,
+});
+eq("Master sends the backup setting as given", globalThis.__calls[0][2], {
+  provider_type: null,
+  config: {},
+  fallback_to_platform_default: false,
+});
+const tsSchema = {
+  key: "trustsignal",
+  channel: "sms",
+  display_name: "TrustSignal",
+  docs_url: "https://postman.trustsignal.io/",
+  notes: "",
+  sender_field: "sender_id",
+  fields: [
+    {
+      name: "api_key",
+      label: "API key",
+      kind: "secret",
+      required: true,
+      help: "",
+      placeholder: "",
+      options: [],
+      pattern: null,
+      default: null,
+      max_length: 2048,
+    },
+    {
+      name: "sender_id",
+      label: "Sender id",
+      kind: "text",
+      required: true,
+      help: "",
+      placeholder: "",
+      options: [],
+      pattern: "[A-Za-z0-9]{3,11}|\\+?\\d{6,15}",
+      default: null,
+      max_length: 2048,
+    },
+    {
+      name: "route",
+      label: "Route",
+      kind: "select",
+      required: true,
+      help: "",
+      placeholder: "",
+      options: ["otp", "transactional"],
+      pattern: null,
+      default: "otp",
+      max_length: 2048,
+    },
+    {
+      name: "template_id",
+      label: "Template id",
+      kind: "text",
+      required: true,
+      help: "",
+      placeholder: "",
+      options: [],
+      pattern: "[A-Za-z0-9_-]{1,64}",
+      default: null,
+      max_length: 2048,
+    },
+    {
+      name: "message_template",
+      label: "Approved message text",
+      kind: "textarea",
+      required: true,
+      help: "",
+      placeholder: "",
+      options: [],
+      pattern: null,
+      default: null,
+      max_length: 1000,
+    },
+  ],
+};
+const tsValues = {
+  ...m.initialValues(tsSchema, null),
+  api_key: "k-not-real-000000000",
+  sender_id: "KENCOF",
+  template_id: "1407173226737049269",
+  message_template: "Enter {#var#} to complete your sign-up.",
+};
+const tsPut = m.buildPut(tsSchema, tsValues, null);
+eq("the TrustSignal form defaults the route to otp", tsPut.body?.config.route, "otp");
+check(
+  "the form never sends the backup setting (Master toggles it on the card)",
+  tsPut.body !== null && !("fallback_to_platform_default" in tsPut.body),
+);
+const card = read("src/components/login-messaging/LoginMessagingCard.tsx");
+check(
+  "the backup toggle renders for Master only",
+  /\{master && own && \(\s*<div[\s\S]*?login-fallback-/.test(card),
+);
+check(
+  "with backup off the card says Wyfy Guest never sends",
+  card.includes("Wyfy Guest's account is never used"),
+);
+
 console.log("copy");
 const dir = "src/components/login-messaging";
 const sources = readdirSync(join(ROOT, dir))
@@ -256,11 +361,12 @@ check(
     sources.replace(/data-testid=\{?[^}\s>]*\}?/g, "").replace(/\.test\(/g, "("),
   ),
 );
+// Master-only rollout (TrustSignal for one customer): the customer
+// dashboard is unchanged for every organization, so the Portal page does
+// not mount the card.
 check(
-  "the customer Portal page mounts the card",
-  read("src/components/features/PortalPage.tsx").includes(
-    '<LoginMessagingCard\n        target={{ kind: "own" }}',
-  ),
+  "the customer Portal page does not mount the card",
+  !read("src/components/features/PortalPage.tsx").includes("LoginMessagingCard"),
 );
 check(
   "the Master drawer mounts the card for the drawer's organization",

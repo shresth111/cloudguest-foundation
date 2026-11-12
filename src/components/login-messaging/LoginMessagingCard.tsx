@@ -77,7 +77,9 @@ function StatusTag({ status }: { status: string }) {
  * SMS. By default Wyfy Guest's own account sends them, and nobody has to do
  * anything. A venue (or the Wyfy team, from Master, for that venue) can plug
  * in its own WhatsApp or SMS API; it is used once verified, and whenever it
- * fails a code goes out from Wyfy Guest instead so no guest is locked out.
+ * fails a code goes out from Wyfy Guest instead so no guest is locked out --
+ * unless the Wyfy team turned that backup off for the customer (Master
+ * only), in which case their provider is the only sender.
  *
  * `target.kind === "platform"` is the Master console acting for one
  * organization (the backend takes the organization from the path and
@@ -206,6 +208,10 @@ function ChannelRow({
   const label = CHANNEL_LABEL[channel];
   const schema = own ? adapters.find((a) => a.key === own.provider_type) : undefined;
 
+  // false only when Master turned it off for this customer: their provider
+  // is then the only sender, and Wyfy Guest never sends a code for them.
+  const fallbackOn = own?.fallback_to_platform_default !== false;
+
   const heading =
     state.effective_source === "own" && own
       ? `Using your own · ${ownName(own)}`
@@ -222,6 +228,23 @@ function ChannelRow({
       );
     } catch (err) {
       toast.error(loginMessagingError(err, "Couldn't change the provider."));
+    }
+  };
+
+  const setFallback = async (on: boolean) => {
+    if (!own) return;
+    try {
+      await save.mutateAsync({
+        channel,
+        body: { provider_type: null, config: {}, fallback_to_platform_default: on },
+      });
+      toast.success(
+        on
+          ? `If ${ownName(own)} fails, Wyfy Guest sends the ${label} code instead.`
+          : `Only ${ownName(own)} sends ${label} codes now. Wyfy Guest never sends them.`,
+      );
+    } catch (err) {
+      toast.error(loginMessagingError(err, "Couldn't change the backup setting."));
     }
   };
 
@@ -277,14 +300,17 @@ function ChannelRow({
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>
             {own.fallback.count} login code{own.fallback.count === 1 ? "" : "s"} couldn't go through{" "}
-            {ownName(own)} and {own.fallback.count === 1 ? "was" : "were"} sent by Wyfy Guest
-            instead, so guests still got in. Last at {when(own.fallback.last_at)}
+            {ownName(own)}
+            {fallbackOn
+              ? ` and ${own.fallback.count === 1 ? "was" : "were"} sent by Wyfy Guest instead, so guests still got in`
+              : ". No backup is set, so those guests were asked to try again"}
+            . Last at {when(own.fallback.last_at)}
             {own.fallback.last_error ? `: ${own.fallback.last_error}` : ""}.
           </span>
         </p>
       )}
 
-      {own?.last_error && own.status !== "verified" && (
+      {own?.last_error && (own.status !== "verified" || !fallbackOn) && (
         <p className="rounded-md bg-red-50 p-2 text-xs text-red-800 dark:bg-red-500/10 dark:text-red-300">
           {own.last_error}
         </p>
@@ -297,6 +323,28 @@ function ChannelRow({
               ? `Turned off: Wyfy Guest sends ${label} codes.`
               : `Not in use: Wyfy Guest sends ${label} codes.`}
         </p>
+      )}
+
+      {master && own && (
+        <div
+          className="space-y-1 rounded-md border border-dashed border-border p-2"
+          data-testid={`login-fallback-${channel}`}
+        >
+          <label className="flex items-center gap-2 text-xs font-medium">
+            <Switch
+              checked={fallbackOn}
+              disabled={!canManage || save.isPending}
+              onCheckedChange={(v) => void setFallback(v)}
+              aria-label={`Back up ${label} codes with Wyfy Guest's own account`}
+            />
+            Back up with Wyfy Guest if this provider fails
+          </label>
+          <p className="text-[11px] text-muted-foreground">
+            {fallbackOn
+              ? `On: when ${ownName(own)} fails or is slow, Wyfy Guest's own account sends the same code.`
+              : `Off: only ${ownName(own)} sends this customer's ${label} codes. If it fails, the guest sees "We couldn't send your code. Please try again." and Wyfy Guest's account is never used.`}
+          </p>
+        </div>
       )}
 
       {shown.length > 0 && (

@@ -57,6 +57,10 @@ export interface LoginProviderView {
   last_error: string | null;
   display: Record<string, unknown>;
   configured_by_platform: boolean;
+  /** false: this provider is the ONLY sender of the customer's login codes;
+   * a failed send is an error to the guest, never a Wyfy Guest send. Set
+   * from Master only. Absent on servers older than migration 0184 = true. */
+  fallback_to_platform_default?: boolean;
   set_up_by: "wyfy_team" | "venue";
   fallback: { count: number; last_at: string | null; last_error: string | null };
   updated_at: string | null;
@@ -81,6 +85,8 @@ export interface LoginProviderPut {
   provider_type?: string | null;
   config: Record<string, unknown>;
   enabled?: boolean | null;
+  /** Master route only; the customer route refuses it. */
+  fallback_to_platform_default?: boolean | null;
 }
 
 export interface VerifyStartResult {
