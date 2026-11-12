@@ -8,8 +8,9 @@
  * `arubaInstantOnService` and `api` client, against a local server that plays
  * the backend of ~/wyfy-ops/aruba-ap21/API_CONTRACT.md §2-§4 and records every
  * request. Same harness shape as `test-omada-guided-setup.mjs`; only the
- * router library, `sonner` (recorded, so a refusal's toast can be read) and
- * `@/hooks/useRouters` are stubbed.
+ * router library, `sonner` (recorded, so a refusal's toast can be read),
+ * `@/hooks/useRouters` and `@/context/AuthContext` (`can()` answers from
+ * `window.__deny`) are stubbed.
  *
  * What it pins (PM_SPEC §0.2, §0.3, AC1-2, AC1-3), none of it visible to tsc:
  *
@@ -26,7 +27,12 @@
  *   - a 422 refusal is shown verbatim;
  *   - the §0.3 checklist, in order, with the values split into Instant On's
  *     boxes, and the panel never claims it opened the hub firewall;
- *   - MikroTik and Omada rows never call the Aruba routes.
+ *   - MikroTik and Omada rows never call the Aruba routes;
+ *   - the shared listener's `no_ap_mac` gap opens an AP MAC field: malformed
+ *     and placeholder MACs are refused before any request, a save is one
+ *     `PUT /routers/{id}` carrying only the normalised `mac_address`, a 409
+ *     duplicate says another device holds it, success refetches the status
+ *     so the gap clears, and without routers.update no field is offered.
  */
 import { build } from "esbuild";
 import { createServer } from "node:http";
@@ -161,6 +167,12 @@ writeFileSync(
    export const Toaster = () => null;`,
 );
 writeFileSync(
+  join(work, "auth-stub.js"),
+  `export function useAuth() {
+     return { can: (p) => !(window.__deny || []).includes(p) };
+   }`,
+);
+writeFileSync(
   join(work, "router-hooks-stub.js"),
   `export const routerKeys = {
      all: ["routers"], list: (q) => ["routers", "list", q],
@@ -222,6 +234,7 @@ await build({
   alias: {
     "@tanstack/react-router": join(work, "router-stub.jsx"),
     "@/hooks/useRouters": join(work, "router-hooks-stub.js"),
+    "@/context/AuthContext": join(work, "auth-stub.js"),
     sonner: join(work, "sonner-stub.js"),
   },
   loader: { ".ts": "ts", ".tsx": "tsx" },
@@ -233,6 +246,27 @@ await build({
 /** Every API request, in order: { method, path, body, headers }. */
 let requests = [];
 let servedRouter = ARUBA_ROUTER;
+/** Permissions the auth stub's `can()` refuses. */
+let denied = [];
+/** A MAC another live device holds: `PUT /routers/r-aruba` answers 409. */
+const DUP_MAC = "AC:23:16:00:AA:01";
+const REAL_AP_MAC = "54:F0:B1:C8:A9:0A";
+const sharedRaw = (over = {}) => ({
+  available: false,
+  radius_server: { host: RADIUS_HOST, auth_port: 1912, accounting_port: 1913 },
+  auth_port: 1912,
+  accounting_port: 1913,
+  nas_identifier: "cg-aruba-9e6069de",
+  ap_mac: null,
+  ap_mac_placeholder: true,
+  secret_configured: true,
+  secret_fingerprint: "64e065037cf0",
+  secret_length: 32,
+  secret_rotated_at: null,
+  hub_confirmed: true,
+  gaps: ["no_ap_mac"],
+  ...over,
+});
 /** What the status read answers: { status, body }. */
 let statusAnswer = { status: 200, body: unregistered() };
 /** What register answers, and the status read becomes after it. */
@@ -258,7 +292,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/html" });
       return res.end(
         `<!doctype html><meta charset=utf-8><title>aruba setup harness</title>
-         <script>window.__router = ${JSON.stringify(servedRouter)};</script>
+         <script>window.__router = ${JSON.stringify(servedRouter)}; window.__deny = ${JSON.stringify(denied)};</script>
          <div id=root></div><script type=module src="./bundle.js"></script>`,
       );
     }
@@ -338,6 +372,33 @@ const server = createServer(async (req, res) => {
           "Guest WiFi at this venue is DOWN until this secret is entered in the Instant On app.",
       }),
     );
+  }
+  if (req.method === "PUT" && path === "/routers/r-aruba") {
+    const mac = JSON.parse(raw).mac_address;
+    if (mac === DUP_MAC) {
+      res.writeHead(409);
+      return res.end(
+        JSON.stringify({
+          success: false,
+          message: `A router with MAC address '${mac}' already exists`,
+          data: {},
+        }),
+      );
+    }
+    statusAnswer = {
+      status: 200,
+      body: registered({
+        mac_address: mac,
+        shared_listener: sharedRaw({
+          available: true,
+          ap_mac: mac,
+          ap_mac_placeholder: false,
+          gaps: [],
+        }),
+      }),
+    };
+    res.writeHead(200);
+    return res.end(envelope({ ...ARUBA_ROUTER, mac_address: mac }));
   }
   res.writeHead(404);
   res.end(JSON.stringify({ success: false, message: `unexpected ${path}`, data: {} }));
@@ -796,6 +857,121 @@ console.log("\n5. MikroTik and Omada rows never call the Aruba routes");
     "Omada: no Aruba header badge (unchanged)",
     (await page.getByTestId("aruba-header-badge").count()) === 0,
   );
+  await page.close();
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n6. shared listener without an AP MAC: record it inline");
+const PLACEHOLDER_ROUTER = { ...ARUBA_ROUTER, macAddress: "02:5A:11:22:33:44" };
+{
+  denied = [];
+  statusAnswer = { status: 200, body: registered({ shared_listener: sharedRaw() }) };
+  const page = await open(PLACEHOLDER_ROUTER, "Record the access point's MAC");
+  const t = await text(page);
+  const input = page.locator("#aruba-ap-mac");
+  const save = page.getByRole("button", { name: "Save AP MAC" });
+  const puts = () => requests.filter((r) => r.method === "PUT");
+  check(
+    "no_ap_mac opens the field without a click",
+    (await page.getByTestId("aruba-ap-mac-editor").count()) === 1,
+  );
+  check(
+    "says to copy it from the AP's label, and what one wrong character costs",
+    t.includes(
+      "Copy it from the label on the access point. One wrong character and every guest sign-in is rejected.",
+    ),
+  );
+  check(
+    "the minted MAC is called a placeholder, not shown as the AP's",
+    t.includes("02:5A:11:22:33:44") && t.includes("is a placeholder"),
+    t,
+  );
+  check("Save is disabled while empty", await save.isDisabled());
+  await input.fill("02:5a:11:22:33:44");
+  check(
+    "a placeholder MAC is refused with a reason",
+    (await page.getByTestId("aruba-ap-mac-problem").innerText()).includes(
+      "No real access point has this MAC",
+    ),
+  );
+  check("Save stays disabled on a placeholder", await save.isDisabled());
+  await input.fill("54:F0:B1");
+  check(
+    "a malformed MAC is refused with the accepted forms",
+    (await page.getByTestId("aruba-ap-mac-problem").innerText()).includes("AA:BB:CC:DD:EE:FF"),
+  );
+  check("nothing was sent for refused input", puts().length === 0);
+
+  await input.fill(DUP_MAC.replace(/:/g, "").toLowerCase());
+  check(
+    "bare lower-case hex shows what will be saved",
+    (await page.getByTestId("aruba-ap-mac-normalised").innerText()).includes(DUP_MAC),
+  );
+  await save.click();
+  await page.getByTestId("aruba-ap-mac-error").waitFor({ timeout: 10_000 });
+  check(
+    "a 409 duplicate says another device has it",
+    (await page.getByTestId("aruba-ap-mac-error").innerText()) ===
+      "This MAC is already on another device.",
+  );
+  check(
+    "one PUT /routers/r-aruba carrying only the normalised mac_address",
+    puts().length === 1 &&
+      puts()[0].path === "/routers/r-aruba" &&
+      JSON.stringify(JSON.parse(puts()[0].body)) === JSON.stringify({ mac_address: DUP_MAC }),
+    JSON.stringify(puts()),
+  );
+  check(
+    "a refusal claims no success and keeps the field",
+    !(await page.evaluate(() => window.__toasts || [])).some((x) => x.kind === "success") &&
+      (await page.getByTestId("aruba-ap-mac-editor").count()) === 1,
+  );
+
+  requests = [];
+  await input.fill("54-f0-b1-c8-a9-0a");
+  await save.click();
+  await page.getByTestId("aruba-ap-mac-edit").waitFor({ timeout: 10_000 });
+  const t2 = await text(page);
+  const putAt = requests.findIndex((r) => r.method === "PUT");
+  check(
+    "dash form saved as upper case with colons",
+    putAt >= 0 && JSON.parse(requests[putAt].body).mac_address === REAL_AP_MAC,
+  );
+  check(
+    "the status read is fetched again after the save",
+    requests.some(
+      (r, i) => i > putAt && r.method === "GET" && r.path === "/platform/radius/nas/public/r-aruba",
+    ),
+  );
+  check(
+    "the gap is gone and the recorded MAC is shown",
+    !t2.includes("no AP MAC address on record") && t2.includes(`(${REAL_AP_MAC})`),
+    t2,
+  );
+  check(
+    "success is said once",
+    (await page.evaluate(() => window.__toasts || [])).some(
+      (x) => x.kind === "success" && x.msg.includes(REAL_AP_MAC),
+    ),
+  );
+  await page.getByTestId("aruba-ap-mac-edit").click();
+  check(
+    "a recorded MAC can be edited, and the edit can be cancelled",
+    (await page.getByTestId("aruba-ap-mac-editor").count()) === 1 &&
+      (await page.getByRole("button", { name: "Cancel" }).count()) === 1,
+  );
+  await page.close();
+}
+{
+  denied = ["routers.update"];
+  statusAnswer = { status: 200, body: registered({ shared_listener: sharedRaw() }) };
+  const page = await open(PLACEHOLDER_ROUTER, "Recording the AP MAC needs routers.update");
+  check(
+    "without routers.update: no field, no edit button",
+    (await page.locator("#aruba-ap-mac").count()) === 0 &&
+      (await page.getByTestId("aruba-ap-mac-edit").count()) === 0,
+  );
+  denied = [];
   await page.close();
 }
 

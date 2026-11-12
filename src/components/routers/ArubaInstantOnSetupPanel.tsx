@@ -48,11 +48,17 @@ import {
   type ArubaSetupStatus,
 } from "@/lib/aruba-instant-on-setup";
 import {
+  AP_MAC_LABEL_WARNING,
+  AP_MAC_PROBLEM_COPY,
   SHARED_ROTATE_CONFIRM,
+  apMacSaveErrorMessage,
   describeSharedListenerGap,
+  normaliseApMac,
   type ArubaSharedListener,
 } from "@/lib/aruba-shared-listener";
-import { requestErrorMessage } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
+import { routerKeys } from "@/hooks/useRouters";
+import { requestErrorMessage, requestErrorOf } from "@/services/api";
 import { arubaInstantOnService } from "@/services/aruba-instant-on.service";
 import { ArubaSpeedGatewaySection } from "@/components/routers/ArubaSpeedGatewaySection";
 import type { RouterDevice } from "@/types/router";
@@ -287,6 +293,157 @@ function Checklist({ setup, ready }: { setup: ArubaSetupStatus; ready: boolean }
 }
 
 /**
+ * Record (or correct) the access point's MAC on this device row, so the
+ * shared listener can match the AP's Called-Station-Id. Open by default
+ * while the backend reports `no_ap_mac`; behind "Edit AP MAC" otherwise.
+ *
+ * `PUT /routers/{id}` with `mac_address` only. That route is
+ * `routers.update`; without it the field is not offered at all. The value
+ * is normalised and checked here first (a placeholder MAC would leave the
+ * gap where it was), then the status read is refetched so the gap clears.
+ */
+function ApMacEditor({
+  routerId,
+  shared,
+  currentMac,
+}: {
+  routerId: string;
+  shared: ArubaSharedListener;
+  currentMac: string;
+}) {
+  const { can } = useAuth();
+  const qc = useQueryClient();
+  const missing = shared.gaps.includes("no_ap_mac");
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const parsed = normaliseApMac(value);
+
+  if (!can("routers.update")) {
+    return missing ? (
+      <p className="text-muted-foreground" data-testid="aruba-ap-mac-no-permission">
+        Recording the AP MAC needs routers.update, which your account does not hold.
+      </p>
+    ) : null;
+  }
+
+  if (!missing && !open) {
+    return (
+      <div>
+        <MButton
+          variant="ghost"
+          data-testid="aruba-ap-mac-edit"
+          onClick={() => {
+            setOpen(true);
+            setError(null);
+          }}
+        >
+          Edit AP MAC
+        </MButton>
+      </div>
+    );
+  }
+
+  async function save() {
+    if (!parsed.ok || saving) return;
+    if (
+      !missing &&
+      shared.apMac &&
+      parsed.mac !== shared.apMac &&
+      !window.confirm(
+        `Change this device's AP MAC from ${shared.apMac} to ${parsed.mac}?\n\nThe shared listener rejects every sign-in whose access point MAC does not match it.`,
+      )
+    )
+      return;
+    setSaving(true);
+    setError(null);
+    try {
+      await arubaInstantOnService.setApMac(routerId, parsed.mac);
+      toast.success(`AP MAC ${parsed.mac} recorded`);
+      setValue("");
+      setOpen(false);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: arubaSetupQueryKey(routerId) }),
+        qc.invalidateQueries({ queryKey: routerKeys.all }),
+      ]);
+    } catch (err) {
+      setError(apMacSaveErrorMessage(requestErrorOf(err)));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      className="space-y-2 rounded-lg border border-border p-3"
+      data-testid="aruba-ap-mac-editor"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
+      <label className="block font-medium text-foreground" htmlFor="aruba-ap-mac">
+        {missing ? "Record the access point's MAC" : "Access point MAC"}
+      </label>
+      {shared.apMacPlaceholder && (
+        <p className="text-muted-foreground">
+          The MAC on record now (<code>{currentMac || "—"}</code>) is a placeholder made when this
+          device was added without one. No real access point has it.
+        </p>
+      )}
+      <input
+        id="aruba-ap-mac"
+        className={`${M_INPUT} font-mono`}
+        placeholder="AA:BB:CC:DD:EE:FF"
+        autoComplete="off"
+        spellCheck={false}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setError(null);
+        }}
+      />
+      <p className="text-amber-700 dark:text-amber-400">{AP_MAC_LABEL_WARNING}</p>
+      {value.trim() !== "" && !parsed.ok && (
+        <p className="text-destructive" data-testid="aruba-ap-mac-problem">
+          {AP_MAC_PROBLEM_COPY[parsed.problem]}
+        </p>
+      )}
+      {parsed.ok && parsed.mac !== value.trim() && (
+        <p className="text-muted-foreground" data-testid="aruba-ap-mac-normalised">
+          Saved as <code>{parsed.mac}</code>
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-destructive" data-testid="aruba-ap-mac-error">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <MButton type="submit" disabled={!parsed.ok || saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save AP MAC
+        </MButton>
+        {!missing && (
+          <MButton
+            type="button"
+            variant="ghost"
+            disabled={saving}
+            onClick={() => {
+              setOpen(false);
+              setValue("");
+              setError(null);
+            }}
+          >
+            Cancel
+          </MButton>
+        )}
+      </div>
+    </form>
+  );
+}
+
+/**
  * The IP-independent alternative (cloud-guest `aruba_shared`): the hub's
  * shared Aruba listener on its own ports, one platform-wide secret, and the
  * venue identified by NAS-Identifier + AP MAC from inside each packet. For a
@@ -294,11 +451,15 @@ function Checklist({ setup, ready }: { setup: ArubaSetupStatus; ready: boolean }
  * until the backend reports no gaps, like the checklist above.
  */
 function SharedListenerSection({
+  routerId,
+  currentMac,
   shared,
   busy,
   onUse,
   onRotate,
 }: {
+  routerId: string;
+  currentMac: string;
   shared: ArubaSharedListener;
   busy: boolean;
   onUse: () => void;
@@ -330,6 +491,7 @@ function SharedListenerSection({
           ))}
         </ul>
       )}
+      <ApMacEditor routerId={routerId} shared={shared} currentMac={currentMac} />
       <Value label="Primary server" value={server?.host} />
       <Value label="Authentication port" value={server ? String(server.authPort) : null} />
       <Value label="Accounting port" value={server ? String(server.accountingPort) : null} />
@@ -597,6 +759,8 @@ export function ArubaInstantOnSetupPanel({ router }: { router: RouterDevice }) {
         {registration}
         {s.sharedListener && (
           <SharedListenerSection
+            routerId={router.id}
+            currentMac={router.macAddress}
             shared={s.sharedListener}
             busy={busy}
             onUse={() => void adoptShared()}

@@ -115,6 +115,14 @@ export const arubaInstantOnService = {
     return toArubaSharedListener(data);
   },
 
+  /** Record the access point's MAC on the device row: the shared listener
+   * matches it against Called-Station-Id. `PUT /routers/{id}` with only
+   * `mac_address` (the backend upper-cases it and refuses, 409, a MAC
+   * another live device holds). `mac` must already be `normaliseApMac`'d. */
+  async setApMac(routerId: string, mac: string): Promise<void> {
+    await api.put(`/routers/${routerId}`, { mac_address: mac });
+  },
+
   /** The platform-wide shared Aruba secret: fingerprint only. */
   async getSharedSecret(): Promise<ArubaSharedSecretStatus> {
     const { data } = await api.get("/platform/radius/aruba-shared");

@@ -2671,7 +2671,7 @@ jobs:
       - name: aruba instant on setup panel
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-setup-panel" 82 \
+            "aruba-setup-panel" 100 \
             "aruba setup panel: all checks passed" \
             bun run test:aruba-setup-panel
       # Aruba Instant On without a static IP: the shared RADIUS listener
@@ -2681,7 +2681,7 @@ jobs:
       - name: aruba instant on shared listener
         run: |
           ./scripts/ci-gated-test.sh \
-            "aruba-shared-listener" 25 \
+            "aruba-shared-listener" 62 \
             "aruba shared listener: all checks passed" \
             bun run test:aruba-shared-listener
       # Router Fleet's "Add Instant On site" / "Remove this Instant On site"
