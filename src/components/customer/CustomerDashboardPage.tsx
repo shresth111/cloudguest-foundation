@@ -63,6 +63,7 @@ import {
 import { useVenueIssuesStore } from "@/components/customer/venueIssues";
 import { WanStatusCardView } from "@/components/customer/dashboard/WanStatusCard";
 import { DeviceStatusCardView } from "@/components/customer/dashboard/DeviceStatusCard";
+import { RouterCpuCard } from "@/components/customer/dashboard/RouterCpuCard";
 import {
   PeakHoursHeatmapCard,
   GuestMixCard,
@@ -852,6 +853,19 @@ export function CustomerDashboardPage() {
               )}
             </div>
           )}
+          {/* 10. Router CPU over the page's range, MikroTik routers only
+              (owner's call). Outside the cards/map toggle so it shows in
+              both views; renders nothing at a venue with no MikroTik, and
+              makes no request at an Aruba-only or controller-only one. */}
+          <SectionBoundary name="router-cpu" fallback={sectionFallback}>
+            <RouterCpuCard
+              locationId={locationId}
+              range={range}
+              rangeLabel={rangeLabel}
+              enabled={!nasOnlyVenue && !controllerVenue}
+              onOpenDevices={() => handleNav("devices")}
+            />
+          </SectionBoundary>
         </main>
       </div>
       <ChangePasswordDialog open={changePwOpen} onOpenChange={setChangePwOpen} />

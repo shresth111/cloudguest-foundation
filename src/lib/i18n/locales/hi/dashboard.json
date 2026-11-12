@@ -258,5 +258,24 @@
     "devicesConnected": "जुड़े हुए devices",
     "wifiNetworks": "WiFi networks",
     "noneListed": "कोई नहीं"
+  },
+  "routerCpu": {
+    "title": "राउटर CPU",
+    "subtitle": "प्रोसेसर का उपयोग, {{range}}",
+    "openDevices": "डिवाइस →",
+    "error": "राउटर CPU लोड नहीं हो सका।",
+    "gaps": "खाली जगह का मतलब है कि उस समय रीडिंग नहीं ली गई, उपयोग शून्य नहीं था।",
+    "high": "ज़्यादा लोड",
+    "memory": "मेमोरी {{value}}%",
+    "memoryNotReported": "मेमोरी की जानकारी नहीं मिली",
+    "updated": "{{when}} अपडेट हुआ",
+    "notReported": "जानकारी नहीं मिली",
+    "lastReading": "आख़िरी रीडिंग {{when}}",
+    "noReadingYet": "इस राउटर से अभी तक कोई रीडिंग नहीं मिली",
+    "noPoints": "इस अवधि में कोई रीडिंग नहीं।",
+    "chartLabel": "{{name}} के प्रोसेसर का उपयोग समय के साथ",
+    "noReading": "कोई रीडिंग नहीं",
+    "peak": "सबसे ज़्यादा",
+    "average": "औसत"
   }
 }

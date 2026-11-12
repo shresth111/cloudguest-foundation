@@ -1310,7 +1310,7 @@ jobs:
       - name: customer dashboard fetches each read once
         run: |
           ./scripts/ci-gated-test.sh \
-            "customer-dashboard-fetch-count" 16 "all checks passed" \
+            "customer-dashboard-fetch-count" 18 "all checks passed" \
             bun run test:dashboard-fetch-count
 
       # Open Hours persists only on an explicit Save: dirty must mean a real
