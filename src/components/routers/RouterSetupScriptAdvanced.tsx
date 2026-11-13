@@ -1151,16 +1151,41 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
           ⚠ Before you start — check this first if the router is brand new
         </p>
         <p className="mt-1 text-muted-foreground">
-          Most new MikroTik routers ship <strong>locked</strong> (RouterOS "device-mode") — they
-          won't let this script's{" "}
-          <code className="rounded bg-background px-1 py-0.5">/tool fetch</code>/scheduler commands
-          run at all until unlocked once, by hand,{" "}
-          <strong>with the router physically in front of you</strong>: power it on, and while it's
-          booting hold the reset button for about 5 seconds. This{" "}
-          <strong>cannot be done remotely, and cannot be done after you've left the site</strong> —
-          do it now if this is a fresh unit, especially one going somewhere you won't be able to
-          physically reach later (ceiling mount, locked cabinet, shipped ahead). If a piece below
-          fails with a permission-style error and this step was skipped, that's almost always why.
+          Run these two in the router terminal <strong>before</strong> pasting or importing
+          anything. Both were the cause of a failed install on 13 Nov 2026.
+        </p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5 text-muted-foreground">
+          <li>
+            <code className="rounded bg-background px-1 py-0.5">/system device-mode print</code> —{" "}
+            <strong>mode</strong> must read <strong>advanced</strong>, with hotspot, scheduler and
+            fetch all <strong>yes</strong>. Most new routers ship in <strong>home</strong> mode,
+            which blocks all three. Fix:{" "}
+            <code className="rounded bg-background px-1 py-0.5">
+              /system device-mode update mode=advanced
+            </code>
+            , then <strong>unplug the power and plug it back in within 5 minutes</strong>.{" "}
+            <code>/system reboot</code> does not confirm it. This needs someone at the router: it{" "}
+            <strong>cannot be done remotely</strong>.
+          </li>
+          <li>
+            <code className="rounded bg-background px-1 py-0.5">/ip hotspot print</code> — must{" "}
+            <strong>not</strong> say <strong>&quot;bad command name hotspot&quot;</strong>. On{" "}
+            <strong>hAP lite</strong> and other <strong>smips</strong> routers, RouterOS 7.20+ ships
+            hotspot as a separate package, so it is missing out of the box. Install it on the router
+            itself, then <code>/system reboot</code>:
+            <code className="mt-1 block break-all rounded bg-background px-1 py-0.5">
+              /tool fetch url=(&quot;https://download.mikrotik.com/routeros/&quot; . [/system
+              package get routeros version] . &quot;/hotspot-&quot; . [/system package get routeros
+              version] . &quot;-&quot; . [/system resource get architecture-name] .
+              &quot;.npk&quot;)
+            </code>
+            Without it, <code>/import</code> stops with a bare{" "}
+            <strong>&quot;syntax error (line N …)&quot;</strong> and changes nothing.
+          </li>
+        </ol>
+        <p className="mt-1 text-muted-foreground">
+          Run <code>/import</code> <strong>without</strong> <code>verbose=yes</code>. Verbose mode
+          keeps going after every error, so the safety stops in the script never stop anything.
         </p>
       </div>
 
