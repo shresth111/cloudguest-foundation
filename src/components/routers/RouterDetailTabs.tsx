@@ -4504,8 +4504,8 @@ function buildWeightedPccPlan(
  * no address" and "we never looked" into one indistinguishable value.
  * This file has been burned by exactly that before (`gateway=0.0.0.0`
  * passing a non-empty check). So:
- *  - address read           -> `public_ip_address` is sent (WAN IPv4, or
- *    api.ipify.org when that WAN is RFC1918 behind CPE/CGNAT).
+ *  - public address read    -> `public_ip_address` is sent. An RFC1918 WAN
+ *    (CPE/CGNAT) omits it, and the platform uses the request's source.
  *  - no active default route
  *  - route found, interface unresolved
  *  - interface found, no address
@@ -4654,13 +4654,19 @@ function buildHeartbeatStatements(opts: {
     `:if ($hbDefCount = 0) do={ :log warning "cloudguest-hb: no ACTIVE default route -- public_ip_address not sent" }`,
     `:if ($hbDefCount > 0 && $hbIf = "") do={ :log warning "cloudguest-hb: default route interface unresolved -- public_ip_address not sent" }`,
     `:if ($hbIf != "" && $hbIp = "") do={ :log warning ("cloudguest-hb: uplink " . $hbIf . " has no IPv4 -- public_ip_address not sent") }`,
-    // -- 4b. CGNAT / double-NAT: WAN is RFC1918, ask the internet --------
-    // Uplink address stays useful on-device; venue egress needs ipify when
-    // WAN is private (router-originated fetch, same path as heartbeat).
+    // -- 4b. CGNAT / double-NAT: WAN is RFC1918 -> send nothing ----------
+    // A public uplink address is reported as-is. A private one (behind ISP
+    // CPE/CGNAT) is OMITTED, and the platform takes the heartbeat
+    // request's own source address instead
+    // (`router_agent/service.py`: `public_ip_address = source_ip_address`
+    // when the key is absent) -- the request left through that same
+    // egress, so its source IS the answer. This used to ask api.ipify.org
+    // first: a second HTTPS handshake every 5 minutes, which on a hAP lite
+    // (650MHz MIPS, 32MB) is real load for a value the server already has.
+    // Verified on prod 2026-11-14: a router sending no public_ip_address
+    // shows its correct public IP in Master.
     `:local hbPub ""`,
     `:if ($hbIp != "") do={ :set hbPub $hbIp }`,
-    `:if ($hbPub != "") do={ :if ([:pick $hbPub 0 3] = "10." || [:pick $hbPub 0 8] = "192.168.") do={ :set hbPub "" } }`,
-    `:if ($hbPub = "" && $hbIp != "" && $hbDefCount > 0) do={ :do { :set hbPub [:pick ([/tool fetch url="https://api.ipify.org" mode=https output=user as-value]->"data") 0 15] } on-error={ :log warning "cloudguest-hb: /tool fetch to api.ipify.org failed" } }`,
     `:if ($hbPub != "") do={ :if ([:pick $hbPub 0 3] = "10." || [:pick $hbPub 0 8] = "192.168.") do={ :set hbPub "" } }`,
     // -- 5. build the body, omitting what was not read ------------------
     `:local hbJson "{${mgmtPair}}"`,

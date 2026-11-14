@@ -1751,20 +1751,17 @@ for (const [variant, opts] of VARIANTS) {
       const master = (
         un.match(/on-error=\{ :log warning "cloudguest-hb: \/tool fetch to master failed --/g) ?? []
       ).length;
-      const ipify = (
-        un.match(
-          /on-error=\{ :log warning "cloudguest-hb: \/tool fetch to api\.ipify\.org failed/g,
-        ) ?? []
-      ).length;
       // Immediate paste + scheduler on-event each carry the full program.
-      return master === 2 && ipify === 2;
+      return master === 2;
     })(),
     "a fetch failure would be completely silent",
   );
+  // A private WAN is left to the platform, which reads the heartbeat's own
+  // source address: no third-party HTTPS lookup on the device.
   check(
-    `${variant}: private WAN triggers an api.ipify.org egress lookup`,
-    all.includes("api.ipify.org"),
-    "missing",
+    `${variant}: no api.ipify.org lookup on the device`,
+    !all.includes("api.ipify.org"),
+    "a second HTTPS handshake every 5 minutes for a value the server already has",
   );
   // The reported run-count=0 / next-run stuck weeks in the past.
   check(
