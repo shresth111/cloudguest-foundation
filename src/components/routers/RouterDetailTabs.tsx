@@ -3583,6 +3583,8 @@ export function chunksToRouterOsScript(
     `# CloudGuest MikroTik provisioning script${routerName ? ` -- ${routerName}` : ""}`,
     `# Generated ${new Date().toISOString()}`,
     `# Upload via WebFig/WinBox Files, then run: /import file=<this-filename>.rsc`,
+    `# Do NOT add verbose=yes: it runs every line even after an error, so the`,
+    `# safety stops in this file never stop anything (measured live 2026-11-13).`,
     "",
     // HOW TO READ THE RUN, IN THE FILE, BECAUSE THE FILE TRAVELS ALONE.
     //
@@ -3677,6 +3679,27 @@ export function chunksToRouterOsScript(
       "",
     );
   }
+  lines.push(
+    // BEFORE THE IMPORT, BECAUSE THE FILE CANNOT CHECK THIS ITSELF.
+    //
+    // Measured live 2026-11-13 on a hAP lite (smips, RouterOS 7.20.8):
+    // from 7.20 the smips build ships hotspot as a SEPARATE package. With
+    // it missing, `/ip hotspot` is an unknown menu, and because RouterOS
+    // parses the whole file first, the import dies with a bare
+    // "syntax error (line N column M)" on the first hotspot property --
+    // before the preflight on line 1 ever runs. So the check has to be a
+    // step the operator runs BEFORE /import, named in the file itself.
+    `# BEFORE YOU IMPORT -- run these two and fix anything that is off:`,
+    `#   /system device-mode print   -> mode must be advanced (hotspot, scheduler`,
+    `#      and fetch = yes). If not: /system device-mode update mode=advanced,`,
+    `#      then UNPLUG THE POWER within 5 minutes. /system reboot does not confirm it.`,
+    `#   /ip hotspot print           -> must NOT say "bad command name hotspot".`,
+    `#      hAP lite and other smips boards on 7.20+ ship hotspot as a separate`,
+    `#      package. If it is missing, install it, then /system reboot:`,
+    `#      /tool fetch url=("https://download.mikrotik.com/routeros/" . [/system package get routeros version] . "/hotspot-" . [/system package get routeros version] . "-" . [/system resource get architecture-name] . ".npk")`,
+    `# A "syntax error (line N ...)" on /import almost always means hotspot is missing.`,
+    "",
+  );
   // PROGRESS MARKERS, THE SAME ONES THE ONE-LINE PASTE HAS HAD ALL ALONG.
   //
   // `/import` ABORTS ON THE FIRST ERROR AND DOES NOT SAY WHICH CHUNK IT WAS
