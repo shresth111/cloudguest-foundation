@@ -5,6 +5,7 @@ import {
   Building2,
   MapPin,
   CreditCard,
+  Receipt,
   Server,
   Router,
   Plug,
@@ -57,6 +58,14 @@ export const MASTER_NAV: MasterNavItem[] = [
   },
   { to: "/master/locations", label: "All Locations", icon: MapPin, cap: "locations" },
   { to: "/master/billing", label: "Subscriptions & Billing", icon: CreditCard, cap: "billing" },
+  // Manual Quotation / Tax Invoice generator: typed by staff for anyone,
+  // downloaded as a PDF, never sent by the platform.
+  {
+    to: "/master/billing-documents",
+    label: "Invoices & Quotations",
+    icon: Receipt,
+    cap: "billing-documents",
+  },
   // Per-message prices for Guest Marketing credits (spec §13.3/§13.10).
   {
     to: "/master/marketing-pricing",
@@ -126,6 +135,7 @@ const MASTER_NAV_GROUPS: { label: string; items: string[] }[] = [
       "/master/channel-partners",
       "/master/locations",
       "/master/billing",
+      "/master/billing-documents",
       "/master/marketing-pricing",
     ],
   },
@@ -183,6 +193,9 @@ const CAP_PERMISSIONS: Record<string, string[]> = {
   "channel-partners": ["channel_partners.read"],
   locations: ["locations.read"],
   billing: ["billing.read"],
+  /** `/master/billing-documents` -- every route is `billing_documents.*`
+   * pinned to GLOBAL; write buttons on the page check their own keys. */
+  "billing-documents": ["billing_documents.read"],
   nas: ["radius.read"],
   routers: ["routers.read"],
   /** `/master/integrations` -- the cross-tenant view of every customer's own

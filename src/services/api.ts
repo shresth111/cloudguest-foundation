@@ -288,7 +288,10 @@ export function isEstateWideMasterPath(pathname: string): boolean {
     path === "/master/nas" ||
     path === "/master/routers" ||
     path.startsWith("/master/routers/") ||
-    path === "/master/audit"
+    path === "/master/audit" ||
+    // Invoices & Quotations: its "fill from a customer" picker must list
+    // every organization, not just the one picked in the scope switcher.
+    path === "/master/billing-documents"
   );
 }
 
