@@ -34,6 +34,7 @@ import {
   buildRouterSetupScriptChunks,
   chunksToMarkdown,
   chunksToRouterOsScript,
+  chunksToRouterOsScriptParts,
   chunksToSingleLineScript,
   validateSetupScriptChunks,
   SETUP_SCRIPT_VALIDATOR_CHECKS,
@@ -1890,6 +1891,37 @@ function RouterSetupScriptPanel({ router }: { router: RouterDevice }) {
                 title="Download a plain RouterOS script -- upload via WebFig Files, then run /import file=... (no terminal paste needed)"
               >
                 <Download className="h-3 w-3" /> Download .rsc
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const parts = chunksToRouterOsScriptParts(chunks, router.locationName, 3);
+                  const base = routerRscFilename(router.locationName, router.id).replace(
+                    /\.rsc$/,
+                    "",
+                  );
+                  const names: string[] = [];
+                  for (const [i, text] of parts.entries()) {
+                    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    const name = `${base}-part${i + 1}of${parts.length}.rsc`;
+                    a.download = name;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    names.push(name);
+                    // Browsers drop rapid back-to-back downloads.
+                    await new Promise((r) => setTimeout(r, 400));
+                  }
+                  toast.success(
+                    `Downloaded ${names.length} parts -- upload all, then /import part 1, then 2, then 3`,
+                  );
+                }}
+                className="flex items-center gap-1 rounded-lg border border-primary bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
+                title="Same script in 3 smaller files, for routers with little RAM (hAP lite and other 32MB boards ran out of memory importing the full file). Import part 1, wait for 'PART 1/3 DONE', then part 2, then part 3."
+              >
+                <Download className="h-3 w-3" /> Download in 3 parts (hAP lite)
               </button>
               <button
                 type="button"

@@ -3578,9 +3578,17 @@ export function chunksToMarkdown(chunks: RouterSetupScriptChunk[], routerName?: 
 export function chunksToRouterOsScript(
   chunks: RouterSetupScriptChunk[],
   routerName?: string,
+  part?: RscPart,
 ): string {
   const lines = [
     `# CloudGuest MikroTik provisioning script${routerName ? ` -- ${routerName}` : ""}`,
+    ...(part
+      ? [
+          `# PART ${part.n} OF ${part.of} -- chunks ${part.from + 1}-${part.to} of ${chunks.length}.`,
+          `# Import the parts IN ORDER, one at a time. Start the next part only after`,
+          `# this one prints '${SINGLE_LINE_MARKER_PREFIX} ${part.n === part.of ? "COMPLETE" : `PART ${part.n}/${part.of} DONE`}'.`,
+        ]
+      : []),
     `# Generated ${new Date().toISOString()}`,
     `# Upload via WebFig/WinBox Files, then run: /import file=<this-filename>.rsc`,
     `# Do NOT add verbose=yes: it runs every line even after an error, so the`,
@@ -3745,6 +3753,7 @@ export function chunksToRouterOsScript(
   // count, a portal filename) inside a double-quoted RouterOS string.
   const total = chunks.length;
   chunks.forEach((chunk, i) => {
+    if (part && (i < part.from || i >= part.to)) return;
     const n = i + 1;
     const label = escapeForRouterOsString(chunk.label);
     lines.push(
@@ -3759,8 +3768,69 @@ export function chunksToRouterOsScript(
   // scrolled past" is the only evidence of success available to someone
   // watching an import, and that is precisely the evidence that was wrong
   // every time this went wrong.
+  if (part && part.n < part.of) {
+    lines.push(
+      ...markerStatements(
+        `${SINGLE_LINE_MARKER_PREFIX} PART ${part.n}/${part.of} DONE -- chunks ${part.from + 1}-${part.to} ran. Now import part ${part.n + 1}.`,
+      ),
+      "",
+    );
+    return lines.join("\n");
+  }
   lines.push(...chunksToCompletionMarkerStatements(chunks), "");
   return lines.join("\n");
+}
+
+/** One file of a split `.rsc`: chunks `[from, to)` of the full list. */
+export type RscPart = { n: number; of: number; from: number; to: number };
+
+/** THE SAME SCRIPT, IN SMALLER FILES, FOR ROUTERS WITH LITTLE RAM.
+ *
+ * Measured live 2026-11-13 on a hAP lite (smips, 32MB RAM, RouterOS
+ * 7.20.8): importing the full ~100KB `.rsc` ran the router out of memory
+ * TWICE ("out of memory condition was detected", "kernel failure in
+ * previous boot"). The second crash rebooted it mid-import, inside the
+ * WireGuard chunk, leaving an interface with no peer and no address and
+ * every chunk after it unapplied. RouterOS parses a whole file before
+ * running line 1, so the file size is what costs memory.
+ *
+ * Splitting is safe because every chunk already stands alone: the console
+ * runs each entered line as its own program and the generator never
+ * shares state across lines (no `:global`), which is the same property
+ * the chunk-by-chunk paste depends on. Chunk numbering stays global
+ * (`n/N` of the FULL list) so markers read the same as an unsplit run, and
+ * only the last part carries `COMPLETE`. Each part gets the full header,
+ * because each file is opened and imported on its own.
+ *
+ * Cut points balance by size, never inside a chunk. */
+export function chunksToRouterOsScriptParts(
+  chunks: RouterSetupScriptChunk[],
+  routerName: string | undefined,
+  partCount = 3,
+): string[] {
+  const count = Math.max(1, Math.min(partCount, chunks.length));
+  if (count === 1) return [chunksToRouterOsScript(chunks, routerName)];
+  const sizes = chunks.map((c) => c.script.length + c.label.length);
+  const total = sizes.reduce((a, b) => a + b, 0);
+  const cuts: number[] = [];
+  let acc = 0;
+  for (let i = 0; i < chunks.length && cuts.length < count - 1; i++) {
+    acc += sizes[i];
+    const remainingChunks = chunks.length - (i + 1);
+    const remainingParts = count - 1 - cuts.length;
+    if (acc >= (total * (cuts.length + 1)) / count || remainingChunks === remainingParts) {
+      cuts.push(i + 1);
+    }
+  }
+  const bounds = [0, ...cuts, chunks.length];
+  return bounds.slice(0, -1).map((from, k) =>
+    chunksToRouterOsScript(chunks, routerName, {
+      n: k + 1,
+      of: count,
+      from,
+      to: bounds[k + 1],
+    }),
+  );
 }
 
 /** Flattens every chunk into a single RouterOS-legal line -- a third way to
