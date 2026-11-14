@@ -75,6 +75,7 @@ import { Route as MasterIndexRouteImport } from './routes/master.index'
 import { Route as MasterAnalyticsRouteImport } from './routes/master.analytics'
 import { Route as MasterAuditRouteImport } from './routes/master.audit'
 import { Route as MasterBillingRouteImport } from './routes/master.billing'
+import { Route as MasterBillingDocumentsRouteImport } from './routes/master.billing-documents'
 import { Route as MasterChannelPartnersRouteImport } from './routes/master.channel-partners'
 import { Route as MasterConsoleRouteImport } from './routes/master.console'
 import { Route as MasterCustomersRouteImport } from './routes/master.customers'
@@ -534,6 +535,11 @@ const MasterAuditRoute = MasterAuditRouteImport.update({
 const MasterBillingRoute = MasterBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
+  getParentRoute: () => MasterRoute,
+} as any)
+const MasterBillingDocumentsRoute = MasterBillingDocumentsRouteImport.update({
+  id: '/billing-documents',
+  path: '/billing-documents',
   getParentRoute: () => MasterRoute,
 } as any)
 const MasterChannelPartnersRoute = MasterChannelPartnersRouteImport.update({
@@ -1326,6 +1332,7 @@ export interface FileRoutesByFullPath {
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
+  '/master/billing-documents': typeof MasterBillingDocumentsRoute
   '/master/channel-partners': typeof MasterChannelPartnersRoute
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
@@ -1518,6 +1525,7 @@ export interface FileRoutesByTo {
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
+  '/master/billing-documents': typeof MasterBillingDocumentsRoute
   '/master/channel-partners': typeof MasterChannelPartnersRoute
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
@@ -1714,6 +1722,7 @@ export interface FileRoutesById {
   '/master/analytics': typeof MasterAnalyticsRoute
   '/master/audit': typeof MasterAuditRoute
   '/master/billing': typeof MasterBillingRoute
+  '/master/billing-documents': typeof MasterBillingDocumentsRoute
   '/master/channel-partners': typeof MasterChannelPartnersRoute
   '/master/console': typeof MasterConsoleRoute
   '/master/customers': typeof MasterCustomersRoute
@@ -1912,6 +1921,7 @@ export interface FileRouteTypes {
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
+    | '/master/billing-documents'
     | '/master/channel-partners'
     | '/master/console'
     | '/master/customers'
@@ -2104,6 +2114,7 @@ export interface FileRouteTypes {
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
+    | '/master/billing-documents'
     | '/master/channel-partners'
     | '/master/console'
     | '/master/customers'
@@ -2299,6 +2310,7 @@ export interface FileRouteTypes {
     | '/master/analytics'
     | '/master/audit'
     | '/master/billing'
+    | '/master/billing-documents'
     | '/master/channel-partners'
     | '/master/console'
     | '/master/customers'
@@ -2958,6 +2970,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/master/billing'
       preLoaderRoute: typeof MasterBillingRouteImport
+      parentRoute: typeof MasterRoute
+    }
+    '/master/billing-documents': {
+      id: '/master/billing-documents'
+      path: '/billing-documents'
+      fullPath: '/master/billing-documents'
+      preLoaderRoute: typeof MasterBillingDocumentsRouteImport
       parentRoute: typeof MasterRoute
     }
     '/master/channel-partners': {
@@ -4144,6 +4163,7 @@ interface MasterRouteChildren {
   MasterAnalyticsRoute: typeof MasterAnalyticsRoute
   MasterAuditRoute: typeof MasterAuditRoute
   MasterBillingRoute: typeof MasterBillingRoute
+  MasterBillingDocumentsRoute: typeof MasterBillingDocumentsRoute
   MasterChannelPartnersRoute: typeof MasterChannelPartnersRoute
   MasterConsoleRoute: typeof MasterConsoleRoute
   MasterCustomersRoute: typeof MasterCustomersRoute
@@ -4167,6 +4187,7 @@ const MasterRouteChildren: MasterRouteChildren = {
   MasterAnalyticsRoute: MasterAnalyticsRoute,
   MasterAuditRoute: MasterAuditRoute,
   MasterBillingRoute: MasterBillingRoute,
+  MasterBillingDocumentsRoute: MasterBillingDocumentsRoute,
   MasterChannelPartnersRoute: MasterChannelPartnersRoute,
   MasterConsoleRoute: MasterConsoleRoute,
   MasterCustomersRoute: MasterCustomersRoute,
