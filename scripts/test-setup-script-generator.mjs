@@ -836,6 +836,7 @@ writeFileSync(
     `export { buildRouterSetupScriptChunks } from "@/components/routers/RouterDetailTabs";`,
     `export { chunksToSingleLineScript } from "@/components/routers/RouterDetailTabs";`,
     `export { chunksToRouterOsScript } from "@/components/routers/RouterDetailTabs";`,
+    `export { chunksToRouterOsScriptParts } from "@/components/routers/RouterDetailTabs";`,
     `export { validateSetupScriptChunks } from "@/components/routers/RouterDetailTabs";`,
     // Sections 8 below assert the Master-console panel's "what a
     // re-Generate breaks" table against what the generator ACTUALLY
@@ -912,6 +913,7 @@ const {
   buildRouterSetupScriptChunks,
   chunksToSingleLineScript,
   chunksToRouterOsScript,
+  chunksToRouterOsScriptParts,
   validateSetupScriptChunks,
   SECRET_REPAIR,
   rotatingSecrets,
@@ -10541,6 +10543,68 @@ console.log("\n-- 21. leftover factory LAN detected by address, reported not rem
     "factory LAN: skipped when the venue's own LAN is 192.168.88.x",
     !cleanup("192.168.88.1").includes("stale88"),
     "there the address and network are the platform's own, and the warning would be a lie",
+  );
+}
+
+// ---------------------------------------------------------------------
+// Split .rsc for low-RAM routers (hAP lite OOM'd importing the full file,
+// 2026-11-13). Same chunks, same global numbering, COMPLETE only at the end.
+// ---------------------------------------------------------------------
+{
+  const whole = chunksToRouterOsScript(fullChunks, "lobby router");
+  const parts = chunksToRouterOsScriptParts(fullChunks, "lobby router", 3);
+  const total = fullChunks.length;
+  check("split .rsc: three parts", parts.length === 3, `got ${parts.length}`);
+  const bodyOf = (text) =>
+    text
+      .split("\n")
+      .filter((l) => l && !l.startsWith("#"))
+      .filter((l) => !l.includes("PART ") && !l.includes(" COMPLETE"))
+      .join("\n");
+  check(
+    "split .rsc: the parts together carry exactly the full script's commands, in order",
+    parts.map(bodyOf).join("\n") === bodyOf(whole),
+    "a chunk was dropped, duplicated or reordered by the split",
+  );
+  check(
+    "split .rsc: every part is well under the full file's size",
+    parts.every((p) => p.length < whole.length * 0.6),
+    parts.map((p) => p.length).join(" / ") + ` of ${whole.length}`,
+  );
+  check(
+    "split .rsc: only the last part prints COMPLETE",
+    // The header's own instructions mention COMPLETE in a `#` comment; what
+    // matters is that no part but the last PRINTS it.
+    !parts[0].includes(`:put "${SINGLE_LINE_MARKER_PREFIX} COMPLETE`) &&
+      !parts[1].includes(`:put "${SINGLE_LINE_MARKER_PREFIX} COMPLETE`) &&
+      parts[2].includes(`:put "${SINGLE_LINE_MARKER_PREFIX} COMPLETE -- all ${total} chunk(s) ran`),
+  );
+  check(
+    "split .rsc: parts 1 and 2 end with a PART n/3 DONE marker naming the next part",
+    parts[0].includes(`${SINGLE_LINE_MARKER_PREFIX} PART 1/3 DONE`) &&
+      parts[0].includes("Now import part 2") &&
+      parts[1].includes(`${SINGLE_LINE_MARKER_PREFIX} PART 2/3 DONE`),
+  );
+  check(
+    "split .rsc: chunk numbering stays global (n/N of the full list)",
+    parts[2].includes(`${total}/${total} START`) && !parts[0].includes(`${total}/${total} START`),
+  );
+  check(
+    "split .rsc: part 1 starts with the preflight, so a blocked router stops before any change",
+    /### cloudguest 1\/\d+ START Preflight/.test(parts[0]),
+  );
+  check(
+    "split .rsc: every part carries the full pre-import header",
+    parts.every((p) => p.includes("BEFORE YOU IMPORT") && p.includes("Do NOT add verbose=yes")),
+  );
+  check(
+    "split .rsc: each part header says which part it is",
+    parts.every((p, i) => p.includes(`# PART ${i + 1} OF 3`)),
+  );
+  check(
+    "split .rsc: partCount 1 is the unsplit file",
+    chunksToRouterOsScriptParts(fullChunks, "lobby router", 1)[0].replace(/# Generated .*/, "") ===
+      whole.replace(/# Generated .*/, ""),
   );
 }
 
